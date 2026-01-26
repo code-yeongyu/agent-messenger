@@ -69,9 +69,7 @@ test('SlackMessageSchema validates with optional fields', () => {
     type: 'message',
     thread_ts: '1234567890.123456',
     reply_count: 5,
-    replies: [
-      { user: 'U123456', ts: '1234567890.123456' },
-    ],
+    replies: [{ user: 'U123456', ts: '1234567890.123456' }],
     edited: {
       user: 'U123456',
       ts: '1234567890.123456',
@@ -204,7 +202,7 @@ test('ConfigSchema validates correct data', () => {
   const validConfig = {
     current_workspace: 'T123456',
     workspaces: {
-      'T123456': {
+      T123456: {
         workspace_id: 'T123456',
         workspace_name: 'my-workspace',
         token: 'xoxb-...',
@@ -219,7 +217,7 @@ test('ConfigSchema validates with null current_workspace', () => {
   const validConfig = {
     current_workspace: null,
     workspaces: {
-      'T123456': {
+      T123456: {
         workspace_id: 'T123456',
         workspace_name: 'my-workspace',
         token: 'xoxb-...',
@@ -234,7 +232,7 @@ test('ConfigSchema rejects invalid workspace credentials', () => {
   const invalidConfig = {
     current_workspace: 'T123456',
     workspaces: {
-      'T123456': {
+      T123456: {
         workspace_id: 'T123456',
       },
     },

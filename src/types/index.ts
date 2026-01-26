@@ -99,16 +99,20 @@ export const SlackChannelSchema = z.object({
   is_archived: z.boolean(),
   created: z.number(),
   creator: z.string(),
-  topic: z.object({
-    value: z.string(),
-    creator: z.string(),
-    last_set: z.number(),
-  }).optional(),
-  purpose: z.object({
-    value: z.string(),
-    creator: z.string(),
-    last_set: z.number(),
-  }).optional(),
+  topic: z
+    .object({
+      value: z.string(),
+      creator: z.string(),
+      last_set: z.number(),
+    })
+    .optional(),
+  purpose: z
+    .object({
+      value: z.string(),
+      creator: z.string(),
+      last_set: z.number(),
+    })
+    .optional(),
 })
 
 export const SlackMessageSchema = z.object({
@@ -119,14 +123,20 @@ export const SlackMessageSchema = z.object({
   type: z.string(),
   thread_ts: z.string().optional(),
   reply_count: z.number().optional(),
-  replies: z.array(z.object({
-    user: z.string(),
-    ts: z.string(),
-  })).optional(),
-  edited: z.object({
-    user: z.string(),
-    ts: z.string(),
-  }).optional(),
+  replies: z
+    .array(
+      z.object({
+        user: z.string(),
+        ts: z.string(),
+      })
+    )
+    .optional(),
+  edited: z
+    .object({
+      user: z.string(),
+      ts: z.string(),
+    })
+    .optional(),
 })
 
 export const SlackUserSchema = z.object({
@@ -137,12 +147,14 @@ export const SlackUserSchema = z.object({
   is_owner: z.boolean(),
   is_bot: z.boolean(),
   is_app_user: z.boolean(),
-  profile: z.object({
-    email: z.string().optional(),
-    phone: z.string().optional(),
-    title: z.string().optional(),
-    status_text: z.string().optional(),
-  }).optional(),
+  profile: z
+    .object({
+      email: z.string().optional(),
+      phone: z.string().optional(),
+      title: z.string().optional(),
+      status_text: z.string().optional(),
+    })
+    .optional(),
 })
 
 export const SlackReactionSchema = z.object({
