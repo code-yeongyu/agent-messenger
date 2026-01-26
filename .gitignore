@@ -1,15 +1,31 @@
-.sisyphus
+# Dependencies
 node_modules/
+
+# Build output
 dist/
+
+# Credentials
+.config/agent-slack/
+
+# Logs
 *.log
-.env
-.env.local
+npm-debug.log*
+
+# OS files
 .DS_Store
+Thumbs.db
+
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
-.cache/
+
+# Test coverage
 coverage/
 
+# Environment
+.env
+.env.local
+
+.sisyphus
