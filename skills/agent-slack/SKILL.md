@@ -89,6 +89,11 @@ agent-slack message search "project update"
 agent-slack message search "from:@user deadline" --limit 50
 agent-slack message search "in:#general meeting" --sort timestamp
 
+# Get a single message by timestamp
+agent-slack message get <channel> <ts>
+agent-slack message get general 1234567890.123456
+agent-slack message get @c1 @m5
+
 # Update a message
 agent-slack message update <channel> <ts> <new-text>
 
