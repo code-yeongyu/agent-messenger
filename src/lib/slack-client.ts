@@ -199,6 +199,40 @@ export class SlackClient {
     })
   }
 
+  async getMessage(channel: string, ts: string): Promise<SlackMessage | null> {
+    return this.withRetry(async () => {
+      const response = await this.client.conversations.history({
+        channel,
+        oldest: ts,
+        inclusive: true,
+        limit: 1,
+      })
+      this.checkResponse(response)
+
+      const msg = response.messages?.[0]
+      if (!msg || msg.ts !== ts) {
+        return null
+      }
+
+      return {
+        ts: msg.ts!,
+        text: msg.text || '',
+        type: msg.type || 'message',
+        user: msg.user,
+        username: msg.username,
+        thread_ts: msg.thread_ts,
+        reply_count: msg.reply_count,
+        replies: (msg as any).replies,
+        edited: msg.edited
+          ? {
+              user: msg.edited.user || '',
+              ts: msg.edited.ts || '',
+            }
+          : undefined,
+      }
+    })
+  }
+
   async updateMessage(channel: string, ts: string, text: string): Promise<SlackMessage> {
     return this.withRetry(async () => {
       const response = await this.client.chat.update({

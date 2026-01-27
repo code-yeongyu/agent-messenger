@@ -309,10 +309,7 @@ export class TokenExtractor {
     const cleaned = reconstructed.replace(/--+/g, '-').replace(/-$/, '')
 
     // xoxc tokens: xoxc-NUM-NUM-NUM-64HEX (4 parts after xoxc)
-    const tokenPatterns = [
-      /xoxc-\d+-\d+-\d+-[0-9a-f]{64}/i,
-      /xoxc-\d+-\d+-[0-9a-f]{64}/i,
-    ]
+    const tokenPatterns = [/xoxc-\d+-\d+-\d+-[0-9a-f]{64}/i, /xoxc-\d+-\d+-[0-9a-f]{64}/i]
 
     let token: string | null = null
     for (const pattern of tokenPatterns) {

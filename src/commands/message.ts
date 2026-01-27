@@ -106,6 +106,58 @@ async function listAction(
   }
 }
 
+async function getAction(
+  channel: string,
+  ts: string,
+  options: { pretty?: boolean }
+): Promise<void> {
+  try {
+    const credManager = new CredentialManager()
+    const workspace = await credManager.getWorkspace()
+
+    if (!workspace) {
+      console.log(
+        formatOutput(
+          { error: 'No current workspace set. Run "auth extract" first.' },
+          options.pretty
+        )
+      )
+      process.exit(1)
+    }
+
+    const resolvedTs = ts.startsWith('@m') ? resolveMessageRef(ts) : ts
+    if (!resolvedTs) {
+      console.log(formatOutput({ error: `Invalid message ref: ${ts}` }, options.pretty))
+      process.exit(1)
+    }
+
+    const client = new SlackClient(workspace.token, workspace.cookie)
+    const message = await client.getMessage(channel, resolvedTs)
+
+    if (!message) {
+      console.log(formatOutput({ error: `Message not found: ${resolvedTs}` }, options.pretty))
+      process.exit(1)
+    }
+
+    const ref = assignMessageRef(message.ts)
+    const output = {
+      ref,
+      ts: message.ts,
+      text: message.text,
+      type: message.type,
+      user: message.user,
+      username: message.username,
+      thread_ts: message.thread_ts,
+      reply_count: message.reply_count,
+      edited: message.edited,
+    }
+
+    console.log(formatOutput(output, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
 async function updateAction(
   channel: string,
   ts: string,
@@ -264,6 +316,14 @@ export const messageCommand = new Command('message')
           pretty: options.pretty,
         })
       })
+  )
+  .addCommand(
+    new Command('get')
+      .description('Get a single message by timestamp')
+      .argument('<channel>', 'Channel ID or name')
+      .argument('<ts>', 'Message timestamp or ref (@m1)')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(getAction)
   )
   .addCommand(
     new Command('update')

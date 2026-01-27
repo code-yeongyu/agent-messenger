@@ -38,6 +38,17 @@ describe('Message Commands', () => {
       deleteMessage: mock(async (_channel: string, _ts: string) => {
         // no-op
       }),
+      getMessage: mock(async (_channel: string, ts: string) => {
+        if (ts === '1234567890.123456') {
+          return {
+            ts: '1234567890.123456',
+            text: 'Found single message',
+            type: 'message',
+            user: 'U123',
+          }
+        }
+        return null
+      }),
       searchMessages: mock(async (_query: string, _options?: any) => [
         {
           ts: '1234567890.123456',
@@ -154,6 +165,34 @@ describe('Message Commands', () => {
 
       // Then: Should complete without error
       expect(mockClient.deleteMessage).toHaveBeenCalled()
+    })
+  })
+
+  describe('message get', () => {
+    test('gets single message by timestamp', async () => {
+      // Given: A channel and message ts
+      const channel = 'C123'
+      const ts = '1234567890.123456'
+
+      // When: Getting message by ts
+      const message = await mockClient.getMessage(channel, ts)
+
+      // Then: Should return the message
+      expect(message).not.toBeNull()
+      expect(message?.ts).toBe(ts)
+      expect(message?.text).toBe('Found single message')
+    })
+
+    test('returns null for non-existent message', async () => {
+      // Given: A channel and non-existent ts
+      const channel = 'C123'
+      const ts = '9999999999.999999'
+
+      // When: Getting non-existent message
+      const message = await mockClient.getMessage(channel, ts)
+
+      // Then: Should return null
+      expect(message).toBeNull()
     })
   })
 
