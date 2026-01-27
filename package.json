@@ -6,10 +6,10 @@
   "module": "dist/cli.js",
   "main": "dist/cli.js",
   "bin": {
-    "agent-slack": "./dist/cli.js"
+    "agent-slack": "./src/cli.ts"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && sed -i '' '1s|#!/usr/bin/env bun|#!/usr/bin/env node|' dist/cli.js",
     "test": "bun test",
     "lint": "biome check .",
     "format": "biome format --write .",
