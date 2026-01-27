@@ -94,6 +94,28 @@ describe('Channel Commands', () => {
       expect(channels[2].name).toBe('archived-channel')
     })
 
+    test('excludes archived channels by default', async () => {
+      // Given: SlackClient returns channels including archived
+      const channels = await mockClient.listChannels()
+
+      // When: Filtering out archived (default behavior)
+      const activeChannels = channels.filter((c) => !c.is_archived)
+
+      // Then: Should exclude archived channels
+      expect(activeChannels).toHaveLength(2)
+      expect(activeChannels.every((c) => !c.is_archived)).toBe(true)
+    })
+
+    test('includes archived channels when requested', async () => {
+      // Given: SlackClient returns channels including archived
+      const channels = await mockClient.listChannels()
+
+      // When: Including archived (--include-archived)
+      // Then: Should include all channels
+      expect(channels).toHaveLength(3)
+      expect(channels.some((c) => c.is_archived)).toBe(true)
+    })
+
     test('filters channels by type=public', async () => {
       // Given: SlackClient returns mixed channels
       // When: Filtering by public type

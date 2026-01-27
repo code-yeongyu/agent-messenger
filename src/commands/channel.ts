@@ -4,7 +4,11 @@ import { SlackClient } from '../lib/slack-client'
 import { handleError } from '../utils/error-handler'
 import { formatOutput } from '../utils/output'
 
-async function listAction(options: { type?: string; pretty?: boolean }): Promise<void> {
+async function listAction(options: {
+  type?: string
+  includeArchived?: boolean
+  pretty?: boolean
+}): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
@@ -22,13 +26,15 @@ async function listAction(options: { type?: string; pretty?: boolean }): Promise
     const client = new SlackClient(workspace.token, workspace.cookie)
     let channels = await client.listChannels()
 
-    // Filter by type if specified
+    if (!options.includeArchived) {
+      channels = channels.filter((c) => !c.is_archived)
+    }
+
     if (options.type === 'public') {
       channels = channels.filter((c) => !c.is_private)
     } else if (options.type === 'private') {
       channels = channels.filter((c) => c.is_private)
     } else if (options.type === 'dm') {
-      // DMs are not returned by listChannels, would need separate API call
       channels = []
     }
 
@@ -160,6 +166,7 @@ export const channelCommand = new Command('channel')
     new Command('list')
       .description('List channels')
       .option('--type <public|private|dm>', 'Filter by channel type')
+      .option('--include-archived', 'Include archived channels')
       .option('--pretty', 'Pretty print JSON output')
       .action(listAction)
   )
