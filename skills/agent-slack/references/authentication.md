@@ -12,20 +12,30 @@ The simplest way to authenticate:
 
 ```bash
 agent-slack auth extract
+
+# Use --debug for troubleshooting extraction issues
+agent-slack auth extract --debug
 ```
 
 This command:
 1. Detects your operating system (macOS, Linux, Windows)
-2. Locates the Slack desktop app data directory
-3. Reads the IndexedDB storage containing session data
-4. Extracts xoxc token and xoxd cookie for ALL logged-in workspaces
-5. Stores credentials securely in `~/.config/agent-slack/credentials.json`
+2. Locates the Slack desktop app data directory (supports both direct download and App Store versions on macOS)
+3. Reads the LevelDB storage containing session data
+4. Decrypts cookies using macOS Keychain (for sandboxed App Store version)
+5. Validates tokens against Slack API before saving
+6. Extracts xoxc token and xoxd cookie for ALL logged-in workspaces
+7. Stores credentials securely in `~/.config/agent-slack/credentials.json`
 
 ### Platform-Specific Paths
 
-**macOS:**
+**macOS (Direct Download):**
 ```
 ~/Library/Application Support/Slack/
+```
+
+**macOS (App Store / Sandboxed):**
+```
+~/Library/Containers/com.tinyspeck.slackmacgap/Data/Library/Application Support/Slack/
 ```
 
 **Linux:**
@@ -38,7 +48,10 @@ This command:
 %APPDATA%\Slack\
 ```
 
-The tool searches for `IndexedDB/https_app.slack.com_0.indexeddb.leveldb/` within these directories.
+The tool searches multiple locations within these directories:
+- `Local Storage/leveldb/` - Primary token storage
+- `storage/` - Alternative storage location
+- `Cookies` - Encrypted cookie database (decrypted via Keychain on macOS)
 
 ### What Gets Extracted
 
@@ -193,6 +206,19 @@ agent-slack auth status
 
 ## Troubleshooting
 
+### Using Debug Mode
+
+For any extraction issues, run with `--debug` to see detailed information:
+
+```bash
+agent-slack auth extract --debug
+```
+
+This shows:
+- Which Slack directory was found
+- How many workspaces were discovered
+- Token validation results for each workspace
+
 ### "Slack desktop app not found"
 
 **Cause**: Slack desktop app not installed or in non-standard location
@@ -232,6 +258,16 @@ agent-slack auth extract
 # Test authentication
 agent-slack auth status
 ```
+
+### "Extracted tokens are invalid" (macOS App Store version)
+
+**Cause**: Session may have expired or you're logged out of Slack
+
+**Solution**:
+1. Open Slack desktop app
+2. Make sure you're logged in (send a message to verify)
+3. Run `agent-slack auth extract --debug` to see details
+4. If issues persist, try logging out and back into Slack
 
 ## Security Considerations
 

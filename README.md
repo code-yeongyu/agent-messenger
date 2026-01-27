@@ -46,12 +46,16 @@ agent-slack automatically extracts your Slack credentials from the desktop app:
 
 ```bash
 agent-slack auth extract
+
+# Use --debug for troubleshooting
+agent-slack auth extract --debug
 ```
 
 This command:
 - Auto-detects your platform (macOS/Linux/Windows)
-- Finds Slack desktop app data directory
+- Supports both direct download and App Store versions on macOS
 - Extracts xoxc token and xoxd cookie
+- Validates tokens against Slack API
 - Discovers ALL logged-in workspaces
 - Stores credentials securely in `~/.config/agent-slack/`
 
@@ -98,9 +102,10 @@ agent-slack message delete <channel> <ts> --force
 ### Channel Commands
 
 ```bash
-# List channels
+# List channels (excludes archived by default)
 agent-slack channel list
 agent-slack channel list --type public
+agent-slack channel list --include-archived
 
 # Get channel info
 agent-slack channel info <channel>
