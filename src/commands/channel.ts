@@ -38,13 +38,12 @@ async function listAction(options: {
       channels = []
     }
 
-    // Assign refs to channels
     const output = channels.map((ch, idx) => ({
       ref: `@c${idx + 1}`,
       id: ch.id,
       name: ch.name,
       is_private: ch.is_private,
-      is_archived: ch.is_archived,
+      ...(options.includeArchived && { is_archived: ch.is_archived }),
       created: ch.created,
       topic: ch.topic?.value,
       purpose: ch.purpose?.value,
