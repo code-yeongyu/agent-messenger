@@ -72,6 +72,18 @@ export interface SlackFile {
   channels?: string[]
 }
 
+export interface SlackSearchResult {
+  ts: string
+  text: string
+  user?: string
+  username?: string
+  channel: {
+    id: string
+    name: string
+  }
+  permalink: string
+}
+
 export interface WorkspaceCredentials {
   workspace_id: string
   workspace_name: string

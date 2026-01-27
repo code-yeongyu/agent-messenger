@@ -92,6 +92,10 @@ agent-slack message send general "Reply" --thread <ts>
 agent-slack message list <channel>
 agent-slack message list general --limit 50
 
+# Search messages across workspace
+agent-slack message search <query>
+agent-slack message search "project update" --limit 50
+
 # Update a message
 agent-slack message update <channel> <ts> <new-text>
 

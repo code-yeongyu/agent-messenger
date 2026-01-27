@@ -38,6 +38,22 @@ describe('Message Commands', () => {
       deleteMessage: mock(async (_channel: string, _ts: string) => {
         // no-op
       }),
+      searchMessages: mock(async (_query: string, _options?: any) => [
+        {
+          ts: '1234567890.123456',
+          text: 'Found message 1',
+          user: 'U123',
+          channel: { id: 'C001', name: 'general' },
+          permalink: 'https://workspace.slack.com/archives/C001/p1234567890123456',
+        },
+        {
+          ts: '1234567890.123457',
+          text: 'Found message 2',
+          user: 'U456',
+          channel: { id: 'C002', name: 'random' },
+          permalink: 'https://workspace.slack.com/archives/C002/p1234567890123457',
+        },
+      ]),
     } as any
   })
 
@@ -138,6 +154,37 @@ describe('Message Commands', () => {
 
       // Then: Should complete without error
       expect(mockClient.deleteMessage).toHaveBeenCalled()
+    })
+  })
+
+  describe('message search', () => {
+    test('searches messages across workspace', async () => {
+      // Given: A search query
+      const query = 'hello world'
+
+      // When: Searching messages
+      const results = await mockClient.searchMessages(query)
+
+      // Then: Should return matching messages with channel info
+      expect(results).toHaveLength(2)
+      expect(results[0].text).toBe('Found message 1')
+      expect(results[0].channel.name).toBe('general')
+      expect(results[0].permalink).toBeDefined()
+    })
+
+    test('returns channel info with each result', async () => {
+      // Given: A search query
+      const query = 'test'
+
+      // When: Searching messages
+      const results = await mockClient.searchMessages(query)
+
+      // Then: Each result should have channel info
+      for (const result of results) {
+        expect(result.channel).toBeDefined()
+        expect(result.channel.id).toBeDefined()
+        expect(result.channel.name).toBeDefined()
+      }
     })
   })
 

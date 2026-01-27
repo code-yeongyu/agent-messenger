@@ -83,6 +83,12 @@ agent-slack message list <channel>
 agent-slack message list general --limit 50
 agent-slack message list @c1 --thread <ts>
 
+# Search messages across workspace
+agent-slack message search <query>
+agent-slack message search "project update"
+agent-slack message search "from:@user deadline" --limit 50
+agent-slack message search "in:#general meeting" --sort timestamp
+
 # Update a message
 agent-slack message update <channel> <ts> <new-text>
 

@@ -1,5 +1,5 @@
 import { WebClient } from '@slack/web-api'
-import type { SlackChannel, SlackFile, SlackMessage, SlackUser } from '../types'
+import type { SlackChannel, SlackFile, SlackMessage, SlackSearchResult, SlackUser } from '../types'
 
 export class SlackError extends Error {
   code: string
@@ -358,6 +358,34 @@ export class SlackClient {
         created: f.created || 0,
         user: f.user || '',
         channels: f.channels,
+      }))
+    })
+  }
+
+  async searchMessages(
+    query: string,
+    options: { sort?: 'score' | 'timestamp'; sortDir?: 'asc' | 'desc'; count?: number } = {}
+  ): Promise<SlackSearchResult[]> {
+    return this.withRetry(async () => {
+      const response = await this.client.search.messages({
+        query,
+        sort: options.sort || 'timestamp',
+        sort_dir: options.sortDir || 'desc',
+        count: options.count || 20,
+      })
+      this.checkResponse(response)
+
+      const matches = (response.messages as any)?.matches || []
+      return matches.map((match: any) => ({
+        ts: match.ts,
+        text: match.text || '',
+        user: match.user,
+        username: match.username,
+        channel: {
+          id: match.channel?.id || '',
+          name: match.channel?.name || '',
+        },
+        permalink: match.permalink || '',
       }))
     })
   }

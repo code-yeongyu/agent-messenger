@@ -191,6 +191,54 @@ async function deleteAction(
   }
 }
 
+async function searchAction(
+  query: string,
+  options: { sort?: string; sortDir?: string; limit?: number; pretty?: boolean }
+): Promise<void> {
+  try {
+    const credManager = new CredentialManager()
+    const workspace = await credManager.getWorkspace()
+
+    if (!workspace) {
+      console.log(
+        formatOutput(
+          { error: 'No current workspace set. Run "auth extract" first.' },
+          options.pretty
+        )
+      )
+      process.exit(1)
+    }
+
+    const client = new SlackClient(workspace.token, workspace.cookie)
+    const results = await client.searchMessages(query, {
+      sort: options.sort as 'score' | 'timestamp',
+      sortDir: options.sortDir as 'asc' | 'desc',
+      count: options.limit || 20,
+    })
+
+    messageRefCounter = 0
+    messageRefs.clear()
+
+    const output = results.map((result) => {
+      const ref = assignMessageRef(result.ts)
+      return {
+        ref,
+        ts: result.ts,
+        text: result.text,
+        user: result.user,
+        username: result.username,
+        channel_id: result.channel.id,
+        channel_name: result.channel.name,
+        permalink: result.permalink,
+      }
+    })
+
+    console.log(formatOutput(output, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
 export const messageCommand = new Command('message')
   .description('Message commands')
   .addCommand(
@@ -234,4 +282,21 @@ export const messageCommand = new Command('message')
       .option('--force', 'Skip confirmation')
       .option('--pretty', 'Pretty print JSON output')
       .action(deleteAction)
+  )
+  .addCommand(
+    new Command('search')
+      .description('Search messages across workspace')
+      .argument('<query>', 'Search query')
+      .option('--sort <type>', 'Sort by: score, timestamp (default: timestamp)')
+      .option('--sort-dir <dir>', 'Sort direction: asc, desc (default: desc)')
+      .option('--limit <n>', 'Number of results', '20')
+      .option('--pretty', 'Pretty print JSON output')
+      .action((query: string, options: any) => {
+        searchAction(query, {
+          sort: options.sort,
+          sortDir: options.sortDir,
+          limit: parseInt(options.limit, 10),
+          pretty: options.pretty,
+        })
+      })
   )
