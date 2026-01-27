@@ -3,13 +3,13 @@
 import { Command } from 'commander'
 import {
   authCommand,
-  workspaceCommand,
-  messageCommand,
   channelCommand,
-  userCommand,
-  reactionCommand,
   fileCommand,
+  messageCommand,
+  reactionCommand,
   snapshotCommand,
+  userCommand,
+  workspaceCommand,
 } from './commands/index'
 
 const program = new Command()

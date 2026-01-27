@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import { CredentialManager } from '../lib/credential-manager'
-import { formatOutput } from '../utils/output'
 import { handleError } from '../utils/error-handler'
+import { formatOutput } from '../utils/output'
 
 async function listAction(options: { pretty?: boolean }): Promise<void> {
   try {
@@ -21,10 +21,7 @@ async function listAction(options: { pretty?: boolean }): Promise<void> {
   }
 }
 
-async function switchAction(
-  id: string,
-  options: { pretty?: boolean }
-): Promise<void> {
+async function switchAction(id: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const config = await credManager.load()
@@ -67,10 +64,7 @@ async function currentAction(options: { pretty?: boolean }): Promise<void> {
   }
 }
 
-async function removeAction(
-  id: string,
-  options: { pretty?: boolean }
-): Promise<void> {
+async function removeAction(id: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const config = await credManager.load()

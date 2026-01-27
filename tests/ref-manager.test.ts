@@ -1,14 +1,14 @@
-import { test, expect, describe, beforeEach } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
 import { RefManager } from '../src/lib/ref-manager'
 import type {
+  ChannelRef,
+  FileRef,
+  MessageRef,
   SlackChannel,
+  SlackFile,
   SlackMessage,
   SlackUser,
-  SlackFile,
-  ChannelRef,
-  MessageRef,
   UserRef,
-  FileRef,
 } from '../src/types'
 
 describe('RefManager', () => {

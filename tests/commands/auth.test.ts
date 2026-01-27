@@ -1,10 +1,10 @@
-import { test, expect, beforeEach, afterEach, describe, mock } from 'bun:test'
-import { TokenExtractor, type ExtractedWorkspace } from '../../src/lib/token-extractor'
-import { CredentialManager } from '../../src/lib/credential-manager'
-import { mkdir, rm } from 'node:fs/promises'
-import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
 import { existsSync } from 'node:fs'
+import { mkdir, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
+import { join } from 'node:path'
+import { CredentialManager } from '../../src/lib/credential-manager'
+import { type ExtractedWorkspace, TokenExtractor } from '../../src/lib/token-extractor'
 
 const testConfigDir = join(import.meta.dir, '.test-auth-config')
 const testSlackDir = join(import.meta.dir, '.test-slack-data')

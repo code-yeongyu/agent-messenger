@@ -1,12 +1,12 @@
-import { test, expect } from 'bun:test'
+import { expect, test } from 'bun:test'
 import {
-  SlackChannelSchema,
-  SlackMessageSchema,
-  SlackUserSchema,
-  SlackReactionSchema,
-  SlackFileSchema,
-  WorkspaceCredentialsSchema,
   ConfigSchema,
+  SlackChannelSchema,
+  SlackFileSchema,
+  SlackMessageSchema,
+  SlackReactionSchema,
+  SlackUserSchema,
+  WorkspaceCredentialsSchema,
 } from '../src/types/index'
 
 test('SlackChannelSchema validates correct data', () => {

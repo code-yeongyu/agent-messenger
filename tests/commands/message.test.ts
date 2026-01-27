@@ -1,4 +1,4 @@
-import { test, expect, beforeEach, describe, mock } from 'bun:test'
+import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import { SlackClient } from '../../src/lib/slack-client'
 import type { SlackMessage } from '../../src/types'
 
@@ -8,14 +8,14 @@ describe('Message Commands', () => {
   beforeEach(() => {
     // Mock SlackClient
     mockClient = {
-      sendMessage: mock(async (channel: string, text: string, threadTs?: string) => ({
+      sendMessage: mock(async (_channel: string, text: string, threadTs?: string) => ({
         ts: '1234567890.123456',
         text,
         type: 'message',
         user: 'U123',
         thread_ts: threadTs,
       })),
-      getMessages: mock(async (channel: string, limit?: number) => [
+      getMessages: mock(async (_channel: string, _limit?: number) => [
         {
           ts: '1234567890.123456',
           text: 'First message',
@@ -29,13 +29,13 @@ describe('Message Commands', () => {
           user: 'U456',
         },
       ]),
-      updateMessage: mock(async (channel: string, ts: string, text: string) => ({
+      updateMessage: mock(async (_channel: string, ts: string, text: string) => ({
         ts,
         text,
         type: 'message',
         user: 'U123',
       })),
-      deleteMessage: mock(async (channel: string, ts: string) => {
+      deleteMessage: mock(async (_channel: string, _ts: string) => {
         // no-op
       }),
     } as any
@@ -100,7 +100,7 @@ describe('Message Commands', () => {
     test('filters messages by thread', async () => {
       // Given: A channel and thread ts
       const channel = 'C123'
-      const threadTs = '1234567890.123456'
+      const _threadTs = '1234567890.123456'
 
       // When: Getting thread messages
       // Note: This would need SlackClient to support thread filtering

@@ -1,8 +1,8 @@
-import { test, expect, beforeEach, afterEach, describe } from 'bun:test'
-import { CredentialManager } from '../src/lib/credential-manager'
-import { mkdir, rm } from 'node:fs/promises'
-import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
+import { rm } from 'node:fs/promises'
+import { join } from 'node:path'
+import { CredentialManager } from '../src/lib/credential-manager'
 import type { Config, WorkspaceCredentials } from '../src/types'
 
 const testConfigDir = join(import.meta.dir, '.test-config')

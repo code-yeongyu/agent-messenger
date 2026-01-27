@@ -1,4 +1,4 @@
-import { test, expect, beforeEach, describe, mock } from 'bun:test'
+import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import { SlackClient } from '../../src/lib/slack-client'
 import type { SlackChannel } from '../../src/types'
 

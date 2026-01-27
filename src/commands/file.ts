@@ -1,11 +1,10 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { Command } from 'commander'
 import { CredentialManager } from '../lib/credential-manager'
 import { SlackClient } from '../lib/slack-client'
-import { formatOutput } from '../utils/output'
 import { handleError } from '../utils/error-handler'
-import { readFileSync } from 'fs'
-import { resolve } from 'path'
-import type { SlackFile } from '../types'
+import { formatOutput } from '../utils/output'
 
 async function uploadAction(
   channel: string,
@@ -90,10 +89,7 @@ async function listAction(options: { channel?: string; pretty?: boolean }): Prom
   }
 }
 
-async function infoAction(
-  file: string,
-  options: { pretty?: boolean }
-): Promise<void> {
+async function infoAction(file: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()

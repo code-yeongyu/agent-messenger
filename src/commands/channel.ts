@@ -1,9 +1,8 @@
 import { Command } from 'commander'
 import { CredentialManager } from '../lib/credential-manager'
 import { SlackClient } from '../lib/slack-client'
-import { formatOutput } from '../utils/output'
 import { handleError } from '../utils/error-handler'
-import type { SlackChannel } from '../types'
+import { formatOutput } from '../utils/output'
 
 async function listAction(options: { type?: string; pretty?: boolean }): Promise<void> {
   try {
@@ -51,10 +50,7 @@ async function listAction(options: { type?: string; pretty?: boolean }): Promise
   }
 }
 
-async function infoAction(
-  channel: string,
-  options: { pretty?: boolean }
-): Promise<void> {
+async function infoAction(channel: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()

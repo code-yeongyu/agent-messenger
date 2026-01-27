@@ -1,9 +1,9 @@
 import { Command } from 'commander'
 import { CredentialManager } from '../lib/credential-manager'
 import { SlackClient } from '../lib/slack-client'
-import { formatOutput } from '../utils/output'
-import { handleError } from '../utils/error-handler'
 import type { SlackMessage } from '../types'
+import { handleError } from '../utils/error-handler'
+import { formatOutput } from '../utils/output'
 
 let messageRefCounter = 0
 const messageRefs: Map<string, string> = new Map()
@@ -177,10 +177,7 @@ async function deleteAction(
 
     if (!options.force) {
       console.log(
-        formatOutput(
-          { warning: 'Use --force to confirm deletion', ts: resolvedTs },
-          options.pretty
-        )
+        formatOutput({ warning: 'Use --force to confirm deletion', ts: resolvedTs }, options.pretty)
       )
       process.exit(0)
     }

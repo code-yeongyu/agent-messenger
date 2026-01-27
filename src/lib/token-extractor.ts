@@ -1,8 +1,8 @@
+import { existsSync, readdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { existsSync, readdirSync } from 'node:fs'
-import { ClassicLevel } from 'classic-level'
 import Database from 'better-sqlite3'
+import { ClassicLevel } from 'classic-level'
 
 export interface ExtractedWorkspace {
   workspace_id: string

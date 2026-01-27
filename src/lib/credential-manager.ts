@@ -1,8 +1,8 @@
-import type { Config, WorkspaceCredentials } from '../types'
-import { mkdir } from 'node:fs/promises'
-import { join } from 'node:path'
 import { existsSync } from 'node:fs'
+import { mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
+import { join } from 'node:path'
+import type { Config, WorkspaceCredentials } from '../types'
 
 export class CredentialManager {
   private configDir: string

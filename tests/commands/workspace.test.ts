@@ -1,8 +1,8 @@
-import { test, expect, beforeEach, afterEach, describe } from 'bun:test'
-import { CredentialManager } from '../../src/lib/credential-manager'
-import { mkdir, rm } from 'node:fs/promises'
-import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
+import { rm } from 'node:fs/promises'
+import { join } from 'node:path'
+import { CredentialManager } from '../../src/lib/credential-manager'
 import type { WorkspaceCredentials } from '../../src/types'
 
 const testConfigDir = join(import.meta.dir, '.test-workspace-config')
@@ -79,7 +79,7 @@ describe('Workspace Commands', () => {
 
       // Then: Current workspace should match
       expect(config.current_workspace).toBe('T789')
-      expect(config.workspaces['T789']).toBeDefined()
+      expect(config.workspaces.T789).toBeDefined()
     })
 
     test('handles list with no current workspace', async () => {
@@ -97,7 +97,7 @@ describe('Workspace Commands', () => {
 
       // Then: current_workspace should be null
       expect(config.current_workspace).toBeNull()
-      expect(config.workspaces['T999']).toBeDefined()
+      expect(config.workspaces.T999).toBeDefined()
     })
   })
 
@@ -182,8 +182,8 @@ describe('Workspace Commands', () => {
       config = await credManager.load()
 
       // Then: Both workspaces should still have their credentials
-      expect(config.workspaces['T444'].token).toBe('token-444')
-      expect(config.workspaces['T555'].token).toBe('token-555')
+      expect(config.workspaces.T444.token).toBe('token-444')
+      expect(config.workspaces.T555.token).toBe('token-555')
       expect(config.current_workspace).toBe('T555')
     })
   })

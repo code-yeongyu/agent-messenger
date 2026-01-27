@@ -1,8 +1,8 @@
-import { test, expect, beforeEach, mock } from 'bun:test'
+import { expect, mock, test } from 'bun:test'
 import { snapshotCommand } from '../../src/commands/snapshot'
 import { CredentialManager } from '../../src/lib/credential-manager'
-import { SlackClient } from '../../src/lib/slack-client'
 import { RefManager } from '../../src/lib/ref-manager'
+import { SlackClient } from '../../src/lib/slack-client'
 import type { SlackChannel, SlackMessage, SlackUser } from '../../src/types'
 
 // Mock modules
@@ -21,7 +21,6 @@ mock.module('../../src/lib/credential-manager', () => ({
 
 mock.module('../../src/lib/slack-client', () => ({
   SlackClient: class {
-    constructor() {}
     async testAuth() {
       return {
         user_id: 'U123',
@@ -54,7 +53,7 @@ mock.module('../../src/lib/slack-client', () => ({
         },
       ]
     }
-    async getMessages(channel: string, limit?: number): Promise<SlackMessage[]> {
+    async getMessages(_channel: string, _limit?: number): Promise<SlackMessage[]> {
       return [
         {
           ts: '1234567890.000100',
@@ -144,7 +143,7 @@ test('full snapshot returns workspace, channels, messages, and users', async () 
   const credManager = new CredentialManager()
   const client = new SlackClient('xoxc-test', 'test-cookie')
 
-  const workspace = await credManager.getWorkspace()
+  const _workspace = await credManager.getWorkspace()
   const auth = await client.testAuth()
   const channels = await client.listChannels()
   const users = await client.listUsers()
@@ -158,7 +157,7 @@ test('full snapshot returns workspace, channels, messages, and users', async () 
   for (let i = 0; i < channels.length; i++) {
     const messages = await client.getMessages(channels[i].id, 20)
     for (const msg of messages) {
-      const ref = refManager.assignMessageRef(msg)
+      const _ref = refManager.assignMessageRef(msg)
       allMessages.push({
         ...msg,
         channel_ref: channelRefs[i],
@@ -231,7 +230,7 @@ test('snapshot with --channels-only excludes messages and users', async () => {
   const credManager = new CredentialManager()
   const client = new SlackClient('xoxc-test', 'test-cookie')
 
-  const workspace = await credManager.getWorkspace()
+  const _workspace = await credManager.getWorkspace()
   const auth = await client.testAuth()
   const channels = await client.listChannels()
 
@@ -270,7 +269,7 @@ test('snapshot with --users-only excludes channels and messages', async () => {
   const credManager = new CredentialManager()
   const client = new SlackClient('xoxc-test', 'test-cookie')
 
-  const workspace = await credManager.getWorkspace()
+  const _workspace = await credManager.getWorkspace()
   const auth = await client.testAuth()
   const users = await client.listUsers()
 
@@ -308,7 +307,7 @@ test('snapshot respects --limit option for messages', async () => {
   const credManager = new CredentialManager()
   const client = new SlackClient('xoxc-test', 'test-cookie')
 
-  const workspace = await credManager.getWorkspace()
+  const _workspace = await credManager.getWorkspace()
   const auth = await client.testAuth()
   const channels = await client.listChannels()
 
@@ -354,7 +353,7 @@ test('snapshot respects --limit option for messages', async () => {
 
 test('refs are consistent and resolvable', async () => {
   const refManager = new RefManager()
-  const credManager = new CredentialManager()
+  const _credManager = new CredentialManager()
   const client = new SlackClient('xoxc-test', 'test-cookie')
 
   const channels = await client.listChannels()
@@ -382,15 +381,19 @@ test('refs are consistent and resolvable', async () => {
 
 test('snapshot refs mapping is valid JSON', async () => {
   const refManager = new RefManager()
-  const credManager = new CredentialManager()
+  const _credManager = new CredentialManager()
   const client = new SlackClient('xoxc-test', 'test-cookie')
 
   const channels = await client.listChannels()
   const users = await client.listUsers()
 
   // Assign refs
-  channels.forEach((ch) => refManager.assignChannelRef(ch))
-  users.forEach((u) => refManager.assignUserRef(u))
+  for (const ch of channels) {
+    refManager.assignChannelRef(ch)
+  }
+  for (const u of users) {
+    refManager.assignUserRef(u)
+  }
 
   // Get serialized refs
   const refsSerialized = refManager.serialize()

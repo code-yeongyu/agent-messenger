@@ -1,7 +1,7 @@
-import { test, expect, describe } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import { spawn } from 'bun'
-import { formatOutput } from '../src/utils/output'
 import { handleError } from '../src/utils/error-handler'
+import { formatOutput } from '../src/utils/output'
 
 describe('CLI Framework', () => {
   describe('formatOutput utility', () => {

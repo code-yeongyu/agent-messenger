@@ -1,9 +1,9 @@
 import { Command } from 'commander'
-import { TokenExtractor } from '../lib/token-extractor'
 import { CredentialManager } from '../lib/credential-manager'
 import { SlackClient } from '../lib/slack-client'
-import { formatOutput } from '../utils/output'
+import { TokenExtractor } from '../lib/token-extractor'
 import { handleError } from '../utils/error-handler'
+import { formatOutput } from '../utils/output'
 
 async function extractAction(options: { pretty?: boolean }): Promise<void> {
   try {
