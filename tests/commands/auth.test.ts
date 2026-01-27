@@ -33,8 +33,19 @@ describe('TokenExtractor', () => {
       // When: getSlackDir is called
       const dir = extractor.getSlackDir()
 
-      // Then: Should return macOS path
-      expect(dir).toBe(join(homedir(), 'Library', 'Application Support', 'Slack'))
+      // Then: Should return macOS path (direct or sandboxed depending on what exists)
+      const directPath = join(homedir(), 'Library', 'Application Support', 'Slack')
+      const sandboxedPath = join(
+        homedir(),
+        'Library',
+        'Containers',
+        'com.tinyspeck.slackmacgap',
+        'Data',
+        'Library',
+        'Application Support',
+        'Slack'
+      )
+      expect([directPath, sandboxedPath]).toContain(dir)
     })
 
     test('returns correct path for linux', () => {

@@ -1,7 +1,9 @@
-import { existsSync, readdirSync } from 'node:fs'
+import { Database } from 'bun:sqlite'
+import { execSync } from 'node:child_process'
+import { createDecipheriv, pbkdf2Sync } from 'node:crypto'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import Database from 'better-sqlite3'
 import { ClassicLevel } from 'classic-level'
 
 export interface ExtractedWorkspace {
@@ -33,8 +35,29 @@ export class TokenExtractor {
 
   getSlackDir(): string {
     switch (this.platform) {
-      case 'darwin':
-        return join(homedir(), 'Library', 'Application Support', 'Slack')
+      case 'darwin': {
+        // Check direct download version first
+        const directPath = join(homedir(), 'Library', 'Application Support', 'Slack')
+        if (existsSync(directPath)) {
+          return directPath
+        }
+        // Check App Store (sandboxed) version
+        const sandboxedPath = join(
+          homedir(),
+          'Library',
+          'Containers',
+          'com.tinyspeck.slackmacgap',
+          'Data',
+          'Library',
+          'Application Support',
+          'Slack'
+        )
+        if (existsSync(sandboxedPath)) {
+          return sandboxedPath
+        }
+        // Default to direct path for error message
+        return directPath
+      }
       case 'linux':
         return join(homedir(), '.config', 'Slack')
       case 'win32':
@@ -65,22 +88,43 @@ export class TokenExtractor {
   }
 
   private async extractTokensFromLevelDB(): Promise<TokenInfo[]> {
-    const storageDir = join(this.slackDir, 'storage')
-    if (!existsSync(storageDir)) {
-      return []
-    }
+    const possibleDirs = [
+      join(this.slackDir, 'storage'),
+      join(this.slackDir, 'Local Storage', 'leveldb'),
+      join(this.slackDir, 'IndexedDB'),
+    ]
 
-    const levelDbDirs = this.findLevelDBDirs(storageDir)
     const tokens: TokenInfo[] = []
 
-    for (const dbDir of levelDbDirs) {
-      try {
-        const extracted = await this.extractFromLevelDB(dbDir)
-        tokens.push(...extracted)
-      } catch {}
+    for (const baseDir of possibleDirs) {
+      if (!existsSync(baseDir)) {
+        continue
+      }
+
+      const levelDbDirs = this.findLevelDBDirs(baseDir)
+      if (baseDir.endsWith('leveldb') && this.isLevelDBDir(baseDir)) {
+        levelDbDirs.push(baseDir)
+      }
+
+      for (const dbDir of levelDbDirs) {
+        try {
+          const extracted = await this.extractFromLevelDB(dbDir)
+          tokens.push(...extracted)
+        } catch {}
+      }
     }
 
-    return tokens
+    return this.deduplicateTokens(tokens)
+  }
+
+  private deduplicateTokens(tokens: TokenInfo[]): TokenInfo[] {
+    const seen = new Map<string, TokenInfo>()
+    for (const token of tokens) {
+      if (!seen.has(token.teamId) || token.teamName !== 'unknown') {
+        seen.set(token.teamId, token)
+      }
+    }
+    return Array.from(seen.values())
   }
 
   private findLevelDBDirs(baseDir: string): string[] {
@@ -115,8 +159,15 @@ export class TokenExtractor {
 
   private async extractFromLevelDB(dbPath: string): Promise<TokenInfo[]> {
     const tokens: TokenInfo[] = []
-    let db: ClassicLevel<string, string> | null = null
 
+    // First try reading LDB files directly (more reliable for sandboxed apps)
+    const directTokens = this.extractTokensFromLDBFiles(dbPath)
+    if (directTokens.length > 0) {
+      return directTokens
+    }
+
+    // Fallback to ClassicLevel for standard installations
+    let db: ClassicLevel<string, string> | null = null
     try {
       db = new ClassicLevel(dbPath, { valueEncoding: 'utf8' })
 
@@ -138,6 +189,171 @@ export class TokenExtractor {
     }
 
     return tokens
+  }
+
+  private extractTokensFromLDBFiles(dbPath: string): TokenInfo[] {
+    const tokens: TokenInfo[] = []
+    try {
+      // Prioritize .log files (not compacted, have clean data)
+      // Then fall back to .ldb files
+      const logFiles = readdirSync(dbPath).filter((f) => f.endsWith('.log'))
+      const ldbFiles = readdirSync(dbPath).filter((f) => f.endsWith('.ldb'))
+      const files = [...logFiles, ...ldbFiles]
+
+      for (const file of files) {
+        const filePath = join(dbPath, file)
+        const content = readFileSync(filePath)
+        const isLogFile = file.endsWith('.log')
+
+        const xoxcMarker = Buffer.from('xoxc-')
+        let idx = content.indexOf(xoxcMarker, 0)
+        while (idx !== -1) {
+          const tokenData = isLogFile
+            ? this.extractTokenFromLogFile(content, idx)
+            : this.extractTokenFromBuffer(content, idx)
+          if (tokenData) {
+            tokens.push(tokenData)
+          }
+          idx = content.indexOf(xoxcMarker, idx + 5)
+        }
+      }
+    } catch {}
+    return tokens
+  }
+
+  private extractTokenFromLogFile(buffer: Buffer, startIdx: number): TokenInfo | null {
+    // LOG files have clean (non-fragmented) JSON data
+    const chunk = buffer.subarray(startIdx, startIdx + 300)
+    const str = chunk.toString('utf8')
+
+    // Token ends at quote
+    const endQuote = str.indexOf('"')
+    if (endQuote === -1) return null
+
+    const token = str.substring(0, endQuote)
+
+    // Validate token format
+    if (!/^xoxc-\d+-\d+-\d+-[0-9a-f]{64}$/i.test(token)) {
+      return null
+    }
+
+    let teamId = 'unknown'
+    let teamName = 'unknown'
+
+    const surroundingChunk = buffer.subarray(Math.max(0, startIdx - 500), startIdx + 500)
+    const surroundingStr = surroundingChunk.toString('utf8')
+
+    const teamIdMatch = surroundingStr.match(/T[A-Z0-9]{8,11}/)
+    if (teamIdMatch) {
+      teamId = teamIdMatch[0]
+    }
+
+    const teamNameMatch = surroundingStr.match(/"name"\s*:\s*"([^"]+)"/)
+    if (teamNameMatch) {
+      teamName = teamNameMatch[1]
+    }
+
+    return { token, teamId, teamName }
+  }
+
+  private extractTokenFromBuffer(buffer: Buffer, startIdx: number): TokenInfo | null {
+    const chunk = buffer.subarray(startIdx, startIdx + 200)
+
+    // LevelDB fragmentation pattern observed:
+    // Token bytes: xoxc-455709840052 [19 0d f0 5e] 228-6209589301201-9f47...
+    // The 4 garbage bytes (0x19 0x0d 0xf0 0xNN) replace a hyphen between numeric segments
+    //
+    // Strategy: scan for valid token chars, when we hit a non-valid sequence,
+    // check if it's a 4-byte fragmentation marker and insert a hyphen
+
+    const result: number[] = []
+    const validChars = new Set('0123456789abcdefABCDEF-xoc'.split('').map((c) => c.charCodeAt(0)))
+    const terminators = new Set([0x22, 0x00, 0x7d, 0x2c]) // " null } ,
+
+    let i = 0
+    while (i < chunk.length) {
+      const byte = chunk[i]
+
+      if (terminators.has(byte)) {
+        break
+      }
+
+      if (validChars.has(byte)) {
+        result.push(byte)
+        i++
+      } else {
+        // Check for 4-byte fragmentation marker pattern
+        // Pattern: 0x19 0x0d 0xf0 0xNN (where NN varies)
+        if (
+          i + 3 < chunk.length &&
+          chunk[i] === 0x19 &&
+          chunk[i + 1] === 0x0d &&
+          chunk[i + 2] === 0xf0
+        ) {
+          // Skip the 4 garbage bytes and insert a hyphen
+          result.push(0x2d) // hyphen
+          i += 4
+        } else {
+          // Unknown garbage - insert hyphen and skip this byte
+          if (result.length > 0 && result[result.length - 1] !== 0x2d) {
+            result.push(0x2d) // hyphen
+          }
+          i++
+        }
+      }
+    }
+
+    const reconstructed = Buffer.from(result).toString('utf8')
+
+    // Clean up any double hyphens
+    const cleaned = reconstructed.replace(/--+/g, '-').replace(/-$/, '')
+
+    // xoxc tokens: xoxc-NUM-NUM-NUM-64HEX (4 parts after xoxc)
+    const tokenPatterns = [
+      /xoxc-\d+-\d+-\d+-[0-9a-f]{64}/i,
+      /xoxc-\d+-\d+-[0-9a-f]{64}/i,
+    ]
+
+    let token: string | null = null
+    for (const pattern of tokenPatterns) {
+      const match = cleaned.match(pattern)
+      if (match) {
+        token = match[0]
+        break
+      }
+    }
+
+    if (!token) {
+      return null
+    }
+
+    const parts = token.split('-')
+    if (parts.length < 4) {
+      return null
+    }
+
+    const lastPart = parts[parts.length - 1]
+    if (!/^[0-9a-f]{64}$/i.test(lastPart)) {
+      return null
+    }
+
+    let teamId = 'unknown'
+    let teamName = 'unknown'
+
+    const surroundingChunk = buffer.subarray(Math.max(0, startIdx - 500), startIdx + 500)
+    const surroundingStr = surroundingChunk.toString('utf8')
+
+    const teamIdMatch = surroundingStr.match(/T[A-Z0-9]{8,11}/)
+    if (teamIdMatch) {
+      teamId = teamIdMatch[0]
+    }
+
+    const teamNameMatch = surroundingStr.match(/"team_name"\s*:\s*"([^"]+)"/)
+    if (teamNameMatch) {
+      teamName = teamNameMatch[1]
+    }
+
+    return { token, teamId, teamName }
   }
 
   private parseTokenData(_key: string, value: string): TokenInfo | null {
@@ -186,16 +402,14 @@ export class TokenExtractor {
       const db = new Database(dbPath, { readonly: true })
 
       const row = db
-        .prepare(
-          `
-        SELECT value, encrypted_value 
-        FROM cookies 
-        WHERE name = 'd' AND host_key LIKE '%slack.com%'
-        ORDER BY last_access_utc DESC
-        LIMIT 1
-      `
+        .query(
+          `SELECT value, encrypted_value 
+           FROM cookies 
+           WHERE name = 'd' AND host_key LIKE '%slack.com%'
+           ORDER BY last_access_utc DESC
+           LIMIT 1`
         )
-        .get() as { value?: string; encrypted_value?: Buffer } | undefined
+        .get() as { value?: string; encrypted_value?: Uint8Array } | null
 
       db.close()
 
@@ -208,7 +422,7 @@ export class TokenExtractor {
       }
 
       if (row.encrypted_value && row.encrypted_value.length > 0) {
-        const decrypted = this.tryDecryptCookie(row.encrypted_value)
+        const decrypted = this.tryDecryptCookie(Buffer.from(row.encrypted_value))
         if (decrypted) {
           return decrypted
         }
@@ -221,15 +435,65 @@ export class TokenExtractor {
   }
 
   private tryDecryptCookie(encrypted: Buffer): string | null {
-    if (encrypted.length > 3 && encrypted.subarray(0, 3).toString() === 'v10') {
-      return null
-    }
-
     const str = encrypted.toString('utf8')
     if (str.startsWith('xoxd-')) {
       return str
     }
 
+    // Check for v10 encryption (macOS Keychain)
+    if (encrypted.length > 3 && encrypted.subarray(0, 3).toString() === 'v10') {
+      return this.decryptV10Cookie(encrypted)
+    }
+
     return null
+  }
+
+  private decryptV10Cookie(encrypted: Buffer): string | null {
+    try {
+      const key = this.getDerivedKey()
+      if (!key) {
+        return null
+      }
+
+      // v10 uses AES-128-CBC with 16-space IV (Chrome/Electron pattern)
+      const iv = Buffer.alloc(16, ' ')
+      const ciphertext = encrypted.subarray(3)
+
+      const decipher = createDecipheriv('aes-128-cbc', key, iv)
+      const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()])
+      const result = decrypted.toString('utf8')
+
+      // Extract xoxd- token from decrypted data (may have padding/garbage before it)
+      const match = result.match(/xoxd-[A-Za-z0-9%]+/)
+      return match ? match[0] : null
+    } catch {
+      return null
+    }
+  }
+
+  private getDerivedKey(): Buffer | null {
+    if (this.platform !== 'darwin') {
+      return null
+    }
+
+    try {
+      let password: string
+      try {
+        password = execSync(
+          'security find-generic-password -ga "Slack App Store Key" -s "Slack Safe Storage" -w 2>/dev/null',
+          { encoding: 'utf8' }
+        ).trim()
+      } catch {
+        password = execSync(
+          'security find-generic-password -ga "Slack Key" -s "Slack Safe Storage" -w 2>/dev/null',
+          { encoding: 'utf8' }
+        ).trim()
+      }
+
+      // Chrome/Electron uses PBKDF2 with these parameters
+      return pbkdf2Sync(password, 'saltysalt', 1003, 16, 'sha1')
+    } catch {
+      return null
+    }
   }
 }
