@@ -16,10 +16,10 @@ A TypeScript CLI tool that enables AI agents and humans to interact with Slack w
 
 ```bash
 # Install globally
-bun install -g agent-slack
+npm install -g agent-slack
 
-# Or use with bunx
-bunx agent-slack --help
+# Or use with npx
+npx agent-slack --help
 ```
 
 ## Quick Start
@@ -198,16 +198,16 @@ See `skills/agent-slack/` directory for:
 
 ```bash
 # Install dependencies
-bun install
+npm install
 
 # Run tests
-bun test
+npm test
 
 # Build
-bun run build
+npm run build
 
 # Lint
-bun run lint
+npm run lint
 ```
 
 ## License
