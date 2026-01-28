@@ -49,13 +49,11 @@ send_message() {
       
       # Extract message details
       MSG_TS=$(echo "$RESULT" | jq -r '.data.ts')
-      MSG_REF=$(echo "$RESULT" | jq -r '.data.ref // "N/A"')
       
       echo ""
       echo "Message details:"
       echo "  Channel: $channel"
       echo "  Timestamp: $MSG_TS"
-      echo "  Ref: $MSG_REF"
       
       return 0
     fi
@@ -78,11 +76,6 @@ send_message() {
         "INVALID_CHANNEL")
           echo ""
           echo "Channel '$channel' not found. Check channel name or ID."
-          return 1
-          ;;
-        "INVALID_REF")
-          echo ""
-          echo "Invalid ref. Refs are session-scoped and don't persist."
           return 1
           ;;
       esac
