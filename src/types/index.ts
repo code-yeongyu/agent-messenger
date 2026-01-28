@@ -96,13 +96,6 @@ export interface Config {
   workspaces: Record<string, WorkspaceCredentials>
 }
 
-export type ChannelRef = `@c${number}`
-export type MessageRef = `@m${number}`
-export type UserRef = `@u${number}`
-export type FileRef = `@f${number}`
-
-export type EntityRef = ChannelRef | MessageRef | UserRef | FileRef
-
 // Zod validation schemas
 export const SlackChannelSchema = z.object({
   id: z.string(),

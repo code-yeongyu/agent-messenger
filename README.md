@@ -6,11 +6,10 @@ A TypeScript CLI tool that enables AI agents and humans to interact with Slack w
 
 - **Seamless Authentication**: Zero-config token extraction from Slack desktop app
 - **Multi-Workspace Support**: Manage multiple Slack workspaces with easy switching
-- **AI-Friendly Refs**: Session-scoped entity references (@c1, @m1, @u1, @f1)
 - **JSON Output**: Default JSON output for AI consumption, `--pretty` flag for humans
 - **Comprehensive Commands**: Messages, channels, users, reactions, files, and snapshots
 - **Type-Safe**: Built with TypeScript in strict mode
-- **Well-Tested**: 236 passing tests with TDD workflow
+- **Well-Tested**: Comprehensive test coverage with TDD workflow
 
 ## Installation
 
@@ -57,14 +56,11 @@ bunx agent-slack --help
 # 1. Extract credentials from Slack desktop app (zero-config!)
 agent-slack auth extract
 
-# 2. Get workspace snapshot with refs
+# 2. Get workspace snapshot
 agent-slack snapshot
 
 # 3. Send a message
 agent-slack message send general "Hello from AI agent!"
-
-# 4. Use refs for AI-friendly interaction
-agent-slack message send @c1 "Message to first channel"
 ```
 
 ## Authentication
@@ -112,7 +108,6 @@ agent-slack auth status
 # Send a message
 agent-slack message send <channel> <text>
 agent-slack message send general "Hello world"
-agent-slack message send @c1 "Using ref"
 
 # Send a threaded reply
 agent-slack message send general "Reply" --thread <ts>
@@ -142,7 +137,7 @@ agent-slack channel list --include-archived
 
 # Get channel info
 agent-slack channel info <channel>
-agent-slack channel info @c1
+agent-slack channel info general
 ```
 
 ### User Commands
@@ -154,7 +149,6 @@ agent-slack user list --include-bots
 
 # Get user info
 agent-slack user info <user>
-agent-slack user info @u1
 
 # Get current user
 agent-slack user me
@@ -165,7 +159,7 @@ agent-slack user me
 ```bash
 # Add reaction
 agent-slack reaction add <channel> <ts> <emoji>
-agent-slack reaction add @c1 @m5 thumbsup
+agent-slack reaction add general 1234567890.123456 thumbsup
 
 # Remove reaction
 agent-slack reaction remove <channel> <ts> <emoji>
@@ -205,22 +199,10 @@ agent-slack snapshot --users-only
 agent-slack snapshot --limit 10
 ```
 
-## Ref System
-
-agent-slack uses AI-friendly references for entities:
-
-- **Channels**: `@c1`, `@c2`, `@c3`, ...
-- **Messages**: `@m1`, `@m2`, `@m3`, ...
-- **Users**: `@u1`, `@u2`, `@u3`, ...
-- **Files**: `@f1`, `@f2`, `@f3`, ...
-
-Refs are session-scoped and included in all command outputs.
-
 ## AI Agent Integration
 
 See `skills/agent-slack/` directory for:
 - Complete skill documentation
-- Reference guides
 - Runnable templates
 
 ## Development

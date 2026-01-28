@@ -1,11 +1,9 @@
 import { expect, mock, test } from 'bun:test'
 import { snapshotCommand } from '../../src/commands/snapshot'
 import { CredentialManager } from '../../src/lib/credential-manager'
-import { RefManager } from '../../src/lib/ref-manager'
 import { SlackClient } from '../../src/lib/slack-client'
 import type { SlackChannel, SlackMessage, SlackUser } from '../../src/types'
 
-// Mock modules
 mock.module('../../src/lib/credential-manager', () => ({
   CredentialManager: class {
     async getWorkspace() {
@@ -139,7 +137,6 @@ test('snapshot command has --limit option', () => {
 })
 
 test('full snapshot returns workspace, channels, messages, and users', async () => {
-  const refManager = new RefManager()
   const credManager = new CredentialManager()
   const client = new SlackClient('xoxc-test', 'test-cookie')
 
@@ -148,31 +145,24 @@ test('full snapshot returns workspace, channels, messages, and users', async () 
   const channels = await client.listChannels()
   const users = await client.listUsers()
 
-  // Assign refs
-  const channelRefs = channels.map((ch) => refManager.assignChannelRef(ch))
-  const userRefs = users.map((u) => refManager.assignUserRef(u))
-
-  // Get messages for each channel
-  const allMessages: Array<SlackMessage & { channel_ref: string }> = []
-  for (let i = 0; i < channels.length; i++) {
-    const messages = await client.getMessages(channels[i].id, 20)
+  const allMessages: Array<SlackMessage & { channel_id: string; channel_name: string }> = []
+  for (const channel of channels) {
+    const messages = await client.getMessages(channel.id, 20)
     for (const msg of messages) {
-      const _ref = refManager.assignMessageRef(msg)
       allMessages.push({
         ...msg,
-        channel_ref: channelRefs[i],
+        channel_id: channel.id,
+        channel_name: channel.name,
       })
     }
   }
 
-  // Build snapshot
   const snapshot = {
     workspace: {
       id: auth.team_id,
       name: auth.team,
     },
-    channels: channels.map((ch, i) => ({
-      ref: channelRefs[i],
+    channels: channels.map((ch) => ({
       id: ch.id,
       name: ch.name,
       is_private: ch.is_private,
@@ -181,17 +171,16 @@ test('full snapshot returns workspace, channels, messages, and users', async () 
       topic: ch.topic?.value,
       purpose: ch.purpose?.value,
     })),
-    recent_messages: allMessages.map((msg, i) => ({
-      ref: `@m${i + 1}`,
-      channel_ref: msg.channel_ref,
+    recent_messages: allMessages.map((msg) => ({
+      channel_id: msg.channel_id,
+      channel_name: msg.channel_name,
       ts: msg.ts,
       text: msg.text,
       user: msg.user,
       username: msg.username,
       thread_ts: msg.thread_ts,
     })),
-    users: users.map((u, i) => ({
-      ref: userRefs[i],
+    users: users.map((u) => ({
       id: u.id,
       name: u.name,
       real_name: u.real_name,
@@ -199,34 +188,25 @@ test('full snapshot returns workspace, channels, messages, and users', async () 
       is_bot: u.is_bot,
       profile: u.profile,
     })),
-    refs: refManager.serialize(),
   }
 
-  // Verify structure
   expect(snapshot.workspace).toBeDefined()
   expect(snapshot.workspace.id).toBe('T123')
   expect(snapshot.workspace.name).toBe('Test Workspace')
 
   expect(snapshot.channels).toBeDefined()
   expect(snapshot.channels.length).toBe(2)
-  expect(snapshot.channels[0].ref).toBe('@c1')
   expect(snapshot.channels[0].name).toBe('general')
 
   expect(snapshot.recent_messages).toBeDefined()
   expect(snapshot.recent_messages.length).toBeGreaterThan(0)
-  expect(snapshot.recent_messages[0].ref).toBe('@m1')
 
   expect(snapshot.users).toBeDefined()
   expect(snapshot.users.length).toBe(2)
-  expect(snapshot.users[0].ref).toBe('@u1')
   expect(snapshot.users[0].name).toBe('alice')
-
-  expect(snapshot.refs).toBeDefined()
-  expect(typeof snapshot.refs).toBe('string')
 })
 
 test('snapshot with --channels-only excludes messages and users', async () => {
-  const refManager = new RefManager()
   const credManager = new CredentialManager()
   const client = new SlackClient('xoxc-test', 'test-cookie')
 
@@ -234,17 +214,12 @@ test('snapshot with --channels-only excludes messages and users', async () => {
   const auth = await client.testAuth()
   const channels = await client.listChannels()
 
-  // Assign refs
-  const channelRefs = channels.map((ch) => refManager.assignChannelRef(ch))
-
-  // Build snapshot with channels only
   const snapshot = {
     workspace: {
       id: auth.team_id,
       name: auth.team,
     },
-    channels: channels.map((ch, i) => ({
-      ref: channelRefs[i],
+    channels: channels.map((ch) => ({
       id: ch.id,
       name: ch.name,
       is_private: ch.is_private,
@@ -253,10 +228,8 @@ test('snapshot with --channels-only excludes messages and users', async () => {
       topic: ch.topic?.value,
       purpose: ch.purpose?.value,
     })),
-    refs: refManager.serialize(),
   }
 
-  // Verify structure
   expect(snapshot.workspace).toBeDefined()
   expect(snapshot.channels).toBeDefined()
   expect(snapshot.channels.length).toBe(2)
@@ -265,7 +238,6 @@ test('snapshot with --channels-only excludes messages and users', async () => {
 })
 
 test('snapshot with --users-only excludes channels and messages', async () => {
-  const refManager = new RefManager()
   const credManager = new CredentialManager()
   const client = new SlackClient('xoxc-test', 'test-cookie')
 
@@ -273,17 +245,12 @@ test('snapshot with --users-only excludes channels and messages', async () => {
   const auth = await client.testAuth()
   const users = await client.listUsers()
 
-  // Assign refs
-  const userRefs = users.map((u) => refManager.assignUserRef(u))
-
-  // Build snapshot with users only
   const snapshot = {
     workspace: {
       id: auth.team_id,
       name: auth.team,
     },
-    users: users.map((u, i) => ({
-      ref: userRefs[i],
+    users: users.map((u) => ({
       id: u.id,
       name: u.name,
       real_name: u.real_name,
@@ -291,10 +258,8 @@ test('snapshot with --users-only excludes channels and messages', async () => {
       is_bot: u.is_bot,
       profile: u.profile,
     })),
-    refs: refManager.serialize(),
   }
 
-  // Verify structure
   expect(snapshot.workspace).toBeDefined()
   expect(snapshot.users).toBeDefined()
   expect(snapshot.users.length).toBe(2)
@@ -303,7 +268,6 @@ test('snapshot with --users-only excludes channels and messages', async () => {
 })
 
 test('snapshot respects --limit option for messages', async () => {
-  const refManager = new RefManager()
   const credManager = new CredentialManager()
   const client = new SlackClient('xoxc-test', 'test-cookie')
 
@@ -311,30 +275,24 @@ test('snapshot respects --limit option for messages', async () => {
   const auth = await client.testAuth()
   const channels = await client.listChannels()
 
-  // Assign refs
-  const channelRefs = channels.map((ch) => refManager.assignChannelRef(ch))
-
-  // Get messages with limit
-  const allMessages: Array<SlackMessage & { channel_ref: string }> = []
-  for (let i = 0; i < channels.length; i++) {
-    const messages = await client.getMessages(channels[i].id, 5) // limit to 5
+  const allMessages: Array<SlackMessage & { channel_id: string; channel_name: string }> = []
+  for (const channel of channels) {
+    const messages = await client.getMessages(channel.id, 5)
     for (const msg of messages) {
-      refManager.assignMessageRef(msg)
       allMessages.push({
         ...msg,
-        channel_ref: channelRefs[i],
+        channel_id: channel.id,
+        channel_name: channel.name,
       })
     }
   }
 
-  // Build snapshot
   const snapshot = {
     workspace: {
       id: auth.team_id,
       name: auth.team,
     },
-    channels: channels.map((ch, i) => ({
-      ref: channelRefs[i],
+    channels: channels.map((ch) => ({
       id: ch.id,
       name: ch.name,
       is_private: ch.is_private,
@@ -344,67 +302,7 @@ test('snapshot respects --limit option for messages', async () => {
       purpose: ch.purpose?.value,
     })),
     recent_messages: allMessages,
-    refs: refManager.serialize(),
   }
 
-  // Verify limit was respected
-  expect(snapshot.recent_messages.length).toBeLessThanOrEqual(10) // 2 channels * 5 limit
-})
-
-test('refs are consistent and resolvable', async () => {
-  const refManager = new RefManager()
-  const _credManager = new CredentialManager()
-  const client = new SlackClient('xoxc-test', 'test-cookie')
-
-  const channels = await client.listChannels()
-  const users = await client.listUsers()
-
-  // Assign refs
-  const channelRefs = channels.map((ch) => refManager.assignChannelRef(ch))
-  const userRefs = users.map((u) => refManager.assignUserRef(u))
-
-  // Verify refs resolve correctly
-  for (let i = 0; i < channelRefs.length; i++) {
-    const resolved = refManager.resolveRef(channelRefs[i])
-    expect(resolved).toBeDefined()
-    expect(resolved?.type).toBe('channel')
-    expect(resolved?.id).toBe(channels[i].id)
-  }
-
-  for (let i = 0; i < userRefs.length; i++) {
-    const resolved = refManager.resolveRef(userRefs[i])
-    expect(resolved).toBeDefined()
-    expect(resolved?.type).toBe('user')
-    expect(resolved?.id).toBe(users[i].id)
-  }
-})
-
-test('snapshot refs mapping is valid JSON', async () => {
-  const refManager = new RefManager()
-  const _credManager = new CredentialManager()
-  const client = new SlackClient('xoxc-test', 'test-cookie')
-
-  const channels = await client.listChannels()
-  const users = await client.listUsers()
-
-  // Assign refs
-  for (const ch of channels) {
-    refManager.assignChannelRef(ch)
-  }
-  for (const u of users) {
-    refManager.assignUserRef(u)
-  }
-
-  // Get serialized refs
-  const refsSerialized = refManager.serialize()
-
-  // Verify it's valid JSON
-  expect(() => JSON.parse(refsSerialized)).not.toThrow()
-
-  // Verify structure
-  const refs = JSON.parse(refsSerialized)
-  expect(refs['@c1']).toBe('C123')
-  expect(refs['@c2']).toBe('C456')
-  expect(refs['@u1']).toBe('U123')
-  expect(refs['@u2']).toBe('U456')
+  expect(snapshot.recent_messages.length).toBeLessThanOrEqual(10)
 })

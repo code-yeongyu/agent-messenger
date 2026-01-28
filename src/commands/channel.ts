@@ -38,8 +38,7 @@ async function listAction(options: {
       channels = []
     }
 
-    const output = channels.map((ch, idx) => ({
-      ref: `@c${idx + 1}`,
+    const output = channels.map((ch) => ({
       id: ch.id,
       name: ch.name,
       is_private: ch.is_private,
@@ -71,25 +70,9 @@ async function infoAction(channel: string, options: { pretty?: boolean }): Promi
     }
 
     const client = new SlackClient(workspace.token, workspace.cookie)
-
-    // Resolve ref if it starts with @c
-    let channelId = channel
-    if (channel.startsWith('@c')) {
-      // Get all channels to resolve ref
-      const channels = await client.listChannels()
-      const refNum = parseInt(channel.slice(2), 10)
-      if (refNum > 0 && refNum <= channels.length) {
-        channelId = channels[refNum - 1].id
-      } else {
-        console.log(formatOutput({ error: `Invalid channel ref: ${channel}` }, options.pretty))
-        process.exit(1)
-      }
-    }
-
-    const ch = await client.getChannel(channelId)
+    const ch = await client.getChannel(channel)
 
     const output = {
-      ref: `@c1`, // In single channel context, it's @c1
       id: ch.id,
       name: ch.name,
       is_private: ch.is_private,
@@ -125,25 +108,9 @@ async function historyAction(
     }
 
     const client = new SlackClient(workspace.token, workspace.cookie)
+    const messages = await client.getMessages(channel, options.limit || 20)
 
-    // Resolve ref if it starts with @c
-    let channelId = channel
-    if (channel.startsWith('@c')) {
-      const channels = await client.listChannels()
-      const refNum = parseInt(channel.slice(2), 10)
-      if (refNum > 0 && refNum <= channels.length) {
-        channelId = channels[refNum - 1].id
-      } else {
-        console.log(formatOutput({ error: `Invalid channel ref: ${channel}` }, options.pretty))
-        process.exit(1)
-      }
-    }
-
-    const messages = await client.getMessages(channelId, options.limit || 20)
-
-    // Assign refs to messages
-    const output = messages.map((msg, idx) => ({
-      ref: `@m${idx + 1}`,
+    const output = messages.map((msg) => ({
       ts: msg.ts,
       text: msg.text,
       user: msg.user,
@@ -172,14 +139,14 @@ export const channelCommand = new Command('channel')
   .addCommand(
     new Command('info')
       .description('Get channel info')
-      .argument('<channel>', 'Channel ID or ref (@c1)')
+      .argument('<channel>', 'Channel ID or name')
       .option('--pretty', 'Pretty print JSON output')
       .action(infoAction)
   )
   .addCommand(
     new Command('history')
       .description('Get channel message history (alias for message list)')
-      .argument('<channel>', 'Channel ID or ref (@c1)')
+      .argument('<channel>', 'Channel ID or name')
       .option('--limit <n>', 'Number of messages to fetch', '20')
       .option('--pretty', 'Pretty print JSON output')
       .action((channel, options) => {

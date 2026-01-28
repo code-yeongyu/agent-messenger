@@ -5,23 +5,6 @@ import type { SlackMessage } from '../types'
 import { handleError } from '../utils/error-handler'
 import { formatOutput } from '../utils/output'
 
-let messageRefCounter = 0
-const messageRefs: Map<string, string> = new Map()
-
-function assignMessageRef(ts: string): string {
-  messageRefCounter++
-  const ref = `@m${messageRefCounter}`
-  messageRefs.set(ref, ts)
-  return ref
-}
-
-function resolveMessageRef(ref: string): string | null {
-  if (ref.startsWith('@m')) {
-    return messageRefs.get(ref) || null
-  }
-  return null
-}
-
 async function sendAction(
   channel: string,
   text: string,
@@ -44,9 +27,7 @@ async function sendAction(
     const client = new SlackClient(workspace.token, workspace.cookie)
     const message = await client.sendMessage(channel, text, options.thread)
 
-    const ref = assignMessageRef(message.ts)
     const output = {
-      ref,
       ts: message.ts,
       text: message.text,
       type: message.type,
@@ -82,23 +63,16 @@ async function listAction(
     const limit = options.limit || 20
     const messages = await client.getMessages(channel, limit)
 
-    messageRefCounter = 0
-    messageRefs.clear()
-
-    const output = messages.map((msg: SlackMessage) => {
-      const ref = assignMessageRef(msg.ts)
-      return {
-        ref,
-        ts: msg.ts,
-        text: msg.text,
-        type: msg.type,
-        user: msg.user,
-        username: msg.username,
-        thread_ts: msg.thread_ts,
-        reply_count: msg.reply_count,
-        edited: msg.edited,
-      }
-    })
+    const output = messages.map((msg: SlackMessage) => ({
+      ts: msg.ts,
+      text: msg.text,
+      type: msg.type,
+      user: msg.user,
+      username: msg.username,
+      thread_ts: msg.thread_ts,
+      reply_count: msg.reply_count,
+      edited: msg.edited,
+    }))
 
     console.log(formatOutput(output, options.pretty))
   } catch (error) {
@@ -125,23 +99,15 @@ async function getAction(
       process.exit(1)
     }
 
-    const resolvedTs = ts.startsWith('@m') ? resolveMessageRef(ts) : ts
-    if (!resolvedTs) {
-      console.log(formatOutput({ error: `Invalid message ref: ${ts}` }, options.pretty))
-      process.exit(1)
-    }
-
     const client = new SlackClient(workspace.token, workspace.cookie)
-    const message = await client.getMessage(channel, resolvedTs)
+    const message = await client.getMessage(channel, ts)
 
     if (!message) {
-      console.log(formatOutput({ error: `Message not found: ${resolvedTs}` }, options.pretty))
+      console.log(formatOutput({ error: `Message not found: ${ts}` }, options.pretty))
       process.exit(1)
     }
 
-    const ref = assignMessageRef(message.ts)
     const output = {
-      ref,
       ts: message.ts,
       text: message.text,
       type: message.type,
@@ -178,18 +144,10 @@ async function updateAction(
       process.exit(1)
     }
 
-    const resolvedTs = ts.startsWith('@m') ? resolveMessageRef(ts) : ts
-    if (!resolvedTs) {
-      console.log(formatOutput({ error: `Invalid message ref: ${ts}` }, options.pretty))
-      process.exit(1)
-    }
-
     const client = new SlackClient(workspace.token, workspace.cookie)
-    const message = await client.updateMessage(channel, resolvedTs, text)
+    const message = await client.updateMessage(channel, ts, text)
 
-    const ref = assignMessageRef(message.ts)
     const output = {
-      ref,
       ts: message.ts,
       text: message.text,
       type: message.type,
@@ -221,23 +179,15 @@ async function deleteAction(
       process.exit(1)
     }
 
-    const resolvedTs = ts.startsWith('@m') ? resolveMessageRef(ts) : ts
-    if (!resolvedTs) {
-      console.log(formatOutput({ error: `Invalid message ref: ${ts}` }, options.pretty))
-      process.exit(1)
-    }
-
     if (!options.force) {
-      console.log(
-        formatOutput({ warning: 'Use --force to confirm deletion', ts: resolvedTs }, options.pretty)
-      )
+      console.log(formatOutput({ warning: 'Use --force to confirm deletion', ts }, options.pretty))
       process.exit(0)
     }
 
     const client = new SlackClient(workspace.token, workspace.cookie)
-    await client.deleteMessage(channel, resolvedTs)
+    await client.deleteMessage(channel, ts)
 
-    console.log(formatOutput({ deleted: resolvedTs }, options.pretty))
+    console.log(formatOutput({ deleted: ts }, options.pretty))
   } catch (error) {
     handleError(error as Error)
   }
@@ -268,22 +218,15 @@ async function searchAction(
       count: options.limit || 20,
     })
 
-    messageRefCounter = 0
-    messageRefs.clear()
-
-    const output = results.map((result) => {
-      const ref = assignMessageRef(result.ts)
-      return {
-        ref,
-        ts: result.ts,
-        text: result.text,
-        user: result.user,
-        username: result.username,
-        channel_id: result.channel.id,
-        channel_name: result.channel.name,
-        permalink: result.permalink,
-      }
-    })
+    const output = results.map((result) => ({
+      ts: result.ts,
+      text: result.text,
+      user: result.user,
+      username: result.username,
+      channel_id: result.channel.id,
+      channel_name: result.channel.name,
+      permalink: result.permalink,
+    }))
 
     console.log(formatOutput(output, options.pretty))
   } catch (error) {
@@ -321,7 +264,7 @@ export const messageCommand = new Command('message')
     new Command('get')
       .description('Get a single message by timestamp')
       .argument('<channel>', 'Channel ID or name')
-      .argument('<ts>', 'Message timestamp or ref (@m1)')
+      .argument('<ts>', 'Message timestamp')
       .option('--pretty', 'Pretty print JSON output')
       .action(getAction)
   )
@@ -329,7 +272,7 @@ export const messageCommand = new Command('message')
     new Command('update')
       .description('Update message text')
       .argument('<channel>', 'Channel ID or name')
-      .argument('<ts>', 'Message timestamp or ref (@m1)')
+      .argument('<ts>', 'Message timestamp')
       .argument('<text>', 'New message text')
       .option('--pretty', 'Pretty print JSON output')
       .action(updateAction)
@@ -338,7 +281,7 @@ export const messageCommand = new Command('message')
     new Command('delete')
       .description('Delete message')
       .argument('<channel>', 'Channel ID or name')
-      .argument('<ts>', 'Message timestamp or ref (@m1)')
+      .argument('<ts>', 'Message timestamp')
       .option('--force', 'Skip confirmation')
       .option('--pretty', 'Pretty print JSON output')
       .action(deleteAction)

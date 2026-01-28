@@ -130,7 +130,6 @@ describe('Message Commands', () => {
       const _threadTs = '1234567890.123456'
 
       // When: Getting thread messages
-      // Note: This would need SlackClient to support thread filtering
       const messages = await mockClient.getMessages(channel)
 
       // Then: Should return messages
@@ -227,46 +226,9 @@ describe('Message Commands', () => {
     })
   })
 
-  describe('ref resolution', () => {
-    test('resolves channel ref @c1', () => {
-      // Given: A channel ref
-      const ref = '@c1'
-
-      // When: Parsing ref
-      const match = ref.match(/@c(\d+)/)
-
-      // Then: Should extract number
-      expect(match).toBeDefined()
-      expect(match?.[1]).toBe('1')
-    })
-
-    test('resolves message ref @m5', () => {
-      // Given: A message ref
-      const ref = '@m5'
-
-      // When: Parsing ref
-      const match = ref.match(/@m(\d+)/)
-
-      // Then: Should extract number
-      expect(match).toBeDefined()
-      expect(match?.[1]).toBe('5')
-    })
-
-    test('supports combined refs like @c1 @m5', () => {
-      // Given: Combined refs
-      const input = '@c1 @m5'
-
-      // When: Parsing refs
-      const refs = input.match(/@[cmuf]\d+/g)
-
-      // Then: Should extract all refs
-      expect(refs).toEqual(['@c1', '@m5'])
-    })
-  })
-
   describe('output formatting', () => {
-    test('includes ref in message output', () => {
-      // Given: A message with ref
+    test('formats message output', () => {
+      // Given: A message
       const message: SlackMessage = {
         ts: '1234567890.123456',
         text: 'Hello',
@@ -275,17 +237,14 @@ describe('Message Commands', () => {
       }
 
       // When: Formatting output
-      const output = {
-        ref: '@m1',
-        ...message,
-      }
+      const output = { ...message }
 
-      // Then: Should include ref
-      expect(output.ref).toBe('@m1')
+      // Then: Should include message fields
+      expect(output.ts).toBeDefined()
       expect(output.text).toBe('Hello')
     })
 
-    test('formats multiple messages with refs', () => {
+    test('formats multiple messages', () => {
       // Given: Multiple messages
       const messages: SlackMessage[] = [
         {
@@ -302,15 +261,13 @@ describe('Message Commands', () => {
         },
       ]
 
-      // When: Formatting with refs
-      const output = messages.map((msg, idx) => ({
-        ref: `@m${idx + 1}`,
-        ...msg,
-      }))
+      // When: Formatting
+      const output = messages.map((msg) => ({ ...msg }))
 
-      // Then: Should have sequential refs
-      expect(output[0].ref).toBe('@m1')
-      expect(output[1].ref).toBe('@m2')
+      // Then: Should have all messages
+      expect(output).toHaveLength(2)
+      expect(output[0].text).toBe('First')
+      expect(output[1].text).toBe('Second')
     })
   })
 })

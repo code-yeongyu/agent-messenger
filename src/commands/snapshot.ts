@@ -1,6 +1,5 @@
 import { Command } from 'commander'
 import { CredentialManager } from '../lib/credential-manager'
-import { RefManager } from '../lib/ref-manager'
 import { SlackClient } from '../lib/slack-client'
 import type { SlackMessage } from '../types'
 import { handleError } from '../utils/error-handler'
@@ -27,7 +26,6 @@ async function snapshotAction(options: {
     }
 
     const client = new SlackClient(workspace.token, workspace.cookie)
-    const refManager = new RefManager()
 
     const auth = await client.testAuth()
     const messageLimit = options.limit || 20
@@ -41,10 +39,8 @@ async function snapshotAction(options: {
 
     if (!options.usersOnly) {
       const channels = await client.listChannels()
-      const channelRefs = channels.map((ch) => refManager.assignChannelRef(ch))
 
-      snapshot.channels = channels.map((ch, i) => ({
-        ref: channelRefs[i],
+      snapshot.channels = channels.map((ch) => ({
         id: ch.id,
         name: ch.name,
         is_private: ch.is_private,
@@ -55,21 +51,22 @@ async function snapshotAction(options: {
       }))
 
       if (!options.channelsOnly) {
-        const allMessages: Array<SlackMessage & { channel_ref: string }> = []
+        const allMessages: Array<SlackMessage & { channel_id: string; channel_name: string }> = []
 
-        for (let i = 0; i < channels.length; i++) {
-          const messages = await client.getMessages(channels[i].id, messageLimit)
+        for (const channel of channels) {
+          const messages = await client.getMessages(channel.id, messageLimit)
           for (const msg of messages) {
             allMessages.push({
               ...msg,
-              channel_ref: channelRefs[i],
+              channel_id: channel.id,
+              channel_name: channel.name,
             })
           }
         }
 
-        snapshot.recent_messages = allMessages.map((msg, i) => ({
-          ref: `@m${i + 1}`,
-          channel_ref: msg.channel_ref,
+        snapshot.recent_messages = allMessages.map((msg) => ({
+          channel_id: msg.channel_id,
+          channel_name: msg.channel_name,
           ts: msg.ts,
           text: msg.text,
           user: msg.user,
@@ -81,10 +78,8 @@ async function snapshotAction(options: {
 
     if (!options.channelsOnly) {
       const users = await client.listUsers()
-      const userRefs = users.map((u) => refManager.assignUserRef(u))
 
-      snapshot.users = users.map((u, i) => ({
-        ref: userRefs[i],
+      snapshot.users = users.map((u) => ({
         id: u.id,
         name: u.name,
         real_name: u.real_name,
@@ -94,8 +89,6 @@ async function snapshotAction(options: {
       }))
     }
 
-    snapshot.refs = JSON.parse(refManager.serialize())
-
     console.log(formatOutput(snapshot, options.pretty))
   } catch (error) {
     handleError(error as Error)
@@ -104,7 +97,7 @@ async function snapshotAction(options: {
 
 export const snapshotCommand = new Command()
   .name('snapshot')
-  .description('Get comprehensive workspace state with refs for AI agents')
+  .description('Get comprehensive workspace state for AI agents')
   .option('--channels-only', 'Include only channels (exclude messages and users)')
   .option('--users-only', 'Include only users (exclude channels and messages)')
   .option('--limit <n>', 'Number of recent messages per channel (default: 20)', '20')

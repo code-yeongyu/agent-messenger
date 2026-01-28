@@ -1,11 +1,8 @@
 import { Command } from 'commander'
 import { CredentialManager } from '../lib/credential-manager'
-import { RefManager } from '../lib/ref-manager'
 import { SlackClient } from '../lib/slack-client'
 import { handleError } from '../utils/error-handler'
 import { formatOutput } from '../utils/output'
-
-const refManager = new RefManager()
 
 async function getClient(pretty?: boolean): Promise<SlackClient | null> {
   const credManager = new CredentialManager()
@@ -38,7 +35,6 @@ export const userCommand = new Command('user')
           const filtered = options.includeBots ? users : users.filter((u) => !u.is_bot)
 
           const output = filtered.map((user) => ({
-            ref: refManager.assignUserRef(user),
             id: user.id,
             name: user.name,
             real_name: user.real_name,
@@ -58,27 +54,16 @@ export const userCommand = new Command('user')
   .addCommand(
     new Command('info')
       .description('show user details')
-      .argument('<user>', 'user ID or ref (e.g., U123 or @u1)')
+      .argument('<user>', 'user ID or username')
       .option('--pretty', 'pretty-print JSON output')
       .action(async (userArg, options) => {
         try {
           const client = await getClient(options.pretty)
           if (!client) return process.exit(1)
 
-          let userId = userArg
-          if (userArg.startsWith('@u')) {
-            const resolved = refManager.resolveRef(userArg)
-            if (!resolved || resolved.type !== 'user') {
-              throw new Error(`Invalid user ref: ${userArg}`)
-            }
-            userId = resolved.id
-          }
-
-          const user = await client.getUser(userId)
-          const ref = refManager.assignUserRef(user)
+          const user = await client.getUser(userArg)
 
           const output = {
-            ref,
             id: user.id,
             name: user.name,
             real_name: user.real_name,
@@ -105,10 +90,8 @@ export const userCommand = new Command('user')
           if (!client) return process.exit(1)
           const authInfo = await client.testAuth()
           const user = await client.getUser(authInfo.user_id)
-          const ref = refManager.assignUserRef(user)
 
           const output = {
-            ref,
             id: user.id,
             name: user.name,
             real_name: user.real_name,

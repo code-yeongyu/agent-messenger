@@ -85,7 +85,7 @@ echo "Users: $USER_COUNT"
 
 # List all channels
 echo -e "\nChannels:"
-echo "$SNAPSHOT" | jq -r '.data.channels[] | "  \(.ref) - \(.name)"'
+echo "$SNAPSHOT" | jq -r '.channels[] | "  \(.name) (\(.id))"'
 
 # List recent activity
 echo -e "\nRecent messages:"
@@ -237,7 +237,7 @@ agent-slack message send "$CHANNEL" "Hey <@$USER_ID>, the build is ready for rev
 
 **When to use**: Notifications, task assignments, code review requests.
 
-**Note**: Slack mentions require actual user IDs (e.g., `<@U06WXYZ5678>`), not refs.
+**Note**: Slack mentions require actual user IDs (e.g., `<@U06WXYZ5678>`).
 
 ## Pattern 9: Reaction-Based Workflow
 
@@ -415,12 +415,12 @@ agent-slack message send general "Hello"  # No error checking
 # Good - readable and maintainable
 agent-slack message send general "Hello"
 
-# Okay - necessary if using refs
+# Also good - use ID from snapshot
 SNAPSHOT=$(agent-slack snapshot)
-REF=$(echo "$SNAPSHOT" | jq -r '.data.channels[0].ref')
-agent-slack message send "$REF" "Hello"
+CHANNEL_ID=$(echo "$SNAPSHOT" | jq -r '.channels[0].id')
+agent-slack message send "$CHANNEL_ID" "Hello"
 
-# Bad - hardcoded IDs
+# Bad - hardcoded IDs in scripts
 agent-slack message send C06ABCD1234 "Hello"
 ```
 
@@ -524,5 +524,4 @@ agent-slack message send general "$MESSAGE"
 ## See Also
 
 - [Authentication Guide](authentication.md) - Setting up credentials
-- [Refs System](refs-system.md) - Understanding refs
 - [Templates](../templates/) - Runnable example scripts

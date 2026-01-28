@@ -34,7 +34,6 @@ async function uploadAction(
     const file = await client.uploadFile([channel], fileBuffer, filename)
 
     const output = {
-      ref: '@f1',
       id: file.id,
       name: file.name,
       title: file.title,
@@ -70,8 +69,7 @@ async function listAction(options: { channel?: string; pretty?: boolean }): Prom
     const client = new SlackClient(workspace.token, workspace.cookie)
     const files = await client.listFiles(options.channel)
 
-    const output = files.map((file, idx) => ({
-      ref: `@f${idx + 1}`,
+    const output = files.map((file) => ({
       id: file.id,
       name: file.name,
       title: file.title,
@@ -89,7 +87,7 @@ async function listAction(options: { channel?: string; pretty?: boolean }): Prom
   }
 }
 
-async function infoAction(file: string, options: { pretty?: boolean }): Promise<void> {
+async function infoAction(fileId: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
@@ -105,19 +103,6 @@ async function infoAction(file: string, options: { pretty?: boolean }): Promise<
     }
 
     const client = new SlackClient(workspace.token, workspace.cookie)
-
-    let fileId = file
-    if (file.startsWith('@f')) {
-      const files = await client.listFiles()
-      const refNum = parseInt(file.slice(2), 10)
-      if (refNum > 0 && refNum <= files.length) {
-        fileId = files[refNum - 1].id
-      } else {
-        console.log(formatOutput({ error: `Invalid file ref: ${file}` }, options.pretty))
-        process.exit(1)
-      }
-    }
-
     const files = await client.listFiles()
     const fileData = files.find((f) => f.id === fileId)
 
@@ -127,7 +112,6 @@ async function infoAction(file: string, options: { pretty?: boolean }): Promise<
     }
 
     const output = {
-      ref: '@f1',
       id: fileData.id,
       name: fileData.name,
       title: fileData.title,
@@ -150,7 +134,7 @@ export const fileCommand = new Command('file')
   .addCommand(
     new Command('upload')
       .description('upload file to channel')
-      .argument('<channel>', 'channel ID')
+      .argument('<channel>', 'channel ID or name')
       .argument('<path>', 'file path')
       .option('--filename <name>', 'override filename')
       .action(uploadAction)
@@ -164,6 +148,6 @@ export const fileCommand = new Command('file')
   .addCommand(
     new Command('info')
       .description('show file details')
-      .argument('<file>', 'file ID or ref (@f1)')
+      .argument('<file>', 'file ID')
       .action(infoAction)
   )

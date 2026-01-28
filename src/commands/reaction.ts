@@ -1,11 +1,8 @@
 import { Command } from 'commander'
 import { CredentialManager } from '../lib/credential-manager'
-import { RefManager } from '../lib/ref-manager'
 import { SlackClient } from '../lib/slack-client'
 import { handleError } from '../utils/error-handler'
 import { formatOutput } from '../utils/output'
-
-const refManager = new RefManager()
 
 async function addAction(
   channel: string,
@@ -28,28 +25,14 @@ async function addAction(
     }
 
     const client = new SlackClient(ws.token, ws.cookie)
-
-    let resolvedChannel = channel
-    let resolvedTs = ts
-
-    const channelResolved = refManager.resolveRef(channel)
-    if (channelResolved && channelResolved.type === 'channel') {
-      resolvedChannel = channelResolved.id
-    }
-
-    const messageResolved = refManager.resolveRef(ts)
-    if (messageResolved && messageResolved.type === 'message') {
-      resolvedTs = messageResolved.id
-    }
-
-    await client.addReaction(resolvedChannel, resolvedTs, emoji)
+    await client.addReaction(channel, ts, emoji)
 
     console.log(
       formatOutput(
         {
           success: true,
-          channel: resolvedChannel,
-          ts: resolvedTs,
+          channel,
+          ts,
           emoji,
         },
         options.pretty
@@ -81,28 +64,14 @@ async function removeAction(
     }
 
     const client = new SlackClient(ws.token, ws.cookie)
-
-    let resolvedChannel = channel
-    let resolvedTs = ts
-
-    const channelResolved = refManager.resolveRef(channel)
-    if (channelResolved && channelResolved.type === 'channel') {
-      resolvedChannel = channelResolved.id
-    }
-
-    const messageResolved = refManager.resolveRef(ts)
-    if (messageResolved && messageResolved.type === 'message') {
-      resolvedTs = messageResolved.id
-    }
-
-    await client.removeReaction(resolvedChannel, resolvedTs, emoji)
+    await client.removeReaction(channel, ts, emoji)
 
     console.log(
       formatOutput(
         {
           success: true,
-          channel: resolvedChannel,
-          ts: resolvedTs,
+          channel,
+          ts,
           emoji,
         },
         options.pretty
@@ -133,30 +102,16 @@ async function listAction(
     }
 
     const client = new SlackClient(ws.token, ws.cookie)
-
-    let resolvedChannel = channel
-    let resolvedTs = ts
-
-    const channelResolved = refManager.resolveRef(channel)
-    if (channelResolved && channelResolved.type === 'channel') {
-      resolvedChannel = channelResolved.id
-    }
-
-    const messageResolved = refManager.resolveRef(ts)
-    if (messageResolved && messageResolved.type === 'message') {
-      resolvedTs = messageResolved.id
-    }
-
-    const messages = await client.getMessages(resolvedChannel, 1)
-    const message = messages.find((m) => m.ts === resolvedTs)
+    const messages = await client.getMessages(channel, 1)
+    const message = messages.find((m) => m.ts === ts)
 
     if (!message) {
       console.log(
         formatOutput(
           {
             error: 'Message not found',
-            channel: resolvedChannel,
-            ts: resolvedTs,
+            channel,
+            ts,
           },
           options.pretty
         )
@@ -169,8 +124,8 @@ async function listAction(
     console.log(
       formatOutput(
         {
-          channel: resolvedChannel,
-          ts: resolvedTs,
+          channel,
+          ts,
           reactions,
         },
         options.pretty
@@ -186,8 +141,8 @@ export const reactionCommand = new Command('reaction')
   .addCommand(
     new Command('add')
       .description('Add emoji reaction to message')
-      .argument('<channel>', 'Channel ID or ref (@c1)')
-      .argument('<ts>', 'Message timestamp or ref (@m1)')
+      .argument('<channel>', 'Channel ID or name')
+      .argument('<ts>', 'Message timestamp')
       .argument('<emoji>', 'Emoji name (without colons)')
       .option('--pretty', 'Pretty print JSON output')
       .action(addAction)
@@ -195,8 +150,8 @@ export const reactionCommand = new Command('reaction')
   .addCommand(
     new Command('remove')
       .description('Remove emoji reaction from message')
-      .argument('<channel>', 'Channel ID or ref (@c1)')
-      .argument('<ts>', 'Message timestamp or ref (@m1)')
+      .argument('<channel>', 'Channel ID or name')
+      .argument('<ts>', 'Message timestamp')
       .argument('<emoji>', 'Emoji name (without colons)')
       .option('--pretty', 'Pretty print JSON output')
       .action(removeAction)
@@ -204,8 +159,8 @@ export const reactionCommand = new Command('reaction')
   .addCommand(
     new Command('list')
       .description('List reactions on a message')
-      .argument('<channel>', 'Channel ID or ref (@c1)')
-      .argument('<ts>', 'Message timestamp or ref (@m1)')
+      .argument('<channel>', 'Channel ID or name')
+      .argument('<ts>', 'Message timestamp')
       .option('--pretty', 'Pretty print JSON output')
       .action(listAction)
   )
