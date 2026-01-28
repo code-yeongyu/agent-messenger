@@ -14,12 +14,41 @@ A TypeScript CLI tool that enables AI agents and humans to interact with Slack w
 
 ## Installation
 
+### Claude Code Plugin Marketplace
+
+```bash
+# Add the marketplace
+claude plugin marketplace add devxoul/agent-slack
+
+# Install the plugin
+claude plugin install agent-slack
+```
+
+Or within Claude Code:
+
+```
+/plugin marketplace add devxoul/agent-slack
+/plugin install agent-slack
+```
+
+### Skills CLI (skills.sh)
+
+```bash
+# Install the skill
+skills install devxoul/agent-slack
+```
+
+### NPM (Global Installation)
+
 ```bash
 # Install globally
 npm install -g agent-slack
 
 # Or use with npx
 npx agent-slack --help
+
+# Or use with bun
+bunx agent-slack --help
 ```
 
 ## Quick Start

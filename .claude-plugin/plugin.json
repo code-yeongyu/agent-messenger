@@ -1,0 +1,16 @@
+{
+  "name": "agent-slack",
+  "version": "0.1.0",
+  "description": "Slack workspace interaction skill for AI agents. Send messages, read channels, manage reactions, upload files, and more through a simple CLI interface with AI-friendly entity references.",
+  "author": {
+    "name": "devxoul",
+    "url": "https://github.com/devxoul"
+  },
+  "license": "MIT",
+  "keywords": ["slack", "messaging", "workspace", "ai-agent", "cli", "communication", "productivity"],
+  "homepage": "https://github.com/devxoul/agent-slack",
+  "repository": "https://github.com/devxoul/agent-slack",
+  "skills": [
+    "./skills/agent-slack"
+  ]
+}

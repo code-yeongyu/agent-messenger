@@ -1,0 +1,24 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "agent-slack",
+  "description": "Slack workspace interaction skill for AI agents - send messages, read channels, manage reactions",
+  "owner": {
+    "name": "devxoul",
+    "url": "https://github.com/devxoul"
+  },
+  "plugins": [
+    {
+      "name": "agent-slack",
+      "description": "Interact with Slack workspaces through a CLI interface. Features seamless token extraction from Slack desktop app, multi-workspace support, AI-friendly entity references (@c1, @m1, @u1), message operations, channel management, reactions, and file uploads.",
+      "version": "0.1.0",
+      "author": {
+        "name": "devxoul",
+        "url": "https://github.com/devxoul"
+      },
+      "source": "./",
+      "category": "productivity",
+      "homepage": "https://github.com/devxoul/agent-slack",
+      "keywords": ["slack", "messaging", "workspace", "ai-agent", "cli", "communication"]
+    }
+  ]
+}
