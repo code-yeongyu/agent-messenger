@@ -1,7 +1,14 @@
 #!/usr/bin/env bun
 
 import { Command } from 'commander'
-import { authCommand, channelCommand, guildCommand, messageCommand, userCommand } from './commands'
+import {
+  authCommand,
+  channelCommand,
+  guildCommand,
+  messageCommand,
+  reactionCommand,
+  userCommand,
+} from './commands'
 
 const program = new Command()
 
@@ -16,6 +23,7 @@ program.addCommand(authCommand)
 program.addCommand(guildCommand)
 program.addCommand(channelCommand)
 program.addCommand(messageCommand)
+program.addCommand(reactionCommand)
 program.addCommand(userCommand)
 
 program.parse(process.argv)
