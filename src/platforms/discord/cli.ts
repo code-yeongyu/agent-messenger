@@ -8,6 +8,7 @@ import {
   guildCommand,
   messageCommand,
   reactionCommand,
+  snapshotCommand,
   userCommand,
 } from './commands'
 
@@ -26,6 +27,7 @@ program.addCommand(channelCommand)
 program.addCommand(fileCommand)
 program.addCommand(messageCommand)
 program.addCommand(reactionCommand)
+program.addCommand(snapshotCommand)
 program.addCommand(userCommand)
 
 program.parse(process.argv)
