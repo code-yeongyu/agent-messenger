@@ -1,3 +1,4 @@
 export { authCommand } from './auth'
 export { channelCommand } from './channel'
 export { guildCommand } from './guild'
+export { messageCommand } from './message'
