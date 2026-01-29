@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process'
+import { execSync, spawn } from 'node:child_process'
 import { createDecipheriv, pbkdf2Sync } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -8,22 +8,60 @@ export interface ExtractedDiscordToken {
   token: string
 }
 
-type DiscordVariant = 'stable' | 'canary' | 'ptb'
+export type DiscordVariant = 'stable' | 'canary' | 'ptb'
 
 interface KeychainVariant {
   service: string
   account: string
 }
 
+interface CDPTarget {
+  id: string
+  type: string
+  title: string
+  url: string
+  webSocketDebuggerUrl: string
+}
+
+interface CDPMessage {
+  id: number
+  method?: string
+  params?: Record<string, unknown>
+  result?: { result?: { value?: unknown } }
+  error?: { code: number; message: string }
+}
+
 const TOKEN_REGEX = /[\w-]{24}\.[\w-]{6}\.[\w-]{25,110}/
 const MFA_TOKEN_REGEX = /mfa\.[\w-]{84}/
 const ENCRYPTED_PREFIX = 'dQw4w9WgXcQ:'
 
+export const CDP_PORT = 9222
+export const CDP_TIMEOUT = 5000
+export const DISCORD_STARTUP_WAIT = 4000
+export const TOKEN_EXTRACTION_JS = `(webpackChunkdiscord_app.push([[''], {}, e => { m = []; for (let c in e.c) m.push(e.c[c]); }]), m).find(m => m?.exports?.default?.getToken !== void 0).exports.default.getToken()`
+
+const DISCORD_PROCESS_NAMES: Record<
+  DiscordVariant,
+  { darwin: string; win32: string; linux: string }
+> = {
+  stable: { darwin: 'Discord', win32: 'Discord.exe', linux: 'discord' },
+  canary: { darwin: 'Discord Canary', win32: 'DiscordCanary.exe', linux: 'discordcanary' },
+  ptb: { darwin: 'Discord PTB', win32: 'DiscordPTB.exe', linux: 'discordptb' },
+}
+
+const DISCORD_APP_PATHS: Record<DiscordVariant, { darwin: string }> = {
+  stable: { darwin: '/Applications/Discord.app/Contents/MacOS/Discord' },
+  canary: { darwin: '/Applications/Discord Canary.app/Contents/MacOS/Discord Canary' },
+  ptb: { darwin: '/Applications/Discord PTB.app/Contents/MacOS/Discord PTB' },
+}
+
 export class DiscordTokenExtractor {
   private platform: NodeJS.Platform
+  private startupWait: number
 
-  constructor(platform?: NodeJS.Platform) {
+  constructor(platform?: NodeJS.Platform, startupWait?: number) {
     this.platform = platform ?? process.platform
+    this.startupWait = startupWait ?? DISCORD_STARTUP_WAIT
   }
 
   getDiscordDirs(): string[] {
@@ -55,6 +93,11 @@ export class DiscordTokenExtractor {
 
   getKeychainVariants(): KeychainVariant[] {
     return [
+      // Modern Discord (lowercase)
+      { service: 'discord Safe Storage', account: 'discord Key' },
+      { service: 'discordcanary Safe Storage', account: 'discordcanary Key' },
+      { service: 'discordptb Safe Storage', account: 'discordptb Key' },
+      // Legacy Discord (capitalized)
       { service: 'Discord Safe Storage', account: 'Discord' },
       { service: 'Discord Canary Safe Storage', account: 'Discord Canary' },
       { service: 'Discord PTB Safe Storage', account: 'Discord PTB' },
@@ -78,6 +121,44 @@ export class DiscordTokenExtractor {
   }
 
   async extract(): Promise<ExtractedDiscordToken | null> {
+    const levelDbToken = await this.extractFromLevelDB()
+    if (levelDbToken) {
+      return levelDbToken
+    }
+
+    if (this.platform === 'darwin') {
+      const cdpToken = await this.tryExtractViaCDP()
+      if (cdpToken) {
+        return { token: cdpToken }
+      }
+    }
+
+    return null
+  }
+
+  private async tryExtractViaCDP(): Promise<string | null> {
+    const token = await this.extractViaCDP()
+    if (token) {
+      return token
+    }
+
+    for (const variant of ['stable', 'canary', 'ptb'] as DiscordVariant[]) {
+      try {
+        const appPath = this.getAppPath(variant)
+        if (!existsSync(appPath)) continue
+
+        await this.launchDiscordWithDebug(variant)
+        const extractedToken = await this.extractViaCDP()
+        if (extractedToken) {
+          return extractedToken
+        }
+      } catch {}
+    }
+
+    return null
+  }
+
+  private async extractFromLevelDB(): Promise<ExtractedDiscordToken | null> {
     const dirs = this.getDiscordDirs()
 
     for (const dir of dirs) {
@@ -206,23 +287,42 @@ export class DiscordTokenExtractor {
 
   private decryptMacToken(encryptedData: Buffer, discordDir: string): string | null {
     const variant = this.getVariantFromPath(discordDir)
-    const keychainVariant = this.getKeychainVariants().find((v) => {
-      if (variant === 'stable') return v.account === 'Discord'
-      if (variant === 'canary') return v.account === 'Discord Canary'
-      if (variant === 'ptb') return v.account === 'Discord PTB'
+    const keychainVariants = this.getKeychainVariants().filter((v) => {
+      const lowerAccount = v.account.toLowerCase()
+      if (variant === 'stable') return lowerAccount === 'discord' || lowerAccount === 'discord key'
+      if (variant === 'canary')
+        return lowerAccount === 'discord canary' || lowerAccount === 'discordcanary key'
+      if (variant === 'ptb')
+        return lowerAccount === 'discord ptb' || lowerAccount === 'discordptb key'
       return false
     })
 
-    if (!keychainVariant) return null
+    for (const keychainVariant of keychainVariants) {
+      try {
+        const password = execSync(
+          `security find-generic-password -s "${keychainVariant.service}" -a "${keychainVariant.account}" -w 2>/dev/null`,
+          { encoding: 'utf8' }
+        ).trim()
 
+        const key = pbkdf2Sync(password, 'saltysalt', 1003, 16, 'sha1')
+        const decrypted = this.decryptAESCBC(encryptedData, key)
+        if (decrypted) return decrypted
+      } catch {}
+    }
+
+    return null
+  }
+
+  private decryptAESCBC(encryptedData: Buffer, key: Buffer): string | null {
     try {
-      const password = execSync(
-        `security find-generic-password -s "${keychainVariant.service}" -a "${keychainVariant.account}" -w 2>/dev/null`,
-        { encoding: 'utf8' }
-      ).trim()
+      const ciphertext = encryptedData.subarray(3)
+      const iv = Buffer.alloc(16, 0x20)
 
-      const key = pbkdf2Sync(password, 'saltysalt', 1003, 32, 'sha1')
-      return this.decryptAESGCM(encryptedData, key)
+      const decipher = createDecipheriv('aes-128-cbc', key, iv)
+      decipher.setAutoPadding(true)
+
+      const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()])
+      return decrypted.toString('utf8')
     } catch {
       return null
     }
@@ -239,6 +339,207 @@ export class DiscordTokenExtractor {
 
       const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()])
       return decrypted.toString('utf8')
+    } catch {
+      return null
+    }
+  }
+
+  async isDiscordRunning(variant?: DiscordVariant): Promise<boolean> {
+    const variants = variant ? [variant] : (['stable', 'canary', 'ptb'] as DiscordVariant[])
+
+    for (const v of variants) {
+      const processName = this.getProcessName(v)
+      if (this.checkProcessRunning(processName)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  private getProcessName(variant: DiscordVariant): string {
+    const platformKey = this.platform as 'darwin' | 'win32' | 'linux'
+    return DISCORD_PROCESS_NAMES[variant][platformKey] || DISCORD_PROCESS_NAMES[variant].linux
+  }
+
+  private checkProcessRunning(processName: string): boolean {
+    try {
+      if (this.platform === 'win32') {
+        const result = execSync(`tasklist /FI "IMAGENAME eq ${processName}" 2>nul`, {
+          encoding: 'utf8',
+        })
+        return result.toLowerCase().includes(processName.toLowerCase())
+      } else {
+        const result = execSync(`pgrep -f "${processName}" 2>/dev/null || true`, {
+          encoding: 'utf8',
+        })
+        return result.trim().length > 0
+      }
+    } catch {
+      return false
+    }
+  }
+
+  async killDiscord(variant?: DiscordVariant): Promise<void> {
+    const variants = variant ? [variant] : (['stable', 'canary', 'ptb'] as DiscordVariant[])
+
+    for (const v of variants) {
+      const processName = this.getProcessName(v)
+      this.killProcess(processName)
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+  }
+
+  private killProcess(processName: string): void {
+    try {
+      if (this.platform === 'win32') {
+        execSync(`taskkill /F /IM "${processName}" 2>nul`, { encoding: 'utf8' })
+      } else {
+        execSync(`pkill -f "${processName}" 2>/dev/null || true`, { encoding: 'utf8' })
+      }
+    } catch {}
+  }
+
+  async launchDiscordWithDebug(variant: DiscordVariant, port: number = CDP_PORT): Promise<void> {
+    const appPath = this.getAppPath(variant)
+
+    if (!existsSync(appPath)) {
+      throw new Error(`Discord ${variant} not found at ${appPath}`)
+    }
+
+    await this.killDiscord(variant)
+
+    const args = [`--remote-debugging-port=${port}`]
+
+    if (this.platform === 'darwin') {
+      spawn(appPath, args, {
+        detached: true,
+        stdio: 'ignore',
+      }).unref()
+    } else if (this.platform === 'win32') {
+      spawn(appPath, args, {
+        detached: true,
+        stdio: 'ignore',
+        shell: true,
+      }).unref()
+    } else {
+      spawn(appPath, args, {
+        detached: true,
+        stdio: 'ignore',
+      }).unref()
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, this.startupWait))
+  }
+
+  private getAppPath(variant: DiscordVariant): string {
+    if (this.platform === 'darwin') {
+      return DISCORD_APP_PATHS[variant].darwin
+    } else if (this.platform === 'win32') {
+      const localAppData = process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local')
+      const appName =
+        variant === 'stable' ? 'Discord' : variant === 'canary' ? 'DiscordCanary' : 'DiscordPTB'
+      return join(localAppData, appName, 'Update.exe')
+    } else {
+      return variant === 'stable' ? 'discord' : `discord${variant}`
+    }
+  }
+
+  async discoverCDPTargets(port: number = CDP_PORT): Promise<CDPTarget[]> {
+    try {
+      const response = await fetch(`http://localhost:${port}/json`, {
+        signal: AbortSignal.timeout(CDP_TIMEOUT),
+      })
+      if (!response.ok) {
+        return []
+      }
+      return (await response.json()) as CDPTarget[]
+    } catch {
+      return []
+    }
+  }
+
+  findDiscordPageTarget(targets: CDPTarget[]): CDPTarget | null {
+    const discordTarget = targets.find(
+      (t) =>
+        t.type === 'page' &&
+        (t.url.includes('discord.com') || t.title.toLowerCase().includes('discord'))
+    )
+    return discordTarget ?? null
+  }
+
+  async executeJSViaCDP(webSocketUrl: string, expression: string): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket(webSocketUrl)
+      const messageId = 1
+      let timeoutId: ReturnType<typeof setTimeout>
+
+      const cleanup = () => {
+        clearTimeout(timeoutId)
+        ws.close()
+      }
+
+      timeoutId = setTimeout(() => {
+        cleanup()
+        reject(new Error('CDP execution timeout'))
+      }, CDP_TIMEOUT)
+
+      ws.onopen = () => {
+        const message: CDPMessage = {
+          id: messageId,
+          method: 'Runtime.evaluate',
+          params: {
+            expression,
+            returnByValue: true,
+          },
+        }
+        ws.send(JSON.stringify(message))
+      }
+
+      ws.onmessage = (event) => {
+        try {
+          const response = JSON.parse(event.data as string) as CDPMessage
+          if (response.id === messageId) {
+            cleanup()
+            if (response.error) {
+              reject(new Error(response.error.message))
+            } else {
+              resolve(response.result?.result?.value)
+            }
+          }
+        } catch (e) {
+          cleanup()
+          reject(e)
+        }
+      }
+
+      ws.onerror = (error) => {
+        cleanup()
+        reject(error)
+      }
+    })
+  }
+
+  async extractViaCDP(port: number = CDP_PORT): Promise<string | null> {
+    const targets = await this.discoverCDPTargets(port)
+    if (targets.length === 0) {
+      return null
+    }
+
+    const discordTarget = this.findDiscordPageTarget(targets)
+    if (!discordTarget) {
+      return null
+    }
+
+    try {
+      const result = await this.executeJSViaCDP(
+        discordTarget.webSocketDebuggerUrl,
+        TOKEN_EXTRACTION_JS
+      )
+      if (typeof result === 'string' && this.isValidToken(result)) {
+        return result
+      }
+      return null
     } catch {
       return null
     }
