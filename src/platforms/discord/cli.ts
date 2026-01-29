@@ -4,6 +4,7 @@ import { Command } from 'commander'
 import {
   authCommand,
   channelCommand,
+  fileCommand,
   guildCommand,
   messageCommand,
   reactionCommand,
@@ -22,6 +23,7 @@ program
 program.addCommand(authCommand)
 program.addCommand(guildCommand)
 program.addCommand(channelCommand)
+program.addCommand(fileCommand)
 program.addCommand(messageCommand)
 program.addCommand(reactionCommand)
 program.addCommand(userCommand)
