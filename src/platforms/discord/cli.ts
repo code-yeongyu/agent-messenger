@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { Command } from 'commander'
-import { authCommand } from './commands'
+import { authCommand, guildCommand } from './commands'
 
 const program = new Command()
 
@@ -13,6 +13,7 @@ program
   .option('--guild <id>', 'Use specific guild')
 
 program.addCommand(authCommand)
+program.addCommand(guildCommand)
 
 program.parse(process.argv)
 
