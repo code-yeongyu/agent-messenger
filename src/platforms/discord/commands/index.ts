@@ -1,1 +1,1 @@
-export {}
+export { authCommand } from './auth'
