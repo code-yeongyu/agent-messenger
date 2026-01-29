@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { spawn } from 'bun'
-import { handleError } from '../src/utils/error-handler'
-import { formatOutput } from '../src/utils/output'
+import { handleError } from '../src/shared/utils/error-handler'
+import { formatOutput } from '../src/shared/utils/output'
 
 describe('CLI Framework', () => {
   describe('formatOutput utility', () => {
@@ -59,9 +59,9 @@ describe('CLI Framework', () => {
     })
   })
 
-  describe('CLI program structure', () => {
+  describe('Slack CLI program structure', () => {
     test('--help shows all 8 command groups', async () => {
-      const proc = spawn(['bun', 'run', './dist/cli.js', '--help'], {
+      const proc = spawn(['bun', 'run', './src/platforms/slack/cli.ts', '--help'], {
         cwd: process.cwd(),
         stdio: ['pipe', 'pipe', 'pipe'],
       })
@@ -78,7 +78,7 @@ describe('CLI Framework', () => {
     })
 
     test('--version shows 0.1.0', async () => {
-      const proc = spawn(['bun', 'run', './dist/cli.js', '--version'], {
+      const proc = spawn(['bun', 'run', './src/platforms/slack/cli.ts', '--version'], {
         cwd: process.cwd(),
         stdio: ['pipe', 'pipe', 'pipe'],
       })
@@ -88,7 +88,7 @@ describe('CLI Framework', () => {
     })
 
     test('--pretty flag is available globally', async () => {
-      const proc = spawn(['bun', 'run', './dist/cli.js', '--help'], {
+      const proc = spawn(['bun', 'run', './src/platforms/slack/cli.ts', '--help'], {
         cwd: process.cwd(),
         stdio: ['pipe', 'pipe', 'pipe'],
       })
@@ -98,7 +98,7 @@ describe('CLI Framework', () => {
     })
 
     test('--workspace option is available globally', async () => {
-      const proc = spawn(['bun', 'run', './dist/cli.js', '--help'], {
+      const proc = spawn(['bun', 'run', './src/platforms/slack/cli.ts', '--help'], {
         cwd: process.cwd(),
         stdio: ['pipe', 'pipe', 'pipe'],
       })

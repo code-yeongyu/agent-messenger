@@ -6,6 +6,7 @@ dist/
 
 # Credentials
 .config/agent-slack/
+.config/agent-messenger/
 
 # Logs
 *.log

@@ -2,15 +2,15 @@ import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import type { Config, WorkspaceCredentials } from '../types'
+import type { Config, WorkspaceCredentials } from './types'
 
 export class CredentialManager {
   private configDir: string
   private credentialsPath: string
 
   constructor(configDir?: string) {
-    this.configDir = configDir ?? join(homedir(), '.config', 'agent-slack')
-    this.credentialsPath = join(this.configDir, 'credentials.json')
+    this.configDir = configDir ?? join(homedir(), '.config', 'agent-messenger')
+    this.credentialsPath = join(this.configDir, 'slack-credentials.json')
   }
 
   async load(): Promise<Config> {

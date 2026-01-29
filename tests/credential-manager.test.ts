@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { CredentialManager } from '../src/lib/credential-manager'
-import type { Config, WorkspaceCredentials } from '../src/types'
+import { CredentialManager } from '../src/platforms/slack/credential-manager'
+import type { Config, WorkspaceCredentials } from '../src/platforms/slack/types'
 
 const testConfigDir = join(import.meta.dir, '.test-config')
 
@@ -70,7 +70,7 @@ describe('CredentialManager', () => {
     await manager.save(testConfig)
 
     // Then: File should exist with 0600 permissions
-    const credPath = join(testConfigDir, 'credentials.json')
+    const credPath = join(testConfigDir, 'slack-credentials.json')
     expect(existsSync(credPath)).toBe(true)
 
     const stats = await Bun.file(credPath).stat()

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { userCommand } from '../../src/commands/user'
-import { SlackClient } from '../../src/lib/slack-client'
+import { userCommand } from '../../src/platforms/slack/commands/user'
+import { SlackClient } from '../../src/platforms/slack/client'
 import type { SlackUser } from '../../src/types'
 
 // Mock users

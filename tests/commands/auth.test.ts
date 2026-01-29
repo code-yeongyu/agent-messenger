@@ -3,8 +3,8 @@ import { existsSync } from 'node:fs'
 import { mkdir, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { CredentialManager } from '../../src/lib/credential-manager'
-import { type ExtractedWorkspace, TokenExtractor } from '../../src/lib/token-extractor'
+import { CredentialManager } from '../../src/platforms/slack/credential-manager'
+import { type ExtractedWorkspace, TokenExtractor } from '../../src/platforms/slack/token-extractor'
 
 const testConfigDir = join(import.meta.dir, '.test-auth-config')
 const testSlackDir = join(import.meta.dir, '.test-slack-data')

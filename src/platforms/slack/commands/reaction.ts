@@ -1,8 +1,8 @@
 import { Command } from 'commander'
-import { CredentialManager } from '../lib/credential-manager'
-import { SlackClient } from '../lib/slack-client'
-import { handleError } from '../utils/error-handler'
-import { formatOutput } from '../utils/output'
+import { CredentialManager } from '../credential-manager'
+import { SlackClient } from '../client'
+import { handleError } from '../../../shared/utils/error-handler'
+import { formatOutput } from '../../../shared/utils/output'
 
 async function addAction(
   channel: string,

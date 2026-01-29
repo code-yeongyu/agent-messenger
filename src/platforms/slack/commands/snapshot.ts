@@ -1,9 +1,9 @@
 import { Command } from 'commander'
-import { CredentialManager } from '../lib/credential-manager'
-import { SlackClient } from '../lib/slack-client'
+import { CredentialManager } from '../credential-manager'
+import { SlackClient } from '../client'
 import type { SlackMessage } from '../types'
-import { handleError } from '../utils/error-handler'
-import { formatOutput } from '../utils/output'
+import { handleError } from '../../../shared/utils/error-handler'
+import { formatOutput } from '../../../shared/utils/output'
 
 async function snapshotAction(options: {
   channelsOnly?: boolean

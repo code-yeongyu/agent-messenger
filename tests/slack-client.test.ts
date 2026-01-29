@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import type { WebClient } from '@slack/web-api'
-import { SlackClient, SlackError } from '../src/lib/slack-client'
+import { SlackClient, SlackError } from '../src/platforms/slack/client'
 
 // Mock WebClient
 const mockWebClient = {

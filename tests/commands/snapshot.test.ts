@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test'
-import { snapshotCommand } from '../../src/commands/snapshot'
-import { CredentialManager } from '../../src/lib/credential-manager'
-import { SlackClient } from '../../src/lib/slack-client'
+import { snapshotCommand } from '../../src/platforms/slack/commands/snapshot'
+import { CredentialManager } from '../../src/platforms/slack/credential-manager'
+import { SlackClient } from '../../src/platforms/slack/client'
 import type { SlackChannel, SlackMessage, SlackUser } from '../../src/types'
 
 mock.module('../../src/lib/credential-manager', () => ({

@@ -1,5 +1,5 @@
 import { WebClient } from '@slack/web-api'
-import type { SlackChannel, SlackFile, SlackMessage, SlackSearchResult, SlackUser } from '../types'
+import type { SlackChannel, SlackFile, SlackMessage, SlackSearchResult, SlackUser } from './types'
 
 export class SlackError extends Error {
   code: string
