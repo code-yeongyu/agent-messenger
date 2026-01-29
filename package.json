@@ -1,12 +1,15 @@
 {
-  "name": "agent-slack",
+  "name": "agent-messenger",
   "version": "0.1.0",
-  "description": "CLI tool for Slack communication with token extraction from Slack desktop app",
+  "description": "Multi-platform messaging CLI for AI agents (Slack, Discord, Teams)",
   "type": "module",
   "module": "dist/cli.js",
   "main": "dist/cli.js",
   "bin": {
-    "agent-slack": "./src/cli.ts"
+    "agent-messenger": "./src/cli.ts",
+    "amsg": "./src/cli.ts",
+    "agent-slack": "./src/platforms/slack/cli.ts",
+    "agent-discord": "./src/platforms/discord/cli.ts"
   },
   "scripts": {
     "build": "tsc && sed -i '' '1s|#!/usr/bin/env bun|#!/usr/bin/env node|' dist/cli.js",
