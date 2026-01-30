@@ -60,13 +60,14 @@ describe('CLI Framework', () => {
   })
 
   describe('Slack CLI program structure', () => {
-    test('--help shows all 8 command groups', async () => {
+    test('--help shows all commands and global options', async () => {
       const proc = spawn(['bun', 'run', './src/platforms/slack/cli.ts', '--help'], {
         cwd: process.cwd(),
         stdio: ['pipe', 'pipe', 'pipe'],
       })
 
       const output = await new Response(proc.stdout).text()
+
       expect(output).toContain('auth')
       expect(output).toContain('workspace')
       expect(output).toContain('message')
@@ -75,6 +76,8 @@ describe('CLI Framework', () => {
       expect(output).toContain('reaction')
       expect(output).toContain('file')
       expect(output).toContain('snapshot')
+      expect(output).toContain('--pretty')
+      expect(output).toContain('--workspace')
     })
 
     test('--version shows 0.1.0', async () => {
@@ -85,26 +88,6 @@ describe('CLI Framework', () => {
 
       const output = await new Response(proc.stdout).text()
       expect(output.trim()).toBe('0.1.0')
-    })
-
-    test('--pretty flag is available globally', async () => {
-      const proc = spawn(['bun', 'run', './src/platforms/slack/cli.ts', '--help'], {
-        cwd: process.cwd(),
-        stdio: ['pipe', 'pipe', 'pipe'],
-      })
-
-      const output = await new Response(proc.stdout).text()
-      expect(output).toContain('--pretty')
-    })
-
-    test('--workspace option is available globally', async () => {
-      const proc = spawn(['bun', 'run', './src/platforms/slack/cli.ts', '--help'], {
-        cwd: process.cwd(),
-        stdio: ['pipe', 'pipe', 'pipe'],
-      })
-
-      const output = await new Response(proc.stdout).text()
-      expect(output).toContain('--workspace')
     })
   })
 })

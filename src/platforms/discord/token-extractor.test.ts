@@ -306,7 +306,7 @@ describe('DiscordTokenExtractor', () => {
           return ''
         })
 
-        const darwinExtractor = new DiscordTokenExtractor('darwin')
+        const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
         const result = await darwinExtractor.isDiscordRunning('stable')
         expect(result).toBe(true)
       })
@@ -315,7 +315,7 @@ describe('DiscordTokenExtractor', () => {
         const mockExecSync = execSync as unknown as ReturnType<typeof mock>
         mockExecSync.mockImplementation(() => '')
 
-        const darwinExtractor = new DiscordTokenExtractor('darwin')
+        const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
         const result = await darwinExtractor.isDiscordRunning('stable')
         expect(result).toBe(false)
       })
@@ -332,7 +332,7 @@ describe('DiscordTokenExtractor', () => {
           return ''
         })
 
-        const darwinExtractor = new DiscordTokenExtractor('darwin')
+        const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
         await darwinExtractor.isDiscordRunning()
 
         expect(checkedProcesses).toContain('Discord')
@@ -349,7 +349,7 @@ describe('DiscordTokenExtractor', () => {
           return ''
         })
 
-        const winExtractor = new DiscordTokenExtractor('win32')
+        const winExtractor = new DiscordTokenExtractor('win32', 0, 0)
         const result = await winExtractor.isDiscordRunning('stable')
         expect(result).toBe(true)
       })
@@ -368,7 +368,7 @@ describe('DiscordTokenExtractor', () => {
           return ''
         })
 
-        const darwinExtractor = new DiscordTokenExtractor('darwin')
+        const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
         await darwinExtractor.killDiscord('stable')
 
         expect(killedProcesses).toContain('Discord')
@@ -386,7 +386,7 @@ describe('DiscordTokenExtractor', () => {
           return ''
         })
 
-        const winExtractor = new DiscordTokenExtractor('win32')
+        const winExtractor = new DiscordTokenExtractor('win32', 0, 0)
         await winExtractor.killDiscord('stable')
 
         expect(killedProcesses).toContain('Discord.exe')
@@ -404,7 +404,7 @@ describe('DiscordTokenExtractor', () => {
           return ''
         })
 
-        const darwinExtractor = new DiscordTokenExtractor('darwin')
+        const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
         await darwinExtractor.killDiscord()
 
         expect(killedProcesses).toContain('Discord')
@@ -418,7 +418,7 @@ describe('DiscordTokenExtractor', () => {
         const mockExistsSync = existsSync as unknown as ReturnType<typeof mock>
         mockExistsSync.mockImplementation(() => false)
 
-        const darwinExtractor = new DiscordTokenExtractor('darwin')
+        const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
 
         await expect(darwinExtractor.launchDiscordWithDebug('stable')).rejects.toThrow(
           'Discord stable not found'
@@ -443,7 +443,7 @@ describe('DiscordTokenExtractor', () => {
           return { unref: () => {} }
         })
 
-        const darwinExtractor = new DiscordTokenExtractor('darwin', 0)
+        const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
         await darwinExtractor.launchDiscordWithDebug('stable', 9222)
 
         expect(spawnedPath).toBe('/Applications/Discord.app/Contents/MacOS/Discord')
@@ -464,7 +464,7 @@ describe('DiscordTokenExtractor', () => {
           return { unref: () => {} }
         })
 
-        const darwinExtractor = new DiscordTokenExtractor('darwin', 0)
+        const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
         await darwinExtractor.launchDiscordWithDebug('stable')
 
         expect(spawnedArgs).toContain(`--remote-debugging-port=${CDP_PORT}`)
@@ -475,9 +475,18 @@ describe('DiscordTokenExtractor', () => {
   describe('CDP client methods', () => {
     describe('discoverCDPTargets', () => {
       test('returns empty array when CDP endpoint is not reachable', async () => {
-        const extractor = new DiscordTokenExtractor('darwin')
-        const targets = await extractor.discoverCDPTargets(19999)
-        expect(targets).toEqual([])
+        const originalFetch = globalThis.fetch
+        globalThis.fetch = mock(async () => {
+          throw new Error('Connection refused')
+        }) as unknown as typeof fetch
+
+        try {
+          const extractor = new DiscordTokenExtractor('darwin')
+          const targets = await extractor.discoverCDPTargets(19999)
+          expect(targets).toEqual([])
+        } finally {
+          globalThis.fetch = originalFetch
+        }
       })
 
       test('returns targets from CDP endpoint', async () => {

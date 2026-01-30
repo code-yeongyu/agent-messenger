@@ -58,10 +58,12 @@ const DISCORD_APP_PATHS: Record<DiscordVariant, { darwin: string }> = {
 export class DiscordTokenExtractor {
   private platform: NodeJS.Platform
   private startupWait: number
+  private killWait: number
 
-  constructor(platform?: NodeJS.Platform, startupWait?: number) {
+  constructor(platform?: NodeJS.Platform, startupWait?: number, killWait?: number) {
     this.platform = platform ?? process.platform
     this.startupWait = startupWait ?? DISCORD_STARTUP_WAIT
+    this.killWait = killWait ?? 1000
   }
 
   getDiscordDirs(): string[] {
@@ -387,7 +389,7 @@ export class DiscordTokenExtractor {
       this.killProcess(processName)
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    await new Promise((resolve) => setTimeout(resolve, this.killWait))
   }
 
   private killProcess(processName: string): void {

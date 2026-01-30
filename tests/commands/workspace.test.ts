@@ -1,6 +1,5 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { existsSync } from 'node:fs'
-import { rm } from 'node:fs/promises'
+import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
+import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { CredentialManager } from '../../src/platforms/slack/credential-manager'
 import type { WorkspaceCredentials } from '../../src/platforms/slack/types'
@@ -10,17 +9,13 @@ const testConfigDir = join(import.meta.dir, '.test-workspace-config')
 describe('Workspace Commands', () => {
   let credManager: CredentialManager
 
-  beforeEach(async () => {
-    if (existsSync(testConfigDir)) {
-      await rm(testConfigDir, { recursive: true, force: true })
-    }
+  beforeEach(() => {
+    rmSync(testConfigDir, { recursive: true, force: true })
     credManager = new CredentialManager(testConfigDir)
   })
 
-  afterEach(async () => {
-    if (existsSync(testConfigDir)) {
-      await rm(testConfigDir, { recursive: true, force: true })
-    }
+  afterAll(() => {
+    rmSync(testConfigDir, { recursive: true, force: true })
   })
 
   describe('workspace list', () => {

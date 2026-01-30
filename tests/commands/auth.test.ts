@@ -1,6 +1,5 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
-import { existsSync } from 'node:fs'
-import { mkdir, rm } from 'node:fs/promises'
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test'
+import { mkdirSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { CredentialManager } from '../../src/platforms/slack/credential-manager'
@@ -12,17 +11,13 @@ const testSlackDir = join(import.meta.dir, '.test-slack-data')
 describe('TokenExtractor', () => {
   let extractor: TokenExtractor
 
-  beforeEach(async () => {
-    if (existsSync(testSlackDir)) {
-      await rm(testSlackDir, { recursive: true, force: true })
-    }
-    await mkdir(testSlackDir, { recursive: true })
+  beforeEach(() => {
+    rmSync(testSlackDir, { recursive: true, force: true })
+    mkdirSync(testSlackDir, { recursive: true })
   })
 
-  afterEach(async () => {
-    if (existsSync(testSlackDir)) {
-      await rm(testSlackDir, { recursive: true, force: true })
-    }
+  afterAll(() => {
+    rmSync(testSlackDir, { recursive: true, force: true })
   })
 
   describe('getSlackDir', () => {
@@ -88,7 +83,7 @@ describe('TokenExtractor', () => {
 
     test('returns empty array when no tokens found', async () => {
       // Given: Slack directory exists but has no tokens
-      await mkdir(join(testSlackDir, 'storage'), { recursive: true })
+      mkdirSync(join(testSlackDir, 'storage'), { recursive: true })
       extractor = new TokenExtractor('darwin', testSlackDir)
 
       // When: extract is called
@@ -127,17 +122,13 @@ describe('TokenExtractor', () => {
 describe('Auth Commands Integration', () => {
   let credManager: CredentialManager
 
-  beforeEach(async () => {
-    if (existsSync(testConfigDir)) {
-      await rm(testConfigDir, { recursive: true, force: true })
-    }
+  beforeEach(() => {
+    rmSync(testConfigDir, { recursive: true, force: true })
     credManager = new CredentialManager(testConfigDir)
   })
 
-  afterEach(async () => {
-    if (existsSync(testConfigDir)) {
-      await rm(testConfigDir, { recursive: true, force: true })
-    }
+  afterAll(() => {
+    rmSync(testConfigDir, { recursive: true, force: true })
   })
 
   describe('auth extract', () => {
@@ -380,7 +371,7 @@ describe('Error Handling', () => {
 
   test('handles missing Cookies database gracefully', async () => {
     // Given: No Cookies database
-    await mkdir(join(testSlackDir, 'storage'), { recursive: true })
+    mkdirSync(join(testSlackDir, 'storage'), { recursive: true })
     const extractor = new TokenExtractor('darwin', testSlackDir)
 
     // When: Trying to extract
