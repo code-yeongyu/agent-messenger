@@ -88,6 +88,13 @@ agent-slack message search "in:#general meeting" --sort timestamp
 agent-slack message get <channel> <ts>
 agent-slack message get general 1234567890.123456
 
+# Get thread replies (includes parent message)
+agent-slack message replies <channel> <thread_ts>
+agent-slack message replies general 1234567890.123456
+agent-slack message replies general 1234567890.123456 --limit 50
+agent-slack message replies general 1234567890.123456 --oldest 1234567890.000000
+agent-slack message replies general 1234567890.123456 --cursor <next_cursor>
+
 # Update a message
 agent-slack message update <channel> <ts> <new-text>
 
