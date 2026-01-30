@@ -24,7 +24,7 @@ This command:
 4. Extracts user token
 5. Validates token against Discord API before saving
 6. Discovers ALL joined guilds (servers)
-7. Stores credentials securely in `~/.config/agent-discord/credentials.json`
+7. Stores credentials securely in `~/.config/agent-messenger/discord-credentials.json`
 
 ### Platform-Specific Paths
 
@@ -101,7 +101,7 @@ agent-discord guild current
 
 Credentials are stored in:
 ```
-~/.config/agent-discord/credentials.json
+~/.config/agent-messenger/discord-credentials.json
 ```
 
 ### Format
@@ -264,10 +264,10 @@ If automatic extraction fails, you can manually create credentials:
 
 ```bash
 # Create config directory
-mkdir -p ~/.config/agent-discord
+mkdir -p ~/.config/agent-messenger
 
 # Create credentials file
-cat > ~/.config/agent-discord/credentials.json << 'EOF'
+cat > ~/.config/agent-messenger/discord-credentials.json << 'EOF'
 {
   "token": "YOUR_TOKEN_HERE",
   "current_guild": "1234567890123456789",
@@ -281,7 +281,7 @@ cat > ~/.config/agent-discord/credentials.json << 'EOF'
 EOF
 
 # Set secure permissions
-chmod 600 ~/.config/agent-discord/credentials.json
+chmod 600 ~/.config/agent-messenger/discord-credentials.json
 ```
 
 To find your token manually:

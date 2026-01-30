@@ -44,7 +44,7 @@ This command:
 - Extracts xoxc token and xoxd cookie (with v10 decryption for sandboxed apps)
 - Validates tokens against Slack API before saving
 - Discovers ALL logged-in workspaces
-- Stores credentials securely in `~/.config/agent-slack/`
+- Stores credentials securely in `~/.config/agent-messenger/`
 
 ### Multi-Workspace Support
 
@@ -234,7 +234,7 @@ Common errors:
 
 ## Configuration
 
-Credentials stored in: `~/.config/agent-slack/credentials.json`
+Credentials stored in: `~/.config/agent-messenger/slack-credentials.json`
 
 Format:
 ```json

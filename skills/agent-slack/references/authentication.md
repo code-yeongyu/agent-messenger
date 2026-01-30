@@ -24,7 +24,7 @@ This command:
 4. Decrypts cookies using macOS Keychain (for sandboxed App Store version)
 5. Validates tokens against Slack API before saving
 6. Extracts xoxc token and xoxd cookie for ALL logged-in workspaces
-7. Stores credentials securely in `~/.config/agent-slack/credentials.json`
+7. Stores credentials securely in `~/.config/agent-messenger/slack-credentials.json`
 
 ### Platform-Specific Paths
 
@@ -118,7 +118,7 @@ agent-slack workspace current
 
 Credentials are stored in:
 ```
-~/.config/agent-slack/credentials.json
+~/.config/agent-messenger/slack-credentials.json
 ```
 
 ### Format
@@ -300,10 +300,10 @@ If automatic extraction fails, you can manually create credentials:
 
 ```bash
 # Create config directory
-mkdir -p ~/.config/agent-slack
+mkdir -p ~/.config/agent-messenger
 
 # Create credentials file
-cat > ~/.config/agent-slack/credentials.json << 'EOF'
+cat > ~/.config/agent-messenger/slack-credentials.json << 'EOF'
 {
   "current_workspace": "T123456",
   "workspaces": {
@@ -318,7 +318,7 @@ cat > ~/.config/agent-slack/credentials.json << 'EOF'
 EOF
 
 # Set secure permissions
-chmod 600 ~/.config/agent-slack/credentials.json
+chmod 600 ~/.config/agent-messenger/slack-credentials.json
 ```
 
 To find tokens manually:

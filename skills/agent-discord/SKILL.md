@@ -43,7 +43,7 @@ This command:
 - Extracts user token from Discord desktop app's LevelDB storage
 - Validates token against Discord API before saving
 - Discovers ALL joined guilds (servers)
-- Stores credentials securely in `~/.config/agent-discord/`
+- Stores credentials securely in `~/.config/agent-messenger/`
 
 ### Multi-Guild Support
 
@@ -239,7 +239,7 @@ Common errors:
 
 ## Configuration
 
-Credentials stored in: `~/.config/agent-discord/credentials.json`
+Credentials stored in: `~/.config/agent-messenger/discord-credentials.json`
 
 Format:
 ```json
