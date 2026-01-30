@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import { userCommand } from '../../src/platforms/slack/commands/user'
 import { SlackClient } from '../../src/platforms/slack/client'
-import type { SlackUser } from '../../src/types'
+import { userCommand } from '../../src/platforms/slack/commands/user'
+import type { SlackUser } from '../../src/platforms/slack/types'
 
 // Mock users
 const mockUsers: SlackUser[] = [

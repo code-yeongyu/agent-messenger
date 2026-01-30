@@ -4,7 +4,7 @@ import { formatOutput } from '../../../shared/utils/output'
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
 
-async function listAction(options: { pretty?: boolean }): Promise<void> {
+export async function listAction(options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
     const config = await credManager.load()
@@ -22,7 +22,7 @@ async function listAction(options: { pretty?: boolean }): Promise<void> {
   }
 }
 
-async function infoAction(guildId: string, options: { pretty?: boolean }): Promise<void> {
+export async function infoAction(guildId: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
     const config = await credManager.load()
@@ -50,7 +50,7 @@ async function infoAction(guildId: string, options: { pretty?: boolean }): Promi
   }
 }
 
-async function switchAction(guildId: string, options: { pretty?: boolean }): Promise<void> {
+export async function switchAction(guildId: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
     const config = await credManager.load()
@@ -67,7 +67,7 @@ async function switchAction(guildId: string, options: { pretty?: boolean }): Pro
   }
 }
 
-async function currentAction(options: { pretty?: boolean }): Promise<void> {
+export async function currentAction(options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
     const config = await credManager.load()

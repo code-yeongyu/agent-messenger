@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { CredentialManager } from '../../src/platforms/slack/credential-manager'
-import type { WorkspaceCredentials } from '../../src/types'
+import type { WorkspaceCredentials } from '../../src/platforms/slack/types'
 
 const testConfigDir = join(import.meta.dir, '.test-workspace-config')
 

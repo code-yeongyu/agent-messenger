@@ -2,45 +2,45 @@ import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import type { WebClient } from '@slack/web-api'
 import { SlackClient, SlackError } from '../src/platforms/slack/client'
 
-// Mock WebClient
-const mockWebClient = {
+const mockWebClient: any = {
   conversations: {
-    list: mock(() => Promise.resolve({ ok: true, channels: [] })),
-    info: mock(() => Promise.resolve({ ok: true, channel: {} })),
-    history: mock(() => Promise.resolve({ ok: true, messages: [] })),
-    replies: mock(() => Promise.resolve({ ok: true, messages: [] })),
+    list: mock((): Promise<any> => Promise.resolve({ ok: true, channels: [] })),
+    info: mock((): Promise<any> => Promise.resolve({ ok: true, channel: {} })),
+    history: mock((): Promise<any> => Promise.resolve({ ok: true, messages: [] })),
+    replies: mock((): Promise<any> => Promise.resolve({ ok: true, messages: [], has_more: false })),
   },
   chat: {
-    postMessage: mock(() => Promise.resolve({ ok: true, ts: '123.456', message: {} })),
-    update: mock(() => Promise.resolve({ ok: true, ts: '123.456', message: {} })),
-    delete: mock(() => Promise.resolve({ ok: true })),
+    postMessage: mock(
+      (): Promise<any> => Promise.resolve({ ok: true, ts: '123.456', message: {} })
+    ),
+    update: mock((): Promise<any> => Promise.resolve({ ok: true, ts: '123.456', message: {} })),
+    delete: mock((): Promise<any> => Promise.resolve({ ok: true })),
   },
   reactions: {
-    add: mock(() => Promise.resolve({ ok: true })),
-    remove: mock(() => Promise.resolve({ ok: true })),
+    add: mock((): Promise<any> => Promise.resolve({ ok: true })),
+    remove: mock((): Promise<any> => Promise.resolve({ ok: true })),
   },
   users: {
-    list: mock(() => Promise.resolve({ ok: true, members: [] })),
-    info: mock(() => Promise.resolve({ ok: true, user: {} })),
+    list: mock((): Promise<any> => Promise.resolve({ ok: true, members: [] })),
+    info: mock((): Promise<any> => Promise.resolve({ ok: true, user: {} })),
   },
   files: {
-    uploadV2: mock(() => Promise.resolve({ ok: true, file: {} })),
-    list: mock(() => Promise.resolve({ ok: true, files: [] })),
+    uploadV2: mock((): Promise<any> => Promise.resolve({ ok: true, file: {} })),
+    list: mock((): Promise<any> => Promise.resolve({ ok: true, files: [] })),
   },
   auth: {
-    test: mock(() => Promise.resolve({ ok: true, user_id: 'U123', team_id: 'T123' })),
+    test: mock((): Promise<any> => Promise.resolve({ ok: true, user_id: 'U123', team_id: 'T123' })),
   },
 }
 
-// Helper to reset all mocks
 function resetMocks() {
-  Object.values(mockWebClient).forEach((group) => {
-    Object.values(group).forEach((fn) => {
+  for (const group of Object.values(mockWebClient) as any[]) {
+    for (const fn of Object.values(group) as any[]) {
       if (typeof fn.mockReset === 'function') {
         fn.mockReset()
       }
-    })
-  })
+    }
+  }
 }
 
 describe('SlackClient', () => {

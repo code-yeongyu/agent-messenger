@@ -9,7 +9,7 @@ describe('reaction command', () => {
       const messageTs = '1234567890.123456'
       const emoji = 'thumbsup'
 
-      const mockAddReaction = mock(() => Promise.resolve())
+      const mockAddReaction = mock((..._args: any[]) => Promise.resolve())
       await mockAddReaction(channelId, messageTs, emoji)
 
       expect(mockAddReaction).toHaveBeenCalledWith(channelId, messageTs, emoji)
@@ -21,7 +21,7 @@ describe('reaction command', () => {
       const messageTs = '1234567890.123456'
       const emoji = 'thumbsup'
 
-      const mockAddReaction = mock(() => Promise.resolve())
+      const mockAddReaction = mock((..._args: any[]) => Promise.resolve())
       await mockAddReaction(channelId, messageTs, emoji)
 
       expect(mockAddReaction).toHaveBeenCalledWith(channelId, messageTs, 'thumbsup')
@@ -34,7 +34,7 @@ describe('reaction command', () => {
       const messageTs = '1234567890.123456'
       const emoji = 'thumbsup'
 
-      const mockRemoveReaction = mock(() => Promise.resolve())
+      const mockRemoveReaction = mock((..._args: any[]) => Promise.resolve())
       await mockRemoveReaction(channelId, messageTs, emoji)
 
       expect(mockRemoveReaction).toHaveBeenCalledWith(channelId, messageTs, emoji)

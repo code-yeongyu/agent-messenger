@@ -7,6 +7,8 @@ import { z } from 'zod'
 export interface DiscordGuild {
   id: string
   name: string
+  icon?: string
+  owner?: boolean
 }
 
 export interface DiscordChannel {
@@ -77,6 +79,8 @@ export interface DiscordConfig {
 export const DiscordGuildSchema = z.object({
   id: z.string(),
   name: z.string(),
+  icon: z.string().optional(),
+  owner: z.boolean().optional(),
 })
 
 export const DiscordChannelSchema = z.object({
