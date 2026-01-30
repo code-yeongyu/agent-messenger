@@ -12,6 +12,7 @@ Update the version in these files:
 
 1. **package.json** (line 3) - `"version": "X.X.X"`
 2. **.claude-plugin/plugin.json** (line 3) - `"version": "X.X.X"`
+3. **README.md** - OpenCode plugins example: `"agent-messenger@X.X.X"`
 
 Note: CLI files and tests read version from package.json automatically.
 
