@@ -17,13 +17,45 @@
       "recommended": true,
       "style": {
         "noNonNullAssertion": "off",
-        "useImportType": "off"
+        "useImportType": "off",
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "patterns": [
+              {
+                "group": ["bun:*"],
+                "message": "Bun-specific API, not compatible with Node.js"
+              }
+            ]
+          }
+        },
+        "noRestrictedGlobals": {
+          "level": "error",
+          "options": {
+            "deniedGlobals": {
+              "Bun": "Bun-specific API, not compatible with Node.js"
+            }
+          }
+        }
       },
       "suspicious": {
         "noExplicitAny": "off"
       }
     }
   },
+  "overrides": [
+    {
+      "includes": ["tests/**", "**/*.test.ts", "**/*.spec.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": "off",
+            "noRestrictedGlobals": "off"
+          }
+        }
+      }
+    }
+  ],
   "javascript": {
     "formatter": {
       "semicolons": "asNeeded",
