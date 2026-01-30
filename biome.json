@@ -24,7 +24,7 @@
             "patterns": [
               {
                 "group": ["bun:*"],
-                "message": "Bun-specific API, not compatible with Node.js"
+                "message": "Bun-specific API. We use Bun for development, but users install agent-messenger via npm/yarn/pnpm, so runtime code must be Node.js-compatible. Do not disable this rule except in tests."
               }
             ]
           }
@@ -33,7 +33,7 @@
           "level": "error",
           "options": {
             "deniedGlobals": {
-              "Bun": "Bun-specific API, not compatible with Node.js"
+              "Bun": "Bun-specific API. We use Bun for development, but users install agent-messenger via npm/yarn/pnpm, so runtime code must be Node.js-compatible. Do not disable this rule except in tests."
             }
           }
         }
