@@ -16,7 +16,8 @@
     "test": "bun test",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "dev": "bun --hot ./dist/cli.js"
+    "dev": "bun --hot ./dist/cli.js",
+    "prepublishOnly": "bun run build"
   },
   "dependencies": {
     "@slack/web-api": "^6.9.0",

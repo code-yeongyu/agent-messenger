@@ -90,6 +90,7 @@ Inspired by [agent-browser](https://github.com/vercel-labs/agent-browser) from V
 
 ```bash
 bun install    # Install dependencies
+bun link       # Link CLI globally for local testing
 bun test       # Run tests
 bun run build  # Build
 bun run lint   # Lint
