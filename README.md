@@ -1,224 +1,98 @@
-# Agent Slack
+# Agent Messenger
 
-A TypeScript CLI tool that enables AI agents and humans to interact with Slack workspaces through a simple command interface.
+**Give your AI agent the power to read and send messages across Slack, Discord, Teams and more**
 
-## Features
+A unified, agent-friendly CLI for messaging platforms. Zero-config credential extraction from your desktop apps—no OAuth flows, no API keys, no admin approval needed. Works out of the box.
 
-- **Seamless Authentication**: Zero-config token extraction from Slack desktop app
-- **Multi-Workspace Support**: Manage multiple Slack workspaces with easy switching
-- **JSON Output**: Default JSON output for AI consumption, `--pretty` flag for humans
-- **Comprehensive Commands**: Messages, channels, users, reactions, files, and snapshots
-- **Type-Safe**: Built with TypeScript in strict mode
-- **Well-Tested**: Comprehensive test coverage with TDD workflow
+## Why Agent Messenger?
+
+- **No API keys needed** — Automatically extracts credentials from your installed desktop apps
+- **One interface, multiple platforms** — Learn once, use everywhere (Slack, Discord, Teams)
+- **AI-agent friendly** — JSON output by default, perfect for LLM tool use
+- **Human friendly too** — Add `--pretty` for readable output
 
 ## Installation
 
-### Claude Code Plugin Marketplace
-
 ```bash
-# Add the marketplace
-claude plugin marketplace add devxoul/agent-slack
-
-# Install the plugin
-claude plugin install agent-slack
+npm install -g agent-messenger
 ```
 
-Or within Claude Code:
+Or use your favorite package manager.
 
-```
-/plugin marketplace add devxoul/agent-slack
-/plugin install agent-slack
-```
-
-### Skills CLI (skills.sh)
-
-```bash
-# Install the skill
-skills install devxoul/agent-slack
-```
-
-### NPM (Global Installation)
-
-```bash
-# Install globally
-npm install -g agent-slack
-
-# Or use with npx
-npx agent-slack --help
-
-# Or use with bun
-bunx agent-slack --help
-```
+This installs:
+- `agent-slack` — Slack CLI
+- `agent-discord` — Discord CLI
 
 ## Quick Start
 
+Get up and running in 30 seconds:
+
 ```bash
-# 1. Extract credentials from Slack desktop app (zero-config!)
+# 1. Extract credentials from your Slack desktop app
 agent-slack auth extract
 
-# 2. Get workspace snapshot
-agent-slack snapshot
+# 2. See your workspace at a glance
+agent-slack snapshot --pretty
 
 # 3. Send a message
-agent-slack message send general "Hello from AI agent!"
+agent-slack message send general "Hello from the CLI!"
 ```
 
-## Authentication
+That's it. No OAuth flows. No API tokens. No configuration files.
 
-### Seamless Token Extraction
+## Supported Platforms
 
-agent-slack automatically extracts your Slack credentials from the desktop app:
+| Feature | Slack | Discord |
+|---------|:-----:|:-------:|
+| Auto credential extraction | ✅ | ✅ |
+| Send / List / Search messages | ✅ | ✅ |
+| Threads | ✅ | ✅ |
+| Channels & Users | ✅ | ✅ |
+| Reactions | ✅ | ✅ |
+| File uploads | ✅ | ✅ |
+| Workspace snapshots | ✅ | ✅ |
+| Multi-workspace | ✅ | ✅ |
+| Bot support | 🏗️ | 🏗️ |
 
-```bash
-agent-slack auth extract
+**Coming soon**: Microsoft Teams and more
 
-# Use --debug for troubleshooting
-agent-slack auth extract --debug
-```
+## Platform Guides
 
-This command:
-- Auto-detects your platform (macOS/Linux/Windows)
-- Supports both direct download and App Store versions on macOS
-- Extracts xoxc token and xoxd cookie
-- Validates tokens against Slack API
-- Discovers ALL logged-in workspaces
-- Stores credentials securely in `~/.config/agent-slack/`
+- **[Slack Guide](docs/slack.md)** — Full command reference for Slack
+- **[Discord Guide](docs/discord.md)** — Full command reference for Discord
 
-### Multi-Workspace Management
+## Use Cases
 
-```bash
-# List all authenticated workspaces
-agent-slack workspace list
+**For AI Agents**
+- Give Claude, GPT, or your custom agent the ability to read and send messages
+- Automate Slack/Discord workflows with simple CLI commands
+- Build integrations without OAuth complexity
 
-# Switch to a different workspace
-agent-slack workspace switch <workspace-id>
+**For Developers**
+- Quick message sending from terminal
+- Scripted notifications and alerts
+- Workspace snapshots for debugging
 
-# Show current workspace
-agent-slack workspace current
+**For Teams**
+- Automate standups and reminders
+- Cross-post announcements to multiple platforms
+- Build custom notification pipelines
 
-# Check auth status
-agent-slack auth status
-```
+## Philosophy
 
-## Commands
+**Why not MCP?** MCP servers expose all tools at once, bloating context and confusing agents. **[Agent Skills](https://agentskills.io/) + agent-friendly CLI** offer a better approach—load what you need, when you need it. Fewer tokens, cleaner context, better output.
 
-### Message Commands
+**Why not OAuth?** OAuth requires an app and it requires workspace admin approval to install, which can take days. This tool just works—zero setup required. Bot support is on the roadmap for those who prefer it.
 
-```bash
-# Send a message
-agent-slack message send <channel> <text>
-agent-slack message send general "Hello world"
+Inspired by [agent-browser](https://github.com/vercel-labs/agent-browser) from Vercel Labs.
 
-# Send a threaded reply
-agent-slack message send general "Reply" --thread <ts>
-
-# List messages
-agent-slack message list <channel>
-agent-slack message list general --limit 50
-
-# Search messages across workspace
-agent-slack message search <query>
-agent-slack message search "project update" --limit 50
-
-# Update a message
-agent-slack message update <channel> <ts> <new-text>
-
-# Delete a message
-agent-slack message delete <channel> <ts> --force
-```
-
-### Channel Commands
+## Contributing
 
 ```bash
-# List channels (excludes archived by default)
-agent-slack channel list
-agent-slack channel list --type public
-agent-slack channel list --include-archived
-
-# Get channel info
-agent-slack channel info <channel>
-agent-slack channel info general
-```
-
-### User Commands
-
-```bash
-# List users
-agent-slack user list
-agent-slack user list --include-bots
-
-# Get user info
-agent-slack user info <user>
-
-# Get current user
-agent-slack user me
-```
-
-### Reaction Commands
-
-```bash
-# Add reaction
-agent-slack reaction add <channel> <ts> <emoji>
-agent-slack reaction add general 1234567890.123456 thumbsup
-
-# Remove reaction
-agent-slack reaction remove <channel> <ts> <emoji>
-
-# List reactions
-agent-slack reaction list <channel> <ts>
-```
-
-### File Commands
-
-```bash
-# Upload file
-agent-slack file upload <channel> <path>
-agent-slack file upload general ./report.pdf
-
-# List files
-agent-slack file list
-agent-slack file list --channel general
-
-# Get file info
-agent-slack file info <file-id>
-```
-
-### Snapshot Command
-
-Get comprehensive workspace state for AI agents:
-
-```bash
-# Full snapshot
-agent-slack snapshot
-
-# Filtered snapshots
-agent-slack snapshot --channels-only
-agent-slack snapshot --users-only
-
-# Limit messages per channel
-agent-slack snapshot --limit 10
-```
-
-## AI Agent Integration
-
-See `skills/agent-slack/` directory for:
-- Complete skill documentation
-- Runnable templates
-
-## Development
-
-```bash
-# Install dependencies
-npm install
-
-# Run tests
-npm test
-
-# Build
-npm run build
-
-# Lint
-npm run lint
+bun install    # Install dependencies
+bun test       # Run tests
+bun run build  # Build
+bun run lint   # Lint
 ```
 
 ## License
