@@ -1,35 +1,36 @@
-import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
+import { afterAll, describe, expect, test } from 'bun:test'
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { CredentialManager } from '../../src/platforms/slack/credential-manager'
 import type { WorkspaceCredentials } from '../../src/platforms/slack/types'
 
-const testConfigDir = join(import.meta.dir, '.test-workspace-config')
+const testDirs: string[] = []
+
+function setup(): CredentialManager {
+  const testConfigDir = join(
+    import.meta.dir,
+    `.test-workspace-config-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  )
+  testDirs.push(testConfigDir)
+  return new CredentialManager(testConfigDir)
+}
+
+afterAll(() => {
+  for (const dir of testDirs) {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
 
 describe('Workspace Commands', () => {
-  let credManager: CredentialManager
-
-  beforeEach(() => {
-    rmSync(testConfigDir, { recursive: true, force: true })
-    credManager = new CredentialManager(testConfigDir)
-  })
-
-  afterAll(() => {
-    rmSync(testConfigDir, { recursive: true, force: true })
-  })
-
   describe('workspace list', () => {
     test('returns empty list when no workspaces exist', async () => {
-      // Given: No workspaces configured
-      // When: Loading config
+      const credManager = setup()
       const config = await credManager.load()
-
-      // Then: Should have empty workspaces
       expect(Object.keys(config.workspaces)).toHaveLength(0)
     })
 
     test('lists all workspaces with current marker', async () => {
-      // Given: Multiple workspaces with one as current
+      const credManager = setup()
       const ws1: WorkspaceCredentials = {
         workspace_id: 'T123',
         workspace_name: 'acme-corp',
@@ -47,11 +48,9 @@ describe('Workspace Commands', () => {
       await credManager.setWorkspace(ws2)
       await credManager.setCurrentWorkspace('T123')
 
-      // When: Loading config
       const config = await credManager.load()
       const workspaces = Object.values(config.workspaces)
 
-      // Then: Should list all workspaces
       expect(workspaces).toHaveLength(2)
       expect(workspaces.map((w) => w.workspace_id)).toContain('T123')
       expect(workspaces.map((w) => w.workspace_id)).toContain('T456')
@@ -59,7 +58,7 @@ describe('Workspace Commands', () => {
     })
 
     test('shows current marker for active workspace', async () => {
-      // Given: Workspace set as current
+      const credManager = setup()
       const ws: WorkspaceCredentials = {
         workspace_id: 'T789',
         workspace_name: 'current-ws',
@@ -69,16 +68,14 @@ describe('Workspace Commands', () => {
       await credManager.setWorkspace(ws)
       await credManager.setCurrentWorkspace('T789')
 
-      // When: Loading config
       const config = await credManager.load()
 
-      // Then: Current workspace should match
       expect(config.current_workspace).toBe('T789')
       expect(config.workspaces.T789).toBeDefined()
     })
 
     test('handles list with no current workspace', async () => {
-      // Given: Workspaces exist but none is current
+      const credManager = setup()
       const ws: WorkspaceCredentials = {
         workspace_id: 'T999',
         workspace_name: 'no-current',
@@ -87,10 +84,8 @@ describe('Workspace Commands', () => {
       }
       await credManager.setWorkspace(ws)
 
-      // When: Loading config
       const config = await credManager.load()
 
-      // Then: current_workspace should be null
       expect(config.current_workspace).toBeNull()
       expect(config.workspaces.T999).toBeDefined()
     })
@@ -98,7 +93,7 @@ describe('Workspace Commands', () => {
 
   describe('workspace switch', () => {
     test('switches to existing workspace', async () => {
-      // Given: Multiple workspaces exist
+      const credManager = setup()
       const ws1: WorkspaceCredentials = {
         workspace_id: 'T111',
         workspace_name: 'first',
@@ -115,25 +110,20 @@ describe('Workspace Commands', () => {
       await credManager.setWorkspace(ws2)
       await credManager.setCurrentWorkspace('T111')
 
-      // When: Switching to second workspace
       await credManager.setCurrentWorkspace('T222')
 
-      // Then: Current should be updated
       const config = await credManager.load()
       expect(config.current_workspace).toBe('T222')
     })
 
     test('fails when workspace does not exist', async () => {
-      // Given: Workspace does not exist
-      // When: Trying to get non-existent workspace
+      const credManager = setup()
       const ws = await credManager.getWorkspace('nonexistent')
-
-      // Then: Should return null
       expect(ws).toBeNull()
     })
 
     test('validates workspace exists before switching', async () => {
-      // Given: Only one workspace exists
+      const credManager = setup()
       const ws: WorkspaceCredentials = {
         workspace_id: 'T333',
         workspace_name: 'only-one',
@@ -143,16 +133,14 @@ describe('Workspace Commands', () => {
       await credManager.setWorkspace(ws)
       await credManager.setCurrentWorkspace('T333')
 
-      // When: Trying to switch to non-existent workspace
       const config = await credManager.load()
       const targetExists = 'T999' in config.workspaces
 
-      // Then: Should not exist
       expect(targetExists).toBe(false)
     })
 
     test('preserves workspace credentials when switching', async () => {
-      // Given: Multiple workspaces with different credentials
+      const credManager = setup()
       const ws1: WorkspaceCredentials = {
         workspace_id: 'T444',
         workspace_name: 'first',
@@ -168,7 +156,6 @@ describe('Workspace Commands', () => {
       await credManager.setWorkspace(ws1)
       await credManager.setWorkspace(ws2)
 
-      // When: Switching between workspaces
       await credManager.setCurrentWorkspace('T444')
       let config = await credManager.load()
       expect(config.current_workspace).toBe('T444')
@@ -176,7 +163,6 @@ describe('Workspace Commands', () => {
       await credManager.setCurrentWorkspace('T555')
       config = await credManager.load()
 
-      // Then: Both workspaces should still have their credentials
       expect(config.workspaces.T444.token).toBe('token-444')
       expect(config.workspaces.T555.token).toBe('token-555')
       expect(config.current_workspace).toBe('T555')
@@ -185,7 +171,7 @@ describe('Workspace Commands', () => {
 
   describe('workspace current', () => {
     test('returns current workspace details', async () => {
-      // Given: A current workspace is set
+      const credManager = setup()
       const ws: WorkspaceCredentials = {
         workspace_id: 'T666',
         workspace_name: 'current-workspace',
@@ -195,10 +181,8 @@ describe('Workspace Commands', () => {
       await credManager.setWorkspace(ws)
       await credManager.setCurrentWorkspace('T666')
 
-      // When: Getting current workspace
       const current = await credManager.getWorkspace()
 
-      // Then: Should return workspace details
       expect(current).not.toBeNull()
       expect(current?.workspace_id).toBe('T666')
       expect(current?.workspace_name).toBe('current-workspace')
@@ -207,16 +191,13 @@ describe('Workspace Commands', () => {
     })
 
     test('returns null when no current workspace set', async () => {
-      // Given: No current workspace
-      // When: Getting current workspace
+      const credManager = setup()
       const current = await credManager.getWorkspace()
-
-      // Then: Should return null
       expect(current).toBeNull()
     })
 
     test('returns null when current workspace is deleted', async () => {
-      // Given: Current workspace is set
+      const credManager = setup()
       const ws: WorkspaceCredentials = {
         workspace_id: 'T777',
         workspace_name: 'to-delete',
@@ -226,16 +207,14 @@ describe('Workspace Commands', () => {
       await credManager.setWorkspace(ws)
       await credManager.setCurrentWorkspace('T777')
 
-      // When: Workspace is removed
       await credManager.removeWorkspace('T777')
 
-      // Then: Current should be null
       const current = await credManager.getWorkspace()
       expect(current).toBeNull()
     })
 
     test('shows correct workspace after switching', async () => {
-      // Given: Multiple workspaces with one as current
+      const credManager = setup()
       const ws1: WorkspaceCredentials = {
         workspace_id: 'T888',
         workspace_name: 'first',
@@ -252,11 +231,9 @@ describe('Workspace Commands', () => {
       await credManager.setWorkspace(ws2)
       await credManager.setCurrentWorkspace('T888')
 
-      // When: Switching to second workspace
       await credManager.setCurrentWorkspace('T999')
       const current = await credManager.getWorkspace()
 
-      // Then: Should return second workspace
       expect(current?.workspace_id).toBe('T999')
       expect(current?.workspace_name).toBe('second')
     })
@@ -264,7 +241,7 @@ describe('Workspace Commands', () => {
 
   describe('workspace remove', () => {
     test('removes workspace by id', async () => {
-      // Given: A workspace exists
+      const credManager = setup()
       const ws: WorkspaceCredentials = {
         workspace_id: 'T-remove',
         workspace_name: 'to-remove',
@@ -273,16 +250,14 @@ describe('Workspace Commands', () => {
       }
       await credManager.setWorkspace(ws)
 
-      // When: Workspace is removed
       await credManager.removeWorkspace('T-remove')
 
-      // Then: Workspace should not exist
       const retrieved = await credManager.getWorkspace('T-remove')
       expect(retrieved).toBeNull()
     })
 
     test('removes current workspace and clears current', async () => {
-      // Given: Current workspace is set
+      const credManager = setup()
       const ws: WorkspaceCredentials = {
         workspace_id: 'T-current-remove',
         workspace_name: 'current-to-remove',
@@ -292,16 +267,14 @@ describe('Workspace Commands', () => {
       await credManager.setWorkspace(ws)
       await credManager.setCurrentWorkspace('T-current-remove')
 
-      // When: Current workspace is removed
       await credManager.removeWorkspace('T-current-remove')
 
-      // Then: Current should be null
       const config = await credManager.load()
       expect(config.current_workspace).toBeNull()
     })
 
     test('removes workspace without affecting others', async () => {
-      // Given: Multiple workspaces exist
+      const credManager = setup()
       const ws1: WorkspaceCredentials = {
         workspace_id: 'T-keep',
         workspace_name: 'keep',
@@ -318,10 +291,8 @@ describe('Workspace Commands', () => {
       await credManager.setWorkspace(ws2)
       await credManager.setCurrentWorkspace('T-keep')
 
-      // When: One workspace is removed
       await credManager.removeWorkspace('T-remove-one')
 
-      // Then: Other workspace should remain
       const config = await credManager.load()
       expect(config.workspaces['T-keep']).toBeDefined()
       expect(config.workspaces['T-remove-one']).toBeUndefined()
@@ -329,17 +300,15 @@ describe('Workspace Commands', () => {
     })
 
     test('handles removing non-existent workspace gracefully', async () => {
-      // Given: Workspace does not exist
-      // When: Trying to remove non-existent workspace
+      const credManager = setup()
       await credManager.removeWorkspace('nonexistent')
 
-      // Then: Should not throw error
       const config = await credManager.load()
       expect(config.workspaces).toEqual({})
     })
 
     test('clears current only if removed workspace was current', async () => {
-      // Given: Multiple workspaces with one as current
+      const credManager = setup()
       const ws1: WorkspaceCredentials = {
         workspace_id: 'T-current-1',
         workspace_name: 'current-1',
@@ -356,10 +325,8 @@ describe('Workspace Commands', () => {
       await credManager.setWorkspace(ws2)
       await credManager.setCurrentWorkspace('T-current-1')
 
-      // When: Non-current workspace is removed
       await credManager.removeWorkspace('T-other')
 
-      // Then: Current should remain unchanged
       const config = await credManager.load()
       expect(config.current_workspace).toBe('T-current-1')
     })
@@ -367,7 +334,7 @@ describe('Workspace Commands', () => {
 
   describe('Output Formatting', () => {
     test('formats list output correctly', async () => {
-      // Given: Multiple workspaces
+      const credManager = setup()
       const ws1: WorkspaceCredentials = {
         workspace_id: 'T-format-1',
         workspace_name: 'format-1',
@@ -384,7 +351,6 @@ describe('Workspace Commands', () => {
       await credManager.setWorkspace(ws2)
       await credManager.setCurrentWorkspace('T-format-1')
 
-      // When: Creating list output
       const config = await credManager.load()
       const output = Object.values(config.workspaces).map((ws) => ({
         id: ws.workspace_id,
@@ -392,7 +358,6 @@ describe('Workspace Commands', () => {
         current: ws.workspace_id === config.current_workspace,
       }))
 
-      // Then: Should be valid JSON
       const json = JSON.stringify(output)
       const parsed = JSON.parse(json)
       expect(parsed).toHaveLength(2)
@@ -401,7 +366,7 @@ describe('Workspace Commands', () => {
     })
 
     test('formats switch output correctly', async () => {
-      // Given: Workspace to switch to
+      const credManager = setup()
       const ws: WorkspaceCredentials = {
         workspace_id: 'T-switch-format',
         workspace_name: 'switch-format',
@@ -411,17 +376,15 @@ describe('Workspace Commands', () => {
       await credManager.setWorkspace(ws)
       await credManager.setCurrentWorkspace('T-switch-format')
 
-      // When: Creating switch output
       const output = { current: 'T-switch-format' }
 
-      // Then: Should be valid JSON
       const json = JSON.stringify(output)
       const parsed = JSON.parse(json)
       expect(parsed.current).toBe('T-switch-format')
     })
 
     test('formats current output correctly', async () => {
-      // Given: Current workspace
+      const credManager = setup()
       const ws: WorkspaceCredentials = {
         workspace_id: 'T-current-format',
         workspace_name: 'current-format',
@@ -431,14 +394,12 @@ describe('Workspace Commands', () => {
       await credManager.setWorkspace(ws)
       await credManager.setCurrentWorkspace('T-current-format')
 
-      // When: Creating current output
       const current = await credManager.getWorkspace()
       const output = {
         workspace_id: current?.workspace_id,
         workspace_name: current?.workspace_name,
       }
 
-      // Then: Should be valid JSON
       const json = JSON.stringify(output)
       const parsed = JSON.parse(json)
       expect(parsed.workspace_id).toBe('T-current-format')
@@ -446,7 +407,7 @@ describe('Workspace Commands', () => {
     })
 
     test('formats remove output correctly', async () => {
-      // Given: Workspace to remove
+      const credManager = setup()
       const ws: WorkspaceCredentials = {
         workspace_id: 'T-remove-format',
         workspace_name: 'remove-format',
@@ -455,27 +416,22 @@ describe('Workspace Commands', () => {
       }
       await credManager.setWorkspace(ws)
 
-      // When: Creating remove output
       const output = { removed: 'T-remove-format' }
 
-      // Then: Should be valid JSON
       const json = JSON.stringify(output)
       const parsed = JSON.parse(json)
       expect(parsed.removed).toBe('T-remove-format')
     })
 
     test('pretty prints JSON correctly', async () => {
-      // Given: Output data
       const output = {
         id: 'T123',
         name: 'test',
         current: true,
       }
 
-      // When: Pretty printing
       const pretty = JSON.stringify(output, null, 2)
 
-      // Then: Should contain newlines and indentation
       expect(pretty).toContain('\n')
       expect(pretty).toContain('  ')
     })
@@ -483,26 +439,21 @@ describe('Workspace Commands', () => {
 
   describe('Error Handling', () => {
     test('handles missing workspace gracefully', async () => {
-      // Given: Workspace does not exist
-      // When: Trying to get workspace
+      const credManager = setup()
       const ws = await credManager.getWorkspace('missing')
-
-      // Then: Should return null
       expect(ws).toBeNull()
     })
 
     test('handles corrupted config gracefully', async () => {
-      // Given: Config directory exists
-      // When: Loading from empty directory
+      const credManager = setup()
       const config = await credManager.load()
 
-      // Then: Should return default config
       expect(config.current_workspace).toBeNull()
       expect(config.workspaces).toEqual({})
     })
 
     test('handles concurrent operations', async () => {
-      // Given: Multiple workspaces
+      const credManager = setup()
       const ws1: WorkspaceCredentials = {
         workspace_id: 'T-concurrent-1',
         workspace_name: 'concurrent-1',
@@ -516,11 +467,9 @@ describe('Workspace Commands', () => {
         cookie: 'cookie-2',
       }
 
-      // When: Setting workspaces sequentially
       await credManager.setWorkspace(ws1)
       await credManager.setWorkspace(ws2)
 
-      // Then: Both should be saved
       const config = await credManager.load()
       expect(Object.keys(config.workspaces)).toHaveLength(2)
     })

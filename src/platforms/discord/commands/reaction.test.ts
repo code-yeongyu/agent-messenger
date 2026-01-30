@@ -1,38 +1,53 @@
-import { expect, mock, test } from 'bun:test'
+import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test'
+import { DiscordClient } from '../client'
+import { DiscordCredentialManager } from '../credential-manager'
 import { addAction, listAction, removeAction } from './reaction'
 
-// Mock modules
-mock.module('../client', () => ({
-  DiscordClient: mock(() => ({
-    addReaction: mock(async () => {}),
-    removeReaction: mock(async () => {}),
-    getMessage: mock(async () => ({
-      id: 'msg123',
-      channel_id: 'ch123',
-      author: { id: 'user123', username: 'testuser' },
-      content: 'test message',
-      timestamp: '2024-01-01T00:00:00Z',
-      reactions: [
-        {
-          emoji: { name: 'thumbsup', id: undefined },
-          count: 2,
-        },
-        {
-          emoji: { name: 'heart', id: undefined },
-          count: 1,
-        },
-      ],
-    })),
-  })),
-}))
+let clientAddReactionSpy: ReturnType<typeof spyOn>
+let clientRemoveReactionSpy: ReturnType<typeof spyOn>
+let clientGetMessageSpy: ReturnType<typeof spyOn>
+let credManagerLoadSpy: ReturnType<typeof spyOn>
 
-mock.module('../credential-manager', () => ({
-  DiscordCredentialManager: mock(() => ({
-    load: mock(async () => ({
-      token: 'test-token',
-    })),
-  })),
-}))
+beforeEach(() => {
+  // Spy on DiscordClient.prototype methods
+  clientAddReactionSpy = spyOn(DiscordClient.prototype, 'addReaction').mockResolvedValue(undefined)
+
+  clientRemoveReactionSpy = spyOn(DiscordClient.prototype, 'removeReaction').mockResolvedValue(
+    undefined
+  )
+
+  clientGetMessageSpy = spyOn(DiscordClient.prototype, 'getMessage').mockResolvedValue({
+    id: 'msg123',
+    channel_id: 'ch123',
+    author: { id: 'user123', username: 'testuser' },
+    content: 'test message',
+    timestamp: '2024-01-01T00:00:00Z',
+    reactions: [
+      {
+        emoji: { name: 'thumbsup', id: undefined },
+        count: 2,
+      },
+      {
+        emoji: { name: 'heart', id: undefined },
+        count: 1,
+      },
+    ],
+  } as any)
+
+  // Spy on DiscordCredentialManager.prototype methods
+  credManagerLoadSpy = spyOn(DiscordCredentialManager.prototype, 'load').mockResolvedValue({
+    token: 'test-token',
+    current_guild: null,
+    guilds: {},
+  })
+})
+
+afterEach(() => {
+  clientAddReactionSpy?.mockRestore()
+  clientRemoveReactionSpy?.mockRestore()
+  clientGetMessageSpy?.mockRestore()
+  credManagerLoadSpy?.mockRestore()
+})
 
 test('add: sends correct PUT request with emoji', async () => {
   const consoleSpy = mock((_msg: string) => {})
@@ -91,15 +106,12 @@ test('list: extracts reactions from message', async () => {
 })
 
 test('add: handles missing token gracefully', async () => {
-  const credManagerMock = mock(() => ({
-    load: mock(async () => ({
-      token: null,
-    })),
-  }))
-
-  mock.module('../credential-manager', () => ({
-    DiscordCredentialManager: credManagerMock,
-  }))
+  // Temporarily override the credential manager spy to return null token
+  credManagerLoadSpy?.mockResolvedValue({
+    token: null,
+    current_guild: null,
+    guilds: {},
+  })
 
   const consoleSpy = mock((_msg: string) => {})
   const originalLog = console.log

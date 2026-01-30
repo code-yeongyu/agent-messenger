@@ -1,15 +1,22 @@
-import { expect, mock, test } from 'bun:test'
+import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test'
 import { DiscordClient } from '../client'
+import { DiscordCredentialManager } from '../credential-manager'
 
-// Mock modules
-mock.module('../client', () => ({
-  DiscordClient: mock((_token: string) => ({
-    listChannels: mock(async (guildId: string) => [
-      { id: 'ch-1', guild_id: guildId, name: 'general', type: 0, topic: 'General discussion' },
-      { id: 'ch-2', guild_id: guildId, name: 'announcements', type: 0, topic: 'Announcements' },
-      { id: 'ch-3', guild_id: guildId, name: 'voice-channel', type: 2, topic: null },
-    ]),
-    getChannel: mock(async (channelId: string) => {
+let clientListChannelsSpy: ReturnType<typeof spyOn>
+let clientGetChannelSpy: ReturnType<typeof spyOn>
+let clientGetMessagesSpy: ReturnType<typeof spyOn>
+let credManagerLoadSpy: ReturnType<typeof spyOn>
+
+beforeEach(() => {
+  // Spy on DiscordClient.prototype methods
+  clientListChannelsSpy = spyOn(DiscordClient.prototype, 'listChannels').mockResolvedValue([
+    { id: 'ch-1', guild_id: 'guild-1', name: 'general', type: 0, topic: 'General discussion' },
+    { id: 'ch-2', guild_id: 'guild-1', name: 'announcements', type: 0, topic: 'Announcements' },
+    { id: 'ch-3', guild_id: 'guild-1', name: 'voice-channel', type: 2, topic: undefined },
+  ])
+
+  clientGetChannelSpy = spyOn(DiscordClient.prototype, 'getChannel').mockImplementation(
+    async (channelId: string) => {
       if (channelId === 'ch-1') {
         return {
           id: 'ch-1',
@@ -29,37 +36,42 @@ mock.module('../client', () => ({
         }
       }
       throw new Error('Channel not found')
-    }),
-    getMessages: mock(async (channelId: string, _limit: number) => [
-      {
-        id: 'msg-1',
-        channel_id: channelId,
-        author: { id: 'user-1', username: 'alice' },
-        content: 'Hello world',
-        timestamp: '2024-01-29T10:00:00Z',
-      },
-      {
-        id: 'msg-2',
-        channel_id: channelId,
-        author: { id: 'user-2', username: 'bob' },
-        content: 'Hi there',
-        timestamp: '2024-01-29T09:00:00Z',
-      },
-    ]),
-  })),
-}))
+    }
+  )
 
-mock.module('../credential-manager', () => ({
-  DiscordCredentialManager: mock(() => ({
-    load: mock(async () => ({
-      token: 'test-token',
-      current_guild: 'guild-1',
-      guilds: {
-        'guild-1': { guild_id: 'guild-1', guild_name: 'Guild One' },
-      },
-    })),
-  })),
-}))
+  clientGetMessagesSpy = spyOn(DiscordClient.prototype, 'getMessages').mockResolvedValue([
+    {
+      id: 'msg-1',
+      channel_id: 'ch-1',
+      author: { id: 'user-1', username: 'alice' },
+      content: 'Hello world',
+      timestamp: '2024-01-29T10:00:00Z',
+    },
+    {
+      id: 'msg-2',
+      channel_id: 'ch-1',
+      author: { id: 'user-2', username: 'bob' },
+      content: 'Hi there',
+      timestamp: '2024-01-29T09:00:00Z',
+    },
+  ])
+
+  // Spy on DiscordCredentialManager.prototype methods
+  credManagerLoadSpy = spyOn(DiscordCredentialManager.prototype, 'load').mockResolvedValue({
+    token: 'test-token',
+    current_guild: 'guild-1',
+    guilds: {
+      'guild-1': { guild_id: 'guild-1', guild_name: 'Guild One' },
+    },
+  })
+})
+
+afterEach(() => {
+  clientListChannelsSpy?.mockRestore()
+  clientGetChannelSpy?.mockRestore()
+  clientGetMessagesSpy?.mockRestore()
+  credManagerLoadSpy?.mockRestore()
+})
 
 test('list: returns text channels (type=0) from guild', async () => {
   // given: discord client with channels

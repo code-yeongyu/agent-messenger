@@ -1,15 +1,22 @@
-import { expect, mock, test } from 'bun:test'
+import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test'
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
 
-// Mock modules
-mock.module('../client', () => ({
-  DiscordClient: mock((_token: string) => ({
-    listGuilds: mock(async () => [
-      { id: 'guild-1', name: 'Guild One', icon: 'icon1', owner: true },
-      { id: 'guild-2', name: 'Guild Two', icon: 'icon2', owner: false },
-    ]),
-    getGuild: mock(async (guildId: string) => {
+let clientListGuildsSpy: ReturnType<typeof spyOn>
+let clientGetGuildSpy: ReturnType<typeof spyOn>
+let credManagerLoadSpy: ReturnType<typeof spyOn>
+let credManagerSetCurrentGuildSpy: ReturnType<typeof spyOn>
+let credManagerGetCurrentGuildSpy: ReturnType<typeof spyOn>
+
+beforeEach(() => {
+  // Spy on DiscordClient.prototype methods
+  clientListGuildsSpy = spyOn(DiscordClient.prototype, 'listGuilds').mockResolvedValue([
+    { id: 'guild-1', name: 'Guild One', icon: 'icon1', owner: true },
+    { id: 'guild-2', name: 'Guild Two', icon: 'icon2', owner: false },
+  ])
+
+  clientGetGuildSpy = spyOn(DiscordClient.prototype, 'getGuild').mockImplementation(
+    async (guildId: string) => {
       if (guildId === 'guild-1') {
         return { id: 'guild-1', name: 'Guild One', icon: 'icon1', owner: true }
       }
@@ -17,24 +24,37 @@ mock.module('../client', () => ({
         return { id: 'guild-2', name: 'Guild Two', icon: 'icon2', owner: false }
       }
       throw new Error('Guild not found')
-    }),
-  })),
-}))
+    }
+  )
 
-mock.module('../credential-manager', () => ({
-  DiscordCredentialManager: mock(() => ({
-    load: mock(async () => ({
-      token: 'test-token',
-      current_guild: 'guild-1',
-      guilds: {
-        'guild-1': { guild_id: 'guild-1', guild_name: 'Guild One' },
-        'guild-2': { guild_id: 'guild-2', guild_name: 'Guild Two' },
-      },
-    })),
-    setCurrentGuild: mock(async () => {}),
-    getCurrentGuild: mock(async () => 'guild-1'),
-  })),
-}))
+  // Spy on DiscordCredentialManager.prototype methods
+  credManagerLoadSpy = spyOn(DiscordCredentialManager.prototype, 'load').mockResolvedValue({
+    token: 'test-token',
+    current_guild: 'guild-1',
+    guilds: {
+      'guild-1': { guild_id: 'guild-1', guild_name: 'Guild One' },
+      'guild-2': { guild_id: 'guild-2', guild_name: 'Guild Two' },
+    },
+  })
+
+  credManagerSetCurrentGuildSpy = spyOn(
+    DiscordCredentialManager.prototype,
+    'setCurrentGuild'
+  ).mockResolvedValue(undefined)
+
+  credManagerGetCurrentGuildSpy = spyOn(
+    DiscordCredentialManager.prototype,
+    'getCurrentGuild'
+  ).mockResolvedValue('guild-1')
+})
+
+afterEach(() => {
+  clientListGuildsSpy?.mockRestore()
+  clientGetGuildSpy?.mockRestore()
+  credManagerLoadSpy?.mockRestore()
+  credManagerSetCurrentGuildSpy?.mockRestore()
+  credManagerGetCurrentGuildSpy?.mockRestore()
+})
 
 test('list: returns guilds with current marker', async () => {
   // given: credential manager with guilds

@@ -1,64 +1,67 @@
-import { beforeEach, expect, mock, test } from 'bun:test'
+import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test'
+import { DiscordClient } from '../client'
+import { DiscordCredentialManager } from '../credential-manager'
 import { deleteAction, getAction, listAction, sendAction } from './message'
 
-mock.module('../client', () => ({
-  DiscordClient: mock(() => ({
-    sendMessage: mock(async () => ({
-      id: 'msg_123',
-      channel_id: 'ch_456',
-      author: { id: 'user_789', username: 'testuser' },
-      content: 'Hello world',
-      timestamp: '2025-01-29T10:00:00Z',
-    })),
-    getMessages: mock(async () => [
-      {
-        id: 'msg_123',
-        channel_id: 'ch_456',
-        author: { id: 'user_789', username: 'testuser' },
-        content: 'Hello world',
-        timestamp: '2025-01-29T10:00:00Z',
-      },
-      {
-        id: 'msg_124',
-        channel_id: 'ch_456',
-        author: { id: 'user_789', username: 'testuser' },
-        content: 'Second message',
-        timestamp: '2025-01-29T10:01:00Z',
-      },
-    ]),
-    getMessage: mock(async () => ({
-      id: 'msg_123',
-      channel_id: 'ch_456',
-      author: { id: 'user_789', username: 'testuser' },
-      content: 'Hello world',
-      timestamp: '2025-01-29T10:00:00Z',
-    })),
-    deleteMessage: mock(async () => undefined),
-  })),
-}))
-
-mock.module('../credential-manager', () => ({
-  DiscordCredentialManager: mock(() => ({
-    load: mock(async () => ({
-      token: 'test_token',
-      current_guild: 'guild_123',
-      guilds: {},
-    })),
-  })),
-}))
-
-mock.module('../../../shared/utils/output', () => ({
-  formatOutput: (data: any, pretty?: boolean) => JSON.stringify(data, null, pretty ? 2 : 0),
-}))
-
-mock.module('../../../shared/utils/error-handler', () => ({
-  handleError: (error: Error) => {
-    console.error(error.message)
-  },
-}))
+let clientSendMessageSpy: ReturnType<typeof spyOn>
+let clientGetMessagesSpy: ReturnType<typeof spyOn>
+let clientGetMessageSpy: ReturnType<typeof spyOn>
+let clientDeleteMessageSpy: ReturnType<typeof spyOn>
+let credManagerLoadSpy: ReturnType<typeof spyOn>
 
 beforeEach(() => {
-  mock.restore()
+  // Spy on DiscordClient.prototype methods
+  clientSendMessageSpy = spyOn(DiscordClient.prototype, 'sendMessage').mockResolvedValue({
+    id: 'msg_123',
+    channel_id: 'ch_456',
+    author: { id: 'user_789', username: 'testuser' },
+    content: 'Hello world',
+    timestamp: '2025-01-29T10:00:00Z',
+  })
+
+  clientGetMessagesSpy = spyOn(DiscordClient.prototype, 'getMessages').mockResolvedValue([
+    {
+      id: 'msg_123',
+      channel_id: 'ch_456',
+      author: { id: 'user_789', username: 'testuser' },
+      content: 'Hello world',
+      timestamp: '2025-01-29T10:00:00Z',
+    },
+    {
+      id: 'msg_124',
+      channel_id: 'ch_456',
+      author: { id: 'user_789', username: 'testuser' },
+      content: 'Second message',
+      timestamp: '2025-01-29T10:01:00Z',
+    },
+  ])
+
+  clientGetMessageSpy = spyOn(DiscordClient.prototype, 'getMessage').mockResolvedValue({
+    id: 'msg_123',
+    channel_id: 'ch_456',
+    author: { id: 'user_789', username: 'testuser' },
+    content: 'Hello world',
+    timestamp: '2025-01-29T10:00:00Z',
+  })
+
+  clientDeleteMessageSpy = spyOn(DiscordClient.prototype, 'deleteMessage').mockResolvedValue(
+    undefined
+  )
+
+  // Spy on DiscordCredentialManager.prototype methods
+  credManagerLoadSpy = spyOn(DiscordCredentialManager.prototype, 'load').mockResolvedValue({
+    token: 'test_token',
+    current_guild: 'guild_123',
+    guilds: {},
+  })
+})
+
+afterEach(() => {
+  clientSendMessageSpy?.mockRestore()
+  clientGetMessagesSpy?.mockRestore()
+  clientGetMessageSpy?.mockRestore()
+  clientDeleteMessageSpy?.mockRestore()
+  credManagerLoadSpy?.mockRestore()
 })
 
 test('send: returns message with id', async () => {

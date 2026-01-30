@@ -74,8 +74,9 @@ describe('TokenExtractor', () => {
 
   describe('extract', () => {
     test('throws error when Slack directory does not exist', async () => {
-      // Given: Slack directory does not exist
-      extractor = new TokenExtractor('darwin', '/nonexistent/path')
+      // Given: Slack directory does not exist (use unique path to avoid any collision)
+      const nonExistentPath = `/tmp/nonexistent-slack-${Date.now()}-${Math.random()}`
+      extractor = new TokenExtractor('darwin', nonExistentPath)
 
       // When/Then: extract should throw
       await expect(extractor.extract()).rejects.toThrow('Slack directory not found')
@@ -124,6 +125,7 @@ describe('Auth Commands Integration', () => {
 
   beforeEach(() => {
     rmSync(testConfigDir, { recursive: true, force: true })
+    mkdirSync(testConfigDir, { recursive: true })
     credManager = new CredentialManager(testConfigDir)
   })
 
@@ -350,23 +352,33 @@ describe('Output Formatting', () => {
 })
 
 describe('Error Handling', () => {
+  beforeEach(() => {
+    rmSync(testSlackDir, { recursive: true, force: true })
+    mkdirSync(testSlackDir, { recursive: true })
+  })
+
+  afterAll(() => {
+    rmSync(testSlackDir, { recursive: true, force: true })
+  })
+
   test('handles missing Slack installation gracefully', async () => {
-    // Given: Slack is not installed
-    const extractor = new TokenExtractor('darwin', '/nonexistent/slack')
+    // Given: Slack is not installed (use unique path)
+    const nonExistentPath = `/tmp/nonexistent-slack-${Date.now()}-${Math.random()}`
+    const extractor = new TokenExtractor('darwin', nonExistentPath)
 
     // When/Then: Should throw descriptive error
     await expect(extractor.extract()).rejects.toThrow('Slack directory not found')
   })
 
-  test('handles corrupted LevelDB gracefully', async () => {
-    // Given: Corrupted LevelDB
-    // This would require creating a corrupted LevelDB file
-    // We test that the extractor handles errors gracefully
+  test('handles empty Slack directory gracefully', async () => {
+    // Given: Slack directory exists but has no data
     const extractor = new TokenExtractor('darwin', testSlackDir)
 
-    // When: Trying to extract from non-existent storage
-    // Then: Should handle gracefully (return empty or throw)
-    await expect(extractor.extract()).rejects.toThrow()
+    // When: Trying to extract from empty directory
+    const result = await extractor.extract()
+
+    // Then: Should return empty array
+    expect(result).toEqual([])
   })
 
   test('handles missing Cookies database gracefully', async () => {

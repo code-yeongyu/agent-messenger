@@ -1,64 +1,51 @@
-import { beforeEach, expect, mock, test } from 'bun:test'
+import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test'
+import { DiscordClient } from '../client'
+import { DiscordCredentialManager } from '../credential-manager'
 import { infoAction, listAction, uploadAction } from './file'
 
-mock.module('../client', () => ({
-  DiscordClient: mock(() => ({
-    uploadFile: mock(async () => ({
+let clientUploadFileSpy: ReturnType<typeof spyOn>
+let clientListFilesSpy: ReturnType<typeof spyOn>
+let credManagerLoadSpy: ReturnType<typeof spyOn>
+
+beforeEach(() => {
+  // Spy on DiscordClient.prototype methods
+  clientUploadFileSpy = spyOn(DiscordClient.prototype, 'uploadFile').mockResolvedValue({
+    id: 'file_123',
+    filename: 'test.pdf',
+    size: 1024,
+    url: 'https://cdn.discordapp.com/attachments/123/456/test.pdf',
+    content_type: 'application/pdf',
+  })
+
+  clientListFilesSpy = spyOn(DiscordClient.prototype, 'listFiles').mockResolvedValue([
+    {
       id: 'file_123',
       filename: 'test.pdf',
       size: 1024,
       url: 'https://cdn.discordapp.com/attachments/123/456/test.pdf',
       content_type: 'application/pdf',
-    })),
-    listFiles: mock(async () => [
-      {
-        id: 'file_123',
-        filename: 'test.pdf',
-        size: 1024,
-        url: 'https://cdn.discordapp.com/attachments/123/456/test.pdf',
-        content_type: 'application/pdf',
-      },
-      {
-        id: 'file_124',
-        filename: 'image.png',
-        size: 2048,
-        url: 'https://cdn.discordapp.com/attachments/123/457/image.png',
-        content_type: 'image/png',
-      },
-    ]),
-  })),
-}))
+    },
+    {
+      id: 'file_124',
+      filename: 'image.png',
+      size: 2048,
+      url: 'https://cdn.discordapp.com/attachments/123/457/image.png',
+      content_type: 'image/png',
+    },
+  ])
 
-mock.module('../credential-manager', () => ({
-  DiscordCredentialManager: mock(() => ({
-    load: mock(async () => ({
-      token: 'test_token',
-      current_guild: 'guild_123',
-      guilds: {},
-    })),
-  })),
-}))
+  // Spy on DiscordCredentialManager.prototype methods
+  credManagerLoadSpy = spyOn(DiscordCredentialManager.prototype, 'load').mockResolvedValue({
+    token: 'test_token',
+    current_guild: 'guild_123',
+    guilds: {},
+  })
+})
 
-mock.module('../../../shared/utils/output', () => ({
-  formatOutput: (data: any, pretty?: boolean) => JSON.stringify(data, null, pretty ? 2 : 0),
-}))
-
-mock.module('../../../shared/utils/error-handler', () => ({
-  handleError: (error: Error) => {
-    console.error(error.message)
-  },
-}))
-
-mock.module('node:fs', () => ({
-  readFileSync: () => Buffer.from('test file content'),
-}))
-
-mock.module('node:path', () => ({
-  resolve: (path: string) => path,
-}))
-
-beforeEach(() => {
-  mock.restore()
+afterEach(() => {
+  clientUploadFileSpy?.mockRestore()
+  clientListFilesSpy?.mockRestore()
+  credManagerLoadSpy?.mockRestore()
 })
 
 test('upload: sends multipart request and returns file info', async () => {

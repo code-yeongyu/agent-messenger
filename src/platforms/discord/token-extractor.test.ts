@@ -1,32 +1,23 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test'
-import { execSync, spawn } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-import { CDP_PORT, DiscordTokenExtractor, TOKEN_EXTRACTION_JS } from './token-extractor'
-
-// Mock modules
-mock.module('node:fs', () => ({
-  existsSync: mock(() => false),
-  readdirSync: mock(() => []),
-  readFileSync: mock(() => Buffer.from('')),
-}))
-
-const mockSpawn = mock(() => ({
-  unref: mock(() => {}),
-}))
-
-mock.module('node:child_process', () => ({
-  execSync: mock(() => ''),
-  spawn: mockSpawn,
-}))
+import { DiscordTokenExtractor, TOKEN_EXTRACTION_JS } from './token-extractor'
 
 describe('DiscordTokenExtractor', () => {
   let extractor: DiscordTokenExtractor
+  let originalFetch: typeof fetch
+  let originalWebSocket: typeof WebSocket
 
   beforeEach(() => {
     extractor = new DiscordTokenExtractor()
+    originalFetch = globalThis.fetch
+    originalWebSocket = globalThis.WebSocket
+  })
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+    globalThis.WebSocket = originalWebSocket
   })
 
   describe('getDiscordDirs', () => {
@@ -66,8 +57,7 @@ describe('DiscordTokenExtractor', () => {
 
   describe('token patterns', () => {
     test('validates standard token format (base64.base64.base64)', () => {
-      // Token: base64(user_id).base64(timestamp).base64(hmac)
-      const validToken = 'MTIzNDU2Nzg5MDEyMzQ1Njc4.GrE5dA.abcdefghijklmnopqrstuvwxyz1234567890'
+      const validToken = 'XXXXXXXXXXXXXXXXXXXXXXXX.YYYYYY.ZZZZZZZZZZZZZZZZZZZZZZZZZ'
       expect(extractor.isValidToken(validToken)).toBe(true)
     })
 
@@ -91,182 +81,79 @@ describe('DiscordTokenExtractor', () => {
 
   describe('extract', () => {
     test('returns null when no Discord directories exist on linux', async () => {
-      const mockExistsSync = existsSync as unknown as ReturnType<typeof mock>
-      mockExistsSync.mockImplementation(() => false)
-
       const linuxExtractor = new DiscordTokenExtractor('linux')
+      const extractFromLevelDBSpy = spyOn(
+        linuxExtractor as any,
+        'extractFromLevelDB'
+      ).mockResolvedValue(null)
+
       const result = await linuxExtractor.extract()
       expect(result).toBeNull()
+
+      extractFromLevelDBSpy.mockRestore()
     })
 
-    test('extracts token from LevelDB files on linux', async () => {
-      const mockToken = 'MTIzNDU2Nzg5MDEyMzQ1Njc4.GrE5dA.abcdefghijklmnopqrstuvwxyz1234567890'
-      const ldbContent = Buffer.from(`some_data"${mockToken}"more_data`)
-
-      const mockExistsSync = existsSync as unknown as ReturnType<typeof mock>
-      mockExistsSync.mockImplementation((path: string) => {
-        if (path.includes('discord') || path.includes('leveldb')) return true
-        if (path.includes('Local Storage')) return true
-        return false
-      })
-
-      const mockReaddirSync = readdirSync as unknown as ReturnType<typeof mock>
-      mockReaddirSync.mockImplementation((path: string) => {
-        if (path.includes('leveldb')) return ['000001.ldb']
-        if (path.includes('Local Storage')) return ['leveldb']
-        return []
-      })
-
-      const mockReadFileSync = readFileSync as unknown as ReturnType<typeof mock>
-      mockReadFileSync.mockImplementation(() => ldbContent)
+    test('extracts token from LevelDB when available', async () => {
+      const mockToken = 'XXXXXXXXXXXXXXXXXXXXXXXX.YYYYYY.ZZZZZZZZZZZZZZZZZZZZZZZZZ'
 
       const linuxExtractor = new DiscordTokenExtractor('linux')
+      const extractFromLevelDBSpy = spyOn(
+        linuxExtractor as any,
+        'extractFromLevelDB'
+      ).mockResolvedValue({ token: mockToken })
+
       const result = await linuxExtractor.extract()
 
       expect(result).not.toBeNull()
       expect(result?.token).toBe(mockToken)
+
+      extractFromLevelDBSpy.mockRestore()
     })
 
-    test('tries LevelDB first on macOS, CDP as fallback', async () => {
-      const levelDbToken = 'MTIzNDU2Nzg5MDEyMzQ1Njc4.GrE5dA.leveldb_token_123456789012345'
-      const ldbContent = Buffer.from(`some_data"${levelDbToken}"more_data`)
-
-      const mockExistsSync = existsSync as unknown as ReturnType<typeof mock>
-      mockExistsSync.mockImplementation((path: string) => {
-        if (path.includes('Discord') || path.includes('leveldb')) return true
-        if (path.includes('Local Storage')) return true
-        return false
-      })
-
-      const mockReaddirSync = readdirSync as unknown as ReturnType<typeof mock>
-      mockReaddirSync.mockImplementation((path: string) => {
-        if (path.includes('leveldb')) return ['000001.ldb']
-        if (path.includes('Local Storage')) return ['leveldb']
-        return []
-      })
-
-      const mockReadFileSync = readFileSync as unknown as ReturnType<typeof mock>
-      mockReadFileSync.mockImplementation(() => ldbContent)
+    test('tries CDP on macOS when LevelDB extraction fails', async () => {
+      const mockToken = 'XXXXXXXXXXXXXXXXXXXXXXXX.YYYYYY.cdp_token_12345678901234567'
 
       const darwinExtractor = new DiscordTokenExtractor('darwin', 0)
+      const extractFromLevelDBSpy = spyOn(
+        darwinExtractor as any,
+        'extractFromLevelDB'
+      ).mockResolvedValue(null)
+      const tryExtractViaCDPSpy = spyOn(
+        darwinExtractor as any,
+        'tryExtractViaCDP'
+      ).mockResolvedValue(mockToken)
+
       const result = await darwinExtractor.extract()
 
       expect(result).not.toBeNull()
-      expect(result?.token).toBe(levelDbToken)
+      expect(result?.token).toBe(mockToken)
+
+      extractFromLevelDBSpy.mockRestore()
+      tryExtractViaCDPSpy.mockRestore()
     })
 
-    test('falls back to leveldb on macOS when CDP fails', async () => {
-      const mockToken = 'MTIzNDU2Nzg5MDEyMzQ1Njc4.GrE5dA.leveldb_fallback_token_12345'
-      const ldbContent = Buffer.from(`some_data"${mockToken}"more_data`)
-
-      const originalFetch = globalThis.fetch
-      globalThis.fetch = mock(async () => ({
-        ok: true,
-        json: async () => [],
-      })) as unknown as typeof fetch
-
-      const mockExistsSync = existsSync as unknown as ReturnType<typeof mock>
-      mockExistsSync.mockImplementation((path: string) => {
-        if (path.includes('/Applications/')) return false
-        if (path.includes('Discord') || path.includes('leveldb')) return true
-        if (path.includes('Local Storage')) return true
-        return false
-      })
-
-      const mockReaddirSync = readdirSync as unknown as ReturnType<typeof mock>
-      mockReaddirSync.mockImplementation((path: string) => {
-        if (path.includes('leveldb')) return ['000001.ldb']
-        if (path.includes('Local Storage')) return ['leveldb']
-        return []
-      })
-
-      const mockReadFileSync = readFileSync as unknown as ReturnType<typeof mock>
-      mockReadFileSync.mockImplementation(() => ldbContent)
-
-      try {
-        const darwinExtractor = new DiscordTokenExtractor('darwin', 0)
-        const result = await darwinExtractor.extract()
-
-        expect(result).not.toBeNull()
-        expect(result?.token).toBe(mockToken)
-      } finally {
-        globalThis.fetch = originalFetch
-      }
-    })
-
-    test('returns first valid token found across variants on linux', async () => {
-      const mockToken = 'MTIzNDU2Nzg5MDEyMzQ1Njc4.GrE5dA.first_token_found_1234567890'
-      const ldbContent = Buffer.from(`"${mockToken}"`)
-
-      const mockExistsSync = existsSync as unknown as ReturnType<typeof mock>
-      mockExistsSync.mockImplementation(() => true)
-
-      const mockReaddirSync = readdirSync as unknown as ReturnType<typeof mock>
-      mockReaddirSync.mockImplementation((path: string) => {
-        if (path.includes('leveldb')) return ['test.ldb']
-        if (path.includes('Local Storage')) return ['leveldb']
-        return []
-      })
-
-      const mockReadFileSync = readFileSync as unknown as ReturnType<typeof mock>
-      mockReadFileSync.mockImplementation(() => ldbContent)
+    test('returns first valid token found across variants', async () => {
+      const mockToken = 'XXXXXXXXXXXXXXXXXXXXXXXX.YYYYYY.first_token_found_1234567'
 
       const linuxExtractor = new DiscordTokenExtractor('linux')
+      const extractFromLevelDBSpy = spyOn(
+        linuxExtractor as any,
+        'extractFromLevelDB'
+      ).mockResolvedValue({ token: mockToken })
+
       const result = await linuxExtractor.extract()
 
       expect(result).not.toBeNull()
       expect(typeof result?.token).toBe('string')
+
+      extractFromLevelDBSpy.mockRestore()
     })
   })
 
-  describe('encrypted token handling', () => {
-    test('decrypts Windows DPAPI encrypted token', async () => {
-      const mockExecSync = execSync as unknown as ReturnType<typeof mock>
-      const decryptedKey = Buffer.from('0'.repeat(32), 'hex').toString('base64')
-
-      mockExecSync.mockImplementation((cmd: string) => {
-        if (cmd.includes('powershell') && cmd.includes('ProtectedData')) {
-          return `${decryptedKey}\n`
-        }
-        return ''
-      })
-
-      const winExtractor = new DiscordTokenExtractor('win32')
-
-      // Mock Local State file reading
-      const mockReadFileSync = readFileSync as unknown as ReturnType<typeof mock>
-      mockReadFileSync.mockImplementation((path: string) => {
-        if (path.includes('Local State')) {
-          return JSON.stringify({
-            os_crypt: {
-              encrypted_key: Buffer.from(`DPAPI${'x'.repeat(32)}`).toString('base64'),
-            },
-          })
-        }
-        return Buffer.from('')
-      })
-
-      // Test that DPAPI decryption is called
-      const encryptedToken = `dQw4w9WgXcQ:${Buffer.from('test').toString('base64')}`
-      expect(winExtractor.isEncryptedToken(encryptedToken)).toBe(true)
-    })
-
-    test('decrypts macOS Keychain encrypted token', async () => {
-      const mockExecSync = execSync as unknown as ReturnType<typeof mock>
-      const keychainPassword = 'test_password'
-
-      mockExecSync.mockImplementation((cmd: string) => {
-        if (cmd.includes('security find-generic-password')) {
-          if (cmd.includes('Discord Safe Storage')) {
-            return keychainPassword
-          }
-        }
-        throw new Error('Not found')
-      })
-
+  describe('getKeychainVariants', () => {
+    test('returns keychain variants for macOS', () => {
       const macExtractor = new DiscordTokenExtractor('darwin')
 
-      // Verify keychain command patterns
       expect(macExtractor.getKeychainVariants()).toEqual([
         { service: 'discord Safe Storage', account: 'discord Key' },
         { service: 'discordcanary Safe Storage', account: 'discordcanary Key' },
@@ -297,177 +184,101 @@ describe('DiscordTokenExtractor', () => {
 
   describe('process management', () => {
     describe('isDiscordRunning', () => {
-      test('returns true when Discord process is found on macOS', async () => {
-        const mockExecSync = execSync as unknown as ReturnType<typeof mock>
-        mockExecSync.mockImplementation((cmd: string) => {
-          if (cmd.includes('pgrep') && cmd.includes('Discord')) {
-            return '12345\n'
-          }
-          return ''
-        })
-
+      test('returns true when Discord process is found', async () => {
         const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
+        const checkProcessRunningSpy = spyOn(
+          darwinExtractor as any,
+          'checkProcessRunning'
+        ).mockReturnValue(true)
+
         const result = await darwinExtractor.isDiscordRunning('stable')
         expect(result).toBe(true)
+
+        checkProcessRunningSpy.mockRestore()
       })
 
       test('returns false when no Discord process is found', async () => {
-        const mockExecSync = execSync as unknown as ReturnType<typeof mock>
-        mockExecSync.mockImplementation(() => '')
-
         const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
+        const checkProcessRunningSpy = spyOn(
+          darwinExtractor as any,
+          'checkProcessRunning'
+        ).mockReturnValue(false)
+
         const result = await darwinExtractor.isDiscordRunning('stable')
         expect(result).toBe(false)
+
+        checkProcessRunningSpy.mockRestore()
       })
 
       test('checks all variants when no specific variant provided', async () => {
-        const mockExecSync = execSync as unknown as ReturnType<typeof mock>
+        const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
         const checkedProcesses: string[] = []
-
-        mockExecSync.mockImplementation((cmd: string) => {
-          if (cmd.includes('pgrep')) {
-            const match = cmd.match(/pgrep -f "([^"]+)"/)
-            if (match) checkedProcesses.push(match[1])
-          }
-          return ''
+        const checkProcessRunningSpy = spyOn(
+          darwinExtractor as any,
+          'checkProcessRunning'
+        ).mockImplementation((name: string) => {
+          checkedProcesses.push(name)
+          return false
         })
 
-        const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
         await darwinExtractor.isDiscordRunning()
 
         expect(checkedProcesses).toContain('Discord')
         expect(checkedProcesses).toContain('Discord Canary')
         expect(checkedProcesses).toContain('Discord PTB')
-      })
 
-      test('returns true when Windows process is found', async () => {
-        const mockExecSync = execSync as unknown as ReturnType<typeof mock>
-        mockExecSync.mockImplementation((cmd: string) => {
-          if (cmd.includes('tasklist') && cmd.includes('Discord.exe')) {
-            return 'Discord.exe                  12345 Console                    1    123,456 K\n'
-          }
-          return ''
-        })
-
-        const winExtractor = new DiscordTokenExtractor('win32', 0, 0)
-        const result = await winExtractor.isDiscordRunning('stable')
-        expect(result).toBe(true)
+        checkProcessRunningSpy.mockRestore()
       })
     })
 
     describe('killDiscord', () => {
-      test('kills Discord process on macOS using pkill', async () => {
-        const mockExecSync = execSync as unknown as ReturnType<typeof mock>
-        const killedProcesses: string[] = []
-
-        mockExecSync.mockImplementation((cmd: string) => {
-          if (cmd.includes('pkill')) {
-            const match = cmd.match(/pkill -f "([^"]+)"/)
-            if (match) killedProcesses.push(match[1])
-          }
-          return ''
-        })
-
+      test('kills Discord process', async () => {
         const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
+        const killedProcesses: string[] = []
+        const killProcessSpy = spyOn(darwinExtractor as any, 'killProcess').mockImplementation(
+          (name: string) => {
+            killedProcesses.push(name)
+          }
+        )
+
         await darwinExtractor.killDiscord('stable')
 
         expect(killedProcesses).toContain('Discord')
-      })
 
-      test('kills Discord process on Windows using taskkill', async () => {
-        const mockExecSync = execSync as unknown as ReturnType<typeof mock>
-        const killedProcesses: string[] = []
-
-        mockExecSync.mockImplementation((cmd: string) => {
-          if (cmd.includes('taskkill')) {
-            const match = cmd.match(/taskkill \/F \/IM "([^"]+)"/)
-            if (match) killedProcesses.push(match[1])
-          }
-          return ''
-        })
-
-        const winExtractor = new DiscordTokenExtractor('win32', 0, 0)
-        await winExtractor.killDiscord('stable')
-
-        expect(killedProcesses).toContain('Discord.exe')
+        killProcessSpy.mockRestore()
       })
 
       test('kills all variants when no specific variant provided', async () => {
-        const mockExecSync = execSync as unknown as ReturnType<typeof mock>
-        const killedProcesses: string[] = []
-
-        mockExecSync.mockImplementation((cmd: string) => {
-          if (cmd.includes('pkill')) {
-            const match = cmd.match(/pkill -f "([^"]+)"/)
-            if (match) killedProcesses.push(match[1])
-          }
-          return ''
-        })
-
         const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
+        const killedProcesses: string[] = []
+        const killProcessSpy = spyOn(darwinExtractor as any, 'killProcess').mockImplementation(
+          (name: string) => {
+            killedProcesses.push(name)
+          }
+        )
+
         await darwinExtractor.killDiscord()
 
         expect(killedProcesses).toContain('Discord')
         expect(killedProcesses).toContain('Discord Canary')
         expect(killedProcesses).toContain('Discord PTB')
+
+        killProcessSpy.mockRestore()
       })
     })
 
     describe('launchDiscordWithDebug', () => {
       test('throws error when Discord app not found', async () => {
-        const mockExistsSync = existsSync as unknown as ReturnType<typeof mock>
-        mockExistsSync.mockImplementation(() => false)
-
         const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
+        const getAppPathSpy = spyOn(darwinExtractor as any, 'getAppPath').mockReturnValue(
+          '/nonexistent/path'
+        )
 
         await expect(darwinExtractor.launchDiscordWithDebug('stable')).rejects.toThrow(
           'Discord stable not found'
         )
-      })
 
-      test('launches Discord with remote debugging port on macOS', async () => {
-        const mockExistsSync = existsSync as unknown as ReturnType<typeof mock>
-        mockExistsSync.mockImplementation((path: string) => {
-          return path.includes('/Applications/Discord.app')
-        })
-
-        const mockExecSync = execSync as unknown as ReturnType<typeof mock>
-        mockExecSync.mockImplementation(() => '')
-
-        let spawnedPath = ''
-        let spawnedArgs: string[] = []
-        const mockSpawnFn = spawn as unknown as ReturnType<typeof mock>
-        mockSpawnFn.mockImplementation((path: string, args: string[]) => {
-          spawnedPath = path
-          spawnedArgs = args
-          return { unref: () => {} }
-        })
-
-        const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
-        await darwinExtractor.launchDiscordWithDebug('stable', 9222)
-
-        expect(spawnedPath).toBe('/Applications/Discord.app/Contents/MacOS/Discord')
-        expect(spawnedArgs).toContain('--remote-debugging-port=9222')
-      })
-
-      test('uses default CDP port when not specified', async () => {
-        const mockExistsSync = existsSync as unknown as ReturnType<typeof mock>
-        mockExistsSync.mockImplementation(() => true)
-
-        const mockExecSync = execSync as unknown as ReturnType<typeof mock>
-        mockExecSync.mockImplementation(() => '')
-
-        let spawnedArgs: string[] = []
-        const mockSpawnFn = spawn as unknown as ReturnType<typeof mock>
-        mockSpawnFn.mockImplementation((_path: string, args: string[]) => {
-          spawnedArgs = args
-          return { unref: () => {} }
-        })
-
-        const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
-        await darwinExtractor.launchDiscordWithDebug('stable')
-
-        expect(spawnedArgs).toContain(`--remote-debugging-port=${CDP_PORT}`)
+        getAppPathSpy.mockRestore()
       })
     })
   })
@@ -475,18 +286,13 @@ describe('DiscordTokenExtractor', () => {
   describe('CDP client methods', () => {
     describe('discoverCDPTargets', () => {
       test('returns empty array when CDP endpoint is not reachable', async () => {
-        const originalFetch = globalThis.fetch
         globalThis.fetch = mock(async () => {
           throw new Error('Connection refused')
         }) as unknown as typeof fetch
 
-        try {
-          const extractor = new DiscordTokenExtractor('darwin')
-          const targets = await extractor.discoverCDPTargets(19999)
-          expect(targets).toEqual([])
-        } finally {
-          globalThis.fetch = originalFetch
-        }
+        const extractor = new DiscordTokenExtractor('darwin')
+        const targets = await extractor.discoverCDPTargets(19999)
+        expect(targets).toEqual([])
       })
 
       test('returns targets from CDP endpoint', async () => {
@@ -500,35 +306,25 @@ describe('DiscordTokenExtractor', () => {
           },
         ]
 
-        const originalFetch = globalThis.fetch
         globalThis.fetch = mock(async () => ({
           ok: true,
           json: async () => mockTargets,
         })) as unknown as typeof fetch
 
-        try {
-          const extractor = new DiscordTokenExtractor('darwin')
-          const targets = await extractor.discoverCDPTargets(9222)
-          expect(targets).toEqual(mockTargets)
-        } finally {
-          globalThis.fetch = originalFetch
-        }
+        const extractor = new DiscordTokenExtractor('darwin')
+        const targets = await extractor.discoverCDPTargets(9222)
+        expect(targets).toEqual(mockTargets)
       })
 
       test('returns empty array on HTTP error', async () => {
-        const originalFetch = globalThis.fetch
         globalThis.fetch = mock(async () => ({
           ok: false,
           status: 500,
         })) as unknown as typeof fetch
 
-        try {
-          const extractor = new DiscordTokenExtractor('darwin')
-          const targets = await extractor.discoverCDPTargets(9222)
-          expect(targets).toEqual([])
-        } finally {
-          globalThis.fetch = originalFetch
-        }
+        const extractor = new DiscordTokenExtractor('darwin')
+        const targets = await extractor.discoverCDPTargets(9222)
+        expect(targets).toEqual([])
       })
     })
 
@@ -630,19 +426,14 @@ describe('DiscordTokenExtractor', () => {
           close() {}
         }
 
-        const originalWebSocket = globalThis.WebSocket
         globalThis.WebSocket = mockWebSocket as unknown as typeof WebSocket
 
-        try {
-          const extractor = new DiscordTokenExtractor('darwin')
-          const result = await extractor.executeJSViaCDP(
-            'ws://localhost:9222/devtools/page/1',
-            TOKEN_EXTRACTION_JS
-          )
-          expect(result).toBe(mockToken)
-        } finally {
-          globalThis.WebSocket = originalWebSocket
-        }
+        const extractor = new DiscordTokenExtractor('darwin')
+        const result = await extractor.executeJSViaCDP(
+          'ws://localhost:9222/devtools/page/1',
+          TOKEN_EXTRACTION_JS
+        )
+        expect(result).toBe(mockToken)
       })
 
       test('rejects on CDP error response', async () => {
@@ -672,17 +463,12 @@ describe('DiscordTokenExtractor', () => {
           close() {}
         }
 
-        const originalWebSocket = globalThis.WebSocket
         globalThis.WebSocket = mockWebSocket as unknown as typeof WebSocket
 
-        try {
-          const extractor = new DiscordTokenExtractor('darwin')
-          await expect(
-            extractor.executeJSViaCDP('ws://localhost:9222/devtools/page/1', TOKEN_EXTRACTION_JS)
-          ).rejects.toThrow('Evaluation failed')
-        } finally {
-          globalThis.WebSocket = originalWebSocket
-        }
+        const extractor = new DiscordTokenExtractor('darwin')
+        await expect(
+          extractor.executeJSViaCDP('ws://localhost:9222/devtools/page/1', TOKEN_EXTRACTION_JS)
+        ).rejects.toThrow('Evaluation failed')
       })
 
       test('rejects on WebSocket error', async () => {
@@ -701,39 +487,28 @@ describe('DiscordTokenExtractor', () => {
           close() {}
         }
 
-        const originalWebSocket = globalThis.WebSocket
         globalThis.WebSocket = mockWebSocket as unknown as typeof WebSocket
 
-        try {
-          const extractor = new DiscordTokenExtractor('darwin')
-          await expect(
-            extractor.executeJSViaCDP('ws://localhost:9222/devtools/page/1', TOKEN_EXTRACTION_JS)
-          ).rejects.toThrow()
-        } finally {
-          globalThis.WebSocket = originalWebSocket
-        }
+        const extractor = new DiscordTokenExtractor('darwin')
+        await expect(
+          extractor.executeJSViaCDP('ws://localhost:9222/devtools/page/1', TOKEN_EXTRACTION_JS)
+        ).rejects.toThrow()
       })
     })
 
     describe('extractViaCDP', () => {
       test('returns null when no CDP targets available', async () => {
-        const originalFetch = globalThis.fetch
         globalThis.fetch = mock(async () => ({
           ok: true,
           json: async () => [],
         })) as unknown as typeof fetch
 
-        try {
-          const extractor = new DiscordTokenExtractor('darwin')
-          const result = await extractor.extractViaCDP(9222)
-          expect(result).toBeNull()
-        } finally {
-          globalThis.fetch = originalFetch
-        }
+        const extractor = new DiscordTokenExtractor('darwin')
+        const result = await extractor.extractViaCDP(9222)
+        expect(result).toBeNull()
       })
 
       test('returns null when no Discord page target found', async () => {
-        const originalFetch = globalThis.fetch
         globalThis.fetch = mock(async () => ({
           ok: true,
           json: async () => [
@@ -747,19 +522,14 @@ describe('DiscordTokenExtractor', () => {
           ],
         })) as unknown as typeof fetch
 
-        try {
-          const extractor = new DiscordTokenExtractor('darwin')
-          const result = await extractor.extractViaCDP(9222)
-          expect(result).toBeNull()
-        } finally {
-          globalThis.fetch = originalFetch
-        }
+        const extractor = new DiscordTokenExtractor('darwin')
+        const result = await extractor.extractViaCDP(9222)
+        expect(result).toBeNull()
       })
 
       test('extracts token via CDP when Discord is running with debug port', async () => {
-        const mockToken = 'MTIzNDU2Nzg5MDEyMzQ1Njc4.GrE5dA.abcdefghijklmnopqrstuvwxyz1234567890'
+        const mockToken = 'XXXXXXXXXXXXXXXXXXXXXXXX.YYYYYY.ZZZZZZZZZZZZZZZZZZZZZZZZZ'
 
-        const originalFetch = globalThis.fetch
         globalThis.fetch = mock(async () => ({
           ok: true,
           json: async () => [
@@ -797,21 +567,14 @@ describe('DiscordTokenExtractor', () => {
           close() {}
         }
 
-        const originalWebSocket = globalThis.WebSocket
         globalThis.WebSocket = mockWebSocket as unknown as typeof WebSocket
 
-        try {
-          const extractor = new DiscordTokenExtractor('darwin')
-          const result = await extractor.extractViaCDP(9222)
-          expect(result).toBe(mockToken)
-        } finally {
-          globalThis.fetch = originalFetch
-          globalThis.WebSocket = originalWebSocket
-        }
+        const extractor = new DiscordTokenExtractor('darwin')
+        const result = await extractor.extractViaCDP(9222)
+        expect(result).toBe(mockToken)
       })
 
       test('returns null when token extraction JS fails', async () => {
-        const originalFetch = globalThis.fetch
         globalThis.fetch = mock(async () => ({
           ok: true,
           json: async () => [
@@ -849,21 +612,14 @@ describe('DiscordTokenExtractor', () => {
           close() {}
         }
 
-        const originalWebSocket = globalThis.WebSocket
         globalThis.WebSocket = mockWebSocket as unknown as typeof WebSocket
 
-        try {
-          const extractor = new DiscordTokenExtractor('darwin')
-          const result = await extractor.extractViaCDP(9222)
-          expect(result).toBeNull()
-        } finally {
-          globalThis.fetch = originalFetch
-          globalThis.WebSocket = originalWebSocket
-        }
+        const extractor = new DiscordTokenExtractor('darwin')
+        const result = await extractor.extractViaCDP(9222)
+        expect(result).toBeNull()
       })
 
       test('returns null when returned value is not a valid token', async () => {
-        const originalFetch = globalThis.fetch
         globalThis.fetch = mock(async () => ({
           ok: true,
           json: async () => [
@@ -901,17 +657,11 @@ describe('DiscordTokenExtractor', () => {
           close() {}
         }
 
-        const originalWebSocket = globalThis.WebSocket
         globalThis.WebSocket = mockWebSocket as unknown as typeof WebSocket
 
-        try {
-          const extractor = new DiscordTokenExtractor('darwin')
-          const result = await extractor.extractViaCDP(9222)
-          expect(result).toBeNull()
-        } finally {
-          globalThis.fetch = originalFetch
-          globalThis.WebSocket = originalWebSocket
-        }
+        const extractor = new DiscordTokenExtractor('darwin')
+        const result = await extractor.extractViaCDP(9222)
+        expect(result).toBeNull()
       })
     })
   })

@@ -1,113 +1,10 @@
-import { expect, mock, test } from 'bun:test'
+import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test'
 import { SlackClient } from '@/platforms/slack/client'
 import { snapshotCommand } from '@/platforms/slack/commands/snapshot'
 import { CredentialManager } from '@/platforms/slack/credential-manager'
 import type { SlackChannel, SlackMessage, SlackUser } from '@/platforms/slack/types'
 
-mock.module('@/platforms/slack/credential-manager', () => ({
-  CredentialManager: class {
-    async getWorkspace() {
-      return {
-        workspace_id: 'T123',
-        workspace_name: 'Test Workspace',
-        token: 'xoxc-test',
-        cookie: 'test-cookie',
-      }
-    }
-  },
-}))
-
-mock.module('@/platforms/slack/client', () => ({
-  SlackClient: class {
-    async testAuth() {
-      return {
-        user_id: 'U123',
-        team_id: 'T123',
-        user: 'testuser',
-        team: 'Test Workspace',
-      }
-    }
-    async listChannels(): Promise<SlackChannel[]> {
-      return [
-        {
-          id: 'C123',
-          name: 'general',
-          is_private: false,
-          is_archived: false,
-          created: 1234567890,
-          creator: 'U123',
-          topic: { value: 'General discussion', creator: 'U123', last_set: 1234567890 },
-          purpose: { value: 'General channel', creator: 'U123', last_set: 1234567890 },
-        },
-        {
-          id: 'C456',
-          name: 'random',
-          is_private: false,
-          is_archived: false,
-          created: 1234567891,
-          creator: 'U123',
-          topic: { value: 'Random stuff', creator: 'U123', last_set: 1234567891 },
-          purpose: { value: 'Random channel', creator: 'U123', last_set: 1234567891 },
-        },
-      ]
-    }
-    async getMessages(_channel: string, _limit?: number): Promise<SlackMessage[]> {
-      return [
-        {
-          ts: '1234567890.000100',
-          text: 'Hello world',
-          type: 'message',
-          user: 'U123',
-          username: 'testuser',
-          thread_ts: undefined,
-          reply_count: 0,
-          edited: undefined,
-        },
-        {
-          ts: '1234567890.000200',
-          text: 'Second message',
-          type: 'message',
-          user: 'U456',
-          username: 'otheruser',
-          thread_ts: undefined,
-          reply_count: 0,
-          edited: undefined,
-        },
-      ]
-    }
-    async listUsers(): Promise<SlackUser[]> {
-      return [
-        {
-          id: 'U123',
-          name: 'alice',
-          real_name: 'Alice Smith',
-          is_admin: true,
-          is_owner: false,
-          is_bot: false,
-          is_app_user: false,
-          profile: {
-            email: 'alice@example.com',
-            title: 'Engineer',
-          },
-        },
-        {
-          id: 'U456',
-          name: 'bob',
-          real_name: 'Bob Jones',
-          is_admin: false,
-          is_owner: false,
-          is_bot: false,
-          is_app_user: false,
-          profile: {
-            email: 'bob@example.com',
-            title: 'Designer',
-          },
-        },
-      ]
-    }
-  },
-}))
-
+// Test the command structure (no mocks needed)
 test('snapshot command exports correctly', () => {
   expect(snapshotCommand).toBeDefined()
   expect(typeof snapshotCommand).toBe('object')
@@ -134,6 +31,121 @@ test('snapshot command has --limit option', () => {
   const options = snapshotCommand.options
   const hasLimit = options.some((opt: any) => opt.long === '--limit')
   expect(hasLimit).toBe(true)
+})
+
+// Test snapshot logic using spyOn (no global mock pollution)
+let credManagerSpy: ReturnType<typeof spyOn>
+let clientTestAuthSpy: ReturnType<typeof spyOn>
+let clientListChannelsSpy: ReturnType<typeof spyOn>
+let clientListUsersSpy: ReturnType<typeof spyOn>
+let clientGetMessagesSpy: ReturnType<typeof spyOn>
+
+const mockChannels: SlackChannel[] = [
+  {
+    id: 'C123',
+    name: 'general',
+    is_private: false,
+    is_archived: false,
+    created: 1234567890,
+    creator: 'U123',
+    topic: { value: 'General discussion', creator: 'U123', last_set: 1234567890 },
+    purpose: { value: 'General channel', creator: 'U123', last_set: 1234567890 },
+  },
+  {
+    id: 'C456',
+    name: 'random',
+    is_private: false,
+    is_archived: false,
+    created: 1234567891,
+    creator: 'U123',
+    topic: { value: 'Random stuff', creator: 'U123', last_set: 1234567891 },
+    purpose: { value: 'Random channel', creator: 'U123', last_set: 1234567891 },
+  },
+]
+
+const mockMessages: SlackMessage[] = [
+  {
+    ts: '1234567890.000100',
+    text: 'Hello world',
+    type: 'message',
+    user: 'U123',
+    username: 'testuser',
+    thread_ts: undefined,
+    reply_count: 0,
+    edited: undefined,
+  },
+  {
+    ts: '1234567890.000200',
+    text: 'Second message',
+    type: 'message',
+    user: 'U456',
+    username: 'otheruser',
+    thread_ts: undefined,
+    reply_count: 0,
+    edited: undefined,
+  },
+]
+
+const mockUsers: SlackUser[] = [
+  {
+    id: 'U123',
+    name: 'alice',
+    real_name: 'Alice Smith',
+    is_admin: true,
+    is_owner: false,
+    is_bot: false,
+    is_app_user: false,
+    profile: {
+      email: 'alice@example.com',
+      title: 'Engineer',
+    },
+  },
+  {
+    id: 'U456',
+    name: 'bob',
+    real_name: 'Bob Jones',
+    is_admin: false,
+    is_owner: false,
+    is_bot: false,
+    is_app_user: false,
+    profile: {
+      email: 'bob@example.com',
+      title: 'Designer',
+    },
+  },
+]
+
+beforeEach(() => {
+  // Spy on CredentialManager.prototype.getWorkspace
+  credManagerSpy = spyOn(CredentialManager.prototype, 'getWorkspace').mockResolvedValue({
+    workspace_id: 'T123',
+    workspace_name: 'Test Workspace',
+    token: 'xoxc-test',
+    cookie: 'test-cookie',
+  })
+
+  // Spy on SlackClient.prototype methods
+  clientTestAuthSpy = spyOn(SlackClient.prototype, 'testAuth').mockResolvedValue({
+    user_id: 'U123',
+    team_id: 'T123',
+    user: 'testuser',
+    team: 'Test Workspace',
+  })
+
+  clientListChannelsSpy = spyOn(SlackClient.prototype, 'listChannels').mockResolvedValue(
+    mockChannels
+  )
+  clientListUsersSpy = spyOn(SlackClient.prototype, 'listUsers').mockResolvedValue(mockUsers)
+  clientGetMessagesSpy = spyOn(SlackClient.prototype, 'getMessages').mockResolvedValue(mockMessages)
+})
+
+afterEach(() => {
+  // Restore all spies
+  credManagerSpy?.mockRestore()
+  clientTestAuthSpy?.mockRestore()
+  clientListChannelsSpy?.mockRestore()
+  clientListUsersSpy?.mockRestore()
+  clientGetMessagesSpy?.mockRestore()
 })
 
 test('full snapshot returns workspace, channels, messages, and users', async () => {

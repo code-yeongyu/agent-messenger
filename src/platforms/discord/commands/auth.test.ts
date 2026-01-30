@@ -1,41 +1,57 @@
-import { expect, mock, test } from 'bun:test'
+import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test'
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
 import { DiscordTokenExtractor } from '../token-extractor'
 
-// Mock modules
-mock.module('../token-extractor', () => ({
-  DiscordTokenExtractor: mock(() => ({
-    extract: mock(async () => ({
-      token: 'test-token-123',
-    })),
-  })),
-}))
+let extractorExtractSpy: ReturnType<typeof spyOn>
+let clientTestAuthSpy: ReturnType<typeof spyOn>
+let clientListGuildsSpy: ReturnType<typeof spyOn>
+let credManagerLoadSpy: ReturnType<typeof spyOn>
+let credManagerSaveSpy: ReturnType<typeof spyOn>
+let credManagerClearTokenSpy: ReturnType<typeof spyOn>
 
-mock.module('../client', () => ({
-  DiscordClient: mock((_token: string) => ({
-    testAuth: mock(async () => ({
-      id: 'user-123',
-      username: 'testuser',
-    })),
-    listGuilds: mock(async () => [
-      { id: 'guild-1', name: 'Guild One' },
-      { id: 'guild-2', name: 'Guild Two' },
-    ]),
-  })),
-}))
+beforeEach(() => {
+  // Spy on DiscordTokenExtractor.prototype.extract
+  extractorExtractSpy = spyOn(DiscordTokenExtractor.prototype, 'extract').mockResolvedValue({
+    token: 'test-token-123',
+  })
 
-mock.module('../credential-manager', () => ({
-  DiscordCredentialManager: mock(() => ({
-    load: mock(async () => ({
-      token: null,
-      current_guild: null,
-      guilds: {},
-    })),
-    save: mock(async () => {}),
-    clearToken: mock(async () => {}),
-  })),
-}))
+  // Spy on DiscordClient.prototype methods
+  clientTestAuthSpy = spyOn(DiscordClient.prototype, 'testAuth').mockResolvedValue({
+    id: 'user-123',
+    username: 'testuser',
+  })
+
+  clientListGuildsSpy = spyOn(DiscordClient.prototype, 'listGuilds').mockResolvedValue([
+    { id: 'guild-1', name: 'Guild One' },
+    { id: 'guild-2', name: 'Guild Two' },
+  ])
+
+  // Spy on DiscordCredentialManager.prototype methods
+  credManagerLoadSpy = spyOn(DiscordCredentialManager.prototype, 'load').mockResolvedValue({
+    token: null,
+    current_guild: null,
+    guilds: {},
+  })
+
+  credManagerSaveSpy = spyOn(DiscordCredentialManager.prototype, 'save').mockResolvedValue(
+    undefined
+  )
+
+  credManagerClearTokenSpy = spyOn(
+    DiscordCredentialManager.prototype,
+    'clearToken'
+  ).mockResolvedValue(undefined)
+})
+
+afterEach(() => {
+  extractorExtractSpy?.mockRestore()
+  clientTestAuthSpy?.mockRestore()
+  clientListGuildsSpy?.mockRestore()
+  credManagerLoadSpy?.mockRestore()
+  credManagerSaveSpy?.mockRestore()
+  credManagerClearTokenSpy?.mockRestore()
+})
 
 test('extract: calls DiscordTokenExtractor', async () => {
   const extractor = new DiscordTokenExtractor()
