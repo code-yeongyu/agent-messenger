@@ -423,4 +423,44 @@ export class SlackClient {
       }))
     })
   }
+
+  async getThreadReplies(
+    channel: string,
+    threadTs: string,
+    options: { limit?: number; oldest?: string; latest?: string; cursor?: string } = {}
+  ): Promise<{ messages: SlackMessage[]; has_more: boolean; next_cursor?: string }> {
+    return this.withRetry(async () => {
+      const response = await this.client.conversations.replies({
+        channel,
+        ts: threadTs,
+        limit: options.limit || 100,
+        oldest: options.oldest,
+        latest: options.latest,
+        cursor: options.cursor,
+      })
+      this.checkResponse(response)
+
+      const messages = (response.messages || []).map((msg: any) => ({
+        ts: msg.ts!,
+        text: msg.text || '',
+        type: msg.type || 'message',
+        user: msg.user,
+        username: msg.username,
+        thread_ts: msg.thread_ts,
+        reply_count: msg.reply_count,
+        edited: msg.edited
+          ? {
+              user: msg.edited.user || '',
+              ts: msg.edited.ts || '',
+            }
+          : undefined,
+      }))
+
+      return {
+        messages,
+        has_more: response.has_more || false,
+        next_cursor: response.response_metadata?.next_cursor,
+      }
+    })
+  }
 }

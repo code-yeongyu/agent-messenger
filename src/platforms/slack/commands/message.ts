@@ -1,9 +1,9 @@
 import { Command } from 'commander'
-import { CredentialManager } from '../credential-manager'
-import { SlackClient } from '../client'
-import type { SlackMessage } from '../types'
 import { handleError } from '../../../shared/utils/error-handler'
 import { formatOutput } from '../../../shared/utils/output'
+import { SlackClient } from '../client'
+import { CredentialManager } from '../credential-manager'
+import type { SlackMessage } from '../types'
 
 async function sendAction(
   channel: string,
@@ -234,6 +234,50 @@ async function searchAction(
   }
 }
 
+async function repliesAction(
+  channel: string,
+  threadTs: string,
+  options: { limit?: number; oldest?: string; latest?: string; cursor?: string; pretty?: boolean }
+): Promise<void> {
+  try {
+    const credManager = new CredentialManager()
+    const workspace = await credManager.getWorkspace()
+
+    if (!workspace) {
+      console.log(
+        formatOutput(
+          { error: 'No current workspace set. Run "auth extract" first.' },
+          options.pretty
+        )
+      )
+      process.exit(1)
+    }
+
+    const client = new SlackClient(workspace.token, workspace.cookie)
+    const result = await client.getThreadReplies(channel, threadTs, {
+      limit: options.limit,
+      oldest: options.oldest,
+      latest: options.latest,
+      cursor: options.cursor,
+    })
+
+    const output = result.messages.map((msg: SlackMessage) => ({
+      ts: msg.ts,
+      text: msg.text,
+      type: msg.type,
+      user: msg.user,
+      username: msg.username,
+      thread_ts: msg.thread_ts,
+      reply_count: msg.reply_count,
+      edited: msg.edited,
+    }))
+
+    console.log(formatOutput(output, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
 export const messageCommand = new Command('message')
   .description('Message commands')
   .addCommand(
@@ -299,6 +343,26 @@ export const messageCommand = new Command('message')
           sort: options.sort,
           sortDir: options.sortDir,
           limit: parseInt(options.limit, 10),
+          pretty: options.pretty,
+        })
+      })
+  )
+  .addCommand(
+    new Command('replies')
+      .description('Get thread replies')
+      .argument('<channel>', 'Channel ID or name')
+      .argument('<thread_ts>', 'Thread timestamp')
+      .option('--limit <n>', 'Number of replies to retrieve', '100')
+      .option('--oldest <ts>', 'Only messages after this timestamp')
+      .option('--latest <ts>', 'Only messages before this timestamp')
+      .option('--cursor <cursor>', 'Pagination cursor for next page')
+      .option('--pretty', 'Pretty print JSON output')
+      .action((channel: string, threadTs: string, options: any) => {
+        repliesAction(channel, threadTs, {
+          limit: options.limit ? parseInt(options.limit, 10) : undefined,
+          oldest: options.oldest,
+          latest: options.latest,
+          cursor: options.cursor,
           pretty: options.pretty,
         })
       })

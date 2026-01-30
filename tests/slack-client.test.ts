@@ -8,6 +8,7 @@ const mockWebClient = {
     list: mock(() => Promise.resolve({ ok: true, channels: [] })),
     info: mock(() => Promise.resolve({ ok: true, channel: {} })),
     history: mock(() => Promise.resolve({ ok: true, messages: [] })),
+    replies: mock(() => Promise.resolve({ ok: true, messages: [] })),
   },
   chat: {
     postMessage: mock(() => Promise.resolve({ ok: true, ts: '123.456', message: {} })),
@@ -694,6 +695,138 @@ describe('SlackClient', () => {
       client.client = mockWebClient as unknown as WebClient
 
       await expect(client.listFiles()).rejects.toThrow(SlackError)
+    })
+  })
+
+  describe('getThreadReplies', () => {
+    beforeEach(() => resetMocks())
+
+    test('returns thread replies including parent message', async () => {
+      mockWebClient.conversations.replies.mockResolvedValue({
+        ok: true,
+        messages: [
+          {
+            ts: '123.456',
+            text: 'Parent message',
+            type: 'message',
+            user: 'U123',
+            thread_ts: '123.456',
+            reply_count: 2,
+          },
+          {
+            ts: '123.457',
+            text: 'First reply',
+            type: 'message',
+            user: 'U456',
+            thread_ts: '123.456',
+          },
+          {
+            ts: '123.458',
+            text: 'Second reply',
+            type: 'message',
+            user: 'U789',
+            thread_ts: '123.456',
+          },
+        ],
+        has_more: false,
+      })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      const result = await client.getThreadReplies('C123', '123.456')
+      expect(result.messages).toHaveLength(3)
+      expect(result.messages[0].text).toBe('Parent message')
+      expect(result.messages[0].reply_count).toBe(2)
+      expect(result.messages[1].text).toBe('First reply')
+      expect(result.messages[2].text).toBe('Second reply')
+      expect(result.has_more).toBe(false)
+    })
+
+    test('respects limit parameter', async () => {
+      mockWebClient.conversations.replies.mockResolvedValue({
+        ok: true,
+        messages: [{ ts: '123.456', text: 'Hello', type: 'message' }],
+        has_more: false,
+      })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      await client.getThreadReplies('C123', '123.456', { limit: 50 })
+      expect(mockWebClient.conversations.replies).toHaveBeenCalledWith(
+        expect.objectContaining({ channel: 'C123', ts: '123.456', limit: 50 })
+      )
+    })
+
+    test('passes optional oldest and latest parameters', async () => {
+      mockWebClient.conversations.replies.mockResolvedValue({
+        ok: true,
+        messages: [],
+        has_more: false,
+      })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      await client.getThreadReplies('C123', '123.456', {
+        oldest: '123.400',
+        latest: '123.500',
+      })
+      expect(mockWebClient.conversations.replies).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channel: 'C123',
+          ts: '123.456',
+          oldest: '123.400',
+          latest: '123.500',
+        })
+      )
+    })
+
+    test('returns pagination info when has_more is true', async () => {
+      mockWebClient.conversations.replies.mockResolvedValue({
+        ok: true,
+        messages: [{ ts: '123.456', text: 'Hello', type: 'message' }],
+        has_more: true,
+        response_metadata: { next_cursor: 'cursor123' },
+      })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      const result = await client.getThreadReplies('C123', '123.456')
+      expect(result.has_more).toBe(true)
+      expect(result.next_cursor).toBe('cursor123')
+    })
+
+    test('throws SlackError when thread not found', async () => {
+      mockWebClient.conversations.replies.mockResolvedValue({
+        ok: false,
+        error: 'thread_not_found',
+      })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      await expect(client.getThreadReplies('C123', '999.999')).rejects.toThrow(SlackError)
+    })
+
+    test('throws SlackError when channel not found', async () => {
+      mockWebClient.conversations.replies.mockResolvedValue({
+        ok: false,
+        error: 'channel_not_found',
+      })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      await expect(client.getThreadReplies('C999', '123.456')).rejects.toThrow(SlackError)
     })
   })
 

@@ -65,6 +65,33 @@ describe('Message Commands', () => {
           permalink: 'https://workspace.slack.com/archives/C002/p1234567890123457',
         },
       ]),
+      getThreadReplies: mock(async (_channel: string, _threadTs: string, _options?: any) => ({
+        messages: [
+          {
+            ts: '1234567890.123456',
+            text: 'Parent message',
+            type: 'message',
+            user: 'U123',
+            thread_ts: '1234567890.123456',
+            reply_count: 2,
+          },
+          {
+            ts: '1234567890.123457',
+            text: 'First reply',
+            type: 'message',
+            user: 'U456',
+            thread_ts: '1234567890.123456',
+          },
+          {
+            ts: '1234567890.123458',
+            text: 'Second reply',
+            type: 'message',
+            user: 'U789',
+            thread_ts: '1234567890.123456',
+          },
+        ],
+        has_more: false,
+      })),
     } as any
   })
 
@@ -222,6 +249,50 @@ describe('Message Commands', () => {
         expect(result.channel).toBeDefined()
         expect(result.channel.id).toBeDefined()
         expect(result.channel.name).toBeDefined()
+      }
+    })
+  })
+
+  describe('message replies', () => {
+    test('gets thread replies including parent message', async () => {
+      // Given: A channel and thread ts
+      const channel = 'C123'
+      const threadTs = '1234567890.123456'
+
+      // When: Getting thread replies
+      const result = await mockClient.getThreadReplies(channel, threadTs)
+
+      // Then: Should return parent and replies
+      expect(result.messages).toHaveLength(3)
+      expect(result.messages[0].text).toBe('Parent message')
+      expect(result.messages[0].reply_count).toBe(2)
+      expect(result.messages[1].text).toBe('First reply')
+      expect(result.messages[2].text).toBe('Second reply')
+    })
+
+    test('returns has_more flag for pagination', async () => {
+      // Given: A channel and thread ts
+      const channel = 'C123'
+      const threadTs = '1234567890.123456'
+
+      // When: Getting thread replies
+      const result = await mockClient.getThreadReplies(channel, threadTs)
+
+      // Then: Should include pagination info
+      expect(result.has_more).toBe(false)
+    })
+
+    test('all replies have same thread_ts as parent', async () => {
+      // Given: A channel and thread ts
+      const channel = 'C123'
+      const threadTs = '1234567890.123456'
+
+      // When: Getting thread replies
+      const result = await mockClient.getThreadReplies(channel, threadTs)
+
+      // Then: All messages should have the same thread_ts
+      for (const msg of result.messages) {
+        expect(msg.thread_ts).toBe(threadTs)
       }
     })
   })
