@@ -1,10 +1,10 @@
 import { expect, mock, test } from 'bun:test'
-import { snapshotCommand } from '../../src/platforms/slack/commands/snapshot'
-import { CredentialManager } from '../../src/platforms/slack/credential-manager'
-import { SlackClient } from '../../src/platforms/slack/client'
-import type { SlackChannel, SlackMessage, SlackUser } from '../../src/types'
+import { SlackClient } from '@/platforms/slack/client'
+import { snapshotCommand } from '@/platforms/slack/commands/snapshot'
+import { CredentialManager } from '@/platforms/slack/credential-manager'
+import type { SlackChannel, SlackMessage, SlackUser } from '@/platforms/slack/types'
 
-mock.module('../../src/lib/credential-manager', () => ({
+mock.module('@/platforms/slack/credential-manager', () => ({
   CredentialManager: class {
     async getWorkspace() {
       return {
@@ -17,7 +17,7 @@ mock.module('../../src/lib/credential-manager', () => ({
   },
 }))
 
-mock.module('../../src/lib/slack-client', () => ({
+mock.module('@/platforms/slack/client', () => ({
   SlackClient: class {
     async testAuth() {
       return {
