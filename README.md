@@ -92,8 +92,9 @@ Inspired by [agent-browser](https://github.com/vercel-labs/agent-browser) from V
 bun install    # Install dependencies
 bun link       # Link CLI globally for local testing
 bun test       # Run tests
+bun typecheck  # Type check
+bun lint       # Lint
 bun run build  # Build
-bun run lint   # Lint
 ```
 
 ## 📄 License

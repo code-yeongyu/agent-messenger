@@ -14,6 +14,7 @@
   "scripts": {
     "build": "tsc && sed -i '' '1s|#!/usr/bin/env bun|#!/usr/bin/env node|' dist/cli.js",
     "test": "bun test",
+    "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome format --write .",
     "dev": "bun --hot ./dist/cli.js",
