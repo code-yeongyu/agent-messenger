@@ -53,7 +53,7 @@ Stage and commit all changes including:
 
 Commit message format:
 ```
-Bump version to $ARGUMENTS
+$ARGUMENTS
 ```
 
 ### Step 6: Create Tag and Push
