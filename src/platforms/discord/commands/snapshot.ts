@@ -1,9 +1,10 @@
 import { Command } from 'commander'
+import { parallelMap } from '../../../shared/utils/concurrency'
 import { handleError } from '../../../shared/utils/error-handler'
 import { formatOutput } from '../../../shared/utils/output'
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
-import type { DiscordMessage } from '../types'
+import type { DiscordChannel } from '../types'
 
 export async function snapshotAction(options: {
   channelsOnly?: boolean
@@ -45,19 +46,22 @@ export async function snapshotAction(options: {
       }))
 
       if (!options.channelsOnly) {
-        const allMessages: Array<DiscordMessage & { channel_name: string }> = []
+        const isTextChannel = (ch: DiscordChannel) => ch.type === 0 || ch.type === 5
+        const textChannels = channels.filter(isTextChannel)
 
-        for (const channel of channels) {
-          const messages = await client.getMessages(channel.id, messageLimit)
-          for (const msg of messages) {
-            allMessages.push({
+        const channelMessages = await parallelMap(
+          textChannels,
+          async (channel: DiscordChannel) => {
+            const messages = await client.getMessages(channel.id, messageLimit)
+            return messages.map((msg) => ({
               ...msg,
               channel_name: channel.name,
-            })
-          }
-        }
+            }))
+          },
+          5
+        )
 
-        snapshot.recent_messages = allMessages.map((msg) => ({
+        snapshot.recent_messages = channelMessages.flat().map((msg) => ({
           channel_id: msg.channel_id,
           channel_name: msg.channel_name,
           id: msg.id,

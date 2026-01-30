@@ -1,9 +1,10 @@
 import { Command } from 'commander'
-import { CredentialManager } from '../credential-manager'
-import { SlackClient } from '../client'
-import type { SlackMessage } from '../types'
+import { parallelMap } from '../../../shared/utils/concurrency'
 import { handleError } from '../../../shared/utils/error-handler'
 import { formatOutput } from '../../../shared/utils/output'
+import { SlackClient } from '../client'
+import { CredentialManager } from '../credential-manager'
+import type { SlackChannel } from '../types'
 
 async function snapshotAction(options: {
   channelsOnly?: boolean
@@ -51,20 +52,22 @@ async function snapshotAction(options: {
       }))
 
       if (!options.channelsOnly) {
-        const allMessages: Array<SlackMessage & { channel_id: string; channel_name: string }> = []
+        const activeChannels = channels.filter((ch) => !ch.is_archived)
 
-        for (const channel of channels) {
-          const messages = await client.getMessages(channel.id, messageLimit)
-          for (const msg of messages) {
-            allMessages.push({
+        const channelMessages = await parallelMap(
+          activeChannels,
+          async (channel: SlackChannel) => {
+            const messages = await client.getMessages(channel.id, messageLimit)
+            return messages.map((msg) => ({
               ...msg,
               channel_id: channel.id,
               channel_name: channel.name,
-            })
-          }
-        }
+            }))
+          },
+          5
+        )
 
-        snapshot.recent_messages = allMessages.map((msg) => ({
+        snapshot.recent_messages = channelMessages.flat().map((msg) => ({
           channel_id: msg.channel_id,
           channel_name: msg.channel_name,
           ts: msg.ts,
