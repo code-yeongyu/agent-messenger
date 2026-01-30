@@ -25,6 +25,9 @@ Thumbs.db
 # Test coverage
 coverage/
 
+# Test artifacts
+.test-workspace-config/
+
 # Environment
 .env
 .env.local
