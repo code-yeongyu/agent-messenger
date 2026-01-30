@@ -1,6 +1,4 @@
 import { expect, mock, test } from 'bun:test'
-import { DiscordClient } from '../client'
-import { DiscordCredentialManager } from '../credential-manager'
 import { addAction, listAction, removeAction } from './reaction'
 
 // Mock modules
@@ -37,7 +35,7 @@ mock.module('../credential-manager', () => ({
 }))
 
 test('add: sends correct PUT request with emoji', async () => {
-  const consoleSpy = mock((msg: string) => {})
+  const consoleSpy = mock((_msg: string) => {})
   const originalLog = console.log
   console.log = consoleSpy
 
@@ -55,7 +53,7 @@ test('add: sends correct PUT request with emoji', async () => {
 })
 
 test('remove: sends correct DELETE request with emoji', async () => {
-  const consoleSpy = mock((msg: string) => {})
+  const consoleSpy = mock((_msg: string) => {})
   const originalLog = console.log
   console.log = consoleSpy
 
@@ -73,7 +71,7 @@ test('remove: sends correct DELETE request with emoji', async () => {
 })
 
 test('list: extracts reactions from message', async () => {
-  const consoleSpy = mock((msg: string) => {})
+  const consoleSpy = mock((_msg: string) => {})
   const originalLog = console.log
   console.log = consoleSpy
 
@@ -103,12 +101,12 @@ test('add: handles missing token gracefully', async () => {
     DiscordCredentialManager: credManagerMock,
   }))
 
-  const consoleSpy = mock((msg: string) => {})
+  const consoleSpy = mock((_msg: string) => {})
   const originalLog = console.log
   const originalExit = process.exit
-  let exitCode = 0
+  let _exitCode = 0
   process.exit = mock((code: number) => {
-    exitCode = code
+    _exitCode = code
   }) as any
 
   console.log = consoleSpy

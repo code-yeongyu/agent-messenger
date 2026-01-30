@@ -1,11 +1,10 @@
-import { afterEach, beforeEach, expect, mock, test } from 'bun:test'
+import { expect, mock, test } from 'bun:test'
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
-import { currentAction, infoAction, listAction, switchAction } from './guild'
 
 // Mock modules
 mock.module('../client', () => ({
-  DiscordClient: mock((token: string) => ({
+  DiscordClient: mock((_token: string) => ({
     listGuilds: mock(async () => [
       { id: 'guild-1', name: 'Guild One', icon: 'icon1', owner: true },
       { id: 'guild-2', name: 'Guild Two', icon: 'icon2', owner: false },

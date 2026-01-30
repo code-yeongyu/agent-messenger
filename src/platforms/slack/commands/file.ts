@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Command } from 'commander'
-import { CredentialManager } from '../credential-manager'
-import { SlackClient } from '../client'
 import { handleError } from '../../../shared/utils/error-handler'
 import { formatOutput } from '../../../shared/utils/output'
+import { SlackClient } from '../client'
+import { CredentialManager } from '../credential-manager'
 
 async function uploadAction(
   channel: string,

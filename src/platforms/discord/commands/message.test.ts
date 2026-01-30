@@ -1,6 +1,4 @@
 import { beforeEach, expect, mock, test } from 'bun:test'
-import { DiscordClient } from '../client'
-import { DiscordCredentialManager } from '../credential-manager'
 import { deleteAction, getAction, listAction, sendAction } from './message'
 
 mock.module('../client', () => ({
@@ -64,7 +62,7 @@ beforeEach(() => {
 })
 
 test('send: returns message with id', async () => {
-  const consoleSpy = mock((msg: string) => {})
+  const consoleSpy = mock((_msg: string) => {})
   console.log = consoleSpy
 
   await sendAction('ch_456', 'Hello world', { pretty: false })
@@ -75,7 +73,7 @@ test('send: returns message with id', async () => {
 })
 
 test('list: returns array of messages', async () => {
-  const consoleSpy = mock((msg: string) => {})
+  const consoleSpy = mock((_msg: string) => {})
   console.log = consoleSpy
 
   await listAction('ch_456', { limit: 50, pretty: false })
@@ -87,7 +85,7 @@ test('list: returns array of messages', async () => {
 })
 
 test('get: returns single message', async () => {
-  const consoleSpy = mock((msg: string) => {})
+  const consoleSpy = mock((_msg: string) => {})
   console.log = consoleSpy
 
   await getAction('ch_456', 'msg_123', { pretty: false })
@@ -98,7 +96,7 @@ test('get: returns single message', async () => {
 })
 
 test('delete: returns success', async () => {
-  const consoleSpy = mock((msg: string) => {})
+  const consoleSpy = mock((_msg: string) => {})
   console.log = consoleSpy
 
   await deleteAction('ch_456', 'msg_123', { force: true, pretty: false })

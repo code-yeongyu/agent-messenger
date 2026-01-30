@@ -1,6 +1,4 @@
 import { beforeEach, expect, mock, test } from 'bun:test'
-import { DiscordClient } from '../client'
-import { DiscordCredentialManager } from '../credential-manager'
 import { infoAction, listAction, uploadAction } from './file'
 
 mock.module('../client', () => ({
@@ -64,7 +62,7 @@ beforeEach(() => {
 })
 
 test('upload: sends multipart request and returns file info', async () => {
-  const consoleSpy = mock((msg: string) => {})
+  const consoleSpy = mock((_msg: string) => {})
   console.log = consoleSpy
 
   await uploadAction('ch_456', '/path/to/test.pdf', { pretty: false })
@@ -76,7 +74,7 @@ test('upload: sends multipart request and returns file info', async () => {
 })
 
 test('list: filters messages with attachments', async () => {
-  const consoleSpy = mock((msg: string) => {})
+  const consoleSpy = mock((_msg: string) => {})
   console.log = consoleSpy
 
   await listAction('ch_456', { pretty: false })
@@ -88,7 +86,7 @@ test('list: filters messages with attachments', async () => {
 })
 
 test('info: returns single file details', async () => {
-  const consoleSpy = mock((msg: string) => {})
+  const consoleSpy = mock((_msg: string) => {})
   console.log = consoleSpy
 
   await infoAction('ch_456', 'file_123', { pretty: false })

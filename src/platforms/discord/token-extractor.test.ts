@@ -72,7 +72,7 @@ describe('DiscordTokenExtractor', () => {
     })
 
     test('validates MFA token format', () => {
-      const mfaToken = 'mfa.' + 'a'.repeat(84)
+      const mfaToken = `mfa.${'a'.repeat(84)}`
       expect(extractor.isValidToken(mfaToken)).toBe(true)
     })
 
@@ -226,7 +226,7 @@ describe('DiscordTokenExtractor', () => {
 
       mockExecSync.mockImplementation((cmd: string) => {
         if (cmd.includes('powershell') && cmd.includes('ProtectedData')) {
-          return decryptedKey + '\n'
+          return `${decryptedKey}\n`
         }
         return ''
       })
@@ -239,7 +239,7 @@ describe('DiscordTokenExtractor', () => {
         if (path.includes('Local State')) {
           return JSON.stringify({
             os_crypt: {
-              encrypted_key: Buffer.from('DPAPI' + 'x'.repeat(32)).toString('base64'),
+              encrypted_key: Buffer.from(`DPAPI${'x'.repeat(32)}`).toString('base64'),
             },
           })
         }
@@ -247,7 +247,7 @@ describe('DiscordTokenExtractor', () => {
       })
 
       // Test that DPAPI decryption is called
-      const encryptedToken = 'dQw4w9WgXcQ:' + Buffer.from('test').toString('base64')
+      const encryptedToken = `dQw4w9WgXcQ:${Buffer.from('test').toString('base64')}`
       expect(winExtractor.isEncryptedToken(encryptedToken)).toBe(true)
     })
 

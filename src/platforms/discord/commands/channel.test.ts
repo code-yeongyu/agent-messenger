@@ -1,11 +1,9 @@
-import { afterEach, beforeEach, expect, mock, test } from 'bun:test'
+import { expect, mock, test } from 'bun:test'
 import { DiscordClient } from '../client'
-import { DiscordCredentialManager } from '../credential-manager'
-import { historyAction, infoAction, listAction } from './channel'
 
 // Mock modules
 mock.module('../client', () => ({
-  DiscordClient: mock((token: string) => ({
+  DiscordClient: mock((_token: string) => ({
     listChannels: mock(async (guildId: string) => [
       { id: 'ch-1', guild_id: guildId, name: 'general', type: 0, topic: 'General discussion' },
       { id: 'ch-2', guild_id: guildId, name: 'announcements', type: 0, topic: 'Announcements' },
@@ -32,7 +30,7 @@ mock.module('../client', () => ({
       }
       throw new Error('Channel not found')
     }),
-    getMessages: mock(async (channelId: string, limit: number) => [
+    getMessages: mock(async (channelId: string, _limit: number) => [
       {
         id: 'msg-1',
         channel_id: channelId,

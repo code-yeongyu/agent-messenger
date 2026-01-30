@@ -1,6 +1,4 @@
 import { expect, mock, test } from 'bun:test'
-import { DiscordClient } from '../client'
-import type { DiscordUser } from '../types'
 
 // Mock DiscordClient
 const mockClient = {
@@ -18,7 +16,7 @@ const mockClient = {
     avatar: 'avatar_hash',
     bot: false,
   })),
-  listUsers: mock(async (guildId: string) => [
+  listUsers: mock(async (_guildId: string) => [
     {
       id: 'user1',
       username: 'alice',

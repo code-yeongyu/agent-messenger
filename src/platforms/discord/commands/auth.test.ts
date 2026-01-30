@@ -1,8 +1,7 @@
-import { afterEach, beforeEach, expect, mock, test } from 'bun:test'
+import { expect, mock, test } from 'bun:test'
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
 import { DiscordTokenExtractor } from '../token-extractor'
-import { extractAction, logoutAction, statusAction } from './auth'
 
 // Mock modules
 mock.module('../token-extractor', () => ({
@@ -14,7 +13,7 @@ mock.module('../token-extractor', () => ({
 }))
 
 mock.module('../client', () => ({
-  DiscordClient: mock((token: string) => ({
+  DiscordClient: mock((_token: string) => ({
     testAuth: mock(async () => ({
       id: 'user-123',
       username: 'testuser',

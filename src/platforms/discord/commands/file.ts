@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Command } from 'commander'
 import { handleError } from '../../../shared/utils/error-handler'
