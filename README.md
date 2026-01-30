@@ -23,6 +23,44 @@ This installs:
 - `agent-slack` — Slack CLI
 - `agent-discord` — Discord CLI
 
+## 🧩 Agent Skills
+
+Agent Messenger includes [Agent Skills](https://agentskills.io/) that teach your AI agent how to use these CLIs effectively.
+
+### Skills CLI
+
+```bash
+npx skills add devxoul/agent-messenger
+```
+
+See [skills.sh](https://skills.sh/) for more details.
+
+### Claude Code
+
+```bash
+claude plugin marketplace add devxoul/agent-messenger
+claude plugin install agent-messenger
+```
+
+Or within Claude Code:
+
+```
+/plugin marketplace add devxoul/agent-messenger
+/plugin install agent-messenger
+```
+
+### OpenCode
+
+Add to your `opencode.jsonc`:
+
+```jsonc
+{
+  "plugins": [
+    "agent-messenger@0.1.0"
+  ]
+}
+```
+
 ## 🚀 Quick Start
 
 Get up and running in 30 seconds:
