@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { mkdir } from 'node:fs/promises'
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
@@ -27,18 +27,15 @@ export class DiscordCredentialManager {
       }
     }
 
-    const file = Bun.file(this.credentialsPath)
-    const content = await file.text()
+    const content = await readFile(this.credentialsPath, 'utf-8')
     return JSON.parse(content) as DiscordConfig
   }
 
   async save(config: DiscordConfig): Promise<void> {
     await mkdir(this.configDir, { recursive: true })
 
-    const file = Bun.file(this.credentialsPath)
-    await Bun.write(file, JSON.stringify(config, null, 2))
-
-    await Bun.spawn(['chmod', '0600', this.credentialsPath]).exited
+    await writeFile(this.credentialsPath, JSON.stringify(config, null, 2))
+    await chmod(this.credentialsPath, 0o600)
   }
 
   async getToken(): Promise<string | null> {

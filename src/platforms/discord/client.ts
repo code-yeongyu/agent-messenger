@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import type {
   DiscordChannel,
   DiscordFile,
@@ -243,12 +244,11 @@ export class DiscordClient {
   }
 
   async uploadFile(channelId: string, filePath: string): Promise<DiscordFile> {
-    const file = Bun.file(filePath)
+    const fileBuffer = await readFile(filePath)
     const filename = filePath.split('/').pop() || 'file'
-    const blob = await file.arrayBuffer()
 
     const formData = new FormData()
-    formData.append('files[0]', new Blob([blob]), filename)
+    formData.append('files[0]', new Blob([fileBuffer]), filename)
 
     interface MessageWithAttachments extends DiscordMessage {
       attachments: DiscordFile[]

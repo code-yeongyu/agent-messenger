@@ -1,9 +1,9 @@
-import { Database } from 'bun:sqlite'
 import { execSync } from 'node:child_process'
 import { createDecipheriv, pbkdf2Sync } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import Database from 'better-sqlite3'
 import { ClassicLevel } from 'classic-level'
 
 export interface ExtractedWorkspace {
@@ -399,14 +399,14 @@ export class TokenExtractor {
       const db = new Database(dbPath, { readonly: true })
 
       const row = db
-        .query(
+        .prepare(
           `SELECT value, encrypted_value 
            FROM cookies 
            WHERE name = 'd' AND host_key LIKE '%slack.com%'
            ORDER BY last_access_utc DESC
            LIMIT 1`
         )
-        .get() as { value?: string; encrypted_value?: Uint8Array } | null
+        .get() as { value?: string; encrypted_value?: Buffer } | null
 
       db.close()
 
