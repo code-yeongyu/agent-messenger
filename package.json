@@ -12,7 +12,8 @@
     "agent-discord": "./src/platforms/discord/cli.ts"
   },
   "scripts": {
-    "build": "tsc && sed -i '' '1s|#!/usr/bin/env bun|#!/usr/bin/env node|' dist/cli.js",
+    "build": "tsc",
+    "postbuild": "bun scripts/postbuild.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
