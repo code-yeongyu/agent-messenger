@@ -9,6 +9,23 @@ export async function extractAction(options: { pretty?: boolean; debug?: boolean
   try {
     const extractor = new DiscordTokenExtractor()
 
+    if (process.platform === 'darwin') {
+      console.log('')
+      console.log('  Extracting your Discord credentials...')
+      console.log('')
+      console.log('  Your Mac may ask for your password to access Keychain.')
+      console.log('  This is required because Discord encrypts your login token')
+      console.log('  using macOS Keychain for security.')
+      console.log('')
+      console.log('  What happens:')
+      console.log("    1. We read the encrypted token from Discord's local storage")
+      console.log('    2. macOS Keychain decrypts it (requires your password)')
+      console.log('    3. The token is stored locally in ~/.config/agent-messenger/')
+      console.log('')
+      console.log('  Your password is never stored or transmitted anywhere.')
+      console.log('')
+    }
+
     if (options.debug) {
       console.error(`[debug] Extracting Discord token...`)
     }

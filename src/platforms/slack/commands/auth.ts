@@ -1,13 +1,30 @@
 import { Command } from 'commander'
-import { CredentialManager } from '../credential-manager'
-import { SlackClient } from '../client'
-import { TokenExtractor } from '../token-extractor'
 import { handleError } from '../../../shared/utils/error-handler'
 import { formatOutput } from '../../../shared/utils/output'
+import { SlackClient } from '../client'
+import { CredentialManager } from '../credential-manager'
+import { TokenExtractor } from '../token-extractor'
 
 async function extractAction(options: { pretty?: boolean; debug?: boolean }): Promise<void> {
   try {
     const extractor = new TokenExtractor()
+
+    if (process.platform === 'darwin') {
+      console.log('')
+      console.log('  Extracting your Slack credentials...')
+      console.log('')
+      console.log('  Your Mac may ask for your password to access Keychain.')
+      console.log('  This is required because Slack encrypts your login cookies')
+      console.log('  using macOS Keychain for security.')
+      console.log('')
+      console.log('  What happens:')
+      console.log("    1. We read the encrypted cookie from Slack's local storage")
+      console.log('    2. macOS Keychain decrypts it (requires your password)')
+      console.log('    3. The credentials are stored locally in ~/.config/agent-messenger/')
+      console.log('')
+      console.log('  Your password is never stored or transmitted anywhere.')
+      console.log('')
+    }
 
     if (options.debug) {
       console.error(`[debug] Slack directory: ${extractor.getSlackDir()}`)
