@@ -1,14 +1,17 @@
-# Contributing to Agent Slack
+# Contributing to Agent Messenger
 
 ## Development Setup
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/agent-slack.git
-cd agent-slack
+git clone https://github.com/devxoul/agent-messenger.git
+cd agent-messenger
 
 # Install dependencies
 bun install
+
+# Link CLI globally for local testing
+bun link
 
 # Run tests
 bun test
@@ -19,26 +22,32 @@ bun run build
 
 ## Running Tests
 
-We follow TDD (Test-Driven Development):
+We follow TDD (Test-Driven Development). Tests are co-located with source files.
 
 ```bash
 # Run all tests
 bun test
 
 # Run specific test file
-bun test tests/commands/message.test.ts
+bun test src/platforms/slack/commands/message.test.ts
 
 # Watch mode
 bun test --watch
 ```
 
-## Code Style
+## Code Quality
 
-We use Biome for linting and formatting:
+We use Biome for linting and formatting, and TypeScript for type checking:
 
 ```bash
-# Check code style
+# Type check
+bun run typecheck
+
+# Lint
 bun run lint
+
+# Auto-fix lint issues
+bun run lint --write
 
 # Format code
 bun run format
@@ -53,10 +62,12 @@ Follow conventional commits:
 - `docs: description` - Documentation changes
 - `test(scope): description` - Test changes
 - `chore: description` - Build/tooling changes
+- `refactor(scope): description` - Code refactoring
 
 Examples:
 ```
-feat(message): add message send command
+feat(slack): add message send command
+feat(discord): add guild switching
 fix(auth): handle missing credentials gracefully
 docs: update README with new examples
 test(channel): add channel list tests
@@ -67,28 +78,52 @@ test(channel): add channel list tests
 1. Create a feature branch from `main`
 2. Write tests first (TDD)
 3. Implement the feature
-4. Ensure all tests pass
-5. Run lint and fix any issues
-6. Submit PR with clear description
+4. Ensure all tests pass: `bun test`
+5. Ensure types are correct: `bun run typecheck`
+6. Fix any lint issues: `bun run lint --write`
+7. Submit PR with clear description
 
 ## Project Structure
 
 ```
 src/
-  commands/       # CLI command handlers
-  lib/            # Core library code
-  types/          # TypeScript type definitions
-  utils/          # Utility functions
-tests/            # Test files (mirror src/)
-skills/           # AI agent skills directory
+  cli.ts                    # Main CLI entry point
+  platforms/
+    slack/                  # Slack platform
+      cli.ts                # Slack CLI entry
+      client.ts             # Slack API client
+      credential-manager.ts # Credential storage
+      token-extractor.ts    # Auto credential extraction
+      types.ts              # TypeScript types
+      commands/             # Command handlers
+        auth.ts
+        channel.ts
+        message.ts
+        ...
+    discord/                # Discord platform
+      cli.ts                # Discord CLI entry
+      client.ts             # Discord API client
+      credential-manager.ts # Credential storage
+      token-extractor.ts    # Auto credential extraction
+      types.ts              # TypeScript types
+      commands/             # Command handlers
+        auth.ts
+        channel.ts
+        guild.ts
+        message.ts
+        ...
+  shared/
+    utils/                  # Shared utilities
 ```
+
+Tests are co-located with source files (e.g., `client.test.ts` next to `client.ts`).
 
 ## Testing Guidelines
 
 - Write tests FIRST (TDD)
-- Mock SlackClient in command tests
+- Mock platform clients (SlackClient, DiscordClient) in command tests
 - Use descriptive test names
-- Follow BDD style (Given-When-Then)
+- Tests are co-located: `foo.ts` -> `foo.test.ts`
 - Aim for high coverage
 
 ## Questions?
