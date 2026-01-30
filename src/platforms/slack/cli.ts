@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { Command } from 'commander'
+import pkg from '../../../package.json'
 import {
   authCommand,
   channelCommand,
@@ -17,7 +18,7 @@ const program = new Command()
 program
   .name('agent-slack')
   .description('CLI tool for Slack communication with token extraction from Slack desktop app')
-  .version('0.1.0')
+  .version(pkg.version)
   .option('--pretty', 'Pretty-print JSON output')
   .option('--workspace <id>', 'Use specific workspace')
 

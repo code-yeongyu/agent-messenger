@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { spawn } from 'bun'
+import pkg from '../package.json'
 import { handleError } from '../src/shared/utils/error-handler'
 import { formatOutput } from '../src/shared/utils/output'
 
@@ -80,14 +81,14 @@ describe('CLI Framework', () => {
       expect(output).toContain('--workspace')
     })
 
-    test('--version shows 0.1.0', async () => {
+    test('--version shows package version', async () => {
       const proc = spawn(['bun', 'run', './src/platforms/slack/cli.ts', '--version'], {
         cwd: process.cwd(),
         stdio: ['pipe', 'pipe', 'pipe'],
       })
 
       const output = await new Response(proc.stdout).text()
-      expect(output.trim()).toBe('0.1.0')
+      expect(output.trim()).toBe(pkg.version)
     })
   })
 })

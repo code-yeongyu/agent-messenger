@@ -3,6 +3,7 @@
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Command } from 'commander'
+import pkg from '../package.json'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -12,7 +13,7 @@ const program = new Command()
 program
   .name('agent-messenger')
   .description('Multi-platform messaging CLI for AI agents')
-  .version('0.1.0')
+  .version(pkg.version)
 
 // Use absolute paths for CWD-independence
 program.command('slack', 'Interact with Slack workspaces', {

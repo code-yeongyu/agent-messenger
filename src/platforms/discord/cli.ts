@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { Command } from 'commander'
+import pkg from '../../../package.json'
 import {
   authCommand,
   channelCommand,
@@ -17,7 +18,7 @@ const program = new Command()
 program
   .name('agent-discord')
   .description('CLI tool for Discord communication')
-  .version('0.1.0')
+  .version(pkg.version)
   .option('--pretty', 'Pretty-print JSON output')
   .option('--guild <id>', 'Use specific guild')
 
