@@ -24,6 +24,10 @@ program.command('discord', 'Interact with Discord guilds', {
   executableFile: join(__dirname, 'platforms', 'discord', 'cli.ts'),
 })
 
+program.command('teams', 'Interact with Microsoft Teams', {
+  executableFile: join(__dirname, 'platforms', 'teams', 'cli.ts'),
+})
+
 program.parse(process.argv)
 
 export default program

@@ -9,7 +9,8 @@
     "agent-messenger": "./src/cli.ts",
     "amsg": "./src/cli.ts",
     "agent-slack": "./src/platforms/slack/cli.ts",
-    "agent-discord": "./src/platforms/discord/cli.ts"
+    "agent-discord": "./src/platforms/discord/cli.ts",
+    "agent-teams": "./src/platforms/teams/cli.ts"
   },
   "scripts": {
     "build": "tsc",
