@@ -151,10 +151,12 @@ describe('Discord E2E Tests', () => {
     })
 
     test('user info returns user details', async () => {
-       // First get current user ID
-       const meResult = await runCLI('discord', ['user', 'me'])
-       const me = parseJSON<{ id: string }>(meResult.stdout)
-       expect(me?.id).toBeTruthy()
+      // First get current user ID
+      const meResult = await runCLI('discord', ['user', 'me'])
+      expect(meResult.exitCode).toBe(0)
+      
+      const me = parseJSON<{ id: string }>(meResult.stdout)
+      expect(me?.id).toBeTruthy()
        
        await waitForRateLimit()
        

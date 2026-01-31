@@ -90,26 +90,13 @@ export class DiscordCredentialManager {
   }
 
   async getCredentials(): Promise<{ token: string; guildId: string } | null> {
-    // Check env vars first (take precedence over file-based credentials)
-    const envToken = process.env.E2E_DISCORD_TOKEN
-    const envGuildId = process.env.E2E_DISCORD_GUILD_ID
+    const token = await this.getToken()
+    const guildId = await this.getCurrentGuild()
 
-    if (envToken && envGuildId) {
-      return {
-        token: envToken,
-        guildId: envGuildId,
-      }
-    }
-
-    const config = await this.load()
-
-    if (!config.token || !config.current_guild) {
+    if (!token || !guildId) {
       return null
     }
 
-    return {
-      token: config.token,
-      guildId: config.current_guild,
-    }
+    return { token, guildId }
   }
 }

@@ -34,17 +34,20 @@ export class CredentialManager {
 
   async getWorkspace(id?: string): Promise<WorkspaceCredentials | null> {
     // Check env vars first (take precedence over file-based credentials)
+    // Only use env credentials if no specific id requested, or id matches env workspace
     const envToken = process.env.E2E_SLACK_TOKEN
     const envCookie = process.env.E2E_SLACK_COOKIE
     const envWorkspaceId = process.env.E2E_SLACK_WORKSPACE_ID
     const envWorkspaceName = process.env.E2E_SLACK_WORKSPACE_NAME
 
     if (envToken && envCookie && envWorkspaceId && envWorkspaceName) {
-      return {
-        token: envToken,
-        cookie: envCookie,
-        workspace_id: envWorkspaceId,
-        workspace_name: envWorkspaceName,
+      if (!id || id === envWorkspaceId) {
+        return {
+          token: envToken,
+          cookie: envCookie,
+          workspace_id: envWorkspaceId,
+          workspace_name: envWorkspaceName,
+        }
       }
     }
 
