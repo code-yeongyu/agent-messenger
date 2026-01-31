@@ -47,12 +47,13 @@ export async function createTestMessage(
     throw new Error(`Failed to create test message: ${result.stderr}`)
   }
   
-  const data = parseJSON<{ ts: string }>(result.stdout)
-  if (!data?.ts) {
+  const data = parseJSON<{ ts?: string; id?: string }>(result.stdout)
+  const messageId = data?.ts || data?.id
+  if (!messageId) {
     throw new Error('No message ID returned')
   }
   
-  return { id: data.ts }
+  return { id: messageId }
 }
 
 export async function deleteTestMessage(
