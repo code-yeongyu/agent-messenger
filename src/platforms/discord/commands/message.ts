@@ -8,7 +8,7 @@ import type { DiscordMessage } from '../types'
 export async function sendAction(
   channelId: string,
   content: string,
-  options: { pretty?: boolean }
+  options: { reply?: string; pretty?: boolean }
 ): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
@@ -22,7 +22,9 @@ export async function sendAction(
     }
 
     const client = new DiscordClient(config.token)
-    const message = await client.sendMessage(channelId, content)
+    const message = await client.sendMessage(channelId, content, {
+      replyTo: options.reply,
+    })
 
     const output = {
       id: message.id,
@@ -140,6 +142,31 @@ export async function deleteAction(
   }
 }
 
+async function ackAction(
+  channelId: string,
+  messageId: string,
+  options: { pretty?: boolean }
+): Promise<void> {
+  try {
+    const credManager = new DiscordCredentialManager()
+    const config = await credManager.load()
+
+    if (!config.token) {
+      console.log(
+        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
+      )
+      process.exit(1)
+    }
+
+    const client = new DiscordClient(config.token)
+    await client.ackMessage(channelId, messageId)
+
+    console.log(formatOutput({ acknowledged: messageId }, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
 export const messageCommand = new Command('message')
   .description('Message commands')
   .addCommand(
@@ -147,6 +174,7 @@ export const messageCommand = new Command('message')
       .description('Send message to channel')
       .argument('<channel-id>', 'Channel ID')
       .argument('<content>', 'Message content')
+      .option('--reply <message-id>', 'Reply to a message (creates thread)')
       .option('--pretty', 'Pretty print JSON output')
       .action(sendAction)
   )
@@ -179,4 +207,12 @@ export const messageCommand = new Command('message')
       .option('--force', 'Skip confirmation')
       .option('--pretty', 'Pretty print JSON output')
       .action(deleteAction)
+  )
+  .addCommand(
+    new Command('ack')
+      .description('Mark message as read')
+      .argument('<channel-id>', 'Channel ID')
+      .argument('<message-id>', 'Message ID')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(ackAction)
   )

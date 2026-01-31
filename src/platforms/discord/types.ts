@@ -147,6 +147,84 @@ export const DiscordConfigSchema = z.object({
   ),
 })
 
+// DM Channel from /users/@me/channels
+export interface DiscordDMChannel {
+  id: string
+  type: 1 | 3 // 1=DM, 3=Group DM
+  last_message_id?: string
+  recipients: DiscordUser[]
+  name?: string // For group DMs only
+}
+
+// Mention from /users/@me/mentions
+export interface DiscordMention {
+  id: string
+  channel_id: string
+  guild_id?: string
+  author: {
+    id: string
+    username: string
+    global_name?: string
+    avatar?: string
+  }
+  content: string
+  timestamp: string
+  mention_everyone: boolean
+  mentions: DiscordUser[]
+}
+
+// Read state from /users/@me/read-states
+export interface DiscordReadState {
+  id: string // channel_id
+  last_message_id?: string
+  mention_count: number
+}
+
+// Relationship (friend) from /users/@me/relationships
+export interface DiscordRelationship {
+  id: string
+  type: 1 | 2 | 3 | 4 // 1=Friend, 2=Blocked, 3=Incoming, 4=Outgoing
+  user: DiscordUser
+}
+
+// User note from /users/@me/notes/{user_id}
+export interface DiscordUserNote {
+  user_id: string
+  note_user_id: string
+  note: string
+}
+
+// Guild member from /guilds/{id}/members/search
+export interface DiscordGuildMember {
+  user: DiscordUser
+  nick?: string
+  roles: string[]
+  joined_at: string
+  deaf: boolean
+  mute: boolean
+  flags: number
+  pending?: boolean
+  avatar?: string
+}
+
+// User profile from /users/{id}/profile
+export interface DiscordUserProfile {
+  user: DiscordUser & { bio?: string }
+  connected_accounts: Array<{
+    type: string
+    id: string
+    name: string
+    verified: boolean
+  }>
+  premium_since?: string
+  mutual_guilds?: Array<{
+    id: string
+    nick?: string
+  }>
+  premium_type?: number
+  premium_guild_since?: string
+}
+
 export class DiscordError extends Error {
   code: string
 
