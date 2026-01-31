@@ -228,12 +228,12 @@ describe('Slack E2E Tests', () => {
       const { id: ts } = await createTestMessage('slack', SLACK_TEST_CHANNEL_ID, `Reaction test ${testId}`)
       testMessages.push(ts)
       
-      await waitForRateLimit()
+      await waitForRateLimit(2000)
       
       const addResult = await runCLI('slack', ['reaction', 'add', SLACK_TEST_CHANNEL_ID, ts, 'thumbsup'])
       expect(addResult.exitCode).toBe(0)
       
-      await waitForRateLimit()
+      await waitForRateLimit(2000)
       
       const listResult = await runCLI('slack', ['reaction', 'list', SLACK_TEST_CHANNEL_ID, ts])
       expect(listResult.exitCode).toBe(0)
@@ -241,11 +241,11 @@ describe('Slack E2E Tests', () => {
       const data = parseJSON<{ reactions: Array<{ name: string }> }>(listResult.stdout)
       expect(Array.isArray(data?.reactions)).toBe(true)
       
-      await waitForRateLimit()
+      await waitForRateLimit(2000)
       
       const removeResult = await runCLI('slack', ['reaction', 'remove', SLACK_TEST_CHANNEL_ID, ts, 'thumbsup'])
       expect(removeResult.exitCode).toBe(0)
-    })
+    }, 15000)
   })
 
   describe('file', () => {
