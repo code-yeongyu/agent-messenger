@@ -61,6 +61,29 @@ export async function deleteTestMessage(
   channel: string,
   messageId: string
 ): Promise<void> {
+  // For Slack, check for thread replies and delete them first
+  if (platform === 'slack') {
+    try {
+      const repliesResult = await runCLI(platform, ['message', 'replies', channel, messageId])
+      if (repliesResult.exitCode === 0) {
+        const replies = parseJSON<Array<{ ts?: string; id?: string }>>(repliesResult.stdout)
+        if (replies && replies.length > 0) {
+          // Delete replies in reverse order (newest first), skip parent
+          const threadReplies = replies.filter(r => (r.ts || r.id) !== messageId)
+          for (const reply of threadReplies.reverse()) {
+            const replyId = reply.ts || reply.id
+            if (replyId) {
+              await runCLI(platform, ['message', 'delete', channel, replyId, '--force'])
+            }
+          }
+        }
+      }
+    } catch {
+      // Continue with parent deletion even if replies fail
+    }
+  }
+  
+  // Delete the parent message
   await runCLI(platform, ['message', 'delete', channel, messageId, '--force'])
 }
 

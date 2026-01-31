@@ -151,19 +151,19 @@ describe('Discord E2E Tests', () => {
     })
 
     test('user info returns user details', async () => {
-      // First get current user ID
-      const meResult = await runCLI('discord', ['user', 'me'])
-      const me = parseJSON<{ id: string }>(meResult.stdout)
-      expect(me?.id).toBeTruthy()
-      
-      await waitForRateLimit()
-      
-      const result = await runCLI('discord', ['user', 'info', me!.id])
-      expect(result.exitCode).toBe(0)
-      
-      const data = parseJSON<{ id: string }>(result.stdout)
-      expect(data?.id).toBe(me?.id)
-    })
+       // First get current user ID
+       const meResult = await runCLI('discord', ['user', 'me'])
+       const me = parseJSON<{ id: string }>(meResult.stdout)
+       expect(me?.id).toBeTruthy()
+       
+       await waitForRateLimit()
+       
+       const result = await runCLI('discord', ['user', 'info', me!.id])
+       expect(result.exitCode).toBe(0)
+       
+       const data = parseJSON<{ id: string }>(result.stdout)
+       expect(data?.id).toBe(me?.id)
+     })
   })
 
   describe('reaction', () => {

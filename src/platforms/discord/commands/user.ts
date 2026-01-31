@@ -3,6 +3,7 @@ import { handleError } from '../../../shared/utils/error-handler'
 import { formatOutput } from '../../../shared/utils/output'
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
+import type { DiscordUser } from '../types'
 
 async function listAction(options: { pretty?: boolean }): Promise<void> {
   try {
@@ -56,7 +57,17 @@ async function infoAction(userId: string, options: { pretty?: boolean }): Promis
     }
 
     const client = new DiscordClient(config.token)
-    const user = await client.getUser(userId)
+
+    // Check if requesting current user - use @me endpoint (works with user tokens)
+    const me = await client.testAuth()
+    let user: DiscordUser
+
+    if (userId === me.id) {
+      user = me
+    } else {
+      // For other users, try the regular endpoint (requires bot token)
+      user = await client.getUser(userId)
+    }
 
     const output = {
       id: user.id,

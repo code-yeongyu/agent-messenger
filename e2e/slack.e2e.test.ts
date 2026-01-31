@@ -113,21 +113,21 @@ describe('Slack E2E Tests', () => {
       expect(Array.isArray(data)).toBe(true)
     })
 
-    test('message send with thread creates reply', async () => {
-      const testId = generateTestId()
-      const { id: parentTs } = await createTestMessage('slack', SLACK_TEST_CHANNEL_ID, `Parent ${testId}`)
-      testMessages.push(parentTs)
-      
-      await waitForRateLimit()
-      
-      const result = await runCLI('slack', ['message', 'send', SLACK_TEST_CHANNEL_ID, `Reply ${testId}`, '--thread', parentTs])
-      expect(result.exitCode).toBe(0)
-      
-      const data = parseJSON<{ ts: string; thread_ts: string }>(result.stdout)
-      expect(data?.thread_ts).toBe(parentTs)
-      
-      if (data?.ts) testMessages.push(data.ts)
-    })
+     test('message send with thread creates reply', async () => {
+       const testId = generateTestId()
+       const { id: parentTs } = await createTestMessage('slack', SLACK_TEST_CHANNEL_ID, `Parent ${testId}`)
+       testMessages.push(parentTs)
+       
+       await waitForRateLimit()
+       
+       const result = await runCLI('slack', ['message', 'send', SLACK_TEST_CHANNEL_ID, `Reply ${testId}`, '--thread', parentTs])
+       expect(result.exitCode).toBe(0)
+       
+       const data = parseJSON<{ ts: string; thread_ts: string }>(result.stdout)
+       expect(data?.thread_ts).toBe(parentTs)
+       
+       if (data?.ts) testMessages.push(data.ts)
+     }, 30000)
 
     test('message replies gets thread replies', async () => {
       const testId = generateTestId()
