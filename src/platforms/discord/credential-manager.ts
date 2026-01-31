@@ -39,6 +39,12 @@ export class DiscordCredentialManager {
   }
 
   async getToken(): Promise<string | null> {
+    // Check env var first (takes precedence over file-based credentials)
+    const envToken = process.env.E2E_DISCORD_TOKEN
+    if (envToken) {
+      return envToken
+    }
+
     const config = await this.load()
     return config.token
   }
@@ -56,6 +62,12 @@ export class DiscordCredentialManager {
   }
 
   async getCurrentGuild(): Promise<string | null> {
+    // Check env var first (takes precedence over file-based credentials)
+    const envGuildId = process.env.E2E_DISCORD_GUILD_ID
+    if (envGuildId) {
+      return envGuildId
+    }
+
     const config = await this.load()
     return config.current_guild
   }
@@ -78,15 +90,13 @@ export class DiscordCredentialManager {
   }
 
   async getCredentials(): Promise<{ token: string; guildId: string } | null> {
-    const config = await this.load()
+    const token = await this.getToken()
+    const guildId = await this.getCurrentGuild()
 
-    if (!config.token || !config.current_guild) {
+    if (!token || !guildId) {
       return null
     }
 
-    return {
-      token: config.token,
-      guildId: config.current_guild,
-    }
+    return { token, guildId }
   }
 }
