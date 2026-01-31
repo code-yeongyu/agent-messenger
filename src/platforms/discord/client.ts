@@ -1,10 +1,17 @@
 import { readFile } from 'node:fs/promises'
 import type {
   DiscordChannel,
+  DiscordDMChannel,
   DiscordFile,
   DiscordGuild,
+  DiscordGuildMember,
+  DiscordMention,
   DiscordMessage,
+  DiscordReadState,
+  DiscordRelationship,
   DiscordUser,
+  DiscordUserNote,
+  DiscordUserProfile,
 } from './types'
 
 export class DiscordError extends Error {
@@ -102,7 +109,6 @@ export class DiscordClient {
 
       const headers: Record<string, string> = {
         Authorization: this.token,
-        'Content-Type': 'application/json',
       }
 
       const options: RequestInit = {
@@ -111,6 +117,7 @@ export class DiscordClient {
       }
 
       if (body !== undefined) {
+        headers['Content-Type'] = 'application/json'
         options.body = JSON.stringify(body)
       }
 
@@ -196,8 +203,22 @@ export class DiscordClient {
     return this.request<DiscordChannel>('GET', `/channels/${channelId}`)
   }
 
-  async sendMessage(channelId: string, content: string): Promise<DiscordMessage> {
-    return this.request<DiscordMessage>('POST', `/channels/${channelId}/messages`, { content })
+  async sendMessage(
+    channelId: string,
+    content: string,
+    options?: {
+      replyTo?: string
+    }
+  ): Promise<DiscordMessage> {
+    const body: Record<string, unknown> = { content }
+
+    if (options?.replyTo) {
+      body.message_reference = {
+        message_id: options.replyTo,
+      }
+    }
+
+    return this.request<DiscordMessage>('POST', `/channels/${channelId}/messages`, body)
   }
 
   async getMessages(channelId: string, limit: number = 50): Promise<DiscordMessage[]> {
@@ -277,5 +298,71 @@ export class DiscordClient {
       }
     }
     return files
+  }
+
+  async listDMChannels(): Promise<DiscordDMChannel[]> {
+    return this.request<DiscordDMChannel[]>('GET', '/users/@me/channels')
+  }
+
+  async getMentions(options?: {
+    limit?: number
+    guildId?: string
+    roles?: boolean
+    everyone?: boolean
+  }): Promise<DiscordMention[]> {
+    const params = new URLSearchParams()
+    if (options?.limit) params.set('limit', String(options.limit))
+    if (options?.guildId) params.set('guild_id', options.guildId)
+    if (options?.roles !== false) params.set('roles', 'true')
+    if (options?.everyone !== false) params.set('everyone', 'true')
+    const query = params.toString()
+    return this.request<DiscordMention[]>('GET', `/users/@me/mentions${query ? '?' + query : ''}`)
+  }
+
+  async ackMessage(channelId: string, messageId: string): Promise<void> {
+    return this.request<void>('POST', `/channels/${channelId}/messages/${messageId}/ack`, {
+      token: null,
+    })
+  }
+
+  async getReadStates(): Promise<DiscordReadState[]> {
+    return this.request<DiscordReadState[]>('GET', '/users/@me/read-states')
+  }
+
+  async getRelationships(): Promise<DiscordRelationship[]> {
+    return this.request<DiscordRelationship[]>('GET', '/users/@me/relationships')
+  }
+
+  async getUserNote(userId: string): Promise<DiscordUserNote | null> {
+    try {
+      return await this.request<DiscordUserNote>('GET', `/users/@me/notes/${userId}`)
+    } catch (error) {
+      if (error instanceof DiscordError && error.code === '10013') {
+        return null
+      }
+      throw error
+    }
+  }
+
+  async setUserNote(userId: string, note: string): Promise<void> {
+    return this.request<void>('PUT', `/users/@me/notes/${userId}`, { note })
+  }
+
+  async searchMembers(
+    guildId: string,
+    query: string,
+    limit: number = 10
+  ): Promise<DiscordGuildMember[]> {
+    const params = new URLSearchParams()
+    params.set('query', query)
+    params.set('limit', String(limit))
+    return this.request<DiscordGuildMember[]>(
+      'GET',
+      `/guilds/${guildId}/members/search?${params.toString()}`
+    )
+  }
+
+  async getUserProfile(userId: string): Promise<DiscordUserProfile> {
+    return this.request<DiscordUserProfile>('GET', `/users/${userId}/profile`)
   }
 }

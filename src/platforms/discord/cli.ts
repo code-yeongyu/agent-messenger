@@ -5,9 +5,15 @@ import pkg from '../../../package.json'
 import {
   authCommand,
   channelCommand,
+  dmCommand,
   fileCommand,
+  friendCommand,
   guildCommand,
+  memberCommand,
+  mentionCommand,
   messageCommand,
+  noteCommand,
+  profileCommand,
   reactionCommand,
   snapshotCommand,
   userCommand,
@@ -25,8 +31,14 @@ program
 program.addCommand(authCommand)
 program.addCommand(guildCommand)
 program.addCommand(channelCommand)
+program.addCommand(dmCommand)
 program.addCommand(fileCommand)
+program.addCommand(friendCommand)
+program.addCommand(memberCommand)
+program.addCommand(mentionCommand)
 program.addCommand(messageCommand)
+program.addCommand(noteCommand)
+program.addCommand(profileCommand)
 program.addCommand(reactionCommand)
 program.addCommand(snapshotCommand)
 program.addCommand(userCommand)

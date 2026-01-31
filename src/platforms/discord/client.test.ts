@@ -453,4 +453,275 @@ describe('DiscordClient', () => {
       expect(fetchCalls.length).toBe(2)
     })
   })
+
+  describe('listDMChannels', () => {
+    test('returns list of DM channels', async () => {
+      mockResponse([
+        {
+          id: '123',
+          type: 1,
+          last_message_id: '456',
+          recipients: [{ id: 'U1', username: 'user1', global_name: 'User One' }],
+        },
+        { id: '789', type: 3, name: 'Group DM', recipients: [{ id: 'U2', username: 'user2' }] },
+      ])
+
+      const client = new DiscordClient('test-token')
+      const channels = await client.listDMChannels()
+
+      expect(channels).toHaveLength(2)
+      expect(channels[0].type).toBe(1)
+      expect(channels[1].type).toBe(3)
+      expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/users/@me/channels')
+    })
+
+    test('throws DiscordError on API error', async () => {
+      mockResponse({ message: 'Unauthorized', code: 401 }, 401)
+
+      const client = new DiscordClient('test-token')
+      await expect(client.listDMChannels()).rejects.toThrow(DiscordError)
+    })
+  })
+
+  describe('getMentions', () => {
+    test('returns mentions with default options', async () => {
+      mockResponse([
+        {
+          id: '123',
+          channel_id: 'C1',
+          author: { id: 'U1', username: 'user1' },
+          content: '@test',
+          timestamp: '2024-01-01',
+          mention_everyone: false,
+          mentions: [],
+        },
+      ])
+
+      const client = new DiscordClient('test-token')
+      const mentions = await client.getMentions()
+
+      expect(mentions).toHaveLength(1)
+      expect(mentions[0].content).toBe('@test')
+      expect(fetchCalls[0].url).toContain('/users/@me/mentions')
+    })
+
+    test('respects limit and guild options', async () => {
+      mockResponse([])
+
+      const client = new DiscordClient('test-token')
+      await client.getMentions({ limit: 10, guildId: 'G123' })
+
+      expect(fetchCalls[0].url).toContain('limit=10')
+      expect(fetchCalls[0].url).toContain('guild_id=G123')
+    })
+
+    test('throws DiscordError on API error', async () => {
+      mockResponse({ message: 'Unauthorized', code: 401 }, 401)
+
+      const client = new DiscordClient('test-token')
+      await expect(client.getMentions()).rejects.toThrow(DiscordError)
+    })
+  })
+
+  describe('ackMessage', () => {
+    test('acknowledges message successfully', async () => {
+      mockResponse(null, 204)
+
+      const client = new DiscordClient('test-token')
+      await expect(client.ackMessage('C123', 'M456')).resolves.toBeUndefined()
+
+      expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/channels/C123/messages/M456/ack')
+      expect(fetchCalls[0].options?.method).toBe('POST')
+    })
+
+    test('throws DiscordError on API error', async () => {
+      mockResponse({ message: 'Not Found', code: 404 }, 404)
+
+      const client = new DiscordClient('test-token')
+      await expect(client.ackMessage('C123', 'M456')).rejects.toThrow(DiscordError)
+    })
+  })
+
+  describe('getReadStates', () => {
+    test('returns read states', async () => {
+      mockResponse([
+        { id: 'C123', last_message_id: 'M456', mention_count: 2 },
+        { id: 'C789', last_message_id: 'M012', mention_count: 0 },
+      ])
+
+      const client = new DiscordClient('test-token')
+      const states = await client.getReadStates()
+
+      expect(states).toHaveLength(2)
+      expect(states[0].mention_count).toBe(2)
+      expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/users/@me/read-states')
+    })
+
+    test('throws DiscordError on API error', async () => {
+      mockResponse({ message: 'Unauthorized', code: 401 }, 401)
+
+      const client = new DiscordClient('test-token')
+      await expect(client.getReadStates()).rejects.toThrow(DiscordError)
+    })
+  })
+
+  describe('getRelationships', () => {
+    test('returns relationships (friends)', async () => {
+      mockResponse([
+        { id: 'U123', type: 1, user: { id: 'U123', username: 'friend1' } },
+        { id: 'U456', type: 2, user: { id: 'U456', username: 'blocked1' } },
+      ])
+
+      const client = new DiscordClient('test-token')
+      const relationships = await client.getRelationships()
+
+      expect(relationships).toHaveLength(2)
+      expect(relationships[0].type).toBe(1)
+      expect(relationships[1].type).toBe(2)
+      expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/users/@me/relationships')
+    })
+
+    test('throws DiscordError on API error', async () => {
+      mockResponse({ message: 'Unauthorized', code: 401 }, 401)
+
+      const client = new DiscordClient('test-token')
+      await expect(client.getRelationships()).rejects.toThrow(DiscordError)
+    })
+  })
+
+  describe('getUserNote', () => {
+    test('returns user note when exists', async () => {
+      mockResponse({ user_id: 'U1', note_user_id: 'U2', note: 'Test note' })
+
+      const client = new DiscordClient('test-token')
+      const note = await client.getUserNote('U2')
+
+      expect(note).not.toBeNull()
+      expect(note?.note).toBe('Test note')
+      expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/users/@me/notes/U2')
+    })
+
+    test('returns null when note does not exist (404)', async () => {
+      mockResponse({ message: 'Unknown User', code: 10013 }, 404)
+
+      const client = new DiscordClient('test-token')
+      const note = await client.getUserNote('U999')
+
+      expect(note).toBeNull()
+    })
+
+    test('throws DiscordError on other errors', async () => {
+      mockResponse({ message: 'Unauthorized', code: 401 }, 401)
+
+      const client = new DiscordClient('test-token')
+      await expect(client.getUserNote('U123')).rejects.toThrow(DiscordError)
+    })
+  })
+
+  describe('setUserNote', () => {
+    test('sets user note successfully', async () => {
+      mockResponse(null, 204)
+
+      const client = new DiscordClient('test-token')
+      await expect(client.setUserNote('U123', 'New note')).resolves.toBeUndefined()
+
+      expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/users/@me/notes/U123')
+      expect(fetchCalls[0].options?.method).toBe('PUT')
+      expect(JSON.parse(fetchCalls[0].options?.body as string)).toEqual({ note: 'New note' })
+    })
+
+    test('throws DiscordError on API error', async () => {
+      mockResponse({ message: 'Not Found', code: 404 }, 404)
+
+      const client = new DiscordClient('test-token')
+      await expect(client.setUserNote('U999', 'Note')).rejects.toThrow(DiscordError)
+    })
+  })
+
+  describe('searchMembers', () => {
+    test('returns matching guild members', async () => {
+      mockResponse([
+        {
+          user: { id: 'U1', username: 'alice', global_name: 'Alice' },
+          nick: 'alice_nick',
+          roles: ['role1'],
+          joined_at: '2024-01-01T00:00:00Z',
+          deaf: false,
+          mute: false,
+          flags: 0,
+        },
+        {
+          user: { id: 'U2', username: 'bob', global_name: 'Bob' },
+          nick: null,
+          roles: [],
+          joined_at: '2024-01-02T00:00:00Z',
+          deaf: false,
+          mute: false,
+          flags: 0,
+        },
+      ])
+
+      const client = new DiscordClient('test-token')
+      const members = await client.searchMembers('G123', 'test', 10)
+
+      expect(members).toHaveLength(2)
+      expect(members[0].user.username).toBe('alice')
+      expect(members[0].nick).toBe('alice_nick')
+      expect(fetchCalls[0].url).toBe(
+        'https://discord.com/api/v10/guilds/G123/members/search?query=test&limit=10'
+      )
+    })
+
+    test('uses default limit when not provided', async () => {
+      mockResponse([])
+
+      const client = new DiscordClient('test-token')
+      await client.searchMembers('G123', 'query')
+
+      expect(fetchCalls[0].url).toBe(
+        'https://discord.com/api/v10/guilds/G123/members/search?query=query&limit=10'
+      )
+    })
+
+    test('throws DiscordError on API error', async () => {
+      mockResponse({ message: 'Missing Permissions', code: 50013 }, 403)
+
+      const client = new DiscordClient('test-token')
+      await expect(client.searchMembers('G123', 'test')).rejects.toThrow(DiscordError)
+    })
+  })
+
+  describe('getUserProfile', () => {
+    test('returns user profile', async () => {
+      mockResponse({
+        user: {
+          id: 'U123',
+          username: 'testuser',
+          global_name: 'Test User',
+          bio: 'Hello world',
+          avatar: 'abc123',
+        },
+        connected_accounts: [{ type: 'github', id: 'gh123', name: 'testuser', verified: true }],
+        premium_since: '2024-01-01T00:00:00Z',
+        mutual_guilds: [{ id: 'G1', nick: null }],
+      })
+
+      const client = new DiscordClient('test-token')
+      const profile = await client.getUserProfile('U123')
+
+      expect(profile.user.id).toBe('U123')
+      expect(profile.user.bio).toBe('Hello world')
+      expect(profile.connected_accounts).toHaveLength(1)
+      expect(profile.connected_accounts[0].type).toBe('github')
+      expect(profile.mutual_guilds).toHaveLength(1)
+      expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/users/U123/profile')
+    })
+
+    test('throws DiscordError on API error', async () => {
+      mockResponse({ message: 'Unknown User', code: 10013 }, 404)
+
+      const client = new DiscordClient('test-token')
+      await expect(client.getUserProfile('U999')).rejects.toThrow(DiscordError)
+    })
+  })
 })
