@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'bun:test'
 import { Command } from 'commander'
-import { reactionCommand } from '../../src/platforms/slack/commands/reaction'
+import { reactionCommand } from '@/platforms/slack/commands/reaction'
 
 describe('reaction command', () => {
   describe('add subcommand', () => {

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
-import { SlackClient } from '../../src/platforms/slack/client'
-import type { SlackChannel } from '../../src/platforms/slack/types'
+import { SlackClient } from '@/platforms/slack/client'
+import type { SlackChannel } from '@/platforms/slack/types'
 
 describe('Channel Commands', () => {
   let mockClient: SlackClient
