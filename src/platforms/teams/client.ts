@@ -122,8 +122,10 @@ export class TeamsClient {
           await this.handleRateLimitResponse(response)
           continue
         }
-        const errorBody = await response.json().catch(() => ({}))
-        throw new TeamsError((errorBody as any).message || 'Rate limited', 'rate_limited')
+        const errorBody = (await response.json().catch(() => null)) as {
+          message?: string
+        } | null
+        throw new TeamsError(errorBody?.message ?? 'Rate limited', 'rate_limited')
       }
 
       if (response.status >= 500 && attempt < MAX_RETRIES) {
@@ -132,10 +134,13 @@ export class TeamsClient {
       }
 
       if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}))
+        const errorBody = (await response.json().catch(() => null)) as {
+          message?: string
+          code?: string | number
+        } | null
         throw new TeamsError(
-          (errorBody as any).message || `HTTP ${response.status}`,
-          (errorBody as any).code?.toString() || `http_${response.status}`
+          errorBody?.message ?? `HTTP ${response.status}`,
+          errorBody?.code?.toString() ?? `http_${response.status}`
         )
       }
 
@@ -174,10 +179,13 @@ export class TeamsClient {
     this.updateBucket(bucketKey, response)
 
     if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({}))
+      const errorBody = (await response.json().catch(() => null)) as {
+        message?: string
+        code?: string | number
+      } | null
       throw new TeamsError(
-        (errorBody as any).message || `HTTP ${response.status}`,
-        (errorBody as any).code?.toString() || `http_${response.status}`
+        errorBody?.message ?? `HTTP ${response.status}`,
+        errorBody?.code?.toString() ?? `http_${response.status}`
       )
     }
 
