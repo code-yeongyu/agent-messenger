@@ -33,7 +33,7 @@ agent-teams auth extract --debug
 This command:
 - Auto-detects your platform (macOS/Linux/Windows)
 - Extracts Teams access token from the desktop app
-- Validates token against Microsoft Graph API
+- Validates token against Teams API
 - Discovers ALL joined teams
 - Stores credentials securely in `~/.config/agent-messenger/`
 
@@ -225,7 +225,7 @@ All commands support these options:
 | Message ID format | Timestamp (1234567890.123456) | Numeric snowflake | UUID |
 | User ID format | Alphanumeric (U01234567) | Numeric snowflake | UUID (Azure AD Object ID) |
 | Token lifetime | Long-lived | Long-lived | **60-90 minutes** |
-| API | Slack Web API | Discord API | Microsoft Graph API |
+| API | Slack Web API | Discord API | Teams Messaging API |
 | Threads | Thread timestamps | Thread channels | Reply chains |
 | Rate limits | Moderate | Moderate | Strict |
 
@@ -258,7 +258,7 @@ agent-teams channel list --pretty
 
 ### Rate Limiting (429 Too Many Requests)
 
-Microsoft Graph API has strict rate limits. Wait and retry:
+Teams API has strict rate limits. Wait and retry:
 ```bash
 # Add delays between operations in scripts
 sleep 2

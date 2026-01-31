@@ -22,6 +22,7 @@ Or use your favorite package manager.
 This installs:
 - `agent-slack` — Slack CLI
 - `agent-discord` — Discord CLI
+- `agent-teams` — Microsoft Teams CLI
 
 ## 🧩 Agent Skills
 
@@ -80,30 +81,31 @@ That's it. No OAuth flows. No API tokens. No configuration files.
 
 ## 🔌 Supported Platforms
 
-| Feature | Slack | Discord |
-|---------|:-----:|:-------:|
-| Auto credential extraction | ✅ | ✅ |
-| Send / List / Search messages | ✅ | ✅ |
-| Threads | ✅ | ✅ |
-| Channels & Users | ✅ | ✅ |
-| Reactions | ✅ | ✅ |
-| File uploads | ✅ | ✅ |
-| Workspace snapshots | ✅ | ✅ |
-| Multi-workspace | ✅ | ✅ |
-| Bot support | 🏗️ | 🏗️ |
+| Feature | Slack | Discord | Teams |
+|---------|:-----:|:-------:|:-----:|
+| Auto credential extraction | ✅ | ✅ | ✅ |
+| Send / List / Search messages | ✅ | ✅ | ✅ |
+| Threads | ✅ | ✅ | ✅ |
+| Channels & Users | ✅ | ✅ | ✅ |
+| Reactions | ✅ | ✅ | ✅ |
+| File uploads | ✅ | ✅ | ✅ |
+| Workspace snapshots | ✅ | ✅ | ✅ |
+| Multi-workspace | ✅ | ✅ | ✅ |
+| Bot support | 🏗️ | 🏗️ | 🏗️ |
 
-🔜 **Coming soon**: Microsoft Teams and more
+> **Note**: Teams tokens expire in 60-90 minutes. See [Teams Guide](docs/teams.md) for token refresh patterns.
 
 ## 📚 Platform Guides
 
 - **[Slack Guide](docs/slack.md)** — Full command reference for Slack
 - **[Discord Guide](docs/discord.md)** — Full command reference for Discord
+- **[Teams Guide](docs/teams.md)** — Full command reference for Microsoft Teams
 
 ## 💡 Use Cases
 
 **🤖 For AI Agents**
 - Give Claude, GPT, or your custom agent the ability to read and send messages
-- Automate Slack/Discord workflows with simple CLI commands
+- Automate Slack/Discord/Teams workflows with simple CLI commands
 - Build integrations without OAuth complexity
 
 **👩‍💻 For Developers**
