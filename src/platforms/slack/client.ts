@@ -1,5 +1,17 @@
 import { WebClient } from '@slack/web-api'
-import type { SlackChannel, SlackFile, SlackMessage, SlackSearchResult, SlackUser } from './types'
+import type {
+  SlackActivityFeedResponse,
+  SlackChannel,
+  SlackChannelSectionsResponse,
+  SlackDraftsResponse,
+  SlackFile,
+  SlackMessage,
+  SlackSavedItemsResponse,
+  SlackSearchResult,
+  SlackUnreadCounts,
+  SlackUnreadThreadsResponse,
+  SlackUser,
+} from './types'
 
 export class SlackError extends Error {
   code: string
@@ -461,6 +473,94 @@ export class SlackClient {
         has_more: response.has_more || false,
         next_cursor: response.response_metadata?.next_cursor,
       }
+    })
+  }
+
+  async getUnreadCounts(): Promise<SlackUnreadCounts> {
+    return this.withRetry(async () => {
+      const response = await this.client.apiCall('client.counts', {})
+      this.checkResponse(response)
+      return response as unknown as SlackUnreadCounts
+    })
+  }
+
+  async getUnreadThreads(limit: number = 25): Promise<SlackUnreadThreadsResponse> {
+    return this.withRetry(async () => {
+      const response = await this.client.apiCall('subscriptions.thread.getView', {
+        limit,
+      })
+      this.checkResponse(response)
+      return response as unknown as SlackUnreadThreadsResponse
+    })
+  }
+
+  async markAsRead(channel: string, ts: string): Promise<void> {
+    return this.withRetry(async () => {
+      const response = await this.client.conversations.mark({
+        channel,
+        ts,
+      })
+      this.checkResponse(response)
+    })
+  }
+
+  async getActivityFeed(options?: {
+    limit?: number
+    unread?: boolean
+    types?: string[]
+  }): Promise<SlackActivityFeedResponse> {
+    return this.withRetry(async () => {
+      const defaultTypes = ['thread_reply', 'message_reaction', 'at_user', 'at_channel', 'keyword']
+      const params: Record<string, unknown> = {
+        limit: options?.limit || 25,
+        mode: options?.unread ? 'priority_unreads_v1' : 'chrono_reads_and_unreads',
+        types: (options?.types && options.types.length > 0 ? options.types : defaultTypes).join(
+          ','
+        ),
+      }
+      const response = await this.client.apiCall('activity.feed', params)
+      this.checkResponse(response)
+      return response as unknown as SlackActivityFeedResponse
+    })
+  }
+
+  async getSavedItems(options?: {
+    limit?: number
+    cursor?: string
+  }): Promise<SlackSavedItemsResponse> {
+    return this.withRetry(async () => {
+      const params: Record<string, unknown> = {
+        limit: options?.limit || 25,
+      }
+      if (options?.cursor) {
+        params.cursor = options.cursor
+      }
+      const response = await this.client.apiCall('saved.list', params)
+      this.checkResponse(response)
+      return response as unknown as SlackSavedItemsResponse
+    })
+  }
+
+  async getDrafts(options?: { limit?: number; cursor?: string }): Promise<SlackDraftsResponse> {
+    return this.withRetry(async () => {
+      const params: Record<string, unknown> = {}
+      if (options?.limit) {
+        params.limit = options.limit
+      }
+      if (options?.cursor) {
+        params.cursor = options.cursor
+      }
+      const response = await this.client.apiCall('drafts.list', params)
+      this.checkResponse(response)
+      return response as unknown as SlackDraftsResponse
+    })
+  }
+
+  async getChannelSections(): Promise<SlackChannelSectionsResponse> {
+    return this.withRetry(async () => {
+      const response = await this.client.apiCall('users.channelSections.list', {})
+      this.checkResponse(response)
+      return response as unknown as SlackChannelSectionsResponse
     })
   }
 }

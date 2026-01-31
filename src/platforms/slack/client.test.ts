@@ -8,6 +8,7 @@ const mockWebClient: any = {
     info: mock((): Promise<any> => Promise.resolve({ ok: true, channel: {} })),
     history: mock((): Promise<any> => Promise.resolve({ ok: true, messages: [] })),
     replies: mock((): Promise<any> => Promise.resolve({ ok: true, messages: [], has_more: false })),
+    mark: mock((): Promise<any> => Promise.resolve({ ok: true })),
   },
   chat: {
     postMessage: mock(
@@ -31,6 +32,7 @@ const mockWebClient: any = {
   auth: {
     test: mock((): Promise<any> => Promise.resolve({ ok: true, user_id: 'U123', team_id: 'T123' })),
   },
+  apiCall: mock((): Promise<any> => Promise.resolve({ ok: true })),
 }
 
 function resetMocks() {
@@ -40,6 +42,9 @@ function resetMocks() {
         fn.mockReset()
       }
     }
+  }
+  if (typeof mockWebClient.apiCall?.mockReset === 'function') {
+    mockWebClient.apiCall.mockReset()
   }
 }
 
@@ -827,6 +832,332 @@ describe('SlackClient', () => {
       client.client = mockWebClient as unknown as WebClient
 
       await expect(client.getThreadReplies('C999', '123.456')).rejects.toThrow(SlackError)
+    })
+  })
+
+  describe('getUnreadCounts', () => {
+    beforeEach(() => resetMocks())
+
+    test('returns unread counts for channels, IMs, and threads', async () => {
+      mockWebClient.apiCall.mockResolvedValue({
+        ok: true,
+        channels: [
+          {
+            id: 'C123',
+            last_read: '123.456',
+            latest: '123.789',
+            mention_count: 2,
+            has_unreads: true,
+          },
+        ],
+        ims: [
+          {
+            id: 'D123',
+            last_read: '123.456',
+            latest: '123.789',
+            mention_count: 1,
+            has_unreads: true,
+          },
+        ],
+        mpims: [],
+        threads: { has_unreads: true, mention_count: 3 },
+      })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      const result = await client.getUnreadCounts()
+      expect(result.channels).toHaveLength(1)
+      expect(result.channels[0].mention_count).toBe(2)
+      expect(result.threads.has_unreads).toBe(true)
+      expect(mockWebClient.apiCall).toHaveBeenCalledWith('client.counts', {})
+    })
+
+    test('throws SlackError on API failure', async () => {
+      mockWebClient.apiCall.mockResolvedValue({ ok: false, error: 'invalid_auth' })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      await expect(client.getUnreadCounts()).rejects.toThrow(SlackError)
+    })
+  })
+
+  describe('getUnreadThreads', () => {
+    beforeEach(() => resetMocks())
+
+    test('returns unread threads with default limit', async () => {
+      mockWebClient.apiCall.mockResolvedValue({
+        ok: true,
+        total_unread_replies: 5,
+        new_threads_count: 2,
+        threads: [
+          {
+            root_msg: {
+              ts: '123.456',
+              text: 'Thread',
+              user: 'U123',
+              channel: 'C123',
+              thread_ts: '123.456',
+              reply_count: 3,
+              latest_reply: '123.789',
+              last_read: '123.500',
+            },
+            unread_replies: [{ ts: '123.789', text: 'Reply', user: 'U456', thread_ts: '123.456' }],
+          },
+        ],
+      })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      const result = await client.getUnreadThreads()
+      expect(result.total_unread_replies).toBe(5)
+      expect(result.threads).toHaveLength(1)
+      expect(mockWebClient.apiCall).toHaveBeenCalledWith('subscriptions.thread.getView', {
+        limit: 25,
+      })
+    })
+
+    test('throws SlackError on API failure', async () => {
+      mockWebClient.apiCall.mockResolvedValue({ ok: false, error: 'invalid_auth' })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      await expect(client.getUnreadThreads()).rejects.toThrow(SlackError)
+    })
+  })
+
+  describe('markAsRead', () => {
+    beforeEach(() => resetMocks())
+
+    test('marks channel as read', async () => {
+      mockWebClient.conversations.mark.mockResolvedValue({ ok: true })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      await expect(client.markAsRead('C123', '123.456')).resolves.toBeUndefined()
+      expect(mockWebClient.conversations.mark).toHaveBeenCalledWith({
+        channel: 'C123',
+        ts: '123.456',
+      })
+    })
+
+    test('throws SlackError on API failure', async () => {
+      mockWebClient.conversations.mark.mockResolvedValue({ ok: false, error: 'channel_not_found' })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      await expect(client.markAsRead('C999', '123.456')).rejects.toThrow(SlackError)
+    })
+  })
+
+  describe('getActivityFeed', () => {
+    beforeEach(() => resetMocks())
+
+    test('returns activity feed with default options', async () => {
+      mockWebClient.apiCall.mockResolvedValue({
+        ok: true,
+        items: [
+          {
+            is_unread: true,
+            feed_ts: '123.456',
+            item: {
+              type: 'thread_reply',
+              message: {
+                ts: '123.456',
+                channel: 'C123',
+                thread_ts: '123.400',
+                author_user_id: 'U123',
+              },
+            },
+            key: 'thread_reply-C123-123.456',
+          },
+        ],
+      })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      const result = await client.getActivityFeed()
+      expect(result.items).toHaveLength(1)
+      expect(result.items[0].item.type).toBe('thread_reply')
+    })
+
+    test('throws SlackError on API failure', async () => {
+      mockWebClient.apiCall.mockResolvedValue({ ok: false, error: 'invalid_arguments' })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      await expect(client.getActivityFeed()).rejects.toThrow(SlackError)
+    })
+  })
+
+  describe('getSavedItems', () => {
+    beforeEach(() => resetMocks())
+
+    test('returns saved items with counts', async () => {
+      mockWebClient.apiCall.mockResolvedValue({
+        ok: true,
+        saved_items: [
+          {
+            item_id: 'C123',
+            item_type: 'message',
+            date_created: 1234567890,
+            date_due: 0,
+            date_completed: 0,
+            date_updated: 1234567890,
+            is_archived: false,
+            date_snoozed_until: 0,
+            ts: '123.456',
+            state: 'in_progress',
+          },
+        ],
+        counts: {
+          uncompleted_count: 10,
+          uncompleted_overdue_count: 0,
+          archived_count: 0,
+          completed_count: 5,
+          total_count: 15,
+        },
+      })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      const result = await client.getSavedItems()
+      expect(result.saved_items).toHaveLength(1)
+      expect(result.counts.total_count).toBe(15)
+      expect(mockWebClient.apiCall).toHaveBeenCalledWith('saved.list', { limit: 25 })
+    })
+
+    test('throws SlackError on API failure', async () => {
+      mockWebClient.apiCall.mockResolvedValue({ ok: false, error: 'invalid_auth' })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      await expect(client.getSavedItems()).rejects.toThrow(SlackError)
+    })
+  })
+
+  describe('getDrafts', () => {
+    beforeEach(() => resetMocks())
+
+    test('returns drafts list', async () => {
+      mockWebClient.apiCall.mockResolvedValue({
+        ok: true,
+        drafts: [
+          {
+            id: 'D123',
+            channel_id: 'C123',
+            date_created: 1234567890,
+            date_updated: 1234567891,
+            message: { text: 'Draft message' },
+            type: 'message',
+          },
+        ],
+        response_metadata: { next_cursor: 'cursor123' },
+      })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      const result = await client.getDrafts()
+      expect(result.drafts).toHaveLength(1)
+      expect(result.drafts[0].message?.text).toBe('Draft message')
+      expect(result.response_metadata?.next_cursor).toBe('cursor123')
+      expect(mockWebClient.apiCall).toHaveBeenCalledWith('drafts.list', {})
+    })
+
+    test('passes limit and cursor options', async () => {
+      mockWebClient.apiCall.mockResolvedValue({
+        ok: true,
+        drafts: [],
+      })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      await client.getDrafts({ limit: 10, cursor: 'abc123' })
+      expect(mockWebClient.apiCall).toHaveBeenCalledWith('drafts.list', {
+        limit: 10,
+        cursor: 'abc123',
+      })
+    })
+
+    test('throws SlackError on API failure', async () => {
+      mockWebClient.apiCall.mockResolvedValue({ ok: false, error: 'invalid_auth' })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      await expect(client.getDrafts()).rejects.toThrow(SlackError)
+    })
+  })
+
+  describe('getChannelSections', () => {
+    beforeEach(() => resetMocks())
+
+    test('returns channel sections', async () => {
+      mockWebClient.apiCall.mockResolvedValue({
+        ok: true,
+        channel_sections: [
+          {
+            id: 'S123',
+            name: 'Favorites',
+            emoji: 'star',
+            is_expanded: true,
+            position: 0,
+            channels: ['C123', 'C456'],
+          },
+          {
+            id: 'S456',
+            name: 'Work',
+            emoji: null,
+            is_expanded: false,
+            position: 1,
+            channels: ['C789'],
+          },
+        ],
+      })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      const result = await client.getChannelSections()
+      expect(result.channel_sections).toHaveLength(2)
+      expect(result.channel_sections[0].name).toBe('Favorites')
+      expect(result.channel_sections[0].channels).toEqual(['C123', 'C456'])
+      expect(mockWebClient.apiCall).toHaveBeenCalledWith('users.channelSections.list', {})
+    })
+
+    test('throws SlackError on API failure', async () => {
+      mockWebClient.apiCall.mockResolvedValue({ ok: false, error: 'invalid_auth' })
+
+      const client = new SlackClient('xoxc-token', 'xoxd-cookie')
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      await expect(client.getChannelSections()).rejects.toThrow(SlackError)
     })
   })
 
