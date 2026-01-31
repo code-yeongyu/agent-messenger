@@ -121,7 +121,7 @@ export const channelCommand = new Command('channel')
       .option('--limit <n>', 'Number of messages to fetch', '50')
       .option('--pretty', 'Pretty print JSON output')
       .action((teamId, channelId, options) => {
-        historyAction(teamId, channelId, {
+        return historyAction(teamId, channelId, {
           limit: parseInt(options.limit, 10),
           pretty: options.pretty,
         })

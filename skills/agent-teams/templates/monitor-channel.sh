@@ -113,7 +113,7 @@ check_messages() {
   MESSAGES=$(agent-teams message list "$CHANNEL_ID" --limit 1 2>&1)
   
   # Check for token expiry error
-  if echo "$MESSAGES" | grep -qi "expired\|401\|unauthorized" 2>/dev/null; then
+  if echo "$MESSAGES" | grep -Eqi "expired|401|unauthorized" 2>/dev/null; then
     echo -e "${YELLOW}Token expired during operation, refreshing...${NC}"
     agent-teams auth extract
     # Retry

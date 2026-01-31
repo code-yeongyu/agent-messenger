@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { TeamsConfig } from './types'
@@ -18,14 +18,17 @@ export class TeamsCredentialManager {
       return null
     }
 
-    const content = await readFile(this.credentialsPath, 'utf-8')
-    return JSON.parse(content) as TeamsConfig
+    try {
+      const content = await readFile(this.credentialsPath, 'utf-8')
+      return JSON.parse(content) as TeamsConfig
+    } catch {
+      return null
+    }
   }
 
   async saveConfig(config: TeamsConfig): Promise<void> {
     await mkdir(this.configDir, { recursive: true })
-    await writeFile(this.credentialsPath, JSON.stringify(config, null, 2))
-    await chmod(this.credentialsPath, 0o600)
+    await writeFile(this.credentialsPath, JSON.stringify(config, null, 2), { mode: 0o600 })
   }
 
   async getToken(): Promise<string | null> {

@@ -87,7 +87,7 @@ echo -e "Token age: ${TOKEN_AGE} minutes" >&2
 SNAPSHOT=$(agent-teams snapshot 2>&1)
 
 # Handle token expiry during snapshot
-if echo "$SNAPSHOT" | grep -qi "expired\|401\|unauthorized" 2>/dev/null; then
+if echo "$SNAPSHOT" | grep -Eqi "expired|401|unauthorized" 2>/dev/null; then
   echo -e "${YELLOW}Token expired during snapshot, refreshing...${NC}" >&2
   agent-teams auth extract >&2
   SNAPSHOT=$(agent-teams snapshot 2>&1)
@@ -203,7 +203,7 @@ echo -e "${GREEN}Full snapshot saved to: $SNAPSHOT_FILE${NC}"
 echo ""
 
 # Warn if token is getting old
-if [ "$TOKEN_AGE" != "unknown" ] && [ "$TOKEN_AGE" -gt 45 ]; then
+if [ "$TOKEN_AGE" != "unknown" ] && [ "${TOKEN_AGE%.*}" -gt 45 ] 2>/dev/null; then
   echo -e "${YELLOW}WARNING: Token is ${TOKEN_AGE} minutes old. Consider refreshing soon!${NC}"
   echo -e "${YELLOW}Run: agent-teams auth extract${NC}"
   echo ""

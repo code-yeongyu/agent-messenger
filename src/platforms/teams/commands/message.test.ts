@@ -8,6 +8,7 @@ let clientGetMessagesSpy: ReturnType<typeof spyOn>
 let clientGetMessageSpy: ReturnType<typeof spyOn>
 let clientDeleteMessageSpy: ReturnType<typeof spyOn>
 let credManagerLoadSpy: ReturnType<typeof spyOn>
+const originalConsoleLog = console.log
 
 beforeEach(() => {
   clientSendMessageSpy = spyOn(TeamsClient.prototype, 'sendMessage').mockResolvedValue({
@@ -60,6 +61,7 @@ afterEach(() => {
   clientGetMessageSpy?.mockRestore()
   clientDeleteMessageSpy?.mockRestore()
   credManagerLoadSpy?.mockRestore()
+  console.log = originalConsoleLog
 })
 
 test('send: returns message with id', async () => {

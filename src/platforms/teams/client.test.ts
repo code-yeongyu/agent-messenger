@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { unlinkSync } from 'node:fs'
 import { TeamsClient } from './client'
 import { TeamsError } from './types'
+
+const TEMP_FILES_TO_CLEANUP = ['/tmp/test-teams-upload.txt']
 
 describe('TeamsClient', () => {
   const originalFetch = globalThis.fetch
@@ -28,6 +31,13 @@ describe('TeamsClient', () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch
+    for (const file of TEMP_FILES_TO_CLEANUP) {
+      try {
+        unlinkSync(file)
+      } catch {
+        // File may not exist, ignore
+      }
+    }
   })
 
   const mockResponse = (body: unknown, status = 200, headers: Record<string, string> = {}) => {

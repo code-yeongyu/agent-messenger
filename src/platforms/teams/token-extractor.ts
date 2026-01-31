@@ -369,8 +369,11 @@ export class TeamsTokenExtractor {
 
   private execSecurityCommand(service: string, account: string): string | null {
     try {
+      // Escape double quotes in service/account to prevent command injection
+      const safeService = service.replace(/"/g, '\\"')
+      const safeAccount = account.replace(/"/g, '\\"')
       const result = execSync(
-        `security find-generic-password -s "${service}" -a "${account}" -w 2>/dev/null`,
+        `security find-generic-password -s "${safeService}" -a "${safeAccount}" -w 2>/dev/null`,
         { encoding: 'utf8' }
       )
       return result.trim()

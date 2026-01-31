@@ -161,7 +161,7 @@ export const messageCommand = new Command('message')
       .option('--limit <n>', 'Number of messages to retrieve', '50')
       .option('--pretty', 'Pretty print JSON output')
       .action((teamId: string, channelId: string, options: any) => {
-        listAction(teamId, channelId, {
+        return listAction(teamId, channelId, {
           limit: parseInt(options.limit, 10),
           pretty: options.pretty,
         })

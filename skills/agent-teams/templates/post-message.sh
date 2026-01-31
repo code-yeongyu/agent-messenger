@@ -25,7 +25,19 @@ CHANNEL_ID=""
 CHANNEL_NAME=""
 MESSAGE=""
 
-if [ $# -lt 2 ]; then
+if [ "$1" = "--channel-name" ]; then
+  if [ $# -lt 3 ]; then
+    echo "Usage: $0 --channel-name <name> <message>"
+    echo ""
+    echo "Example:"
+    echo "  $0 --channel-name General 'Build completed'"
+    echo ""
+    echo "NOTE: Teams tokens expire in 60-90 minutes!"
+    exit 1
+  fi
+  CHANNEL_NAME="$2"
+  MESSAGE="$3"
+elif [ $# -lt 2 ]; then
   echo "Usage: $0 <channel-id> <message>"
   echo "       $0 --channel-name <name> <message>"
   echo ""
@@ -35,11 +47,6 @@ if [ $# -lt 2 ]; then
   echo ""
   echo "NOTE: Teams tokens expire in 60-90 minutes!"
   exit 1
-fi
-
-if [ "$1" = "--channel-name" ]; then
-  CHANNEL_NAME="$2"
-  MESSAGE="$3"
 else
   CHANNEL_ID="$1"
   MESSAGE="$2"
@@ -72,6 +79,8 @@ send_message() {
   local message=$2
   local max_attempts=3
   local attempt=1
+  local token_refresh_attempts=0
+  local max_token_refresh=2
   
   while [ $attempt -le $max_attempts ]; do
     echo -e "${YELLOW}Attempt $attempt/$max_attempts...${NC}"
@@ -99,11 +108,17 @@ send_message() {
       ERROR_MSG=$(echo "$RESULT" | jq -r '.error // "Unknown error"')
       echo -e "${RED}Failed: $ERROR_MSG${NC}"
       
-      # Handle token expiry - refresh and retry (don't count as attempt)
-      if echo "$ERROR_MSG" | grep -qi "expired\|401\|unauthorized"; then
-        echo -e "${YELLOW}Token expired, refreshing...${NC}"
-        agent-teams auth extract
-        continue  # Retry without incrementing attempt
+      # Handle token expiry - refresh and retry (with a limit on refresh attempts)
+      if echo "$ERROR_MSG" | grep -Eqi "expired|401|unauthorized"; then
+        token_refresh_attempts=$((token_refresh_attempts + 1))
+        if [ $token_refresh_attempts -le $max_token_refresh ]; then
+          echo -e "${YELLOW}Token expired, refreshing (attempt $token_refresh_attempts/$max_token_refresh)...${NC}"
+          agent-teams auth extract
+          continue
+        else
+          echo -e "${RED}Token refresh failed after $max_token_refresh attempts${NC}"
+          return 1
+        fi
       fi
       
       # Don't retry on certain errors

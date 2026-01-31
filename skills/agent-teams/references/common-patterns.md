@@ -259,7 +259,7 @@ USERNAME="john"
 
 # Get team members
 USERS=$(agent-teams user list)
-USER=$(echo "$USERS" | jq -r --arg name "$USERNAME" '.[] | select(.displayName | ascii_downcase | contains($name | ascii_downcase))' | head -1)
+USER=$(echo "$USERS" | jq -r --arg name "$USERNAME" 'first(.[] | select(.displayName | ascii_downcase | contains($name | ascii_downcase)))')
 USER_ID=$(echo "$USER" | jq -r '.id')
 USER_NAME=$(echo "$USER" | jq -r '.displayName')
 

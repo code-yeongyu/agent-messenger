@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import { basename } from 'node:path'
 import type { TeamsChannel, TeamsFile, TeamsMessage, TeamsTeam, TeamsUser } from './types'
 import { TeamsError } from './types'
 
@@ -333,7 +334,7 @@ export class TeamsClient {
 
   async uploadFile(teamId: string, channelId: string, filePath: string): Promise<TeamsFile> {
     const fileBuffer = await readFile(filePath)
-    const filename = filePath.split('/').pop() || 'file'
+    const filename = basename(filePath) || 'file'
 
     const formData = new FormData()
     formData.append('file', new Blob([fileBuffer]), filename)

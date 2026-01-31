@@ -6,6 +6,7 @@ import { infoAction, listAction, uploadAction } from './file'
 let clientUploadFileSpy: ReturnType<typeof spyOn>
 let clientListFilesSpy: ReturnType<typeof spyOn>
 let credManagerLoadConfigSpy: ReturnType<typeof spyOn>
+const originalConsoleLog = console.log
 
 beforeEach(() => {
   clientUploadFileSpy = spyOn(TeamsClient.prototype, 'uploadFile').mockResolvedValue({
@@ -47,6 +48,7 @@ afterEach(() => {
   clientUploadFileSpy?.mockRestore()
   clientListFilesSpy?.mockRestore()
   credManagerLoadConfigSpy?.mockRestore()
+  console.log = originalConsoleLog
 })
 
 test('upload: sends multipart request and returns file info', async () => {

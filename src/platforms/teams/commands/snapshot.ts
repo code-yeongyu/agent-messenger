@@ -103,6 +103,7 @@ export const snapshotCommand = new Command()
   .option('--users-only', 'Include only members (exclude channels and messages)')
   .option('--limit <n>', 'Number of recent messages per channel (default: 20)', '20')
   .option('--team-id <id>', 'Team ID (defaults to current team)')
+  .option('--pretty', 'Pretty print JSON output')
   .action(async (options) => {
     await snapshotAction({
       channelsOnly: options.channelsOnly,

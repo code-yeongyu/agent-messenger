@@ -54,7 +54,7 @@ export async function switchAction(teamId: string, options: { pretty?: boolean }
     const credManager = new TeamsCredentialManager()
     const config = await credManager.loadConfig()
 
-    if (!config?.teams[teamId]) {
+    if (!config?.teams?.[teamId]) {
       console.log(formatOutput({ error: `Team not found: ${teamId}` }, options.pretty))
       process.exit(1)
     }
