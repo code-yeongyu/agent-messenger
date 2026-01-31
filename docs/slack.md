@@ -153,6 +153,54 @@ agent-slack snapshot --users-only
 agent-slack snapshot --limit 10
 ```
 
+### Unread Commands
+
+```bash
+# Get unread counts
+agent-slack unread counts
+
+# List unread threads
+agent-slack unread threads
+agent-slack unread threads --limit 50
+
+# Mark channel as read
+agent-slack unread mark <channel> <ts>
+```
+
+### Activity Commands
+
+```bash
+# List activity feed (mentions, reactions, thread replies)
+agent-slack activity list
+agent-slack activity list --unread
+agent-slack activity list --limit 50
+agent-slack activity list --types thread_reply,at_user
+```
+
+### Saved Commands
+
+```bash
+# List saved items ("Later" feature)
+agent-slack saved list
+agent-slack saved list --limit 50
+```
+
+### Drafts Commands
+
+```bash
+# List message drafts
+agent-slack drafts list
+agent-slack drafts list --limit 20
+agent-slack drafts list --cursor <cursor>
+```
+
+### Sections Commands
+
+```bash
+# List channel sections (sidebar folders)
+agent-slack sections list
+```
+
 ## AI Agent Integration
 
 See `skills/agent-messenger/` directory for:

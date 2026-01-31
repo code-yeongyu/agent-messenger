@@ -125,6 +125,54 @@ agent-discord user info <user-id>
 agent-discord user me
 ```
 
+### DM Commands
+
+```bash
+# List DM channels
+agent-discord dm list
+```
+
+### Mention Commands
+
+```bash
+# List mentions
+agent-discord mention list
+agent-discord mention list --limit 50
+agent-discord mention list --guild <guild-id>
+```
+
+### Friend Commands
+
+```bash
+# List friends/relationships
+agent-discord friend list
+```
+
+### Note Commands
+
+```bash
+# Get note for a user
+agent-discord note get <user-id>
+
+# Set note for a user
+agent-discord note set <user-id> <note>
+```
+
+### Member Commands
+
+```bash
+# Search members in a guild
+agent-discord member search <guild-id> <query>
+agent-discord member search 1234567890123456789 "john" --limit 20
+```
+
+### Profile Commands
+
+```bash
+# Get user profile (bio, connected accounts, etc.)
+agent-discord profile get <user-id>
+```
+
 ### Reaction Commands
 
 ```bash
