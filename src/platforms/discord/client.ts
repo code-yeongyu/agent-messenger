@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import { getDiscordHeaders, humanDelay } from './super-properties'
 import type {
   DiscordChannel,
   DiscordDMChannel,
@@ -107,9 +108,7 @@ export class DiscordClient {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       await this.waitForRateLimit(bucketKey)
 
-      const headers: Record<string, string> = {
-        Authorization: this.token,
-      }
+      const headers = getDiscordHeaders(this.token)
 
       const options: RequestInit = {
         method,
@@ -117,7 +116,6 @@ export class DiscordClient {
       }
 
       if (body !== undefined) {
-        headers['Content-Type'] = 'application/json'
         options.body = JSON.stringify(body)
       }
 
@@ -162,11 +160,12 @@ export class DiscordClient {
 
     await this.waitForRateLimit(bucketKey)
 
+    const headers = getDiscordHeaders(this.token)
+    delete headers['Content-Type']
+
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        Authorization: this.token,
-      },
+      headers,
       body: formData,
     })
 
