@@ -18,6 +18,7 @@ export interface DiscordChannel {
   type: number
   topic?: string
   position?: number
+  parent_id?: string
 }
 
 export interface DiscordMessage {
@@ -31,6 +32,51 @@ export interface DiscordMessage {
   timestamp: string
   edited_timestamp?: string
   thread_id?: string
+  embeds?: DiscordEmbed[]
+}
+
+export interface DiscordEmbedField {
+  name: string
+  value: string
+  inline?: boolean
+}
+
+export interface DiscordEmbedFooter {
+  text: string
+  icon_url?: string
+  proxy_icon_url?: string
+}
+
+export interface DiscordEmbedAuthor {
+  name: string
+  url?: string
+  icon_url?: string
+  proxy_icon_url?: string
+}
+
+export interface DiscordEmbedImage {
+  url?: string
+  proxy_url?: string
+  height?: number
+  width?: number
+}
+
+export interface DiscordEmbed {
+  title?: string
+  description?: string
+  url?: string
+  timestamp?: string
+  color?: number
+  footer?: DiscordEmbedFooter
+  image?: DiscordEmbedImage
+  thumbnail?: DiscordEmbedImage
+  author?: DiscordEmbedAuthor
+  fields?: DiscordEmbedField[]
+}
+
+export interface DiscordMessageSearchResponse {
+  total_results: number
+  messages: DiscordMessage[][]
 }
 
 export interface DiscordUser {
@@ -90,6 +136,7 @@ export const DiscordChannelSchema = z.object({
   type: z.number(),
   topic: z.string().optional(),
   position: z.number().optional(),
+  parent_id: z.string().optional(),
 })
 
 export const DiscordMessageSchema = z.object({
@@ -103,6 +150,57 @@ export const DiscordMessageSchema = z.object({
   timestamp: z.string(),
   edited_timestamp: z.string().optional(),
   thread_id: z.string().optional(),
+  embeds: z
+    .array(
+      z.object({
+        title: z.string().optional(),
+        description: z.string().optional(),
+        url: z.string().optional(),
+        timestamp: z.string().optional(),
+        color: z.number().optional(),
+        footer: z
+          .object({
+            text: z.string(),
+            icon_url: z.string().optional(),
+            proxy_icon_url: z.string().optional(),
+          })
+          .optional(),
+        image: z
+          .object({
+            url: z.string().optional(),
+            proxy_url: z.string().optional(),
+            height: z.number().optional(),
+            width: z.number().optional(),
+          })
+          .optional(),
+        thumbnail: z
+          .object({
+            url: z.string().optional(),
+            proxy_url: z.string().optional(),
+            height: z.number().optional(),
+            width: z.number().optional(),
+          })
+          .optional(),
+        author: z
+          .object({
+            name: z.string(),
+            url: z.string().optional(),
+            icon_url: z.string().optional(),
+            proxy_icon_url: z.string().optional(),
+          })
+          .optional(),
+        fields: z
+          .array(
+            z.object({
+              name: z.string(),
+              value: z.string(),
+              inline: z.boolean().optional(),
+            })
+          )
+          .optional(),
+      })
+    )
+    .optional(),
 })
 
 export const DiscordUserSchema = z.object({

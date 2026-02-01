@@ -16,6 +16,7 @@ import {
   profileCommand,
   reactionCommand,
   snapshotCommand,
+  threadCommand,
   userCommand,
 } from './commands'
 
@@ -41,6 +42,7 @@ program.addCommand(noteCommand)
 program.addCommand(profileCommand)
 program.addCommand(reactionCommand)
 program.addCommand(snapshotCommand)
+program.addCommand(threadCommand)
 program.addCommand(userCommand)
 
 program.parse(process.argv)

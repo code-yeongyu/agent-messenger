@@ -8,6 +8,7 @@ import type {
   DiscordGuildMember,
   DiscordMention,
   DiscordMessage,
+  DiscordMessageSearchResponse,
   DiscordReadState,
   DiscordRelationship,
   DiscordUser,
@@ -220,8 +221,41 @@ export class DiscordClient {
     return this.request<DiscordMessage>('POST', `/channels/${channelId}/messages`, body)
   }
 
+  async editMessage(
+    channelId: string,
+    messageId: string,
+    content: string
+  ): Promise<DiscordMessage> {
+    return this.request<DiscordMessage>('PATCH', `/channels/${channelId}/messages/${messageId}`, {
+      content,
+    })
+  }
+
   async getMessages(channelId: string, limit: number = 50): Promise<DiscordMessage[]> {
     return this.request<DiscordMessage[]>('GET', `/channels/${channelId}/messages?limit=${limit}`)
+  }
+
+  async searchMessages(
+    guildId: string,
+    options: {
+      content?: string
+      authorId?: string
+      channelId?: string
+      limit?: number
+      offset?: number
+    }
+  ): Promise<DiscordMessageSearchResponse> {
+    const params = new URLSearchParams()
+    if (options.content) params.set('content', options.content)
+    if (options.authorId) params.set('author_id', options.authorId)
+    if (options.channelId) params.set('channel_id', options.channelId)
+    if (options.limit !== undefined) params.set('limit', String(options.limit))
+    if (options.offset !== undefined) params.set('offset', String(options.offset))
+    const query = params.toString()
+    return this.request<DiscordMessageSearchResponse>(
+      'GET',
+      `/guilds/${guildId}/messages/search${query ? '?' + query : ''}`
+    )
   }
 
   async getMessage(channelId: string, messageId: string): Promise<DiscordMessage> {
@@ -230,6 +264,10 @@ export class DiscordClient {
 
   async deleteMessage(channelId: string, messageId: string): Promise<void> {
     return this.request<void>('DELETE', `/channels/${channelId}/messages/${messageId}`)
+  }
+
+  async triggerTyping(channelId: string): Promise<void> {
+    return this.request<void>('POST', `/channels/${channelId}/typing`)
   }
 
   async addReaction(channelId: string, messageId: string, emoji: string): Promise<void> {
@@ -303,6 +341,12 @@ export class DiscordClient {
     return this.request<DiscordDMChannel[]>('GET', '/users/@me/channels')
   }
 
+  async createDM(userId: string): Promise<DiscordDMChannel> {
+    return this.request<DiscordDMChannel>('POST', '/users/@me/channels', {
+      recipient_id: userId,
+    })
+  }
+
   async getMentions(options?: {
     limit?: number
     guildId?: string
@@ -363,5 +407,27 @@ export class DiscordClient {
 
   async getUserProfile(userId: string): Promise<DiscordUserProfile> {
     return this.request<DiscordUserProfile>('GET', `/users/${userId}/profile`)
+  }
+
+  async createThread(
+    channelId: string,
+    name: string,
+    options?: {
+      autoArchiveDuration?: number
+      rateLimitPerUser?: number
+    }
+  ): Promise<DiscordChannel> {
+    const body: Record<string, unknown> = { name }
+    if (options?.autoArchiveDuration !== undefined) {
+      body.auto_archive_duration = options.autoArchiveDuration
+    }
+    if (options?.rateLimitPerUser !== undefined) {
+      body.rate_limit_per_user = options.rateLimitPerUser
+    }
+    return this.request<DiscordChannel>('POST', `/channels/${channelId}/threads`, body)
+  }
+
+  async archiveThread(threadId: string, archived: boolean): Promise<DiscordChannel> {
+    return this.request<DiscordChannel>('PATCH', `/channels/${threadId}`, { archived })
   }
 }

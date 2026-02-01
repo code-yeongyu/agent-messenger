@@ -150,6 +150,7 @@ describe('DiscordClient', () => {
 
   describe('sendMessage', () => {
     test('sends message to channel', async () => {
+      // given: a message to send
       mockResponse({
         id: 'msg1',
         channel_id: 'ch1',
@@ -158,9 +159,11 @@ describe('DiscordClient', () => {
         timestamp: '2024-01-01T00:00:00.000Z',
       })
 
+      // when: sending the message
       const client = new DiscordClient('test-token')
       const message = await client.sendMessage('ch1', 'Hello world')
 
+      // then: message is sent via POST
       expect(message.content).toBe('Hello world')
       expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/channels/ch1/messages')
       expect(fetchCalls[0].options?.method).toBe('POST')
@@ -168,8 +171,33 @@ describe('DiscordClient', () => {
     })
   })
 
+  describe('editMessage', () => {
+    test('edits message content', async () => {
+      // given: a message edit payload
+      mockResponse({
+        id: 'msg1',
+        channel_id: 'ch1',
+        author: { id: '123', username: 'user1' },
+        content: 'Updated',
+        timestamp: '2024-01-01T00:00:00.000Z',
+        edited_timestamp: '2024-01-01T00:01:00.000Z',
+      })
+
+      // when: editing the message
+      const client = new DiscordClient('test-token')
+      const message = await client.editMessage('ch1', 'msg1', 'Updated')
+
+      // then: message is patched
+      expect(message.content).toBe('Updated')
+      expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/channels/ch1/messages/msg1')
+      expect(fetchCalls[0].options?.method).toBe('PATCH')
+      expect(fetchCalls[0].options?.body).toBe(JSON.stringify({ content: 'Updated' }))
+    })
+  })
+
   describe('getMessages', () => {
     test('returns messages from channel', async () => {
+      // given: a list of messages
       mockResponse([
         {
           id: 'msg1',
@@ -180,21 +208,65 @@ describe('DiscordClient', () => {
         },
       ])
 
+      // when: fetching messages
       const client = new DiscordClient('test-token')
       const messages = await client.getMessages('ch1', 50)
 
+      // then: messages are returned
       expect(messages).toHaveLength(1)
       expect(messages[0].content).toBe('Message 1')
       expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/channels/ch1/messages?limit=50')
     })
 
     test('uses default limit of 50', async () => {
+      // given: empty response
       mockResponse([])
 
+      // when: fetching messages with default limit
       const client = new DiscordClient('test-token')
       await client.getMessages('ch1')
 
+      // then: default limit is used
       expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/channels/ch1/messages?limit=50')
+    })
+  })
+
+  describe('searchMessages', () => {
+    test('searches messages with filters', async () => {
+      // given: a search response
+      mockResponse({
+        total_results: 1,
+        messages: [
+          [
+            {
+              id: 'msg1',
+              channel_id: 'ch1',
+              author: { id: '123', username: 'user1' },
+              content: 'Match',
+              timestamp: '2024-01-01T00:00:00.000Z',
+            },
+          ],
+        ],
+      })
+
+      // when: searching messages
+      const client = new DiscordClient('test-token')
+      const result = await client.searchMessages('guild1', {
+        content: 'match',
+        authorId: '123',
+        channelId: 'ch1',
+        limit: 5,
+        offset: 10,
+      })
+
+      // then: results and query params are returned
+      expect(result.total_results).toBe(1)
+      expect(fetchCalls[0].url).toContain('/guilds/guild1/messages/search')
+      expect(fetchCalls[0].url).toContain('content=match')
+      expect(fetchCalls[0].url).toContain('author_id=123')
+      expect(fetchCalls[0].url).toContain('channel_id=ch1')
+      expect(fetchCalls[0].url).toContain('limit=5')
+      expect(fetchCalls[0].url).toContain('offset=10')
     })
   })
 
@@ -218,13 +290,31 @@ describe('DiscordClient', () => {
 
   describe('deleteMessage', () => {
     test('deletes message', async () => {
+      // given: a delete response
       mockResponse(null, 204)
 
+      // when: deleting the message
       const client = new DiscordClient('test-token')
       await client.deleteMessage('ch1', 'msg1')
 
+      // then: delete request is sent
       expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/channels/ch1/messages/msg1')
       expect(fetchCalls[0].options?.method).toBe('DELETE')
+    })
+  })
+
+  describe('triggerTyping', () => {
+    test('triggers typing indicator', async () => {
+      // given: a typing endpoint response
+      mockResponse(null, 204)
+
+      // when: triggering typing
+      const client = new DiscordClient('test-token')
+      await client.triggerTyping('ch1')
+
+      // then: POST request is sent
+      expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/channels/ch1/typing')
+      expect(fetchCalls[0].options?.method).toBe('POST')
     })
   })
 
@@ -456,6 +546,7 @@ describe('DiscordClient', () => {
 
   describe('listDMChannels', () => {
     test('returns list of DM channels', async () => {
+      // given: a list of DM channels
       mockResponse([
         {
           id: '123',
@@ -466,9 +557,11 @@ describe('DiscordClient', () => {
         { id: '789', type: 3, name: 'Group DM', recipients: [{ id: 'U2', username: 'user2' }] },
       ])
 
+      // when: listing DM channels
       const client = new DiscordClient('test-token')
       const channels = await client.listDMChannels()
 
+      // then: DM channels are returned
       expect(channels).toHaveLength(2)
       expect(channels[0].type).toBe(1)
       expect(channels[1].type).toBe(3)
@@ -476,10 +569,33 @@ describe('DiscordClient', () => {
     })
 
     test('throws DiscordError on API error', async () => {
+      // given: an unauthorized response
       mockResponse({ message: 'Unauthorized', code: 401 }, 401)
 
+      // when: listing DM channels
       const client = new DiscordClient('test-token')
       await expect(client.listDMChannels()).rejects.toThrow(DiscordError)
+    })
+  })
+
+  describe('createDM', () => {
+    test('creates a DM channel', async () => {
+      // given: a DM channel response
+      mockResponse({
+        id: 'dm1',
+        type: 1,
+        recipients: [{ id: 'U1', username: 'user1', global_name: 'User One' }],
+      })
+
+      // when: creating a DM channel
+      const client = new DiscordClient('test-token')
+      const channel = await client.createDM('U1')
+
+      // then: DM channel is created
+      expect(channel.id).toBe('dm1')
+      expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/users/@me/channels')
+      expect(fetchCalls[0].options?.method).toBe('POST')
+      expect(fetchCalls[0].options?.body).toBe(JSON.stringify({ recipient_id: 'U1' }))
     })
   })
 
@@ -640,6 +756,7 @@ describe('DiscordClient', () => {
 
   describe('searchMembers', () => {
     test('returns matching guild members', async () => {
+      // given: guild members search response
       mockResponse([
         {
           user: { id: 'U1', username: 'alice', global_name: 'Alice' },
@@ -661,9 +778,11 @@ describe('DiscordClient', () => {
         },
       ])
 
+      // when: searching members
       const client = new DiscordClient('test-token')
       const members = await client.searchMembers('G123', 'test', 10)
 
+      // then: members are returned
       expect(members).toHaveLength(2)
       expect(members[0].user.username).toBe('alice')
       expect(members[0].nick).toBe('alice_nick')
@@ -673,21 +792,81 @@ describe('DiscordClient', () => {
     })
 
     test('uses default limit when not provided', async () => {
+      // given: empty search response
       mockResponse([])
 
+      // when: searching members without limit
       const client = new DiscordClient('test-token')
       await client.searchMembers('G123', 'query')
 
+      // then: default limit is used
       expect(fetchCalls[0].url).toBe(
         'https://discord.com/api/v10/guilds/G123/members/search?query=query&limit=10'
       )
     })
 
     test('throws DiscordError on API error', async () => {
+      // given: API error response
       mockResponse({ message: 'Missing Permissions', code: 50013 }, 403)
 
+      // when: searching members
       const client = new DiscordClient('test-token')
       await expect(client.searchMembers('G123', 'test')).rejects.toThrow(DiscordError)
+    })
+  })
+
+  describe('createThread', () => {
+    test('creates a thread in channel', async () => {
+      // given: a thread response
+      mockResponse({
+        id: 'thread1',
+        guild_id: 'G123',
+        name: 'Thread One',
+        type: 11,
+        parent_id: 'ch1',
+      })
+
+      // when: creating a thread
+      const client = new DiscordClient('test-token')
+      const thread = await client.createThread('ch1', 'Thread One', {
+        autoArchiveDuration: 60,
+        rateLimitPerUser: 10,
+      })
+
+      // then: thread is created
+      expect(thread.id).toBe('thread1')
+      expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/channels/ch1/threads')
+      expect(fetchCalls[0].options?.method).toBe('POST')
+      expect(fetchCalls[0].options?.body).toBe(
+        JSON.stringify({
+          name: 'Thread One',
+          auto_archive_duration: 60,
+          rate_limit_per_user: 10,
+        })
+      )
+    })
+  })
+
+  describe('archiveThread', () => {
+    test('archives a thread', async () => {
+      // given: an archive response
+      mockResponse({
+        id: 'thread1',
+        guild_id: 'G123',
+        name: 'Thread One',
+        type: 11,
+        parent_id: 'ch1',
+      })
+
+      // when: archiving a thread
+      const client = new DiscordClient('test-token')
+      const thread = await client.archiveThread('thread1', true)
+
+      // then: archive request is sent
+      expect(thread.id).toBe('thread1')
+      expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/channels/thread1')
+      expect(fetchCalls[0].options?.method).toBe('PATCH')
+      expect(fetchCalls[0].options?.body).toBe(JSON.stringify({ archived: true }))
     })
   })
 
