@@ -267,6 +267,87 @@ async function ackAction(
   }
 }
 
+export async function pinAction(
+  channelId: string,
+  messageId: string,
+  options: { pretty?: boolean }
+): Promise<void> {
+  try {
+    const credManager = new DiscordCredentialManager()
+    const config = await credManager.load()
+
+    if (!config.token) {
+      console.log(
+        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
+      )
+      process.exit(1)
+    }
+
+    const client = new DiscordClient(config.token)
+    await client.pinMessage(channelId, messageId)
+
+    console.log(formatOutput({ pinned: messageId }, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
+export async function unpinAction(
+  channelId: string,
+  messageId: string,
+  options: { pretty?: boolean }
+): Promise<void> {
+  try {
+    const credManager = new DiscordCredentialManager()
+    const config = await credManager.load()
+
+    if (!config.token) {
+      console.log(
+        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
+      )
+      process.exit(1)
+    }
+
+    const client = new DiscordClient(config.token)
+    await client.unpinMessage(channelId, messageId)
+
+    console.log(formatOutput({ unpinned: messageId }, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
+export async function pinsListAction(
+  channelId: string,
+  options: { pretty?: boolean }
+): Promise<void> {
+  try {
+    const credManager = new DiscordCredentialManager()
+    const config = await credManager.load()
+
+    if (!config.token) {
+      console.log(
+        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
+      )
+      process.exit(1)
+    }
+
+    const client = new DiscordClient(config.token)
+    const messages = await client.getPinnedMessages(channelId)
+
+    const output = messages.map((msg: DiscordMessage) => ({
+      id: msg.id,
+      content: msg.content,
+      author: msg.author.username,
+      timestamp: msg.timestamp,
+    }))
+
+    console.log(formatOutput(output, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
 export const messageCommand = new Command('message')
   .description('Message commands')
   .addCommand(
@@ -345,4 +426,27 @@ export const messageCommand = new Command('message')
           pretty: options.pretty,
         })
       })
+  )
+  .addCommand(
+    new Command('pin')
+      .description('Pin a message to channel')
+      .argument('<channel-id>', 'Channel ID')
+      .argument('<message-id>', 'Message ID')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(pinAction)
+  )
+  .addCommand(
+    new Command('unpin')
+      .description('Unpin a message from channel')
+      .argument('<channel-id>', 'Channel ID')
+      .argument('<message-id>', 'Message ID')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(unpinAction)
+  )
+  .addCommand(
+    new Command('pins')
+      .description('List pinned messages in channel')
+      .argument('<channel-id>', 'Channel ID')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(pinsListAction)
   )

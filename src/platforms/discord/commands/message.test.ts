@@ -6,8 +6,11 @@ import {
   editAction,
   getAction,
   listAction,
+  pinAction,
+  pinsListAction,
   searchAction,
   sendAction,
+  unpinAction,
 } from './message'
 
 let clientSendMessageSpy: ReturnType<typeof spyOn>
@@ -17,6 +20,9 @@ let clientDeleteMessageSpy: ReturnType<typeof spyOn>
 let clientTriggerTypingSpy: ReturnType<typeof spyOn>
 let clientEditMessageSpy: ReturnType<typeof spyOn>
 let clientSearchMessagesSpy: ReturnType<typeof spyOn>
+let clientPinMessageSpy: ReturnType<typeof spyOn>
+let clientUnpinMessageSpy: ReturnType<typeof spyOn>
+let clientGetPinnedMessagesSpy: ReturnType<typeof spyOn>
 let credManagerLoadSpy: ReturnType<typeof spyOn>
 
 beforeEach(() => {
@@ -86,6 +92,25 @@ beforeEach(() => {
     ],
   })
 
+  clientPinMessageSpy = spyOn(DiscordClient.prototype, 'pinMessage').mockResolvedValue(undefined)
+
+  clientUnpinMessageSpy = spyOn(DiscordClient.prototype, 'unpinMessage').mockResolvedValue(
+    undefined
+  )
+
+  clientGetPinnedMessagesSpy = spyOn(
+    DiscordClient.prototype,
+    'getPinnedMessages'
+  ).mockResolvedValue([
+    {
+      id: 'msg_pinned_1',
+      channel_id: 'ch_456',
+      author: { id: 'user_789', username: 'testuser' },
+      content: 'Pinned message',
+      timestamp: '2025-01-29T10:05:00Z',
+    },
+  ])
+
   // Spy on DiscordCredentialManager.prototype methods
   credManagerLoadSpy = spyOn(DiscordCredentialManager.prototype, 'load').mockResolvedValue({
     token: 'test_token',
@@ -102,6 +127,9 @@ afterEach(() => {
   clientTriggerTypingSpy?.mockRestore()
   clientEditMessageSpy?.mockRestore()
   clientSearchMessagesSpy?.mockRestore()
+  clientPinMessageSpy?.mockRestore()
+  clientUnpinMessageSpy?.mockRestore()
+  clientGetPinnedMessagesSpy?.mockRestore()
   credManagerLoadSpy?.mockRestore()
 })
 
@@ -176,4 +204,48 @@ test('search: returns message results', async () => {
   expect(consoleSpy).toHaveBeenCalled()
   const output = consoleSpy.mock.calls[0][0]
   expect(output).toContain('msg_126')
+})
+
+test('pin: returns pinned confirmation', async () => {
+  // given: a pin request
+  const consoleSpy = mock((_msg: string) => {})
+  console.log = consoleSpy
+
+  // when: pinning a message
+  await pinAction('ch_456', 'msg_123', { pretty: false })
+
+  // then: output confirms pinned
+  expect(consoleSpy).toHaveBeenCalled()
+  const output = consoleSpy.mock.calls[0][0]
+  expect(output).toContain('pinned')
+  expect(output).toContain('msg_123')
+})
+
+test('unpin: returns unpinned confirmation', async () => {
+  // given: an unpin request
+  const consoleSpy = mock((_msg: string) => {})
+  console.log = consoleSpy
+
+  // when: unpinning a message
+  await unpinAction('ch_456', 'msg_123', { pretty: false })
+
+  // then: output confirms unpinned
+  expect(consoleSpy).toHaveBeenCalled()
+  const output = consoleSpy.mock.calls[0][0]
+  expect(output).toContain('unpinned')
+  expect(output).toContain('msg_123')
+})
+
+test('pins: returns list of pinned messages', async () => {
+  // given: a pins list request
+  const consoleSpy = mock((_msg: string) => {})
+  console.log = consoleSpy
+
+  // when: listing pinned messages
+  await pinsListAction('ch_456', { pretty: false })
+
+  // then: output includes pinned message id
+  expect(consoleSpy).toHaveBeenCalled()
+  const output = consoleSpy.mock.calls[0][0]
+  expect(output).toContain('msg_pinned_1')
 })

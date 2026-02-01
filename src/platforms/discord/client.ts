@@ -430,4 +430,16 @@ export class DiscordClient {
   async archiveThread(threadId: string, archived: boolean): Promise<DiscordChannel> {
     return this.request<DiscordChannel>('PATCH', `/channels/${threadId}`, { archived })
   }
+
+  async pinMessage(channelId: string, messageId: string): Promise<void> {
+    await this.request<void>('PUT', `/channels/${channelId}/pins/${messageId}`)
+  }
+
+  async unpinMessage(channelId: string, messageId: string): Promise<void> {
+    await this.request<void>('DELETE', `/channels/${channelId}/pins/${messageId}`)
+  }
+
+  async getPinnedMessages(channelId: string): Promise<DiscordMessage[]> {
+    return this.request<DiscordMessage[]>('GET', `/channels/${channelId}/pins`)
+  }
 }

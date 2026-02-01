@@ -1,12 +1,12 @@
 ---
 name: agent-messenger
-description: Use when you need to send messages as yourself (not as a bot) across Slack and Discord. Uses personal tokens extracted from desktop apps—no OAuth, no API keys, no admin approval needed.
-metadata: {"openclaw":{"emoji":"💬","requires":{"bins":["agent-slack"]}}}
+description: Use when you need to send messages as yourself (not as a bot) across Slack, Discord, and Teams. Uses personal tokens extracted from desktop apps—no OAuth, no API keys, no admin approval needed.
+metadata: {"openclaw":{"emoji":"💬","requires":{"bins":["agent-slack","agent-discord","agent-teams"]}}}
 ---
 
 # Agent Messenger
 
-Send messages as **yourself** (not as a bot) via Slack and Discord CLI.
+Send messages as **yourself** (not as a bot) via Slack, Discord, and Teams CLI.
 
 ## Why use this over OpenClaw's built-in channels?
 
@@ -29,6 +29,7 @@ bun install -g agent-messenger
 # Requires desktop apps to be running and logged in
 agent-slack auth extract    # Needs Slack desktop app
 agent-discord auth extract  # Needs Discord desktop app
+agent-teams auth extract    # Needs Teams desktop app
 ```
 
 Credentials are stored in `~/.config/agent-messenger/`.
@@ -40,126 +41,94 @@ Credentials are stored in `~/.config/agent-messenger/`.
 ### Authentication
 
 ```bash
-# Extract credentials from Slack desktop app
-agent-slack auth extract
-
-# Check auth status
-agent-slack auth status
-
-# List workspaces
-agent-slack workspace list
-
-# Switch workspace
-agent-slack workspace switch <workspace-id>
+agent-slack auth extract              # Extract credentials from Slack desktop app
+agent-slack auth status               # Check auth status
+agent-slack auth logout [workspace]   # Logout from workspace
 ```
 
-### Send Messages
+### Workspace Management
 
 ```bash
-# Send to channel
-agent-slack message send <channel> "<text>"
-agent-slack message send general "Hello from CLI!"
-
-# Send threaded reply
-agent-slack message send <channel> "<text>" --thread <ts>
+agent-slack workspace list            # List workspaces
+agent-slack workspace switch <id>     # Switch workspace
+agent-slack workspace current         # Show current workspace
 ```
 
-### Read Messages
+### Messages
 
 ```bash
-# List recent messages
-agent-slack message list <channel>
-agent-slack message list general --limit 20
+agent-slack message send <channel> "<text>"           # Send to channel
+agent-slack message send <channel> "<text>" --thread <ts>  # Send threaded reply
+agent-slack message list <channel> [--limit N]        # List recent messages
+agent-slack message get <channel> <ts>                # Get specific message
+agent-slack message update <channel> <ts> "<text>"    # Update message
+agent-slack message delete <channel> <ts>             # Delete message
+agent-slack message search "<query>" [--limit N]      # Search messages
+agent-slack message replies <channel> <thread_ts>    # Get thread replies
+```
 
-# Search messages
-agent-slack message search "<query>"
-agent-slack message search "project update" --limit 50
+### Channels
 
-# Get thread replies
-agent-slack message replies <channel> <thread_ts>
+```bash
+agent-slack channel list              # List channels
+agent-slack channel info <channel>    # Get channel info
+agent-slack channel history <channel> # Get message history
+```
+
+### Users
+
+```bash
+agent-slack user list                 # List workspace users
+agent-slack user info <user>          # Show user details
+agent-slack user me                   # Show current authenticated user
 ```
 
 ### Reactions
 
 ```bash
-# Add reaction
-agent-slack reaction add <channel> <ts> <emoji>
-agent-slack reaction add general 1234567890.123456 thumbsup
-
-# Remove reaction
-agent-slack reaction remove <channel> <ts> <emoji>
-```
-
-### Channels & Users
-
-```bash
-# List channels
-agent-slack channel list
-
-# Get channel info
-agent-slack channel info <channel>
-
-# List users
-agent-slack user list
-
-# Get user info
-agent-slack user info <user-id>
+agent-slack reaction add <channel> <ts> <emoji>       # Add reaction
+agent-slack reaction remove <channel> <ts> <emoji>    # Remove reaction
+agent-slack reaction list <channel> <ts>              # List reactions
 ```
 
 ### Files
 
 ```bash
-# Upload file
-agent-slack file upload <channel> <path>
-agent-slack file upload general ./report.pdf
+agent-slack file upload <channel> <path>  # Upload file
+agent-slack file list                     # List files
+agent-slack file info <file>              # Show file details
 ```
 
-### Workspace Snapshot
+### Snapshot
 
 ```bash
-# Full snapshot (channels, users, recent messages)
-agent-slack snapshot
-
-# Filtered
-agent-slack snapshot --channels-only
-agent-slack snapshot --users-only
+agent-slack snapshot                  # Full snapshot (channels, users, messages)
+agent-slack snapshot --channels-only  # Channels only
+agent-slack snapshot --users-only     # Users only
+agent-slack snapshot --limit N        # Limit messages per channel
 ```
 
 ### Unread & Activity
 
 ```bash
-# Get unread counts across workspace
-agent-slack unread counts
-
-# Get thread view details
-agent-slack unread thread <channel> <ts>
-
-# Mark channel as read
-agent-slack unread mark <channel> [ts]
-
-# List activity feed (mentions, reactions, thread replies)
-agent-slack activity list
-agent-slack activity list --unread
-agent-slack activity list --types thread_reply,at_user
+agent-slack unread counts             # Get unread counts
+agent-slack unread threads            # Get unread threads with replies
+agent-slack unread mark <channel> <ts> # Mark as read
+agent-slack activity list             # List activity feed
+agent-slack activity list --unread    # Unread activity only
 ```
 
 ### Saved Items & Drafts
 
 ```bash
-# List saved items ("Later" feature)
-agent-slack saved list
-agent-slack saved list --limit 50
-
-# List message drafts
-agent-slack drafts list
-agent-slack drafts list --limit 20
+agent-slack saved list [--limit N]    # List saved items ("Later")
+agent-slack drafts list [--limit N]   # List message drafts
 ```
 
 ### Channel Sections
 
 ```bash
-# List channel sections (sidebar folders)
-agent-slack sections list
+agent-slack sections list             # List channel sections (sidebar folders)
 ```
 
 ---
@@ -169,168 +138,212 @@ agent-slack sections list
 ### Authentication
 
 ```bash
-# Extract credentials from Discord desktop app
-agent-discord auth extract
-
-# Check auth status
-agent-discord auth status
-
-# List guilds (servers)
-agent-discord guild list
-
-# Switch guild
-agent-discord guild switch <guild-id>
+agent-discord auth extract            # Extract credentials from Discord desktop app
+agent-discord auth status             # Check auth status
+agent-discord auth logout             # Logout
 ```
 
-### Send Messages
+### Guild Management
 
 ```bash
-# Send to channel (use channel ID, not name)
-agent-discord message send <channel-id> "<content>"
-agent-discord message send 123456789012345678 "Hello from CLI!"
-
-# Edit your own message
-agent-discord message edit <channel-id> <message-id> "<new-content>"
-
-# Mark message as read
-agent-discord message ack <channel-id> <message-id>
+agent-discord guild list              # List all guilds
+agent-discord guild info <guild-id>   # Get guild info
+agent-discord guild switch <guild-id> # Switch to guild
+agent-discord guild current           # Show current guild
 ```
 
-### Read Messages
+### Messages
 
 ```bash
-# List recent messages (includes embeds)
-agent-discord message list <channel-id>
-agent-discord message list 123456789012345678 --limit 20
+agent-discord message send <channel-id> "<content>"               # Send message
+agent-discord message send <channel-id> "<content>" --reply <msg-id>  # Reply to message
+agent-discord message edit <channel-id> <msg-id> "<new-content>"  # Edit message
+agent-discord message list <channel-id> [--limit N]               # List messages
+agent-discord message get <channel-id> <msg-id>                   # Get specific message
+agent-discord message delete <channel-id> <msg-id> --force        # Delete message
+agent-discord message ack <channel-id> <msg-id>                   # Mark as read
+agent-discord message search "<query>" [--guild <id>] [--limit N] # Search messages
+agent-discord message search "<query>" --author <user-id>         # Search by author
+agent-discord message search "<query>" --channel <channel-id>     # Search in channel
+agent-discord message pin <channel-id> <msg-id>                   # Pin message
+agent-discord message unpin <channel-id> <msg-id>                 # Unpin message
+agent-discord message pins <channel-id>                           # List pinned messages
+```
 
-# Get specific message
-agent-discord message get <channel-id> <message-id>
+### Channels
 
-# Search messages in guild
-agent-discord message search "<query>"
-agent-discord message search "deploy" --guild <guild-id> --limit 10
-agent-discord message search "error" --author <user-id> --channel <channel-id>
+```bash
+agent-discord channel list            # List channels in current guild
+agent-discord channel info <channel-id>   # Get channel info
+agent-discord channel history <channel-id> # Get message history
+```
+
+### Users
+
+```bash
+agent-discord user list               # List guild members
+agent-discord user info <user-id>     # Get user info
+agent-discord user me                 # Show current authenticated user
 ```
 
 ### Reactions
 
 ```bash
-# Add reaction
-agent-discord reaction add <channel-id> <message-id> <emoji>
-
-# Remove reaction
-agent-discord reaction remove <channel-id> <message-id> <emoji>
-```
-
-### Channels & Users
-
-```bash
-# List channels in current guild
-agent-discord channel list
-
-# Get channel info
-agent-discord channel info <channel-id>
-
-# List guild members
-agent-discord user list
-
-# Get user info
-agent-discord user info <user-id>
+agent-discord reaction add <channel-id> <msg-id> <emoji>     # Add reaction
+agent-discord reaction remove <channel-id> <msg-id> <emoji>  # Remove reaction
+agent-discord reaction list <channel-id> <msg-id>            # List reactions
 ```
 
 ### Files
 
 ```bash
-# Upload file
-agent-discord file upload <channel-id> <path>
+agent-discord file upload <channel-id> <path>  # Upload file
+agent-discord file list <channel-id>           # List files
+agent-discord file info <channel-id> <file>    # Show file details
 ```
 
-### Guild Snapshot
+### Snapshot
 
 ```bash
-# Full snapshot
-agent-discord snapshot
-
-# Filtered
+agent-discord snapshot                # Full snapshot
 agent-discord snapshot --channels-only
 agent-discord snapshot --users-only
+agent-discord snapshot --limit N
 ```
 
 ### DM Channels
 
 ```bash
-# List DM channels
-agent-discord dm list
-
-# Create DM channel with user
-agent-discord dm create <user-id>
-
-# Send DM directly to user (creates channel automatically)
-agent-discord dm send <user-id> "<message>"
-agent-discord dm send 123456789012345678 "Hey, quick question..."
+agent-discord dm list                 # List DM channels
+agent-discord dm create <user-id>     # Create DM channel with user
+agent-discord dm send <user-id> "<message>"  # Send DM (creates channel if needed)
 ```
 
 ### Mentions
 
 ```bash
-# List mentions across servers
-agent-discord mention list
-agent-discord mention list --limit 50
+agent-discord mention list            # List recent mentions
+agent-discord mention list --limit N
 agent-discord mention list --guild <guild-id>
 ```
 
 ### Friends & Relationships
 
 ```bash
-# List friends/relationships
-agent-discord friend list
+agent-discord friend list             # List friends/relationships
 ```
 
 ### User Notes
 
 ```bash
-# Get note for a user
-agent-discord note get <user-id>
-
-# Set note for a user
-agent-discord note set <user-id> "<note>"
+agent-discord note get <user-id>      # Get note for user
+agent-discord note set <user-id> "<note>"  # Set note for user
 ```
 
 ### Member Search
 
 ```bash
-# Search members in a guild
-agent-discord member search <guild-id> <query>
-agent-discord member search 123456789012345678 "john" --limit 20
+agent-discord member search <guild-id> <query>  # Search members
+agent-discord member search <guild-id> <query> --limit N
 ```
 
 ### User Profiles
 
 ```bash
-# Get user profile (bio, connected accounts, etc.)
-agent-discord profile get <user-id>
+agent-discord profile get <user-id>   # Get user profile (bio, accounts, etc.)
 ```
 
 ### Threads
 
 ```bash
-# Create a thread in channel
-agent-discord thread create <channel-id> "<thread-name>"
-agent-discord thread create 123456789012345678 "Bug Discussion"
-
-# Archive a thread
-agent-discord thread archive <thread-id>
+agent-discord thread create <channel-id> "<name>"  # Create thread
+agent-discord thread archive <thread-id>           # Archive thread
 ```
 
 ---
 
-## Key Differences: Slack vs Discord
+## Teams Commands (`agent-teams`)
 
-| Concept | Slack | Discord |
-|---------|-------|---------|
-| Server | Workspace | Guild |
-| Channel ID | `C01234567` | `123456789012345678` |
-| Message ID | `1234567890.123456` (timestamp) | `123456789012345678` (snowflake) |
+### Authentication
+
+```bash
+agent-teams auth extract              # Extract credentials from Teams desktop app
+agent-teams auth status               # Check auth status
+agent-teams auth logout               # Logout
+```
+
+> **Note**: Teams tokens expire in 60-90 minutes. Re-run `auth extract` when expired.
+
+### Team Management
+
+```bash
+agent-teams team list                 # List all teams
+agent-teams team info <team-id>       # Get team info
+agent-teams team switch <team-id>     # Switch to team
+agent-teams team current              # Show current team
+agent-teams team remove <team-id>     # Remove team from config
+```
+
+### Messages
+
+```bash
+agent-teams message send <team-id> <channel-id> "<content>"   # Send message
+agent-teams message list <team-id> <channel-id> [--limit N]   # List messages
+agent-teams message get <team-id> <channel-id> <msg-id>       # Get specific message
+agent-teams message delete <team-id> <channel-id> <msg-id>    # Delete message
+```
+
+### Channels
+
+```bash
+agent-teams channel list <team-id>                  # List channels
+agent-teams channel info <team-id> <channel-id>     # Get channel info
+agent-teams channel history <team-id> <channel-id>  # Get message history
+```
+
+### Users
+
+```bash
+agent-teams user list <team-id>       # List team members
+agent-teams user info <user-id>       # Get user info
+agent-teams user me                   # Show current authenticated user
+```
+
+### Reactions
+
+```bash
+agent-teams reaction add <team-id> <channel-id> <msg-id> <emoji>     # Add reaction
+agent-teams reaction remove <team-id> <channel-id> <msg-id> <emoji>  # Remove reaction
+```
+
+### Files
+
+```bash
+agent-teams file upload <team-id> <channel-id> <path>  # Upload file
+agent-teams file list <team-id> <channel-id>           # List files
+agent-teams file info <team-id> <channel-id> <file>    # Show file details
+```
+
+### Snapshot
+
+```bash
+agent-teams snapshot                  # Full snapshot
+agent-teams snapshot --channels-only
+agent-teams snapshot --users-only
+agent-teams snapshot --team-id <id>
+agent-teams snapshot --limit N
+```
+
+---
+
+## Key Differences: Slack vs Discord vs Teams
+
+| Concept | Slack | Discord | Teams |
+|---------|-------|---------|-------|
+| Server | Workspace | Guild | Team |
+| Channel ID | `C01234567` | `123456789012345678` | GUID |
+| Message ID | `1234567890.123456` (timestamp) | `123456789012345678` (snowflake) | GUID |
+| Token expiry | Long-lived | Long-lived | 60-90 mins |
 
 ---
 
@@ -343,81 +356,78 @@ Add `--pretty` for human-readable output:
 ```bash
 agent-slack snapshot --pretty
 agent-discord channel list --pretty
+agent-teams team list --pretty
 ```
 
 ---
 
 ## Common Workflows
 
-### Post a status update to Slack
+### Post a status update
 
 ```bash
-agent-slack message send general "Daily standup: Working on feature X today"
+agent-slack message send general "Daily standup: Working on feature X"
+agent-discord message send 123456789012345678 "Same update for Discord"
+agent-teams message send team-id channel-id "Teams update"
 ```
 
-### React to acknowledge a message
+### React to a message
 
 ```bash
-agent-slack reaction add general 1712345678.123456 white_check_mark
+agent-slack reaction add general 1712345678.123456 thumbsup
+agent-discord reaction add 123456789012345678 987654321098765432 👍
 ```
 
-### Search and summarize discussions
+### Search messages
 
 ```bash
 agent-slack message search "deployment" --limit 20
-```
-
-### Cross-post to Discord
-
-```bash
-agent-discord message send 123456789012345678 "Same update for Discord team"
+agent-discord message search "deployment failed" --limit 10
 ```
 
 ### Check unread activity
 
 ```bash
-# Slack
 agent-slack unread counts
 agent-slack activity list --unread
-
-# Discord
 agent-discord mention list
 ```
 
-### Review saved items and drafts
+### Send a DM
 
 ```bash
-agent-slack saved list
-agent-slack drafts list
+agent-discord dm send 123456789012345678 "Hey, can you review my PR?"
 ```
 
-### Find users in Discord
+### Edit a sent message
+
+```bash
+agent-discord message edit 123456789012345678 987654321098765432 "Fixed typo"
+```
+
+### Pin an important message
+
+```bash
+agent-discord message pin 123456789012345678 987654321098765432
+agent-discord message pins 123456789012345678  # List all pinned
+```
+
+### Create a thread
+
+```bash
+agent-discord thread create 123456789012345678 "Sprint Planning Discussion"
+```
+
+### Find users
 
 ```bash
 agent-discord member search 123456789012345678 "john"
 agent-discord profile get 987654321098765432
 ```
 
-### Edit a message you sent
+### Review saved items
 
 ```bash
-agent-discord message edit 123456789012345678 987654321098765432 "Updated: Fixed the typo"
-```
-
-### Send a DM to someone
-
-```bash
-agent-discord dm send 123456789012345678 "Hey, can you review my PR?"
-```
-
-### Search for messages
-
-```bash
-agent-discord message search "deployment failed" --limit 10
-```
-
-### Create a thread for discussion
-
-```bash
-agent-discord thread create 123456789012345678 "Sprint Planning"
+agent-slack saved list
+agent-slack drafts list
 ```
