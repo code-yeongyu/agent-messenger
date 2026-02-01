@@ -57,7 +57,7 @@ Add to your `opencode.jsonc`:
 ```jsonc
 {
   "plugins": [
-    "agent-messenger@1.0.0"
+    "agent-messenger@1.1.0"
   ]
 }
 ```
