@@ -11,6 +11,7 @@ import type {
   DiscordRelationship,
   DiscordUser,
   DiscordUserNote,
+  DiscordUserProfile,
 } from './types'
 
 export class DiscordError extends Error {
@@ -328,5 +329,24 @@ export class DiscordClient {
 
   async getRelationships(): Promise<DiscordRelationship[]> {
     return this.request<DiscordRelationship[]>('GET', '/users/@me/relationships')
+  }
+
+  async searchMembers(
+    guildId: string,
+    query: string,
+    limit: number = 10
+  ): Promise<DiscordGuildMember[]> {
+    const params = new URLSearchParams()
+    params.set('query', query)
+    params.set('limit', limit.toString())
+
+    return this.request<DiscordGuildMember[]>(
+      'GET',
+      `/guilds/${guildId}/members/search?${params.toString()}`
+    )
+  }
+
+  async getUserProfile(userId: string): Promise<DiscordUserProfile> {
+    return this.request<DiscordUserProfile>('GET', `/users/${userId}/profile`)
   }
 }
