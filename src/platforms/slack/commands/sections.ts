@@ -37,16 +37,14 @@ async function listAction(options: { pretty?: boolean }): Promise<void> {
   }
 }
 
-export function createSectionsCommand(): Command {
-  const sections = new Command('sections').description(
-    'Manage Slack channel sections (sidebar folders)'
-  )
+const sections = new Command('sections').description(
+  'Manage Slack channel sections (sidebar folders)'
+)
 
-  sections
-    .command('list')
-    .description('List all channel sections')
-    .option('--pretty', 'Pretty print output')
-    .action(listAction)
+sections
+  .command('list')
+  .description('List all channel sections')
+  .option('--pretty', 'Pretty print output')
+  .action(listAction)
 
-  return sections
-}
+export const sectionsCommand = sections
