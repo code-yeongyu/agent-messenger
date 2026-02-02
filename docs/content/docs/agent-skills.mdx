@@ -1,0 +1,98 @@
+---
+title: Agent Skills
+description: Teach your AI agent how to use Agent Messenger CLIs effectively.
+icon: Hexagon
+---
+
+Agent Skills are instruction files that teach AI coding agents how to use tools effectively. Agent Messenger includes skills for Slack, Discord, and Teams.
+
+## What Are Agent Skills?
+
+When you give an AI agent access to a CLI tool, it needs to know:
+- What commands are available
+- How to format arguments
+- What output to expect
+- Best practices and common patterns
+
+Agent Skills provide this knowledge in a structured format that AI agents can understand.
+
+## Installation
+
+### Skills CLI
+
+The fastest way to add Agent Messenger skills to your project:
+
+```bash
+npx skills add devxoul/agent-messenger
+```
+
+This adds the skill files to your project's `.skills/` directory.
+
+### Claude Code
+
+Add Agent Messenger skills to Claude Code:
+
+```bash
+# From terminal
+claude plugin marketplace add devxoul/agent-messenger
+claude plugin install agent-messenger
+```
+
+Or from within Claude Code:
+
+```
+/plugin marketplace add devxoul/agent-messenger
+/plugin install agent-messenger
+```
+
+### OpenCode
+
+Add to your `opencode.jsonc`:
+
+```jsonc
+{
+  "plugins": [
+    "agent-messenger@1.1.0"
+  ]
+}
+```
+
+## How It Works
+
+Once installed, your AI agent can:
+
+1. **Understand the CLI** - Know what commands exist and how to use them
+2. **Extract credentials** - Run `agent-slack auth extract` automatically
+3. **Send messages** - Compose and send messages on your behalf
+4. **Read context** - Get workspace snapshots to understand conversations
+5. **React appropriately** - Add reactions, reply in threads, etc.
+
+## Example Interaction
+
+With Agent Messenger skills installed, you can ask your AI agent:
+
+> "Send a message to #general saying the build passed"
+
+The agent will:
+1. Check if credentials are configured
+2. Run `agent-slack auth extract` if needed
+3. Execute `agent-slack message send general "The build passed"`
+4. Confirm the message was sent
+
+## Skill Contents
+
+Each platform skill includes:
+
+| Section | Description |
+|---------|-------------|
+| **Authentication** | How to extract and manage tokens |
+| **Commands** | Full command reference with examples |
+| **Output Format** | Expected JSON structure for parsing |
+| **Error Handling** | Common errors and how to recover |
+| **Best Practices** | Tips for reliable agent workflows |
+
+## Learn More
+
+- [Agent Skills Documentation](https://agentskills.io/)
+- [Skills CLI](https://skills.sh/)
+- [GitHub Repository](https://github.com/devxoul/agent-messenger)
