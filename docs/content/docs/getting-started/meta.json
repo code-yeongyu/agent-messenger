@@ -1,5 +1,4 @@
 {
   "title": "Getting Started",
-  "icon": "Play",
-  "pages": ["quick-start", "philosophy"]
+  "pages": ["quick-start"]
 }
