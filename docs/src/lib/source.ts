@@ -1,8 +1,8 @@
-import { docs } from 'fumadocs-mdx:collections/server'
+import { docs, meta } from 'fumadocs-mdx:collections/server'
+import { toFumadocsSource } from 'fumadocs-mdx/runtime/server'
 import { loader } from 'fumadocs-core/source'
 
 export const source = loader({
   baseUrl: '/docs',
-  // @ts-expect-error - docs.toFumadocsSource() is available at runtime
-  source: docs.toFumadocsSource(),
+  source: toFumadocsSource(docs, meta),
 })
