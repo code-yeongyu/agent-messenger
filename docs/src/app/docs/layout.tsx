@@ -12,6 +12,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       sidebar={{
         enabled: true,
         prefetch: true,
+        banner: undefined,
       }}
     >
       {children}
