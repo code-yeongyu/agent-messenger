@@ -91,6 +91,34 @@ export interface DiscordUserNote {
   note: string
 }
 
+export interface DiscordSearchResult {
+  id: string
+  channel_id: string
+  guild_id?: string
+  content: string
+  author: {
+    id: string
+    username: string
+  }
+  timestamp: string
+  hit: boolean
+}
+
+export interface DiscordSearchResponse {
+  total_results: number
+  messages: DiscordSearchResult[][]
+}
+
+export interface DiscordSearchOptions {
+  channelId?: string
+  authorId?: string
+  has?: 'file' | 'image' | 'video' | 'embed' | 'link' | 'sticker'
+  sortBy?: 'timestamp' | 'relevance'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  offset?: number
+}
+
 export interface DiscordRelationship {
   id: string
   type: number
@@ -219,6 +247,24 @@ export const DiscordRelationshipSchema = z.object({
   type: z.number(),
   user: DiscordUserSchema,
   nickname: z.string().optional(),
+})
+
+export const DiscordSearchResultSchema = z.object({
+  id: z.string(),
+  channel_id: z.string(),
+  guild_id: z.string().optional(),
+  content: z.string(),
+  author: z.object({
+    id: z.string(),
+    username: z.string(),
+  }),
+  timestamp: z.string(),
+  hit: z.boolean(),
+})
+
+export const DiscordSearchResponseSchema = z.object({
+  total_results: z.number(),
+  messages: z.array(z.array(DiscordSearchResultSchema)),
 })
 
 export const DiscordCredentialsSchema = z.object({
