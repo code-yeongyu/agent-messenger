@@ -1,5 +1,7 @@
 # 💬 Agent Messenger
 
+![Agent Messenger](https://github.com/user-attachments/assets/ab21caf0-441a-40f6-8cda-4e969ae2395a)
+
 **Give your AI agent the power to read and send messages across Slack, Discord, Teams and more**
 
 A unified, agent-friendly CLI for messaging platforms. Zero-config credential extraction from your desktop apps—no OAuth flows, no API keys, no admin approval needed. Works out of the box.
