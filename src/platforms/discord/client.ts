@@ -349,4 +349,22 @@ export class DiscordClient {
   async getUserProfile(userId: string): Promise<DiscordUserProfile> {
     return this.request<DiscordUserProfile>('GET', `/users/${userId}/profile`)
   }
+
+  async createThread(
+    channelId: string,
+    name: string,
+    options?: {
+      auto_archive_duration?: number
+      rate_limit_per_user?: number
+    }
+  ): Promise<DiscordChannel> {
+    return this.request<DiscordChannel>('POST', `/channels/${channelId}/threads`, {
+      name,
+      ...options,
+    })
+  }
+
+  async archiveThread(threadId: string, archived: boolean = true): Promise<DiscordChannel> {
+    return this.request<DiscordChannel>('PATCH', `/channels/${threadId}`, { archived })
+  }
 }
