@@ -1,4 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test'
+import { DiscordClient } from '../client'
+import { DiscordCredentialManager } from '../credential-manager'
 import type { DiscordDMChannel } from '../types'
 import { createAction, listAction } from './dm'
 
