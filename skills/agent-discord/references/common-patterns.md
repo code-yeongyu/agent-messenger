@@ -70,7 +70,7 @@ done
 
 **Limitations**: Polling-based, not real-time. For production bots, use Discord's Gateway API with a proper bot token.
 
-## Pattern 3: Get Guild Overview
+## Pattern 3: Get Server Overview
 
 **Use case**: Understand server state before taking action
 
@@ -81,11 +81,11 @@ done
 SNAPSHOT=$(agent-discord snapshot)
 
 # Extract key information
-GUILD_NAME=$(echo "$SNAPSHOT" | jq -r '.guild.name')
+SERVER_NAME=$(echo "$SNAPSHOT" | jq -r '.server.name')
 CHANNEL_COUNT=$(echo "$SNAPSHOT" | jq -r '.channels | length')
 MEMBER_COUNT=$(echo "$SNAPSHOT" | jq -r '.members | length')
 
-echo "Server: $GUILD_NAME"
+echo "Server: $SERVER_NAME"
 echo "Channels: $CHANNEL_COUNT"
 echo "Members: $MEMBER_COUNT"
 
@@ -207,7 +207,7 @@ fi
 CHANNEL_ID="1234567890123456789"
 USERNAME="john"
 
-# Get guild members
+# Get server members
 USERS=$(agent-discord user list)
 USER_ID=$(echo "$USERS" | jq -r --arg name "$USERNAME" '.[] | select(.username | contains($name)) | .id' | head -1)
 
@@ -303,26 +303,26 @@ send_with_retry "$CHANNEL_ID" "Important message!"
 
 **When to use**: Production scripts, critical notifications, unreliable networks.
 
-## Pattern 10: Switch Guilds for Operations
+## Pattern 10: Switch Servers for Operations
 
 **Use case**: Work with multiple Discord servers
 
 ```bash
 #!/bin/bash
 
-# List all guilds
-GUILDS=$(agent-discord guild list)
-echo "Available guilds:"
-echo "$GUILDS" | jq -r '.[] | "  \(.name) (\(.id)) \(if .current then "[current]" else "" end)"'
+# List all servers
+SERVERS=$(agent-discord server list)
+echo "Available servers:"
+echo "$SERVERS" | jq -r '.[] | "  \(.name) (\(.id)) \(if .current then "[current]" else "" end)"'
 
-# Switch to a specific guild
-TARGET_GUILD=$(echo "$GUILDS" | jq -r '.[] | select(.name | contains("Production")) | .id')
-if [ -n "$TARGET_GUILD" ]; then
-  agent-discord guild switch "$TARGET_GUILD"
-  echo "Switched to Production guild"
+# Switch to a specific server
+TARGET_SERVER=$(echo "$SERVERS" | jq -r '.[] | select(.name | contains("Production")) | .id')
+if [ -n "$TARGET_SERVER" ]; then
+  agent-discord server switch "$TARGET_SERVER"
+  echo "Switched to Production server"
 fi
 
-# Now operations use the new guild
+# Now operations use the new server
 agent-discord channel list
 ```
 

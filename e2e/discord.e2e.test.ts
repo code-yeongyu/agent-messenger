@@ -5,7 +5,7 @@ import {
 } from './helpers'
 import { 
   DISCORD_TEST_CHANNEL_ID,
-  DISCORD_TEST_GUILD_ID,
+  DISCORD_TEST_SERVER_ID,
   validateDiscordEnvironment 
 } from './config'
 
@@ -35,25 +35,25 @@ describe('Discord E2E Tests', () => {
     })
   })
 
-  describe('guild', () => {
-    test('guild list returns array', async () => {
-      const result = await runCLI('discord', ['guild', 'list'])
+  describe('server', () => {
+    test('server list returns array', async () => {
+      const result = await runCLI('discord', ['server', 'list'])
       expect(result.exitCode).toBe(0)
       
-      const data = parseJSON<Array<{ guild_id: string }>>(result.stdout)
+      const data = parseJSON<Array<{ server_id: string }>>(result.stdout)
       expect(Array.isArray(data)).toBe(true)
     })
 
-    test('guild current returns current guild', async () => {
-      const result = await runCLI('discord', ['guild', 'current'])
+    test('server current returns current server', async () => {
+      const result = await runCLI('discord', ['server', 'current'])
       expect(result.exitCode).toBe(0)
       
-      const data = parseJSON<{ guild_id: string }>(result.stdout)
-      expect(data?.guild_id).toBe(DISCORD_TEST_GUILD_ID)
+      const data = parseJSON<{ server_id: string }>(result.stdout)
+      expect(data?.server_id).toBe(DISCORD_TEST_SERVER_ID)
     })
 
-    test('guild info returns guild details', async () => {
-      const result = await runCLI('discord', ['guild', 'info', DISCORD_TEST_GUILD_ID])
+    test('server info returns server details', async () => {
+      const result = await runCLI('discord', ['server', 'info', DISCORD_TEST_SERVER_ID])
       expect(result.exitCode).toBe(0)
       
       const data = parseJSON<{ id: string }>(result.stdout)
@@ -224,7 +224,7 @@ describe('Discord E2E Tests', () => {
   })
 
   describe('snapshot', () => {
-    test.skip('snapshot returns full guild data (requires bot token)', async () => {
+    test.skip('snapshot returns full server data (requires bot token)', async () => {
       const result = await runCLI('discord', ['snapshot', '--limit', '2'])
       expect(result.exitCode).toBe(0)
       

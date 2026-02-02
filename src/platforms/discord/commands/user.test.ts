@@ -16,7 +16,7 @@ const mockClient = {
     avatar: 'avatar_hash',
     bot: false,
   })),
-  listUsers: mock(async (_guildId: string) => [
+  listUsers: mock(async (_serverId: string) => [
     {
       id: 'user1',
       username: 'alice',
@@ -80,12 +80,12 @@ test('info returns user details by id', async () => {
   expect(result.username).toBe('testuser')
 })
 
-test('list returns guild members', async () => {
-  // given: guild id
-  const guildId = 'guild123'
+test('list returns server members', async () => {
+  // given: server id
+  const serverId = 'server123'
 
   // when: listing users
-  const users = await mockClient.listUsers(guildId)
+  const users = await mockClient.listUsers(serverId)
   const result = users.map((u) => ({
     id: u.id,
     username: u.username,
@@ -102,9 +102,9 @@ test('list returns guild members', async () => {
 })
 
 test('list filters out bots when flag not set', async () => {
-  // given: guild id and users with bots
-  const guildId = 'guild123'
-  const users = await mockClient.listUsers(guildId)
+  // given: server id and users with bots
+  const serverId = 'server123'
+  const users = await mockClient.listUsers(serverId)
 
   // when: filtering out bots
   const filtered = users.filter((u) => !u.bot)

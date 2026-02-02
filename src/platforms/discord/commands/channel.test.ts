@@ -59,9 +59,9 @@ beforeEach(() => {
   // Spy on DiscordCredentialManager.prototype methods
   credManagerLoadSpy = spyOn(DiscordCredentialManager.prototype, 'load').mockResolvedValue({
     token: 'test-token',
-    current_guild: 'guild-1',
-    guilds: {
-      'guild-1': { guild_id: 'guild-1', guild_name: 'Guild One' },
+    current_server: 'server-1',
+    servers: {
+      'server-1': { server_id: 'server-1', server_name: 'Server One' },
     },
   })
 })
@@ -73,10 +73,10 @@ afterEach(() => {
   credManagerLoadSpy?.mockRestore()
 })
 
-test('list: returns text channels (type=0) from guild', async () => {
+test('list: returns text channels (type=0) from server', async () => {
   // given: discord client with channels
   const client = new DiscordClient('test-token')
-  const channels = await client.listChannels('guild-1')
+  const channels = await client.listChannels('server-1')
 
   // when: filtering text channels
   const textChannels = channels.filter((ch) => ch.type === 0)
@@ -90,7 +90,7 @@ test('list: returns text channels (type=0) from guild', async () => {
 test('list: includes channel metadata', async () => {
   // given: discord client with channels
   const client = new DiscordClient('test-token')
-  const channels = await client.listChannels('guild-1')
+  const channels = await client.listChannels('server-1')
   const textChannels = channels.filter((ch) => ch.type === 0)
 
   // when: checking channel properties

@@ -6,11 +6,11 @@ End-to-end tests that run every CLI command against real Slack and Discord APIs.
 
 Before running E2E tests, you need:
 
-1. **Dedicated Test Workspaces** - Create separate Slack and Discord test workspaces/guilds
+1. **Dedicated Test Workspaces** - Create separate Slack and Discord test workspaces/servers
    - **Never run E2E tests against your business or personal accounts**
    - Tests create and delete messages, which could interfere with real work
 
-2. **Test Channels** - Create an `e2e-test` channel in each test workspace/guild
+2. **Test Channels** - Create an `e2e-test` channel in each test workspace/server
    - Slack: Channel named `e2e-test`
    - Discord: Text channel named `e2e-test`
 
@@ -22,7 +22,7 @@ Before running E2E tests, you need:
 
 | File | Description |
 |------|-------------|
-| `config.ts` | Hardcoded test workspace/guild IDs and validation |
+| `config.ts` | Hardcoded test workspace/server IDs and validation |
 | `helpers.ts` | CLI runner, JSON parser, message cleanup utilities |
 | `slack.e2e.test.ts` | Slack command tests (23 tests) |
 | `discord.e2e.test.ts` | Discord command tests (20 tests) |
@@ -50,8 +50,8 @@ Ensure you're targeting the correct test workspace:
 agent-slack workspace current
 # Should show: "Agent Messenger" (T0AC55BSF6E)
 
-# Verify Discord guild
-agent-discord guild current
+# Verify Discord server
+agent-discord server current
 # Should show: "Agent Messenger" (1467039439770357844)
 ```
 
@@ -59,7 +59,7 @@ If wrong, switch workspaces:
 
 ```bash
 agent-slack workspace switch <test-workspace-id>
-agent-discord guild switch <test-guild-id>
+agent-discord server switch <test-server-id>
 ```
 
 ### Step 3: Run Tests
@@ -98,7 +98,7 @@ Set these secrets in your GitHub repository settings:
 | Secret | Description | How to Get |
 |--------|-------------|------------|
 | `E2E_DISCORD_TOKEN` | Discord auth token | `agent-discord auth extract` → check output |
-| `E2E_DISCORD_GUILD_ID` | Test guild ID | `agent-discord guild current` |
+| `E2E_DISCORD_SERVER_ID` | Test server ID | `agent-discord server current` |
 
 ### Getting Credentials for CI
 
@@ -151,7 +151,7 @@ When triggering manually, you can select which platform to test:
 | Command Group | Tests |
 |---------------|-------|
 | `auth` | status |
-| `guild` | list, current, info |
+| `server` | list, current, info |
 | `message` | send, list, get*, delete |
 | `channel` | list, info, history |
 | `user` | list, me, info* |
@@ -163,7 +163,7 @@ When triggering manually, you can select which platform to test:
 
 ## Troubleshooting
 
-### "Wrong workspace" / "Wrong guild" Error
+### "Wrong workspace" / "Wrong server" Error
 
 The tests detected you're not in the designated test workspace:
 
@@ -224,7 +224,7 @@ If this shows your test credentials, env var support is working.
 
 ## Safety Features
 
-1. **Hardcoded Test IDs**: Test workspace/guild IDs are hardcoded in `config.ts`. Tests will refuse to run against other workspaces.
+1. **Hardcoded Test IDs**: Test workspace/server IDs are hardcoded in `config.ts`. Tests will refuse to run against other workspaces.
 
 2. **Environment Validation**: Before any write operations, tests call `validateSlackEnvironment()` or `validateDiscordEnvironment()` to verify the correct workspace.
 

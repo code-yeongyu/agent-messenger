@@ -8,12 +8,12 @@ export async function listAction(options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
     const config = await credManager.load()
-    const guilds = Object.values(config.guilds)
+    const servers = Object.values(config.servers)
 
-    const output = guilds.map((guild) => ({
-      id: guild.guild_id,
-      name: guild.guild_name,
-      current: guild.guild_id === config.current_guild,
+    const output = servers.map((server) => ({
+      id: server.server_id,
+      name: server.server_name,
+      current: server.server_id === config.current_server,
     }))
 
     console.log(formatOutput(output, options.pretty))
@@ -22,7 +22,7 @@ export async function listAction(options: { pretty?: boolean }): Promise<void> {
   }
 }
 
-export async function infoAction(guildId: string, options: { pretty?: boolean }): Promise<void> {
+export async function infoAction(serverId: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
     const config = await credManager.load()
@@ -35,13 +35,13 @@ export async function infoAction(guildId: string, options: { pretty?: boolean })
     }
 
     const client = new DiscordClient(config.token)
-    const guild = await client.getGuild(guildId)
+    const server = await client.getServer(serverId)
 
     const output = {
-      id: guild.id,
-      name: guild.name,
-      icon: guild.icon,
-      owner: guild.owner,
+      id: server.id,
+      name: server.name,
+      icon: server.icon,
+      owner: server.owner,
     }
 
     console.log(formatOutput(output, options.pretty))
@@ -50,18 +50,18 @@ export async function infoAction(guildId: string, options: { pretty?: boolean })
   }
 }
 
-export async function switchAction(guildId: string, options: { pretty?: boolean }): Promise<void> {
+export async function switchAction(serverId: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
     const config = await credManager.load()
 
-    if (!config.guilds[guildId]) {
-      console.log(formatOutput({ error: `Guild not found: ${guildId}` }, options.pretty))
+    if (!config.servers[serverId]) {
+      console.log(formatOutput({ error: `Server not found: ${serverId}` }, options.pretty))
       process.exit(1)
     }
 
-    await credManager.setCurrentGuild(guildId)
-    console.log(formatOutput({ current: guildId }, options.pretty))
+    await credManager.setCurrentServer(serverId)
+    console.log(formatOutput({ current: serverId }, options.pretty))
   } catch (error) {
     handleError(error as Error)
   }
@@ -72,25 +72,25 @@ export async function currentAction(options: { pretty?: boolean }): Promise<void
     const credManager = new DiscordCredentialManager()
     const config = await credManager.load()
 
-    if (!config.current_guild) {
+    if (!config.current_server) {
       console.log(
-        formatOutput({ error: 'No current guild set. Run "auth extract" first.' }, options.pretty)
+        formatOutput({ error: 'No current server set. Run "auth extract" first.' }, options.pretty)
       )
       process.exit(1)
     }
 
-    const guild = config.guilds[config.current_guild]
+    const server = config.servers[config.current_server]
 
-    if (!guild) {
+    if (!server) {
       console.log(
-        formatOutput({ error: 'Current guild not found in configuration.' }, options.pretty)
+        formatOutput({ error: 'Current server not found in configuration.' }, options.pretty)
       )
       process.exit(1)
     }
 
     const output = {
-      guild_id: guild.guild_id,
-      guild_name: guild.guild_name,
+      server_id: server.server_id,
+      server_name: server.server_name,
     }
 
     console.log(formatOutput(output, options.pretty))
@@ -99,31 +99,31 @@ export async function currentAction(options: { pretty?: boolean }): Promise<void
   }
 }
 
-export const guildCommand = new Command('guild')
-  .description('Guild management commands')
+export const serverCommand = new Command('server')
+  .description('Server management commands')
   .addCommand(
     new Command('list')
-      .description('List all guilds')
+      .description('List all servers')
       .option('--pretty', 'Pretty print JSON output')
       .action(listAction)
   )
   .addCommand(
     new Command('info')
-      .description('Get guild info')
-      .argument('<guild-id>', 'Guild ID')
+      .description('Get server info')
+      .argument('<server-id>', 'Server ID')
       .option('--pretty', 'Pretty print JSON output')
       .action(infoAction)
   )
   .addCommand(
     new Command('switch')
-      .description('Switch to guild')
-      .argument('<guild-id>', 'Guild ID')
+      .description('Switch to server')
+      .argument('<server-id>', 'Server ID')
       .option('--pretty', 'Pretty print JSON output')
       .action(switchAction)
   )
   .addCommand(
     new Command('current')
-      .description('Show current guild')
+      .description('Show current server')
       .option('--pretty', 'Pretty print JSON output')
       .action(currentAction)
   )

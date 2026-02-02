@@ -27,8 +27,8 @@ describe('DiscordCredentialManager', () => {
 
     expect(config).toEqual({
       token: null,
-      current_guild: null,
-      guilds: {},
+      current_server: null,
+      servers: {},
     })
   })
 
@@ -41,9 +41,9 @@ describe('DiscordCredentialManager', () => {
     const manager = new DiscordCredentialManager(testConfigDir)
     const config = {
       token: 'test-token',
-      current_guild: 'guild-123',
-      guilds: {
-        'guild-123': { guild_id: 'guild-123', guild_name: 'Test Guild' },
+      current_server: 'server-123',
+      servers: {
+        'server-123': { server_id: 'server-123', server_name: 'Test Server' },
       },
     }
 
@@ -89,37 +89,37 @@ describe('DiscordCredentialManager', () => {
     expect(token).toBeNull()
   })
 
-  test('getCurrentGuild returns null when not set', async () => {
+  test('getCurrentServer returns null when not set', async () => {
     const manager = setup()
-    const guild = await manager.getCurrentGuild()
-    expect(guild).toBeNull()
+    const server = await manager.getCurrentServer()
+    expect(server).toBeNull()
   })
 
-  test('setCurrentGuild saves guild id', async () => {
+  test('setCurrentServer saves server id', async () => {
     const manager = setup()
-    await manager.setCurrentGuild('guild-456')
+    await manager.setCurrentServer('server-456')
 
-    const guild = await manager.getCurrentGuild()
-    expect(guild).toBe('guild-456')
+    const server = await manager.getCurrentServer()
+    expect(server).toBe('server-456')
   })
 
-  test('getGuilds returns empty object when no guilds set', async () => {
+  test('getServers returns empty object when no servers set', async () => {
     const manager = setup()
-    const guilds = await manager.getGuilds()
-    expect(guilds).toEqual({})
+    const servers = await manager.getServers()
+    expect(servers).toEqual({})
   })
 
-  test('setGuilds saves guilds to config', async () => {
+  test('setServers saves servers to config', async () => {
     const manager = setup()
-    const guilds = {
-      'guild-1': { guild_id: 'guild-1', guild_name: 'Guild One' },
-      'guild-2': { guild_id: 'guild-2', guild_name: 'Guild Two' },
+    const servers = {
+      'server-1': { server_id: 'server-1', server_name: 'Server One' },
+      'server-2': { server_id: 'server-2', server_name: 'Server Two' },
     }
 
-    await manager.setGuilds(guilds)
+    await manager.setServers(servers)
 
-    const loaded = await manager.getGuilds()
-    expect(loaded).toEqual(guilds)
+    const loaded = await manager.getServers()
+    expect(loaded).toEqual(servers)
   })
 
   test('getCredentials returns null when not authenticated', async () => {
@@ -128,7 +128,7 @@ describe('DiscordCredentialManager', () => {
     expect(creds).toBeNull()
   })
 
-  test('getCredentials returns null when token exists but no guild selected', async () => {
+  test('getCredentials returns null when token exists but no server selected', async () => {
     const manager = setup()
     await manager.setToken('test-token')
 
@@ -136,39 +136,39 @@ describe('DiscordCredentialManager', () => {
     expect(creds).toBeNull()
   })
 
-  test('getCredentials returns null when guild selected but no token', async () => {
+  test('getCredentials returns null when server selected but no token', async () => {
     const manager = setup()
-    await manager.setCurrentGuild('guild-123')
+    await manager.setCurrentServer('server-123')
 
     const creds = await manager.getCredentials()
     expect(creds).toBeNull()
   })
 
-  test('getCredentials returns token and guildId when both are set', async () => {
+  test('getCredentials returns token and serverId when both are set', async () => {
     const manager = setup()
     await manager.setToken('test-token-xyz')
-    await manager.setCurrentGuild('guild-789')
+    await manager.setCurrentServer('server-789')
 
     const creds = await manager.getCredentials()
     expect(creds).toEqual({
       token: 'test-token-xyz',
-      guildId: 'guild-789',
+      serverId: 'server-789',
     })
   })
 
   test('multiple operations preserve existing data', async () => {
     const manager = setup()
     await manager.setToken('token-1')
-    await manager.setCurrentGuild('guild-1')
-    const guilds = {
-      'guild-1': { guild_id: 'guild-1', guild_name: 'Guild One' },
+    await manager.setCurrentServer('server-1')
+    const servers = {
+      'server-1': { server_id: 'server-1', server_name: 'Server One' },
     }
-    await manager.setGuilds(guilds)
+    await manager.setServers(servers)
 
     await manager.setToken('token-2')
 
     expect(await manager.getToken()).toBe('token-2')
-    expect(await manager.getCurrentGuild()).toBe('guild-1')
-    expect(await manager.getGuilds()).toEqual(guilds)
+    expect(await manager.getCurrentServer()).toBe('server-1')
+    expect(await manager.getServers()).toEqual(servers)
   })
 })

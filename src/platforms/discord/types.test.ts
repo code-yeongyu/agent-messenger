@@ -203,21 +203,21 @@ test('DiscordCredentialsSchema rejects missing token', () => {
 
 test('DiscordConfigSchema validates correct config', () => {
   const result = DiscordConfigSchema.safeParse({
-    current_guild: null,
+    current_server: null,
     token: 'token_value',
-    guilds: {},
+    servers: {},
   })
   expect(result.success).toBe(true)
 })
 
-test('DiscordConfigSchema validates config with guilds', () => {
+test('DiscordConfigSchema validates config with servers', () => {
   const result = DiscordConfigSchema.safeParse({
-    current_guild: '123456789012345678',
+    current_server: '123456789012345678',
     token: 'token_value',
-    guilds: {
+    servers: {
       '123456789012345678': {
-        guild_id: '123456789012345678',
-        guild_name: 'Test Guild',
+        server_id: '123456789012345678',
+        server_name: 'Test Server',
       },
     },
   })
@@ -226,7 +226,7 @@ test('DiscordConfigSchema validates config with guilds', () => {
 
 test('DiscordConfigSchema rejects missing required fields', () => {
   const result = DiscordConfigSchema.safeParse({
-    current_guild: null,
+    current_server: null,
     token: 'token_value',
   })
   expect(result.success).toBe(false)
