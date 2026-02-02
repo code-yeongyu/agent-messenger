@@ -1,21 +1,103 @@
 ---
 title: Quick Start
 description: Get up and running with Agent Messenger in 30 seconds.
+icon: Rocket
 ---
 
-## Quick Start
-
-Get up and running in 30 seconds:
+## Installation
 
 ```bash
-# 1. Extract credentials from your Slack desktop app
+npm install -g agent-messenger
+```
+
+Or use your favorite package manager:
+
+```bash
+# Using pnpm
+pnpm add -g agent-messenger
+
+# Using yarn
+yarn global add agent-messenger
+
+# Using bun
+bun add -g agent-messenger
+```
+
+This installs three CLI tools:
+- `agent-slack` — Slack CLI
+- `agent-discord` — Discord CLI
+- `agent-teams` — Microsoft Teams CLI
+
+## Extract Credentials
+
+Agent Messenger automatically extracts tokens from your desktop apps. Make sure the app is installed and you're logged in.
+
+```bash
+# For Slack
 agent-slack auth extract
 
-# 2. See your workspace at a glance
-agent-slack snapshot --pretty
+# For Discord
+agent-discord auth extract
 
-# 3. Send a message
-agent-slack message send general "Hello from the CLI!"
+# For Teams
+agent-teams auth extract
 ```
 
 That's it. No OAuth flows. No API tokens. No configuration files.
+
+## Verify Setup
+
+Check that authentication worked:
+
+```bash
+agent-slack auth status
+```
+
+You should see your workspace name and user info.
+
+## Send Your First Message
+
+```bash
+# Get a snapshot of your workspace
+agent-slack snapshot --pretty
+
+# Send a message to a channel
+agent-slack message send general "Hello from the CLI!"
+```
+
+## Output Formats
+
+By default, all commands output compact JSON (perfect for AI agents):
+
+```bash
+agent-slack channel list
+# {"channels":[{"id":"C01234567","name":"general",...}]}
+```
+
+Add `--pretty` for human-readable output:
+
+```bash
+agent-slack channel list --pretty
+```
+
+## Multi-Workspace Support
+
+If you're logged into multiple workspaces:
+
+```bash
+# List all workspaces
+agent-slack workspace list
+
+# Switch to a different workspace
+agent-slack workspace switch <workspace-id>
+
+# Check current workspace
+agent-slack workspace current
+```
+
+## Next Steps
+
+- [Slack Reference](/docs/integrations/slack) - Full command reference
+- [Discord Reference](/docs/integrations/discord) - Full command reference
+- [Teams Reference](/docs/integrations/teams) - Full command reference
+- [Agent Skills](/docs/agent-skills) - Integrate with AI coding agents

@@ -1,11 +1,9 @@
 {
-  "title": "Documentation",
   "root": true,
   "pages": [
     "index",
     "getting-started",
-    "platforms",
-    "agent-skills",
-    "contributing"
+    "integrations",
+    "agent-skills"
   ]
 }

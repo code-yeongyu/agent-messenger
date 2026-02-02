@@ -1,28 +1,58 @@
 ---
-title: Welcome to Agent Messenger
+title: What is Agent Messenger?
 description: Give your AI agent the power to read and send messages across Slack, Discord, Teams and more
+icon: MessageSquare
 ---
 
-A unified, agent-friendly CLI for messaging platforms. Zero-config credential extraction from your desktop apps—no OAuth flows, no API keys, no admin approval needed. Works out of the box.
+Agent Messenger is a unified, agent-friendly CLI for messaging platforms. It automatically extracts credentials from your desktop apps—no OAuth flows, no API keys, no admin approval needed.
 
-## Quick Start
+## Why Agent Messenger?
 
-Get started in 30 seconds:
+### For AI Agents
+
+AI agents need to communicate with humans through messaging platforms. But integrating with Slack, Discord, or Teams traditionally requires:
+
+- **OAuth setup** - Creating apps, getting admin approval, managing tokens
+- **API keys** - Storing secrets, handling rotation, security concerns
+- **Platform-specific code** - Learning different APIs for each platform
+
+Agent Messenger eliminates all of this. Your agent can start sending messages in seconds.
+
+### For Developers
+
+Building AI-powered workflows that interact with messaging platforms shouldn't require a week of OAuth debugging. Agent Messenger provides:
+
+- **Zero configuration** - Extract tokens from your existing desktop apps
+- **Unified interface** - Same commands work across all platforms
+- **JSON output** - Perfect for piping into other tools or LLMs
+
+## How It Works
+
+Agent Messenger reads authentication tokens directly from your installed desktop apps (Slack, Discord, Teams). These apps store session tokens locally, and Agent Messenger safely extracts them.
 
 ```bash
-# 1. Extract credentials from your Slack desktop app
+# Extract credentials from Slack desktop app
 agent-slack auth extract
 
-# 2. See your workspace at a glance
-agent-slack snapshot --pretty
-
-# 3. Send a message
-agent-slack message send general "Hello from the CLI!"
+# That's it! Now you can send messages
+agent-slack message send general "Hello from my AI agent!"
 ```
+
+No app creation. No admin approval. No waiting.
+
+## Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Auto-extraction** | Pulls tokens from desktop apps automatically |
+| **Multi-platform** | Slack, Discord, and Microsoft Teams |
+| **Multi-workspace** | Switch between workspaces/servers easily |
+| **JSON output** | Machine-readable by default, `--pretty` for humans |
+| **Comprehensive** | Messages, channels, users, reactions, files |
 
 ## Next Steps
 
-- [Installation](/docs/getting-started/installation)
-- [Slack Guide](/docs/platforms/slack)
-- [Discord Guide](/docs/platforms/discord)
-- [Teams Guide](/docs/platforms/teams)
+- [Quick Start](/docs/getting-started/quick-start) - Get running in 30 seconds
+- [Slack](/docs/integrations/slack) - Full Slack command reference
+- [Discord](/docs/integrations/discord) - Full Discord command reference
+- [Teams](/docs/integrations/teams) - Full Teams command reference
