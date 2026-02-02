@@ -1,69 +1,73 @@
-import { describe, expect, it, mock } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test'
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
 import type { DiscordDMChannel } from '../types'
 import { createAction, listAction } from './dm'
 
-mock.module('../client', () => ({
-  DiscordClient: mock(() => ({
-    listDMChannels: mock(() => Promise.resolve([])),
-    createDM: mock(() => Promise.resolve({})),
-  })),
-}))
+let clientListDMChannelsSpy: ReturnType<typeof spyOn>
+let clientCreateDMSpy: ReturnType<typeof spyOn>
+let credManagerLoadSpy: ReturnType<typeof spyOn>
 
-mock.module('../credential-manager', () => ({
-  DiscordCredentialManager: mock(() => ({
-    load: mock(() => Promise.resolve({ token: 'test-token' })),
-  })),
-}))
+const mockChannels: DiscordDMChannel[] = [
+  {
+    id: '123',
+    type: 1,
+    recipients: [
+      {
+        id: '456',
+        username: 'testuser',
+      },
+    ],
+  },
+  {
+    id: '789',
+    type: 3,
+    name: 'Group Chat',
+    recipients: [
+      {
+        id: '111',
+        username: 'user1',
+      },
+      {
+        id: '222',
+        username: 'user2',
+      },
+    ],
+  },
+]
+
+beforeEach(() => {
+  clientListDMChannelsSpy = spyOn(DiscordClient.prototype, 'listDMChannels').mockResolvedValue(
+    mockChannels
+  )
+
+  clientCreateDMSpy = spyOn(DiscordClient.prototype, 'createDM').mockResolvedValue({
+    id: '999',
+    type: 1,
+    recipients: [
+      {
+        id: '456',
+        username: 'newuser',
+      },
+    ],
+  })
+
+  credManagerLoadSpy = spyOn(DiscordCredentialManager.prototype, 'load').mockResolvedValue({
+    token: 'test-token',
+    current_server: null,
+    servers: {},
+  })
+})
+
+afterEach(() => {
+  clientListDMChannelsSpy?.mockRestore()
+  clientCreateDMSpy?.mockRestore()
+  credManagerLoadSpy?.mockRestore()
+})
 
 describe('dm commands', () => {
   describe('listAction', () => {
     it('should list DM channels', async () => {
-      const mockChannels: DiscordDMChannel[] = [
-        {
-          id: '123',
-          type: 1,
-          recipients: [
-            {
-              id: '456',
-              username: 'testuser',
-            },
-          ],
-        },
-        {
-          id: '789',
-          type: 3,
-          name: 'Group Chat',
-          recipients: [
-            {
-              id: '111',
-              username: 'user1',
-            },
-            {
-              id: '222',
-              username: 'user2',
-            },
-          ],
-        },
-      ]
-
-      const mockClient = {
-        listDMChannels: mock(() => Promise.resolve(mockChannels)),
-      }
-
-      const mockCredManager = {
-        load: mock(() => Promise.resolve({ token: 'test-token' })),
-      }
-
-      mock.module('../client', () => ({
-        DiscordClient: mock(() => mockClient),
-      }))
-
-      mock.module('../credential-manager', () => ({
-        DiscordCredentialManager: mock(() => mockCredManager),
-      }))
-
       const consoleSpy = mock(() => {})
       const originalLog = console.log
       console.log = consoleSpy
@@ -73,17 +77,15 @@ describe('dm commands', () => {
       console.log = originalLog
 
       expect(consoleSpy).toHaveBeenCalled()
-      expect(mockClient.listDMChannels).toHaveBeenCalled()
+      expect(clientListDMChannelsSpy).toHaveBeenCalled()
     })
 
     it('should handle authentication error', async () => {
-      const mockCredManager = {
-        load: mock(() => Promise.resolve({ token: '' })),
-      }
-
-      mock.module('../credential-manager', () => ({
-        DiscordCredentialManager: mock(() => mockCredManager),
-      }))
+      credManagerLoadSpy.mockResolvedValue({
+        token: '',
+        current_server: null,
+        servers: {},
+      })
 
       const exitSpy = mock(() => {})
       const originalExit = process.exit
@@ -105,33 +107,6 @@ describe('dm commands', () => {
 
   describe('createAction', () => {
     it('should create a DM channel', async () => {
-      const mockChannel: DiscordDMChannel = {
-        id: '999',
-        type: 1,
-        recipients: [
-          {
-            id: '456',
-            username: 'newuser',
-          },
-        ],
-      }
-
-      const mockClient = {
-        createDM: mock(() => Promise.resolve(mockChannel)),
-      }
-
-      const mockCredManager = {
-        load: mock(() => Promise.resolve({ token: 'test-token' })),
-      }
-
-      mock.module('../client', () => ({
-        DiscordClient: mock(() => mockClient),
-      }))
-
-      mock.module('../credential-manager', () => ({
-        DiscordCredentialManager: mock(() => mockCredManager),
-      }))
-
       const consoleSpy = mock(() => {})
       const originalLog = console.log
       console.log = consoleSpy
@@ -141,17 +116,15 @@ describe('dm commands', () => {
       console.log = originalLog
 
       expect(consoleSpy).toHaveBeenCalled()
-      expect(mockClient.createDM).toHaveBeenCalledWith('456')
+      expect(clientCreateDMSpy).toHaveBeenCalledWith('456')
     })
 
     it('should handle authentication error', async () => {
-      const mockCredManager = {
-        load: mock(() => Promise.resolve({ token: '' })),
-      }
-
-      mock.module('../credential-manager', () => ({
-        DiscordCredentialManager: mock(() => mockCredManager),
-      }))
+      credManagerLoadSpy.mockResolvedValue({
+        token: '',
+        current_server: null,
+        servers: {},
+      })
 
       const exitSpy = mock(() => {})
       const originalExit = process.exit
