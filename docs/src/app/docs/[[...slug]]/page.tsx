@@ -1,7 +1,8 @@
-import { source } from '@/lib/source'
-import { notFound } from 'next/navigation'
-import { DocsPage, DocsBody } from 'fumadocs-ui/layouts/docs/page'
+import { DocsBody, DocsPage } from 'fumadocs-ui/layouts/docs/page'
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
+
+import { source } from '@/lib/source'
 
 interface PageProps {
   params: Promise<{
@@ -35,6 +36,7 @@ export default async function Page(props: PageProps) {
     notFound()
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { body: MDX, toc } = page.data as any
 
   return (
