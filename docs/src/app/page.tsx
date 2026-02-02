@@ -266,7 +266,7 @@ export default function Home() {
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
           </span>
-          v1.0 Available Now
+          v1.1.0 Available Now
         </div>
         <h1 className="max-w-4xl text-5xl font-extrabold tracking-tight text-zinc-900 dark:text-white sm:text-6xl md:text-7xl">
           Give your AI agent the power to <br className="hidden sm:block" />
@@ -394,7 +394,7 @@ export default function Home() {
           <h2 className="mb-12 text-3xl font-bold text-zinc-900 dark:text-white">
             Supported Platforms
           </h2>
-          <div className="grid gap-8 sm:grid-cols-3">
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
             <div className="flex flex-col items-center rounded-2xl bg-white p-8 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
               <div className="mb-4">
                 <SlackIcon className="h-12 w-12" />
@@ -422,6 +422,27 @@ export default function Home() {
                 Microsoft Teams support
               </p>
             </div>
+            <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-zinc-300 p-8 dark:border-zinc-700">
+              <div className="mb-4 text-zinc-400 dark:text-zinc-500">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-12 w-12"
+                >
+                  <title>More platforms coming soon</title>
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M8 12h8" />
+                  <path d="M12 8v8" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-zinc-500 dark:text-zinc-400">More</h3>
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-500">Coming soon</p>
+            </div>
           </div>
         </div>
       </section>
@@ -442,10 +463,10 @@ export default function Home() {
               Read the Docs
             </Link>
             <Link
-              href="/docs/installation"
+              href="/docs/quick-start"
               className="rounded-lg border border-zinc-700 bg-transparent px-8 py-3 font-medium text-white transition-colors hover:bg-zinc-800 dark:border-zinc-300 dark:text-black dark:hover:bg-zinc-200"
             >
-              Install Now
+              Quick Start
             </Link>
           </div>
         </div>
