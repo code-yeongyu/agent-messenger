@@ -5,8 +5,12 @@ import type {
   DiscordDMChannel,
   DiscordFile,
   DiscordGuild,
+  DiscordGuildMember,
+  DiscordMention,
   DiscordMessage,
+  DiscordRelationship,
   DiscordUser,
+  DiscordUserNote,
 } from './types'
 
 export class DiscordError extends Error {
@@ -292,5 +296,37 @@ export class DiscordClient {
     return this.request<DiscordDMChannel>('POST', '/users/@me/channels', {
       recipient_id: userId,
     })
+  }
+
+  async getMentions(options?: { limit?: number; guildId?: string }): Promise<DiscordMention[]> {
+    const params = new URLSearchParams()
+    params.set('limit', (options?.limit ?? 25).toString())
+    params.set('roles', 'true')
+    params.set('everyone', 'true')
+
+    if (options?.guildId) {
+      params.set('guild_id', options.guildId)
+    }
+
+    return this.request<DiscordMention[]>('GET', `/users/@me/mentions?${params.toString()}`)
+  }
+
+  async getUserNote(userId: string): Promise<DiscordUserNote | null> {
+    try {
+      return await this.request<DiscordUserNote>('GET', `/users/@me/notes/${userId}`)
+    } catch (error) {
+      if (error instanceof DiscordError && error.code === 'http_404') {
+        return null
+      }
+      throw error
+    }
+  }
+
+  async setUserNote(userId: string, note: string): Promise<DiscordUserNote> {
+    return this.request<DiscordUserNote>('PUT', `/users/@me/notes/${userId}`, { note })
+  }
+
+  async getRelationships(): Promise<DiscordRelationship[]> {
+    return this.request<DiscordRelationship[]>('GET', '/users/@me/relationships')
   }
 }

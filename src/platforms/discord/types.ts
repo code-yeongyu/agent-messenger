@@ -78,6 +78,29 @@ export interface DiscordMention {
   guild_id?: string
 }
 
+export interface DiscordUserNote {
+  user_id: string
+  note_user_id: string
+  note: string
+}
+
+export interface DiscordRelationship {
+  id: string
+  type: number
+  user: DiscordUser
+  nickname?: string
+}
+
+export interface DiscordGuildMember {
+  user: DiscordUser
+  nick?: string
+  roles: string[]
+  joined_at: string
+  deaf: boolean
+  mute: boolean
+  flags: number
+}
+
 export interface DiscordCredentials {
   token: string
 }
@@ -170,6 +193,13 @@ export const DiscordMentionSchema = z.object({
   mention_everyone: z.boolean(),
   mentions: z.array(DiscordUserSchema),
   guild_id: z.string().optional(),
+})
+
+export const DiscordRelationshipSchema = z.object({
+  id: z.string(),
+  type: z.number(),
+  user: DiscordUserSchema,
+  nickname: z.string().optional(),
 })
 
 export const DiscordCredentialsSchema = z.object({
