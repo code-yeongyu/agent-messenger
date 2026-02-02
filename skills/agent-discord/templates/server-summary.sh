@@ -1,16 +1,16 @@
 #!/bin/bash
 #
-# guild-summary.sh - Generate a comprehensive Discord guild summary
+# server-summary.sh - Generate a comprehensive Discord server summary
 #
 # Usage:
-#   ./guild-summary.sh [--json]
+#   ./server-summary.sh [--json]
 #
 # Options:
 #   --json  Output raw JSON instead of formatted text
 #
 # Example:
-#   ./guild-summary.sh
-#   ./guild-summary.sh --json > summary.json
+#   ./server-summary.sh
+#   ./server-summary.sh --json > summary.json
 
 set -euo pipefail
 
@@ -45,17 +45,17 @@ if echo "$AUTH_STATUS" | jq -e '.error' > /dev/null 2>&1; then
   exit 1
 fi
 
-CURRENT_GUILD=$(echo "$AUTH_STATUS" | jq -r '.current_guild // ""')
-if [ -z "$CURRENT_GUILD" ]; then
-  echo -e "${RED}No guild selected!${NC}" >&2
+CURRENT_SERVER=$(echo "$AUTH_STATUS" | jq -r '.current_server // ""')
+if [ -z "$CURRENT_SERVER" ]; then
+  echo -e "${RED}No server selected!${NC}" >&2
   echo "" >&2
-  echo "Run this to select a guild:" >&2
-  echo "  agent-discord guild list" >&2
-  echo "  agent-discord guild switch <guild-id>" >&2
+  echo "Run this to select a server:" >&2
+  echo "  agent-discord server list" >&2
+  echo "  agent-discord server switch <server-id>" >&2
   exit 1
 fi
 
-echo -e "${YELLOW}Fetching guild snapshot...${NC}" >&2
+echo -e "${YELLOW}Fetching server snapshot...${NC}" >&2
 SNAPSHOT=$(agent-discord snapshot 2>&1)
 
 if echo "$SNAPSHOT" | jq -e '.error' > /dev/null 2>&1; then
@@ -70,8 +70,8 @@ if [ "$OUTPUT_JSON" = true ]; then
   exit 0
 fi
 
-GUILD_NAME=$(echo "$SNAPSHOT" | jq -r '.guild.name // "Unknown"')
-GUILD_ID=$(echo "$SNAPSHOT" | jq -r '.guild.id // "Unknown"')
+SERVER_NAME=$(echo "$SNAPSHOT" | jq -r '.server.name // "Unknown"')
+SERVER_ID=$(echo "$SNAPSHOT" | jq -r '.server.id // "Unknown"')
 
 CHANNELS=$(echo "$SNAPSHOT" | jq '.channels // []')
 CHANNEL_COUNT=$(echo "$CHANNELS" | jq 'length')
@@ -87,11 +87,11 @@ MESSAGE_COUNT=$(echo "$MESSAGES" | jq 'length')
 
 echo ""
 echo -e "${BOLD}${BLUE}=====================================================${NC}"
-echo -e "${BOLD}${BLUE}  Discord Guild Summary${NC}"
+echo -e "${BOLD}${BLUE}  Discord Server Summary${NC}"
 echo -e "${BOLD}${BLUE}=====================================================${NC}"
 echo ""
-echo -e "${BOLD}Guild:${NC}     $GUILD_NAME"
-echo -e "${BOLD}ID:${NC}        $GUILD_ID"
+echo -e "${BOLD}Server:${NC}    $SERVER_NAME"
+echo -e "${BOLD}ID:${NC}        $SERVER_ID"
 echo ""
 
 echo -e "${BOLD}${CYAN}Channels (${CHANNEL_COUNT} total)${NC}"
@@ -153,15 +153,15 @@ echo -e "  ${GREEN}# Get user info${NC}"
 FIRST_USER=$(echo "$MEMBERS" | jq -r '.[0].id // "USER_ID"')
 echo -e "  agent-discord user info $FIRST_USER"
 echo ""
-echo -e "  ${GREEN}# Switch to another guild${NC}"
-echo -e "  agent-discord guild list"
-echo -e "  agent-discord guild switch <guild-id>"
+echo -e "  ${GREEN}# Switch to another server${NC}"
+echo -e "  agent-discord server list"
+echo -e "  agent-discord server switch <server-id>"
 echo ""
 
 echo -e "${BOLD}${BLUE}=====================================================${NC}"
 echo ""
 
-SNAPSHOT_FILE="guild-snapshot-$(date +%Y%m%d-%H%M%S).json"
+SNAPSHOT_FILE="server-snapshot-$(date +%Y%m%d-%H%M%S).json"
 echo "$SNAPSHOT" > "$SNAPSHOT_FILE"
 echo -e "${GREEN}Full snapshot saved to: $SNAPSHOT_FILE${NC}"
 echo ""

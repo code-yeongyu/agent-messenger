@@ -6,9 +6,9 @@ import {
   authCommand,
   channelCommand,
   fileCommand,
-  guildCommand,
   messageCommand,
   reactionCommand,
+  serverCommand,
   snapshotCommand,
   userCommand,
 } from './commands'
@@ -20,10 +20,10 @@ program
   .description('CLI tool for Discord communication')
   .version(pkg.version)
   .option('--pretty', 'Pretty-print JSON output')
-  .option('--guild <id>', 'Use specific guild')
+  .option('--server <id>', 'Use specific server')
 
 program.addCommand(authCommand)
-program.addCommand(guildCommand)
+program.addCommand(serverCommand)
 program.addCommand(channelCommand)
 program.addCommand(fileCommand)
 program.addCommand(messageCommand)

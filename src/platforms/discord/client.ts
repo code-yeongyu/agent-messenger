@@ -180,16 +180,16 @@ export class DiscordClient {
     return this.request<DiscordUser>('GET', '/users/@me')
   }
 
-  async listGuilds(): Promise<DiscordGuild[]> {
+  async listServers(): Promise<DiscordGuild[]> {
     return this.request<DiscordGuild[]>('GET', '/users/@me/guilds')
   }
 
-  async getGuild(guildId: string): Promise<DiscordGuild> {
-    return this.request<DiscordGuild>('GET', `/guilds/${guildId}`)
+  async getServer(serverId: string): Promise<DiscordGuild> {
+    return this.request<DiscordGuild>('GET', `/guilds/${serverId}`)
   }
 
-  async listChannels(guildId: string): Promise<DiscordChannel[]> {
-    return this.request<DiscordChannel[]>('GET', `/guilds/${guildId}/channels`)
+  async listChannels(serverId: string): Promise<DiscordChannel[]> {
+    return this.request<DiscordChannel[]>('GET', `/guilds/${serverId}/channels`)
   }
 
   async getChannel(channelId: string): Promise<DiscordChannel> {
@@ -228,13 +228,13 @@ export class DiscordClient {
     )
   }
 
-  async listUsers(guildId: string): Promise<DiscordUser[]> {
+  async listUsers(serverId: string): Promise<DiscordUser[]> {
     interface GuildMember {
       user: DiscordUser
     }
     const members = await this.request<GuildMember[]>(
       'GET',
-      `/guilds/${guildId}/members?limit=1000`
+      `/guilds/${serverId}/members?limit=1000`
     )
     return members.map((m) => m.user)
   }

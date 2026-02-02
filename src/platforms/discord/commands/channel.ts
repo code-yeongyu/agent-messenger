@@ -9,7 +9,7 @@ export async function listAction(options: { pretty?: boolean }): Promise<void> {
     const credManager = new DiscordCredentialManager()
     const config = await credManager.load()
 
-    if (!config.token || !config.current_guild) {
+    if (!config.token || !config.current_server) {
       console.log(
         formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
       )
@@ -17,7 +17,7 @@ export async function listAction(options: { pretty?: boolean }): Promise<void> {
     }
 
     const client = new DiscordClient(config.token)
-    const channels = await client.listChannels(config.current_guild)
+    const channels = await client.listChannels(config.current_server)
 
     const textChannels = channels.filter((ch) => ch.type === 0)
 
@@ -54,7 +54,7 @@ export async function infoAction(channelId: string, options: { pretty?: boolean 
       id: channel.id,
       name: channel.name,
       type: channel.type,
-      guild_id: channel.guild_id,
+      server_id: channel.guild_id,
       topic: channel.topic || null,
       parent_id: (channel as any).parent_id || null,
     }
@@ -101,7 +101,7 @@ export const channelCommand = new Command('channel')
   .description('Channel commands')
   .addCommand(
     new Command('list')
-      .description('List channels in current guild')
+      .description('List channels in current server')
       .option('--pretty', 'Pretty print JSON output')
       .action(listAction)
   )

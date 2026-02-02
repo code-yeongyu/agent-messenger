@@ -6,7 +6,7 @@ allowed-tools: Bash(agent-discord:*)
 
 # Agent Discord
 
-A TypeScript CLI tool that enables AI agents and humans to interact with Discord servers through a simple command interface. Features seamless token extraction from the Discord desktop app and multi-guild support.
+A TypeScript CLI tool that enables AI agents and humans to interact with Discord servers through a simple command interface. Features seamless token extraction from the Discord desktop app and multi-server support.
 
 ## Quick Start
 
@@ -14,7 +14,7 @@ A TypeScript CLI tool that enables AI agents and humans to interact with Discord
 # Extract credentials from Discord desktop app (zero-config)
 agent-discord auth extract
 
-# Get guild snapshot
+# Get server snapshot
 agent-discord snapshot
 
 # Send a message
@@ -42,20 +42,20 @@ This command:
 - Auto-detects your platform (macOS/Linux/Windows)
 - Extracts user token from Discord desktop app's LevelDB storage
 - Validates token against Discord API before saving
-- Discovers ALL joined guilds (servers)
+- Discovers ALL joined servers
 - Stores credentials securely in `~/.config/agent-messenger/`
 
-### Multi-Guild Support
+### Multi-Server Support
 
 ```bash
-# List all available guilds
-agent-discord guild list
+# List all available servers
+agent-discord server list
 
-# Switch to a different guild
-agent-discord guild switch <guild-id>
+# Switch to a different server
+agent-discord server switch <server-id>
 
-# Show current guild
-agent-discord guild current
+# Show current server
+agent-discord server current
 
 # Check auth status
 agent-discord auth status
@@ -85,7 +85,7 @@ agent-discord message delete <channel-id> <message-id> --force
 ### Channel Commands
 
 ```bash
-# List channels in current guild (text channels only)
+# List channels in current server (text channels only)
 agent-discord channel list
 
 # Get channel info
@@ -96,26 +96,26 @@ agent-discord channel info 1234567890123456789
 agent-discord channel history <channel-id> --limit 100
 ```
 
-### Guild Commands
+### Server Commands
 
 ```bash
-# List all guilds
-agent-discord guild list
+# List all servers
+agent-discord server list
 
-# Get guild info
-agent-discord guild info <guild-id>
+# Get server info
+agent-discord server info <server-id>
 
-# Switch active guild
-agent-discord guild switch <guild-id>
+# Switch active server
+agent-discord server switch <server-id>
 
-# Show current guild
-agent-discord guild current
+# Show current server
+agent-discord server current
 ```
 
 ### User Commands
 
 ```bash
-# List guild members
+# List server members
 agent-discord user list
 
 # Get user info
@@ -155,7 +155,7 @@ agent-discord file info <channel-id> <file-id>
 
 ### Snapshot Command
 
-Get comprehensive guild state for AI agents:
+Get comprehensive server state for AI agents:
 
 ```bash
 # Full snapshot
@@ -170,7 +170,7 @@ agent-discord snapshot --limit 10
 ```
 
 Returns JSON with:
-- Guild metadata (id, name)
+- Server metadata (id, name)
 - Channels (id, name, type, topic)
 - Recent messages (id, content, author, timestamp)
 - Members (id, username, global_name)
@@ -202,7 +202,7 @@ agent-discord channel list --pretty
 
 | Feature | Discord | Slack |
 |---------|---------|-------|
-| Server terminology | Guild | Workspace |
+| Server terminology | Server | Workspace |
 | Channel identifiers | Snowflake IDs | Channel name or ID |
 | Message identifiers | Snowflake IDs | Timestamps (ts) |
 | Threads | Thread ID field | Thread timestamp |
@@ -219,7 +219,7 @@ See `references/common-patterns.md` for typical AI agent workflows.
 See `templates/` directory for runnable examples:
 - `post-message.sh` - Send messages with error handling
 - `monitor-channel.sh` - Monitor channel for new messages
-- `guild-summary.sh` - Generate guild summary
+- `server-summary.sh` - Generate server summary
 
 ## Error Handling
 
@@ -233,7 +233,7 @@ All commands return consistent error format:
 
 Common errors:
 - `Not authenticated`: No valid token - run `auth extract`
-- `No current guild set`: Run `guild switch <id>` first
+- `No current server set`: Run `server switch <id>` first
 - `Message not found`: Invalid message ID
 - `Unknown Channel`: Invalid channel ID
 
@@ -245,11 +245,11 @@ Format:
 ```json
 {
   "token": "user_token_here",
-  "current_guild": "1234567890123456789",
-  "guilds": {
+  "current_server": "1234567890123456789",
+  "servers": {
     "1234567890123456789": {
-      "guild_id": "1234567890123456789",
-      "guild_name": "My Server"
+      "server_id": "1234567890123456789",
+      "server_name": "My Server"
     }
   }
 }

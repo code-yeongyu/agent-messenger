@@ -23,7 +23,7 @@ This command:
 3. Reads the LevelDB storage containing session data
 4. Extracts user token
 5. Validates token against Discord API before saving
-6. Discovers ALL joined guilds (servers)
+6. Discovers ALL joined servers
 7. Stores credentials securely in `~/.config/agent-messenger/discord-credentials.json`
 
 ### Platform-Specific Paths
@@ -49,16 +49,16 @@ The tool searches within:
 ### What Gets Extracted
 
 - **token**: User token (starts with a base64-encoded user ID)
-- **guilds**: All servers you're a member of
+- **servers**: All servers you're a member of
 
-## Multi-Guild Management
+## Multi-Server Management
 
-### List Guilds
+### List Servers
 
-See all available guilds:
+See all available servers:
 
 ```bash
-agent-discord guild list
+agent-discord server list
 ```
 
 Output:
@@ -77,22 +77,22 @@ Output:
 ]
 ```
 
-### Switch Guild
+### Switch Server
 
-Change the active guild:
+Change the active server:
 
 ```bash
-agent-discord guild switch 9876543210987654321
+agent-discord server switch 9876543210987654321
 ```
 
-All subsequent commands will use the selected guild until you switch again.
+All subsequent commands will use the selected server until you switch again.
 
-### Current Guild
+### Current Server
 
-Check which guild is active:
+Check which server is active:
 
 ```bash
-agent-discord guild current
+agent-discord server current
 ```
 
 ## Credential Storage
@@ -109,15 +109,15 @@ Credentials are stored in:
 ```json
 {
   "token": "user_token_here",
-  "current_guild": "1234567890123456789",
-  "guilds": {
+  "current_server": "1234567890123456789",
+  "servers": {
     "1234567890123456789": {
-      "guild_id": "1234567890123456789",
-      "guild_name": "My Server"
+      "server_id": "1234567890123456789",
+      "server_name": "My Server"
     },
     "9876543210987654321": {
-      "guild_id": "9876543210987654321",
-      "guild_name": "Another Server"
+      "server_id": "9876543210987654321",
+      "server_name": "Another Server"
     }
   }
 }
@@ -142,8 +142,8 @@ Output when authenticated:
 {
   "authenticated": true,
   "user": "username",
-  "current_guild": "1234567890123456789",
-  "guilds_count": 5
+  "current_server": "1234567890123456789",
+  "servers_count": 5
 }
 ```
 
@@ -190,7 +190,7 @@ This shows:
 - Which Discord directory was found
 - Token extraction progress
 - Token validation results
-- Guild discovery details
+- Server discovery details
 
 ### "Discord desktop app not found"
 
@@ -254,7 +254,7 @@ With extracted credentials, agent-discord has the same permissions as you in Dis
 ### Best Practices
 
 1. **Protect credentials.json**: Never commit to version control
-2. **Use guild switching**: Keep different contexts separate
+2. **Use server switching**: Keep different contexts separate
 3. **Re-extract periodically**: Keep tokens fresh
 4. **Revoke if compromised**: Change your Discord password to invalidate tokens
 
@@ -270,11 +270,11 @@ mkdir -p ~/.config/agent-messenger
 cat > ~/.config/agent-messenger/discord-credentials.json << 'EOF'
 {
   "token": "YOUR_TOKEN_HERE",
-  "current_guild": "1234567890123456789",
-  "guilds": {
+  "current_server": "1234567890123456789",
+  "servers": {
     "1234567890123456789": {
-      "guild_id": "1234567890123456789",
-      "guild_name": "My Server"
+      "server_id": "1234567890123456789",
+      "server_name": "My Server"
     }
   }
 }

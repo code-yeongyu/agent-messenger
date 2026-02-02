@@ -64,13 +64,13 @@ export interface DiscordCredentials {
 }
 
 export interface DiscordConfig {
-  current_guild: string | null
+  current_server: string | null
   token: string
-  guilds: Record<
+  servers: Record<
     string,
     {
-      guild_id: string
-      guild_name: string
+      server_id: string
+      server_name: string
     }
   >
 }
@@ -136,13 +136,13 @@ export const DiscordCredentialsSchema = z.object({
 })
 
 export const DiscordConfigSchema = z.object({
-  current_guild: z.string().nullable(),
+  current_server: z.string().nullable(),
   token: z.string(),
-  guilds: z.record(
+  servers: z.record(
     z.string(),
     z.object({
-      guild_id: z.string(),
-      guild_name: z.string(),
+      server_id: z.string(),
+      server_name: z.string(),
     })
   ),
 })

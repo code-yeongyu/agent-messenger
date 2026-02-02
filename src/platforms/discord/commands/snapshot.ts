@@ -16,27 +16,27 @@ export async function snapshotAction(options: {
     const credManager = new DiscordCredentialManager()
     const config = await credManager.load()
 
-    if (!config.token || !config.current_guild) {
+    if (!config.token || !config.current_server) {
       console.log(
-        formatOutput({ error: 'No current guild set. Run "guild switch" first.' }, options.pretty)
+        formatOutput({ error: 'No current server set. Run "server switch" first.' }, options.pretty)
       )
       process.exit(1)
     }
 
     const client = new DiscordClient(config.token as string)
-    const guildId = config.current_guild as string
+    const serverId = config.current_server as string
     const messageLimit = options.limit || 20
 
     const snapshot: Record<string, any> = {}
 
-    const guild = await client.getGuild(guildId)
-    snapshot.guild = {
-      id: guild.id,
-      name: guild.name,
+    const server = await client.getServer(serverId)
+    snapshot.server = {
+      id: server.id,
+      name: server.name,
     }
 
     if (!options.usersOnly) {
-      const channels = await client.listChannels(guildId)
+      const channels = await client.listChannels(serverId)
 
       snapshot.channels = channels.map((ch) => ({
         id: ch.id,
@@ -73,7 +73,7 @@ export async function snapshotAction(options: {
     }
 
     if (!options.channelsOnly) {
-      const users = await client.listUsers(guildId)
+      const users = await client.listUsers(serverId)
 
       snapshot.members = users.map((u) => ({
         id: u.id,
@@ -90,7 +90,7 @@ export async function snapshotAction(options: {
 
 export const snapshotCommand = new Command()
   .name('snapshot')
-  .description('Get comprehensive guild state for AI agents')
+  .description('Get comprehensive server state for AI agents')
   .option('--channels-only', 'Include only channels (exclude messages and members)')
   .option('--users-only', 'Include only members (exclude channels and messages)')
   .option('--limit <n>', 'Number of recent messages per channel (default: 20)', '20')

@@ -37,8 +37,8 @@ beforeEach(() => {
   // Spy on DiscordCredentialManager.prototype methods
   credManagerLoadSpy = spyOn(DiscordCredentialManager.prototype, 'load').mockResolvedValue({
     token: 'test_token',
-    current_guild: 'guild_123',
-    guilds: {},
+    current_server: 'server_123',
+    servers: {},
   })
 })
 

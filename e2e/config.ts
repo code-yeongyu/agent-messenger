@@ -4,8 +4,8 @@ export const SLACK_TEST_CHANNEL_ID = 'C0ACZKTDDC0'
 export const SLACK_TEST_CHANNEL = 'e2e-test'
 
 // Discord Test Environment
-export const DISCORD_TEST_GUILD_ID = '1467039439770357844'
-export const DISCORD_TEST_GUILD_NAME = 'Agent Messenger'
+export const DISCORD_TEST_SERVER_ID = '1467039439770357844'
+export const DISCORD_TEST_SERVER_NAME = 'Agent Messenger'
 export const DISCORD_TEST_CHANNEL_ID = '1467062262996144162'
 export const DISCORD_TEST_CHANNEL = 'e2e-test'
 
@@ -34,12 +34,12 @@ export async function validateDiscordEnvironment() {
     throw new Error('Discord authentication failed. Please run: agent-messenger discord auth login')
   }
   
-  const currentResult = await runCLI('discord', ['guild', 'current'])
-  const data = parseJSON<{ guild_id: string; guild_name: string }>(currentResult.stdout)
-  if (data?.guild_id !== DISCORD_TEST_GUILD_ID) {
+  const currentResult = await runCLI('discord', ['server', 'current'])
+  const data = parseJSON<{ server_id: string; server_name: string }>(currentResult.stdout)
+  if (data?.server_id !== DISCORD_TEST_SERVER_ID) {
     throw new Error(
-      `Wrong Discord guild. Expected: ${DISCORD_TEST_GUILD_NAME} (${DISCORD_TEST_GUILD_ID}), ` +
-      `Got: ${data?.guild_name} (${data?.guild_id})`
+      `Wrong Discord server. Expected: ${DISCORD_TEST_SERVER_NAME} (${DISCORD_TEST_SERVER_ID}), ` +
+      `Got: ${data?.server_name} (${data?.server_id})`
     )
   }
 }

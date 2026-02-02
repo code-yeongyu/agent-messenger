@@ -7,7 +7,7 @@ test('snapshot: command is defined', () => {
 })
 
 test('snapshot: command has correct description', () => {
-  expect(snapshotCommand.description()).toContain('guild state')
+  expect(snapshotCommand.description()).toContain('server state')
 })
 
 test('snapshot: command has --channels-only option', () => {
