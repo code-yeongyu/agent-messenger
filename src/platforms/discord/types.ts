@@ -101,6 +101,18 @@ export interface DiscordGuildMember {
   flags: number
 }
 
+export interface DiscordUserProfile {
+  user: DiscordUser & { bio?: string }
+  connected_accounts: Array<{
+    type: string
+    id: string
+    name: string
+    verified: boolean
+  }>
+  premium_since?: string
+  mutual_guilds?: Array<{ id: string; nick?: string }>
+}
+
 export interface DiscordCredentials {
   token: string
 }
