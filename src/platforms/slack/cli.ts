@@ -6,6 +6,7 @@ import {
   activityCommand,
   authCommand,
   channelCommand,
+  draftsCommand,
   fileCommand,
   messageCommand,
   reactionCommand,
@@ -34,6 +35,7 @@ program.addCommand(fileCommand)
 program.addCommand(snapshotCommand)
 program.addCommand(activityCommand)
 program.addCommand(savedCommand)
+program.addCommand(draftsCommand)
 
 program.parse(process.argv)
 
