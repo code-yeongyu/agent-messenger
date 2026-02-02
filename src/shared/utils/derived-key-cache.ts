@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
@@ -44,8 +44,7 @@ export class DerivedKeyCache {
     await mkdir(this.cacheDir, { recursive: true, mode: 0o700 })
 
     const keyPath = this.getKeyPath(platform)
-    await writeFile(keyPath, key)
-    await chmod(keyPath, 0o600)
+    await writeFile(keyPath, key, { mode: 0o600 })
   }
 
   async clear(platform: Platform): Promise<void> {

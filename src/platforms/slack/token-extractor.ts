@@ -531,6 +531,7 @@ export class TokenExtractor {
 
     const key = this.getDerivedKeyFromKeychain()
     if (key) {
+      this.cachedKey = key
       await this.keyCache.set('slack', key)
       this.usedCachedKey = false
     }
