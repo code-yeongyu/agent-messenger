@@ -83,34 +83,102 @@ function ZapIcon({ className }: { className?: string }) {
 
 function SlackIcon({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <svg viewBox="0 0 128 128" fill="currentColor" className={className}>
       <title>Slack icon</title>
-      <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.522 2.521 2.527 2.527 0 0 1-2.522-2.521V2.522A2.528 2.528 0 0 1 15.166 0a2.528 2.528 0 0 1 2.522 2.522v6.312zM15.166 18.956a2.528 2.528 0 0 1 2.522 2.521A2.528 2.528 0 0 1 15.166 24a2.528 2.528 0 0 1-2.522-2.522v-2.522h2.522zM15.166 17.688a2.527 2.527 0 0 1-2.522-2.52 2.527 2.527 0 0 1 2.522-2.522h6.312A2.528 2.528 0 0 1 24 15.166a2.528 2.528 0 0 1-2.522 2.522h-6.312z" />
+      <path
+        d="M27.255 80.719c0 7.33-5.978 13.317-13.309 13.317C6.616 94.036.63 88.049.63 80.719s5.987-13.317 13.317-13.317h13.309zm6.709 0c0-7.33 5.987-13.317 13.317-13.317s13.317 5.986 13.317 13.317v33.335c0 7.33-5.986 13.317-13.317 13.317-7.33 0-13.317-5.987-13.317-13.317zm0 0"
+        fill="#de1c59"
+      />
+      <path
+        d="M47.281 27.255c-7.33 0-13.317-5.978-13.317-13.309C33.964 6.616 39.951.63 47.281.63s13.317 5.987 13.317 13.317v13.309zm0 6.709c7.33 0 13.317 5.987 13.317 13.317s-5.986 13.317-13.317 13.317H13.946C6.616 60.598.63 54.612.63 47.281c0-7.33 5.987-13.317 13.317-13.317zm0 0"
+        fill="#35c5f0"
+      />
+      <path
+        d="M100.745 47.281c0-7.33 5.978-13.317 13.309-13.317 7.33 0 13.317 5.987 13.317 13.317s-5.987 13.317-13.317 13.317h-13.309zm-6.709 0c0 7.33-5.987 13.317-13.317 13.317s-13.317-5.986-13.317-13.317V13.946C67.402 6.616 73.388.63 80.719.63c7.33 0 13.317 5.987 13.317 13.317zm0 0"
+        fill="#2eb67d"
+      />
+      <path
+        d="M80.719 100.745c7.33 0 13.317 5.978 13.317 13.309 0 7.33-5.987 13.317-13.317 13.317s-13.317-5.987-13.317-13.317v-13.309zm0-6.709c-7.33 0-13.317-5.987-13.317-13.317s5.986-13.317 13.317-13.317h33.335c7.33 0 13.317 5.986 13.317 13.317 0 7.33-5.987 13.317-13.317 13.317zm0 0"
+        fill="#ecb22d"
+      />
     </svg>
   )
 }
 
 function DiscordIcon({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <svg viewBox="0 0 128 128" fill="currentColor" className={className}>
       <title>Discord icon</title>
-      <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037 13.719 13.719 0 0 0-.621 1.281 18.337 18.337 0 0 0-7.464 0 14.155 14.155 0 0 0-.624-1.28.076.076 0 0 0-.079-.037 19.761 19.761 0 0 0-4.887 1.515.071.071 0 0 0-.03.028C.533 9.046-.32 13.58.099 18.057a.083.083 0 0 0 .032.056 19.907 19.907 0 0 0 5.992 3.018.078.078 0 0 0 .085-.027 13.882 13.882 0 0 0 1.226-1.994.075.075 0 0 0-.041-.106 13.09 13.09 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.16 10.16 0 0 0 .373-.292.073.073 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.288 12.288 0 0 1-1.873.892.077.077 0 0 0-.041.107 14.373 14.373 0 0 0 1.225 1.994.076.076 0 0 0 .085.028 19.92 19.92 0 0 0 6.002-3.018.077.077 0 0 0 .032-.054c.5-5.177-.838-9.673-3.549-13.66a.06.06 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+      <path
+        d="M107.7,30.8c-8-3.7-16.5-6.4-25.5-7.9c-0.1,0-0.2,0-0.3,0.1c-1.1,2-2.3,4.5-3.2,6.6c-9.6-1.4-19.2-1.4-28.6,0c-0.9-2.1-2.1-4.6-3.2-6.6c-0.1-0.1-0.2-0.1-0.3-0.1c-8.9,1.5-17.5,4.2-25.5,7.9c0,0-0.1,0.1-0.1,0.1C7.1,51.5,3,71.7,5.1,91.6c0,0.1,0.1,0.2,0.1,0.2c10.7,7.9,21.1,12.7,31.3,15.8c0.1,0,0.2,0,0.3-0.1c2.4-3.3,4.6-6.8,6.4-10.4c0.1-0.2,0-0.4-0.2-0.5c-3.4-1.3-6.7-2.9-9.8-4.7c-0.2-0.1-0.2-0.4,0-0.6c0.7-0.5,1.3-1,1.9-1.5c0.1-0.1,0.2-0.1,0.3,0c20.6,9.4,42.9,9.4,63.3,0c0.1-0.1,0.2,0,0.3,0c0.6,0.5,1.3,1,1.9,1.5c0.2,0.2,0.2,0.4,0,0.6c-3.1,1.9-6.4,3.5-9.8,4.7c-0.2,0.1-0.3,0.3-0.2,0.5c1.9,3.6,4,7.1,6.4,10.4c0.1,0.1,0.2,0.1,0.3,0.1c10.2-3.1,20.6-7.9,31.3-15.8c0.1-0.1,0.1-0.1,0.1-0.2C125.6,68.8,119.2,49.2,107.7,30.8C107.7,30.9,107.7,30.8,107.7,30.8z M45.3,79.9c-5.3,0-9.6-4.8-9.6-10.8s4.2-10.8,9.6-10.8c5.4,0,9.7,4.9,9.6,10.8C54.9,75.1,50.6,79.9,45.3,79.9z M82.8,79.9c-5.3,0-9.6-4.8-9.6-10.8s4.2-10.8,9.6-10.8c5.4,0,9.7,4.9,9.6,10.8C92.4,75.1,88.2,79.9,82.8,79.9z"
+        fill="#5865f2"
+      />
     </svg>
   )
 }
 
 function TeamsIcon({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <svg viewBox="0 0 128 128" fill="currentColor" className={className}>
       <title>Teams icon</title>
-      <path d="M23.08 6.43h.01c.2 1.39.2 3.03.2 4.19 0 2.87-.04 5.37-.36 6.94l-5.69 2.91-5.68-2.92v-1.63c.69-.15 1.35-.42 1.95-.78.71.55 1.55.94 2.45 1.05.3.04.59.04.88-.01 2.37-.41 3.52-2.96 3.76-5.46l.01-.15c.03-.31.04-.61.04-.91.01-1.46-.24-2.43-.89-3.04-.77-.73-2.12-.9-3.41-.3l-2.02.94-2.77-1.43v-1.28L23.08 6.43zM10.05 4.5l-8.6 4.41v6.16l8.6 4.42V4.5zM7.22 8.01c.85 0 1.54.69 1.54 1.54s-.69 1.54-1.54 1.54-1.54-.69-1.54-1.54.69-1.54 1.54-1.54zM9.01 13.9c0 1.48-1.79 1.6-1.79 1.6s-1.79-.12-1.79-1.6c0-1.04.8-1.89 1.79-1.89s1.79.85 1.79 1.89z" />
+      <path
+        d="M86.3,44.5h32.5c2.6,0,4.7,2.1,4.7,4.7v29.4c0,12.9-10.5,23.4-23.4,23.4h-0.3c-12.9,0-23.4-10.5-23.4-23.4V54.4C76.4,48.9,80.8,44.5,86.3,44.5z"
+        fill="#5059c9"
+      />
+      <circle cx="108.1" cy="26.8" r="17.8" fill="#5059c9" />
+      <path
+        d="M64.7,44.5H24.9c-2.5,0-4.5,2-4.5,4.5v38.2c0,19.5,15.8,35.3,35.3,35.3h0.1c19.5,0,35.3-15.8,35.3-35.3V53.4C91.1,48.5,87.1,44.5,82.2,44.5H64.7z"
+        fill="#7b83eb"
+      />
+      <circle cx="55.8" cy="22.3" r="22.3" fill="#7b83eb" />
+      <path
+        d="M55.8,44.5H24.9c-2.5,0-4.5,2-4.5,4.5v38.2c0,16.6,11.5,30.5,27,34.2V63.5c0-10.5,8.5-19,19-19h16.4C79.2,36.2,68.6,30,55.8,30V44.5z"
+        opacity="0.1"
+      />
+      <path
+        d="M50.3,50H24.9c-2.5,0-4.5,2-4.5,4.5v38.2c0,17.9,13.3,32.7,30.5,35v-58C50.9,62.5,50.6,56.1,50.3,50z"
+        opacity="0.2"
+      />
+      <path
+        d="M4.5,49V87c0,17.3,12.5,31.9,29.3,34.8c-1-0.2-1.9-0.4-2.9-0.6v-58C24.6,55.4,16.4,50.3,4.5,49z"
+        fill="#7b83eb"
+        opacity="0.2"
+      />
+      <rect x="4.5" y="44.5" width="65.3" height="65.3" rx="4.5" fill="url(#teams-gradient)" />
+      <defs>
+        <linearGradient
+          id="teams-gradient"
+          x1="4.5"
+          y1="44.5"
+          x2="69.8"
+          y2="109.8"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0" stopColor="#5a62c3" />
+          <stop offset="0.5" stopColor="#4d55bd" />
+          <stop offset="1" stopColor="#3940ab" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M42.4,60.5H27.6v27.8h6.7V75.1h7.8c5.5,0,10-4.5,10-10v-0.4c0-2.3-0.8-4.2-2.4-5.8C48,57.3,45.5,60.5,42.4,60.5z M42.1,69.5h-7.8v-5.4h7.8c1.5,0,2.7,1.2,2.7,2.7S43.6,69.5,42.1,69.5z"
+        fill="white"
+      />
     </svg>
   )
 }
 
 function SunIcon({ className }: { className?: string }) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
       <title>Light mode</title>
       <circle cx="12" cy="12" r="4" />
       <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
@@ -120,7 +188,16 @@ function SunIcon({ className }: { className?: string }) {
 
 function MoonIcon({ className }: { className?: string }) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
       <title>Dark mode</title>
       <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
     </svg>
@@ -128,7 +205,7 @@ function MoonIcon({ className }: { className?: string }) {
 }
 
 function ThemeToggle() {
-  const { theme, setTheme, resolvedTheme } = useTheme()
+  const { setTheme, resolvedTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -141,6 +218,7 @@ function ThemeToggle() {
 
   return (
     <button
+      type="button"
       onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
       className="rounded-lg p-2 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
       aria-label="Toggle theme"
@@ -318,7 +396,7 @@ export default function Home() {
           </h2>
           <div className="grid gap-8 sm:grid-cols-3">
             <div className="flex flex-col items-center rounded-2xl bg-white p-8 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
-              <div className="mb-4 text-[#4A154B] dark:text-white">
+              <div className="mb-4">
                 <SlackIcon className="h-12 w-12" />
               </div>
               <h3 className="text-xl font-bold text-zinc-900 dark:text-white">Slack</h3>
@@ -327,7 +405,7 @@ export default function Home() {
               </p>
             </div>
             <div className="flex flex-col items-center rounded-2xl bg-white p-8 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
-              <div className="mb-4 text-[#5865F2]">
+              <div className="mb-4">
                 <DiscordIcon className="h-12 w-12" />
               </div>
               <h3 className="text-xl font-bold text-zinc-900 dark:text-white">Discord</h3>
@@ -336,7 +414,7 @@ export default function Home() {
               </p>
             </div>
             <div className="flex flex-col items-center rounded-2xl bg-white p-8 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
-              <div className="mb-4 text-[#464EB8] dark:text-[#7B83EB]">
+              <div className="mb-4">
                 <TeamsIcon className="h-12 w-12" />
               </div>
               <h3 className="text-xl font-bold text-zinc-900 dark:text-white">Teams</h3>
