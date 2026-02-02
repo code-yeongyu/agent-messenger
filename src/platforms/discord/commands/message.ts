@@ -140,6 +140,31 @@ export async function deleteAction(
   }
 }
 
+export async function ackAction(
+  channelId: string,
+  messageId: string,
+  options: { pretty?: boolean }
+): Promise<void> {
+  try {
+    const credManager = new DiscordCredentialManager()
+    const config = await credManager.load()
+
+    if (!config.token) {
+      console.log(
+        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
+      )
+      process.exit(1)
+    }
+
+    const client = new DiscordClient(config.token)
+    await client.ackMessage(channelId, messageId)
+
+    console.log(formatOutput({ acknowledged: messageId }, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
 export const messageCommand = new Command('message')
   .description('Message commands')
   .addCommand(
@@ -179,4 +204,12 @@ export const messageCommand = new Command('message')
       .option('--force', 'Skip confirmation')
       .option('--pretty', 'Pretty print JSON output')
       .action(deleteAction)
+  )
+  .addCommand(
+    new Command('ack')
+      .description('Mark message as read (acknowledge)')
+      .argument('<channel-id>', 'Channel ID')
+      .argument('<message-id>', 'Message ID')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(ackAction)
   )

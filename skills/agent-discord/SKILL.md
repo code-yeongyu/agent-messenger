@@ -80,6 +80,9 @@ agent-discord message get 1234567890123456789 9876543210987654321
 
 # Delete a message
 agent-discord message delete <channel-id> <message-id> --force
+
+# Acknowledge/mark a message as read
+agent-discord message ack <channel-id> <message-id>
 ```
 
 ### Channel Commands
@@ -123,6 +126,69 @@ agent-discord user info <user-id>
 
 # Get current user
 agent-discord user me
+```
+
+### DM Commands
+
+```bash
+# List DM channels
+agent-discord dm list
+
+# Create a DM channel with a user
+agent-discord dm create <user-id>
+```
+
+### Mention Commands
+
+```bash
+# List recent mentions
+agent-discord mention list
+agent-discord mention list --limit 50
+agent-discord mention list --guild <server-id>
+```
+
+### Friend Commands
+
+```bash
+# List all relationships (friends, blocked, pending requests)
+agent-discord friend list
+agent-discord friend list --pretty
+```
+
+### Note Commands
+
+```bash
+# Get note for a user
+agent-discord note get <user-id>
+
+# Set note for a user
+agent-discord note set <user-id> "Note content"
+```
+
+### Profile Commands
+
+```bash
+# Get detailed user profile
+agent-discord profile get <user-id>
+```
+
+### Member Commands
+
+```bash
+# Search guild members
+agent-discord member search <guild-id> <query>
+agent-discord member search 1234567890123456789 "john" --limit 20
+```
+
+### Thread Commands
+
+```bash
+# Create a thread in a channel
+agent-discord thread create <channel-id> <name>
+agent-discord thread create 1234567890123456789 "Discussion" --auto-archive-duration 1440
+
+# Archive a thread
+agent-discord thread archive <thread-id>
 ```
 
 ### Reaction Commands

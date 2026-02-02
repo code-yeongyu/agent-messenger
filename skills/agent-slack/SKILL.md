@@ -162,6 +162,59 @@ agent-slack file list --channel general
 agent-slack file info <file-id>
 ```
 
+### Unread Commands
+
+```bash
+# List unread channels
+agent-slack unread list
+agent-slack unread list --pretty
+
+# Get unread counts summary
+agent-slack unread count
+
+# Mark channel as read
+agent-slack mark read <channel>
+agent-slack mark read general
+```
+
+### Activity Commands
+
+```bash
+# List activity feed (mentions, reactions, replies)
+agent-slack activity list
+agent-slack activity list --limit 50
+```
+
+### Saved Items Commands
+
+```bash
+# List saved items
+agent-slack saved list
+
+# Add item to saved
+agent-slack saved add <channel> <ts>
+agent-slack saved add general 1234567890.123456
+
+# Remove item from saved
+agent-slack saved remove <channel> <ts>
+```
+
+### Drafts Commands
+
+```bash
+# List all drafts
+agent-slack drafts list
+agent-slack drafts list --pretty
+```
+
+### Channel Sections Commands
+
+```bash
+# List channel sections (sidebar organization)
+agent-slack section list
+agent-slack section list --pretty
+```
+
 ### Snapshot Command
 
 Get comprehensive workspace state for AI agents:

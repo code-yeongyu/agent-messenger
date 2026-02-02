@@ -18,6 +18,13 @@ export interface DiscordChannel {
   type: number
   topic?: string
   position?: number
+  parent_id?: string
+  thread_metadata?: {
+    archived?: boolean
+    auto_archive_duration?: number
+    archive_timestamp?: string
+    locked?: boolean
+  }
 }
 
 export interface DiscordMessage {
@@ -41,6 +48,14 @@ export interface DiscordUser {
   bot?: boolean
 }
 
+export interface DiscordDMChannel {
+  id: string
+  type: number // 1=DM, 3=Group DM
+  last_message_id?: string
+  recipients: DiscordUser[]
+  name?: string // Only for group DMs
+}
+
 export interface DiscordReaction {
   emoji: {
     id?: string
@@ -57,6 +72,52 @@ export interface DiscordFile {
   content_type?: string
   height?: number
   width?: number
+}
+
+export interface DiscordMention {
+  id: string
+  channel_id: string
+  author: { id: string; username: string }
+  content: string
+  timestamp: string
+  mention_everyone: boolean
+  mentions: DiscordUser[]
+  guild_id?: string
+}
+
+export interface DiscordUserNote {
+  user_id: string
+  note_user_id: string
+  note: string
+}
+
+export interface DiscordRelationship {
+  id: string
+  type: number
+  user: DiscordUser
+  nickname?: string
+}
+
+export interface DiscordGuildMember {
+  user: DiscordUser
+  nick?: string
+  roles: string[]
+  joined_at: string
+  deaf: boolean
+  mute: boolean
+  flags: number
+}
+
+export interface DiscordUserProfile {
+  user: DiscordUser & { bio?: string }
+  connected_accounts: Array<{
+    type: string
+    id: string
+    name: string
+    verified: boolean
+  }>
+  premium_since?: string
+  mutual_guilds?: Array<{ id: string; nick?: string }>
 }
 
 export interface DiscordCredentials {
@@ -113,6 +174,14 @@ export const DiscordUserSchema = z.object({
   bot: z.boolean().optional(),
 })
 
+export const DiscordDMChannelSchema = z.object({
+  id: z.string(),
+  type: z.number(),
+  last_message_id: z.string().optional(),
+  recipients: z.array(DiscordUserSchema),
+  name: z.string().optional(),
+})
+
 export const DiscordReactionSchema = z.object({
   emoji: z.object({
     id: z.string().optional(),
@@ -129,6 +198,27 @@ export const DiscordFileSchema = z.object({
   content_type: z.string().optional(),
   height: z.number().optional(),
   width: z.number().optional(),
+})
+
+export const DiscordMentionSchema = z.object({
+  id: z.string(),
+  channel_id: z.string(),
+  author: z.object({
+    id: z.string(),
+    username: z.string(),
+  }),
+  content: z.string(),
+  timestamp: z.string(),
+  mention_everyone: z.boolean(),
+  mentions: z.array(DiscordUserSchema),
+  guild_id: z.string().optional(),
+})
+
+export const DiscordRelationshipSchema = z.object({
+  id: z.string(),
+  type: z.number(),
+  user: DiscordUserSchema,
+  nickname: z.string().optional(),
 })
 
 export const DiscordCredentialsSchema = z.object({

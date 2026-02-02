@@ -3,12 +3,17 @@
 import { Command } from 'commander'
 import pkg from '../../../package.json'
 import {
+  activityCommand,
   authCommand,
   channelCommand,
+  draftsCommand,
   fileCommand,
   messageCommand,
   reactionCommand,
+  savedCommand,
+  sectionsCommand,
   snapshotCommand,
+  unreadCommand,
   userCommand,
   workspaceCommand,
 } from './commands/index'
@@ -30,6 +35,11 @@ program.addCommand(userCommand)
 program.addCommand(reactionCommand)
 program.addCommand(fileCommand)
 program.addCommand(snapshotCommand)
+program.addCommand(activityCommand)
+program.addCommand(draftsCommand)
+program.addCommand(savedCommand)
+program.addCommand(sectionsCommand)
+program.addCommand(unreadCommand)
 
 program.parse(process.argv)
 

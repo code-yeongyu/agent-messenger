@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test'
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
-import { deleteAction, getAction, listAction, sendAction } from './message'
+import { ackAction, deleteAction, getAction, listAction, sendAction } from './message'
 
 let clientSendMessageSpy: ReturnType<typeof spyOn>
 let clientGetMessagesSpy: ReturnType<typeof spyOn>
 let clientGetMessageSpy: ReturnType<typeof spyOn>
 let clientDeleteMessageSpy: ReturnType<typeof spyOn>
+let clientAckMessageSpy: ReturnType<typeof spyOn>
 let credManagerLoadSpy: ReturnType<typeof spyOn>
 
 beforeEach(() => {
@@ -48,6 +49,8 @@ beforeEach(() => {
     undefined
   )
 
+  clientAckMessageSpy = spyOn(DiscordClient.prototype, 'ackMessage').mockResolvedValue(undefined)
+
   // Spy on DiscordCredentialManager.prototype methods
   credManagerLoadSpy = spyOn(DiscordCredentialManager.prototype, 'load').mockResolvedValue({
     token: 'test_token',
@@ -61,6 +64,7 @@ afterEach(() => {
   clientGetMessagesSpy?.mockRestore()
   clientGetMessageSpy?.mockRestore()
   clientDeleteMessageSpy?.mockRestore()
+  clientAckMessageSpy?.mockRestore()
   credManagerLoadSpy?.mockRestore()
 })
 
@@ -107,4 +111,15 @@ test('delete: returns success', async () => {
   expect(consoleSpy).toHaveBeenCalled()
   const output = consoleSpy.mock.calls[0][0]
   expect(output).toContain('deleted')
+})
+
+test('ack: returns success', async () => {
+  const consoleSpy = mock((_msg: string) => {})
+  console.log = consoleSpy
+
+  await ackAction('ch_456', 'msg_123', { pretty: false })
+
+  expect(consoleSpy).toHaveBeenCalled()
+  const output = consoleSpy.mock.calls[0][0]
+  expect(output).toContain('acknowledged')
 })
