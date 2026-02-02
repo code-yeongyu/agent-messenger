@@ -3,11 +3,13 @@
 import { Command } from 'commander'
 import pkg from '../../../package.json'
 import {
+  activityCommand,
   authCommand,
   channelCommand,
   fileCommand,
   messageCommand,
   reactionCommand,
+  savedCommand,
   snapshotCommand,
   userCommand,
   workspaceCommand,
@@ -30,6 +32,8 @@ program.addCommand(userCommand)
 program.addCommand(reactionCommand)
 program.addCommand(fileCommand)
 program.addCommand(snapshotCommand)
+program.addCommand(activityCommand)
+program.addCommand(savedCommand)
 
 program.parse(process.argv)
 
