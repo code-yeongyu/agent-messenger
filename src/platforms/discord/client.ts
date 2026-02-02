@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import { getDiscordHeaders } from './super-properties'
 import type {
   DiscordChannel,
   DiscordFile,
@@ -100,9 +101,7 @@ export class DiscordClient {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       await this.waitForRateLimit(bucketKey)
 
-      const headers: Record<string, string> = {
-        Authorization: this.token,
-      }
+      const headers: Record<string, string> = getDiscordHeaders(this.token)
 
       const options: RequestInit = {
         method,
@@ -155,11 +154,10 @@ export class DiscordClient {
 
     await this.waitForRateLimit(bucketKey)
 
+    const headers = getDiscordHeaders(this.token)
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        Authorization: this.token,
-      },
+      headers,
       body: formData,
     })
 
