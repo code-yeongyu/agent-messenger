@@ -18,6 +18,13 @@ export interface DiscordChannel {
   type: number
   topic?: string
   position?: number
+  parent_id?: string
+  thread_metadata?: {
+    archived?: boolean
+    auto_archive_duration?: number
+    archive_timestamp?: string
+    locked?: boolean
+  }
 }
 
 export interface DiscordMessage {
