@@ -226,6 +226,12 @@ export class DiscordClient {
     )
   }
 
+  async ackMessage(channelId: string, messageId: string): Promise<void> {
+    return this.request<void>('POST', `/channels/${channelId}/messages/${messageId}/ack`, {
+      token: null,
+    })
+  }
+
   async listUsers(serverId: string): Promise<DiscordUser[]> {
     interface GuildMember {
       user: DiscordUser
