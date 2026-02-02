@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "biome check . && eslint .",
+    "format": "biome format --write ."
   },
   "dependencies": {
     "@types/mdx": "^2.0.13",
