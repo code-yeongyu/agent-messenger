@@ -5,6 +5,7 @@ import { createRequire } from 'node:module'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ClassicLevel } from 'classic-level'
+import { DerivedKeyCache } from '../../shared/utils/derived-key-cache'
 
 const require = createRequire(import.meta.url)
 
@@ -24,8 +25,9 @@ interface TokenInfo {
 export class TokenExtractor {
   private platform: NodeJS.Platform
   private slackDir: string
+  private keyCache: DerivedKeyCache
 
-  constructor(platform?: NodeJS.Platform, slackDir?: string) {
+  constructor(platform?: NodeJS.Platform, slackDir?: string, keyCache?: DerivedKeyCache) {
     this.platform = platform ?? process.platform
 
     if (!['darwin', 'linux', 'win32'].includes(this.platform)) {
@@ -33,6 +35,7 @@ export class TokenExtractor {
     }
 
     this.slackDir = slackDir ?? this.getSlackDir()
+    this.keyCache = keyCache ?? new DerivedKeyCache()
   }
 
   getSlackDir(): string {
@@ -74,12 +77,29 @@ export class TokenExtractor {
       throw new Error(`Slack directory not found: ${this.slackDir}`)
     }
 
+    await this.getDerivedKeyAsync()
+
     const tokens = await this.extractTokensFromLevelDB()
     if (tokens.length === 0) {
       return []
     }
 
     const cookie = await this.extractCookieFromSQLite()
+
+    if (!cookie && this.usedCachedKey) {
+      await this.clearKeyCache()
+      this.cachedKey = this.getDerivedKeyFromKeychain()
+      if (this.cachedKey) {
+        await this.keyCache.set('slack', this.cachedKey)
+        const retryCookie = await this.extractCookieFromSQLite()
+        return tokens.map((t) => ({
+          workspace_id: t.teamId,
+          workspace_name: t.teamName,
+          token: t.token,
+          cookie: retryCookie,
+        }))
+      }
+    }
 
     return tokens.map((t) => ({
       workspace_id: t.teamId,
@@ -494,7 +514,38 @@ export class TokenExtractor {
     }
   }
 
+  private cachedKey: Buffer | null = null
+  private usedCachedKey = false
+
+  private async getDerivedKeyAsync(): Promise<Buffer | null> {
+    if (this.platform !== 'darwin') {
+      return null
+    }
+
+    const cached = await this.keyCache.get('slack')
+    if (cached) {
+      this.cachedKey = cached
+      this.usedCachedKey = true
+      return cached
+    }
+
+    const key = this.getDerivedKeyFromKeychain()
+    if (key) {
+      this.cachedKey = key
+      await this.keyCache.set('slack', key)
+      this.usedCachedKey = false
+    }
+    return key
+  }
+
   private getDerivedKey(): Buffer | null {
+    if (this.cachedKey) {
+      return this.cachedKey
+    }
+    return this.getDerivedKeyFromKeychain()
+  }
+
+  private getDerivedKeyFromKeychain(): Buffer | null {
     if (this.platform !== 'darwin') {
       return null
     }
@@ -513,10 +564,14 @@ export class TokenExtractor {
         ).trim()
       }
 
-      // Chrome/Electron uses PBKDF2 with these parameters
       return pbkdf2Sync(password, 'saltysalt', 1003, 16, 'sha1')
     } catch {
       return null
     }
+  }
+
+  async clearKeyCache(): Promise<void> {
+    await this.keyCache.clear('slack')
+    this.cachedKey = null
   }
 }
