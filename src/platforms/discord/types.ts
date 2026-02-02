@@ -41,6 +41,14 @@ export interface DiscordUser {
   bot?: boolean
 }
 
+export interface DiscordDMChannel {
+  id: string
+  type: number // 1=DM, 3=Group DM
+  last_message_id?: string
+  recipients: DiscordUser[]
+  name?: string // Only for group DMs
+}
+
 export interface DiscordReaction {
   emoji: {
     id?: string
@@ -57,6 +65,17 @@ export interface DiscordFile {
   content_type?: string
   height?: number
   width?: number
+}
+
+export interface DiscordMention {
+  id: string
+  channel_id: string
+  author: { id: string; username: string }
+  content: string
+  timestamp: string
+  mention_everyone: boolean
+  mentions: DiscordUser[]
+  guild_id?: string
 }
 
 export interface DiscordCredentials {
@@ -113,6 +132,14 @@ export const DiscordUserSchema = z.object({
   bot: z.boolean().optional(),
 })
 
+export const DiscordDMChannelSchema = z.object({
+  id: z.string(),
+  type: z.number(),
+  last_message_id: z.string().optional(),
+  recipients: z.array(DiscordUserSchema),
+  name: z.string().optional(),
+})
+
 export const DiscordReactionSchema = z.object({
   emoji: z.object({
     id: z.string().optional(),
@@ -129,6 +156,20 @@ export const DiscordFileSchema = z.object({
   content_type: z.string().optional(),
   height: z.number().optional(),
   width: z.number().optional(),
+})
+
+export const DiscordMentionSchema = z.object({
+  id: z.string(),
+  channel_id: z.string(),
+  author: z.object({
+    id: z.string(),
+    username: z.string(),
+  }),
+  content: z.string(),
+  timestamp: z.string(),
+  mention_everyone: z.boolean(),
+  mentions: z.array(DiscordUserSchema),
+  guild_id: z.string().optional(),
 })
 
 export const DiscordCredentialsSchema = z.object({

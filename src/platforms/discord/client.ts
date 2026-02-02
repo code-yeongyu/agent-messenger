@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { getDiscordHeaders } from './super-properties'
 import type {
   DiscordChannel,
+  DiscordDMChannel,
   DiscordFile,
   DiscordGuild,
   DiscordMessage,
@@ -281,5 +282,15 @@ export class DiscordClient {
       }
     }
     return files
+  }
+
+  async listDMChannels(): Promise<DiscordDMChannel[]> {
+    return this.request<DiscordDMChannel[]>('GET', '/users/@me/channels')
+  }
+
+  async createDM(userId: string): Promise<DiscordDMChannel> {
+    return this.request<DiscordDMChannel>('POST', '/users/@me/channels', {
+      recipient_id: userId,
+    })
   }
 }
