@@ -10,6 +10,7 @@ A unified, agent-friendly CLI for messaging platforms. Zero-config credential ex
 - 🌐 **One interface, multiple platforms** — Learn once, use everywhere (Slack, Discord, Teams)
 - 🤖 **AI-agent friendly** — JSON output by default, perfect for LLM tool use
 - 👤 **Human friendly too** — Add `--pretty` for readable output
+- 🪙 **Token efficient** — CLI, not MCP. Load only what you need. ([Why not MCP?](#-philosophy))
 
 ## 📦 Installation
 
