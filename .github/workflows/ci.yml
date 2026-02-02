@@ -26,6 +26,24 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      - name: Debug module resolution
+        run: |
+          echo "=== Checking DiscordClient prototype ==="
+          bun -e "
+            import { DiscordClient } from './src/platforms/discord/client';
+            console.log('DiscordClient:', typeof DiscordClient);
+            console.log('prototype:', typeof DiscordClient.prototype);
+            console.log('uploadFile:', typeof DiscordClient.prototype?.uploadFile);
+            console.log('listFiles:', typeof DiscordClient.prototype?.listFiles);
+          "
+          echo "=== Checking CredentialManager ==="
+          bun -e "
+            import { CredentialManager } from './src/platforms/slack/credential-manager';
+            console.log('CredentialManager:', typeof CredentialManager);
+            console.log('prototype:', typeof CredentialManager.prototype);
+            console.log('load:', typeof CredentialManager.prototype?.load);
+          "
+
       - name: Test
         run: bun run test
 
