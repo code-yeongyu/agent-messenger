@@ -102,7 +102,6 @@ export class DiscordClient {
 
       const headers: Record<string, string> = {
         Authorization: this.token,
-        'Content-Type': 'application/json',
       }
 
       const options: RequestInit = {
@@ -111,6 +110,7 @@ export class DiscordClient {
       }
 
       if (body !== undefined) {
+        headers['Content-Type'] = 'application/json'
         options.body = JSON.stringify(body)
       }
 
