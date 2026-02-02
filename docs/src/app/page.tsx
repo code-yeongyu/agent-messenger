@@ -1,4 +1,8 @@
+'use client'
+
 import Link from 'next/link'
+import { useTheme } from 'next-themes'
+import { useEffect, useState } from 'react'
 
 function KeyIcon({ className }: { className?: string }) {
   return (
@@ -104,10 +108,81 @@ function TeamsIcon({ className }: { className?: string }) {
   )
 }
 
+function SunIcon({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <title>Light mode</title>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+    </svg>
+  )
+}
+
+function MoonIcon({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <title>Dark mode</title>
+      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+    </svg>
+  )
+}
+
+function ThemeToggle() {
+  const { theme, setTheme, resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    return <div className="h-9 w-9" />
+  }
+
+  return (
+    <button
+      onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+      className="rounded-lg p-2 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+      aria-label="Toggle theme"
+    >
+      {resolvedTheme === 'dark' ? (
+        <SunIcon className="h-5 w-5" />
+      ) : (
+        <MoonIcon className="h-5 w-5" />
+      )}
+    </button>
+  )
+}
+
 export default function Home() {
   return (
     <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-black">
-      <section className="flex flex-col items-center justify-center px-6 pt-32 pb-20 text-center">
+      <header className="sticky top-0 z-50 border-b border-zinc-200 bg-zinc-50/80 backdrop-blur-sm dark:border-zinc-800 dark:bg-black/80">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
+          <Link href="/" className="text-xl font-bold text-zinc-900 dark:text-white">
+            Agent Messenger
+          </Link>
+          <nav className="flex items-center gap-6">
+            <Link
+              href="/docs"
+              className="text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
+            >
+              Docs
+            </Link>
+            <a
+              href="https://github.com/devxoul/agent-messenger"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
+            >
+              GitHub
+            </a>
+            <ThemeToggle />
+          </nav>
+        </div>
+      </header>
+
+      <section className="flex flex-col items-center justify-center px-6 pt-24 pb-20 text-center">
         <div className="inline-flex items-center gap-2 rounded-full bg-zinc-100 px-3 py-1 text-sm font-medium text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200 mb-8">
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
