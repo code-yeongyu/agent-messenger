@@ -1,5 +1,5 @@
 export { authCommand } from './auth'
-export { messageCommand } from './message'
 export { channelCommand } from './channel'
-export { userCommand } from './user'
+export { messageCommand } from './message'
 export { reactionCommand } from './reaction'
+export { userCommand } from './user'

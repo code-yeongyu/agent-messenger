@@ -1,18 +1,18 @@
-import { afterEach, beforeEach, describe, expect, test, mock } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
 import { existsSync, rmSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
-import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 // Mock the client module
-const mockTestAuth = mock(() => 
-  Promise.resolve({ 
-    ok: true, 
-    user_id: 'U123', 
-    team_id: 'T456', 
-    bot_id: 'B789', 
-    user: 'testbot', 
-    team: 'Test Team' 
+const mockTestAuth = mock(() =>
+  Promise.resolve({
+    ok: true,
+    user_id: 'U123',
+    team_id: 'T456',
+    bot_id: 'B789',
+    user: 'testbot',
+    team: 'Test Team',
   })
 )
 
@@ -27,9 +27,9 @@ mock.module('../client', () => ({
   },
 }))
 
-// Now import the functions we'll test
-import { setAction, clearAction, statusAction } from './auth'
 import { SlackBotCredentialManager } from '../credential-manager'
+// Now import the functions we'll test
+import { clearAction, setAction, statusAction } from './auth'
 
 describe('auth commands', () => {
   let tempDir: string
@@ -53,7 +53,7 @@ describe('auth commands', () => {
     test('validates and stores bot token', async () => {
       // given
       const manager = new SlackBotCredentialManager(tempDir)
-      
+
       // when
       const result = await setAction('xoxb-test-token', { _credManager: manager })
 
@@ -61,7 +61,7 @@ describe('auth commands', () => {
       expect(result.success).toBe(true)
       expect(result.workspace_id).toBe('T456')
       expect(result.workspace_name).toBe('Test Team')
-      
+
       const creds = await manager.getCredentials()
       expect(creds?.token).toBe('xoxb-test-token')
     })
@@ -69,7 +69,7 @@ describe('auth commands', () => {
     test('rejects user tokens', async () => {
       // given
       const manager = new SlackBotCredentialManager(tempDir)
-      
+
       // when
       const result = await setAction('xoxp-user-token', { _credManager: manager })
 
@@ -81,7 +81,7 @@ describe('auth commands', () => {
     test('rejects invalid token format', async () => {
       // given
       const manager = new SlackBotCredentialManager(tempDir)
-      
+
       // when
       const result = await setAction('invalid-token', { _credManager: manager })
 
@@ -99,7 +99,7 @@ describe('auth commands', () => {
         workspace_id: 'T123',
         workspace_name: 'Test',
       })
-      
+
       // when
       const result = await clearAction({ _credManager: manager })
 
@@ -114,7 +114,7 @@ describe('auth commands', () => {
     test('returns no credentials when none set', async () => {
       // given
       const manager = new SlackBotCredentialManager(tempDir)
-      
+
       // when
       const result = await statusAction({ _credManager: manager })
 
@@ -131,7 +131,7 @@ describe('auth commands', () => {
         workspace_id: 'T456',
         workspace_name: 'Test Workspace',
       })
-      
+
       // when
       const result = await statusAction({ _credManager: manager })
 

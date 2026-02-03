@@ -1,21 +1,19 @@
 export { SlackBotClient } from './client'
 export { SlackBotCredentialManager } from './credential-manager'
 export {
-  // SlackBot-specific types
-  SlackBotCredentials,
   SlackBotConfig,
-  SlackBotError,
-  SlackBotCredentialsSchema,
   SlackBotConfigSchema,
-  // Shared types
+  SlackBotCredentials,
+  SlackBotCredentialsSchema,
+  SlackBotError,
   SlackChannel,
-  SlackMessage,
-  SlackUser,
-  SlackReaction,
-  SlackFile,
   SlackChannelSchema,
-  SlackMessageSchema,
-  SlackUserSchema,
-  SlackReactionSchema,
+  SlackFile,
   SlackFileSchema,
+  SlackMessage,
+  SlackMessageSchema,
+  SlackReaction,
+  SlackReactionSchema,
+  SlackUser,
+  SlackUserSchema,
 } from './types'

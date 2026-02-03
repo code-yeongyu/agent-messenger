@@ -161,7 +161,7 @@ export class SlackBotClient {
   async addReaction(channel: string, timestamp: string, emoji: string): Promise<void> {
     // Normalize emoji (remove colons if present)
     const normalizedEmoji = emoji.replace(/^:|:$/g, '')
-    
+
     return this.withRetry(async () => {
       const response = await this.client.reactions.add({
         channel,
@@ -175,7 +175,7 @@ export class SlackBotClient {
   async removeReaction(channel: string, timestamp: string, emoji: string): Promise<void> {
     // Normalize emoji (remove colons if present)
     const normalizedEmoji = emoji.replace(/^:|:$/g, '')
-    
+
     return this.withRetry(async () => {
       const response = await this.client.reactions.remove({
         channel,
@@ -187,52 +187,54 @@ export class SlackBotClient {
   }
 
   async listChannels(options?: { limit?: number; cursor?: string }): Promise<SlackChannel[]> {
-    return this.withRetry(async () => {
-      const channels: SlackChannel[] = []
-      let cursor: string | undefined = options?.cursor
+    const channels: SlackChannel[] = []
+    let cursor: string | undefined = options?.cursor
 
-      do {
-        const response = await this.client.conversations.list({
+    do {
+      // Only wrap individual API call in withRetry, not the entire loop
+      const response = await this.withRetry(async () => {
+        const res = await this.client.conversations.list({
           cursor,
           limit: options?.limit || 200,
           types: 'public_channel,private_channel',
         })
-        this.checkResponse(response)
+        this.checkResponse(res)
+        return res
+      })
 
-        if (response.channels) {
-          for (const ch of response.channels) {
-            channels.push({
-              id: ch.id!,
-              name: ch.name!,
-              is_private: ch.is_private || false,
-              is_archived: ch.is_archived || false,
-              created: ch.created || 0,
-              creator: ch.creator || '',
-              topic: ch.topic
-                ? {
-                    value: ch.topic.value || '',
-                    creator: ch.topic.creator || '',
-                    last_set: ch.topic.last_set || 0,
-                  }
-                : undefined,
-              purpose: ch.purpose
-                ? {
-                    value: ch.purpose.value || '',
-                    creator: ch.purpose.creator || '',
-                    last_set: ch.purpose.last_set || 0,
-                  }
-                : undefined,
-            })
-          }
+      if (response.channels) {
+        for (const ch of response.channels) {
+          channels.push({
+            id: ch.id!,
+            name: ch.name!,
+            is_private: ch.is_private || false,
+            is_archived: ch.is_archived || false,
+            created: ch.created || 0,
+            creator: ch.creator || '',
+            topic: ch.topic
+              ? {
+                  value: ch.topic.value || '',
+                  creator: ch.topic.creator || '',
+                  last_set: ch.topic.last_set || 0,
+                }
+              : undefined,
+            purpose: ch.purpose
+              ? {
+                  value: ch.purpose.value || '',
+                  creator: ch.purpose.creator || '',
+                  last_set: ch.purpose.last_set || 0,
+                }
+              : undefined,
+          })
         }
+      }
 
-        cursor = response.response_metadata?.next_cursor
-        // Only paginate if no specific limit was requested
-        if (options?.limit) break
-      } while (cursor)
+      cursor = response.response_metadata?.next_cursor
+      // Only paginate if no specific limit was requested
+      if (options?.limit) break
+    } while (cursor)
 
-      return channels
-    })
+    return channels
   }
 
   async getChannelInfo(channel: string): Promise<SlackChannel> {
@@ -267,46 +269,48 @@ export class SlackBotClient {
   }
 
   async listUsers(options?: { limit?: number; cursor?: string }): Promise<SlackUser[]> {
-    return this.withRetry(async () => {
-      const users: SlackUser[] = []
-      let cursor: string | undefined = options?.cursor
+    const users: SlackUser[] = []
+    let cursor: string | undefined = options?.cursor
 
-      do {
-        const response = await this.client.users.list({
+    do {
+      // Only wrap individual API call in withRetry, not the entire loop
+      const response = await this.withRetry(async () => {
+        const res = await this.client.users.list({
           cursor,
           limit: options?.limit || 200,
         })
-        this.checkResponse(response)
+        this.checkResponse(res)
+        return res
+      })
 
-        if (response.members) {
-          for (const member of response.members) {
-            users.push({
-              id: member.id!,
-              name: member.name!,
-              real_name: member.real_name || member.name || '',
-              is_admin: member.is_admin || false,
-              is_owner: member.is_owner || false,
-              is_bot: member.is_bot || false,
-              is_app_user: member.is_app_user || false,
-              profile: member.profile
-                ? {
-                    email: member.profile.email,
-                    phone: member.profile.phone,
-                    title: member.profile.title,
-                    status_text: member.profile.status_text,
-                  }
-                : undefined,
-            })
-          }
+      if (response.members) {
+        for (const member of response.members) {
+          users.push({
+            id: member.id!,
+            name: member.name!,
+            real_name: member.real_name || member.name || '',
+            is_admin: member.is_admin || false,
+            is_owner: member.is_owner || false,
+            is_bot: member.is_bot || false,
+            is_app_user: member.is_app_user || false,
+            profile: member.profile
+              ? {
+                  email: member.profile.email,
+                  phone: member.profile.phone,
+                  title: member.profile.title,
+                  status_text: member.profile.status_text,
+                }
+              : undefined,
+          })
         }
+      }
 
-        cursor = response.response_metadata?.next_cursor
-        // Only paginate if no specific limit was requested
-        if (options?.limit) break
-      } while (cursor)
+      cursor = response.response_metadata?.next_cursor
+      // Only paginate if no specific limit was requested
+      if (options?.limit) break
+    } while (cursor)
 
-      return users
-    })
+    return users
   }
 
   async getUserInfo(userId: string): Promise<SlackUser> {

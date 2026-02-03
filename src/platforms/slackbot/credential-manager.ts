@@ -66,7 +66,7 @@ export class SlackBotCredentialManager {
 
   async setCredentials(creds: SlackBotCredentials): Promise<void> {
     const config = await this.load()
-    
+
     config.token = creds.token
     config.current_workspace = creds.workspace_id
     config.workspaces[creds.workspace_id] = {

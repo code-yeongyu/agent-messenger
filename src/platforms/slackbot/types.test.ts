@@ -1,16 +1,16 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  SlackBotError,
-  SlackBotCredentialsSchema,
+  type SlackBotConfig,
   SlackBotConfigSchema,
   type SlackBotCredentials,
-  type SlackBotConfig,
+  SlackBotCredentialsSchema,
+  SlackBotError,
 } from './types'
 
 describe('SlackBotError', () => {
   test('creates error with message and code', () => {
     const error = new SlackBotError('Token is invalid', 'invalid_auth')
-    
+
     expect(error.message).toBe('Token is invalid')
     expect(error.code).toBe('invalid_auth')
     expect(error.name).toBe('SlackBotError')
@@ -25,7 +25,7 @@ describe('SlackBotCredentialsSchema', () => {
       workspace_id: 'T12345678',
       workspace_name: 'test-workspace',
     }
-    
+
     const result = SlackBotCredentialsSchema.safeParse(creds)
     expect(result.success).toBe(true)
   })
@@ -36,7 +36,7 @@ describe('SlackBotCredentialsSchema', () => {
       workspace_id: 'T12345678',
       workspace_name: 'test-workspace',
     }
-    
+
     const result = SlackBotCredentialsSchema.safeParse(creds)
     expect(result.success).toBe(false)
   })
@@ -45,7 +45,7 @@ describe('SlackBotCredentialsSchema', () => {
     const creds = {
       token: 'xoxb-123456789-abcdef',
     }
-    
+
     const result = SlackBotCredentialsSchema.safeParse(creds)
     expect(result.success).toBe(false)
   })
@@ -63,7 +63,7 @@ describe('SlackBotConfigSchema', () => {
         },
       },
     }
-    
+
     const result = SlackBotConfigSchema.safeParse(config)
     expect(result.success).toBe(true)
   })
@@ -74,7 +74,7 @@ describe('SlackBotConfigSchema', () => {
       token: null,
       workspaces: {},
     }
-    
+
     const result = SlackBotConfigSchema.safeParse(config)
     expect(result.success).toBe(true)
   })

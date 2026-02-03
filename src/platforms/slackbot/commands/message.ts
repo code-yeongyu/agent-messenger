@@ -21,11 +21,16 @@ async function sendAction(
     const client = new SlackBotClient(creds.token)
     const result = await client.postMessage(channel, text)
 
-    console.log(formatOutput({
-      ts: result.ts,
-      channel,
-      text: result.text,
-    }, options.pretty))
+    console.log(
+      formatOutput(
+        {
+          ts: result.ts,
+          channel,
+          text: result.text,
+        },
+        options.pretty
+      )
+    )
   } catch (error) {
     handleError(error as Error)
   }

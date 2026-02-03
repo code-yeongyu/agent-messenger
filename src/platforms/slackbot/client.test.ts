@@ -1,24 +1,100 @@
-import { describe, expect, test, mock, beforeEach } from 'bun:test'
+import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import { SlackBotClient } from './client'
 import { SlackBotError } from './types'
 
 // Mock the @slack/web-api module
-const mockAuth = { test: mock(() => Promise.resolve({ ok: true, user_id: 'U123', team_id: 'T456', bot_id: 'B789', user: 'testbot', team: 'Test Team' })) }
+const mockAuth = {
+  test: mock(() =>
+    Promise.resolve({
+      ok: true,
+      user_id: 'U123',
+      team_id: 'T456',
+      bot_id: 'B789',
+      user: 'testbot',
+      team: 'Test Team',
+    })
+  ),
+}
 const mockConversations = {
-  list: mock(() => Promise.resolve({ ok: true, channels: [{ id: 'C123', name: 'general', is_private: false, is_archived: false, created: 1234567890, creator: 'U001' }] })),
-  info: mock(() => Promise.resolve({ ok: true, channel: { id: 'C123', name: 'general', is_private: false, is_archived: false, created: 1234567890, creator: 'U001' } })),
-  history: mock(() => Promise.resolve({ ok: true, messages: [{ ts: '1234567890.123456', text: 'Hello', type: 'message', user: 'U123' }] })),
+  list: mock(() =>
+    Promise.resolve({
+      ok: true,
+      channels: [
+        {
+          id: 'C123',
+          name: 'general',
+          is_private: false,
+          is_archived: false,
+          created: 1234567890,
+          creator: 'U001',
+        },
+      ],
+    })
+  ),
+  info: mock(() =>
+    Promise.resolve({
+      ok: true,
+      channel: {
+        id: 'C123',
+        name: 'general',
+        is_private: false,
+        is_archived: false,
+        created: 1234567890,
+        creator: 'U001',
+      },
+    })
+  ),
+  history: mock(() =>
+    Promise.resolve({
+      ok: true,
+      messages: [{ ts: '1234567890.123456', text: 'Hello', type: 'message', user: 'U123' }],
+    })
+  ),
 }
 const mockChat = {
-  postMessage: mock(() => Promise.resolve({ ok: true, ts: '1234567890.123456', message: { text: 'Hello', type: 'message' } })),
+  postMessage: mock(() =>
+    Promise.resolve({
+      ok: true,
+      ts: '1234567890.123456',
+      message: { text: 'Hello', type: 'message' },
+    })
+  ),
 }
 const mockReactions = {
   add: mock(() => Promise.resolve({ ok: true })),
   remove: mock(() => Promise.resolve({ ok: true })),
 }
 const mockUsers = {
-  list: mock(() => Promise.resolve({ ok: true, members: [{ id: 'U123', name: 'testuser', real_name: 'Test User', is_admin: false, is_owner: false, is_bot: false, is_app_user: false }] })),
-  info: mock(() => Promise.resolve({ ok: true, user: { id: 'U123', name: 'testuser', real_name: 'Test User', is_admin: false, is_owner: false, is_bot: false, is_app_user: false } })),
+  list: mock(() =>
+    Promise.resolve({
+      ok: true,
+      members: [
+        {
+          id: 'U123',
+          name: 'testuser',
+          real_name: 'Test User',
+          is_admin: false,
+          is_owner: false,
+          is_bot: false,
+          is_app_user: false,
+        },
+      ],
+    })
+  ),
+  info: mock(() =>
+    Promise.resolve({
+      ok: true,
+      user: {
+        id: 'U123',
+        name: 'testuser',
+        real_name: 'Test User',
+        is_admin: false,
+        is_owner: false,
+        is_bot: false,
+        is_app_user: false,
+      },
+    })
+  ),
 }
 
 mock.module('@slack/web-api', () => ({

@@ -1,5 +1,4 @@
 import { Command } from 'commander'
-import { handleError } from '../../../shared/utils/error-handler'
 import { formatOutput } from '../../../shared/utils/output'
 import { SlackBotClient } from '../client'
 import { SlackBotCredentialManager } from '../credential-manager'
@@ -20,10 +19,7 @@ interface ActionResult {
   valid?: boolean
 }
 
-export async function setAction(
-  token: string,
-  options: ActionOptions
-): Promise<ActionResult> {
+export async function setAction(token: string, options: ActionOptions): Promise<ActionResult> {
   try {
     // Validate token format
     if (!token.startsWith('xoxb-')) {
@@ -69,14 +65,20 @@ export async function statusAction(options: ActionOptions): Promise<ActionResult
     const creds = await credManager.getCredentials()
 
     if (!creds) {
-      return { 
-        valid: false, 
-        error: 'No credentials configured. Run "auth set <token>" first.' 
+      return {
+        valid: false,
+        error: 'No credentials configured. Run "auth set <token>" first.',
       }
     }
 
     let valid = false
-    let authInfo: { user_id: string; team_id: string; bot_id?: string; user?: string; team?: string } | null = null
+    let authInfo: {
+      user_id: string
+      team_id: string
+      bot_id?: string
+      user?: string
+      team?: string
+    } | null = null
 
     try {
       const client = new SlackBotClient(creds.token)
@@ -109,12 +111,12 @@ async function setActionCli(token: string, options: { pretty?: boolean }): Promi
 }
 
 async function clearActionCli(options: { pretty?: boolean }): Promise<void> {
-  try {
-    const result = await clearAction(options)
+  const result = await clearAction(options)
+  if (result.error) {
     console.log(formatOutput(result, options.pretty))
-  } catch (error) {
-    handleError(error as Error)
+    process.exit(1)
   }
+  console.log(formatOutput(result, options.pretty))
 }
 
 async function statusActionCli(options: { pretty?: boolean }): Promise<void> {

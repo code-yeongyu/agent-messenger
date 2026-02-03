@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { existsSync, rmSync } from 'node:fs'
-import { mkdir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdir, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { SlackBotCredentialManager } from './credential-manager'
 
 describe('SlackBotCredentialManager', () => {
@@ -128,7 +128,7 @@ describe('SlackBotCredentialManager', () => {
       const config = await manager.load()
       expect(config.current_workspace).toBe('T999')
       expect(config.token).toBe('xoxb-new-token')
-      expect(config.workspaces['T999']).toEqual({
+      expect(config.workspaces.T999).toEqual({
         workspace_id: 'T999',
         workspace_name: 'New Workspace',
       })
@@ -164,12 +164,12 @@ describe('SlackBotCredentialManager', () => {
         workspace_name: 'Test',
       })
 
-      // when: check file permissions
+      // when
       const credPath = join(tempDir, 'slackbot-credentials.json')
-      const stats = Bun.file(credPath)
+      const stats = await stat(credPath)
 
-      // then: file should exist (we can't easily check permissions in Bun, but we trust chmod)
-      expect(await stats.exists()).toBe(true)
+      // then
+      expect(stats.mode & 0o777).toBe(0o600)
     })
   })
 })
