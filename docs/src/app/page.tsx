@@ -395,7 +395,10 @@ export default function Home() {
             Supported Platforms
           </h2>
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="flex flex-col items-center rounded-2xl bg-white p-8 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
+            <Link
+              href="/docs/integrations/slack"
+              className="flex flex-col items-center rounded-2xl bg-white p-8 shadow-sm ring-1 ring-zinc-200 transition-all hover:shadow-md hover:ring-zinc-300 dark:bg-zinc-900 dark:ring-zinc-800 dark:hover:ring-zinc-700"
+            >
               <div className="mb-4">
                 <SlackIcon className="h-12 w-12" />
               </div>
@@ -403,8 +406,11 @@ export default function Home() {
               <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
                 Full messaging and thread support
               </p>
-            </div>
-            <div className="flex flex-col items-center rounded-2xl bg-white p-8 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
+            </Link>
+            <Link
+              href="/docs/integrations/discord"
+              className="flex flex-col items-center rounded-2xl bg-white p-8 shadow-sm ring-1 ring-zinc-200 transition-all hover:shadow-md hover:ring-zinc-300 dark:bg-zinc-900 dark:ring-zinc-800 dark:hover:ring-zinc-700"
+            >
               <div className="mb-4">
                 <DiscordIcon className="h-12 w-12" />
               </div>
@@ -412,8 +418,11 @@ export default function Home() {
               <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
                 Guilds, channels, and DMs
               </p>
-            </div>
-            <div className="flex flex-col items-center rounded-2xl bg-white p-8 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
+            </Link>
+            <Link
+              href="/docs/integrations/teams"
+              className="flex flex-col items-center rounded-2xl bg-white p-8 shadow-sm ring-1 ring-zinc-200 transition-all hover:shadow-md hover:ring-zinc-300 dark:bg-zinc-900 dark:ring-zinc-800 dark:hover:ring-zinc-700"
+            >
               <div className="mb-4">
                 <TeamsIcon className="h-12 w-12" />
               </div>
@@ -421,7 +430,7 @@ export default function Home() {
               <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
                 Microsoft Teams support
               </p>
-            </div>
+            </Link>
             <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-zinc-300 p-8 dark:border-zinc-700">
               <div className="mb-4 text-zinc-400 dark:text-zinc-500">
                 <svg
