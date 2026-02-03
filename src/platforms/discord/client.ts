@@ -9,6 +9,9 @@ import type {
   DiscordMention,
   DiscordMessage,
   DiscordRelationship,
+  DiscordSearchOptions,
+  DiscordSearchResponse,
+  DiscordSearchResult,
   DiscordUser,
   DiscordUserNote,
   DiscordUserProfile,
@@ -344,6 +347,60 @@ export class DiscordClient {
       'GET',
       `/guilds/${guildId}/members/search?${params.toString()}`
     )
+  }
+
+  async searchMessages(
+    guildId: string,
+    query: string,
+    options: DiscordSearchOptions = {}
+  ): Promise<{ results: DiscordSearchResult[]; total: number }> {
+    const params = new URLSearchParams()
+    params.set('content', query)
+
+    if (options.channelId) {
+      params.set('channel_id', options.channelId)
+    }
+    if (options.authorId) {
+      params.set('author_id', options.authorId)
+    }
+    if (options.has) {
+      params.set('has', options.has)
+    }
+    if (options.sortBy) {
+      params.set('sort_by', options.sortBy)
+    }
+    if (options.sortOrder) {
+      params.set('sort_order', options.sortOrder)
+    }
+    if (options.limit !== undefined) {
+      params.set('limit', Math.max(1, Math.min(options.limit, 25)).toString())
+    }
+    if (options.offset !== undefined) {
+      params.set('offset', options.offset.toString())
+    }
+
+    const response = await this.request<DiscordSearchResponse>(
+      'GET',
+      `/guilds/${guildId}/messages/search?${params.toString()}`
+    )
+
+    const results = response.messages
+      .flat()
+      .filter((msg) => msg.hit)
+      .map((msg) => ({
+        id: msg.id,
+        channel_id: msg.channel_id,
+        guild_id: msg.guild_id,
+        content: msg.content,
+        author: msg.author,
+        timestamp: msg.timestamp,
+        hit: msg.hit,
+      }))
+
+    return {
+      results,
+      total: response.total_results,
+    }
   }
 
   async getUserProfile(userId: string): Promise<DiscordUserProfile> {

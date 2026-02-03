@@ -84,7 +84,31 @@ agent-discord message get <channel-id> <message-id>
 
 # Delete a message
 agent-discord message delete <channel-id> <message-id> --force
+
+# Search messages in current server
+agent-discord message search <query>
+agent-discord message search "bug fix"
+
+# Search with filters
+agent-discord message search "meeting" --channel 123456789
+agent-discord message search "report" --author 987654321
+agent-discord message search "screenshot" --has image
+
+# Search with sorting and pagination
+agent-discord message search "hello" --sort timestamp --sort-dir desc
+agent-discord message search "test" --limit 10 --offset 20
 ```
+
+**Search Options:**
+- `--channel <id>` - Filter by specific channel
+- `--author <id>` - Filter by specific author
+- `--has <type>` - Filter by attachment type: `file`, `image`, `video`, `embed`, `link`, `sticker`
+- `--sort <type>` - Sort by: `timestamp` (default), `relevance`
+- `--sort-dir <dir>` - Sort direction: `asc`, `desc` (default)
+- `--limit <n>` - Number of results (max 25, default 25)
+- `--offset <n>` - Pagination offset (default 0)
+
+> **Note:** Search requires a current server to be set. Use `agent-discord server switch <server-id>` first.
 
 ### Channel Commands
 
