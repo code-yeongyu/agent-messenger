@@ -1,3 +1,4 @@
+export { SlackBotClient } from './client'
 export { SlackBotCredentialManager } from './credential-manager'
 export {
   // SlackBot-specific types
