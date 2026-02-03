@@ -63,6 +63,21 @@ agent-discord auth status
 
 ## Commands
 
+### Important: Reply Rule
+
+**When replying to a message, always use the `--reply` option.**
+
+```bash
+# Reply to a specific message (RECOMMENDED)
+agent-discord message send <channel-id> <content> --reply <message-id>
+agent-discord message send 1234567890123456789 "Thanks!" --reply 9876543210987654321
+
+# Send without reply (only when not responding to someone)
+agent-discord message send <channel-id> <content>
+```
+
+This ensures Discord shows the reply context, making conversations easier to follow.
+
 ### Message Commands
 
 ```bash
