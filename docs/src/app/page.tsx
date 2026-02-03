@@ -232,7 +232,24 @@ function ThemeToggle() {
   )
 }
 
+async function fetchNpmVersion(): Promise<string | null> {
+  try {
+    const res = await fetch('https://registry.npmjs.org/agent-messenger/latest')
+    if (!res.ok) return null
+    const data = await res.json()
+    return data.version ?? null
+  } catch {
+    return null
+  }
+}
+
 export default function Home() {
+  const [npmVersion, setNpmVersion] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchNpmVersion().then(setNpmVersion)
+  }, [])
+
   return (
     <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-black">
       <header className="sticky top-0 z-50 border-b border-zinc-200 bg-zinc-50/80 backdrop-blur-sm dark:border-zinc-800 dark:bg-black/80">
@@ -266,7 +283,7 @@ export default function Home() {
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
           </span>
-          v1.1.0 Available Now
+          {npmVersion ? `v${npmVersion} Available Now` : 'Available Now'}
         </div>
         <h1 className="max-w-4xl text-5xl font-extrabold tracking-tight text-zinc-900 dark:text-white sm:text-6xl md:text-7xl">
           Give your AI agent the power to <br className="hidden sm:block" />
