@@ -7,7 +7,7 @@ import { DiscordCredentialManager } from '../credential-manager'
 export async function createAction(
   channelId: string,
   name: string,
-  options: { autoArchive?: string; rateLimit?: string; pretty?: boolean }
+  options: { autoArchiveDuration?: string; pretty?: boolean }
 ): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
@@ -21,17 +21,19 @@ export async function createAction(
     }
 
     const client = new DiscordClient(config.token)
-    const thread = await client.createThread(channelId, name, {
-      autoArchiveDuration: options.autoArchive ? parseInt(options.autoArchive, 10) : undefined,
-      rateLimitPerUser: options.rateLimit ? parseInt(options.rateLimit, 10) : undefined,
-    })
+    const threadOptions: { auto_archive_duration?: number } = {}
+
+    if (options.autoArchiveDuration) {
+      threadOptions.auto_archive_duration = parseInt(options.autoArchiveDuration, 10)
+    }
+
+    const thread = await client.createThread(channelId, name, threadOptions)
 
     const output = {
       id: thread.id,
       name: thread.name,
       type: thread.type,
-      guild_id: thread.guild_id,
-      parent_id: thread.parent_id || null,
+      parent_id: thread.parent_id,
     }
 
     console.log(formatOutput(output, options.pretty))
@@ -56,11 +58,12 @@ export async function archiveAction(
     }
 
     const client = new DiscordClient(config.token)
-    const thread = await client.archiveThread(threadId, true)
+    const thread = await client.archiveThread(threadId)
 
     const output = {
       id: thread.id,
-      archived: true,
+      name: thread.name,
+      archived: thread.thread_metadata?.archived || false,
     }
 
     console.log(formatOutput(output, options.pretty))
@@ -73,11 +76,10 @@ export const threadCommand = new Command('thread')
   .description('Thread commands')
   .addCommand(
     new Command('create')
-      .description('Create a thread in a channel')
+      .description('Create a thread')
       .argument('<channel-id>', 'Channel ID')
       .argument('<name>', 'Thread name')
-      .option('--auto-archive <minutes>', 'Auto archive duration in minutes')
-      .option('--rate-limit <seconds>', 'Slowmode in seconds')
+      .option('--auto-archive-duration <minutes>', 'Auto archive duration in minutes')
       .option('--pretty', 'Pretty print JSON output')
       .action(createAction)
   )

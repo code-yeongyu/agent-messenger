@@ -3,9 +3,8 @@ import { handleError } from '../../../shared/utils/error-handler'
 import { formatOutput } from '../../../shared/utils/output'
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
-import type { DiscordMention } from '../types'
 
-async function listAction(options: {
+export async function listAction(options: {
   limit?: number
   guild?: string
   pretty?: boolean
@@ -27,22 +26,15 @@ async function listAction(options: {
       guildId: options.guild,
     })
 
-    const output = mentions.map((mention: DiscordMention) => ({
+    const output = mentions.map((mention) => ({
       id: mention.id,
       channel_id: mention.channel_id,
-      guild_id: mention.guild_id || null,
-      author: {
-        id: mention.author.id,
-        username: mention.author.username,
-        global_name: mention.author.global_name,
-      },
+      author: mention.author.username,
       content: mention.content,
       timestamp: mention.timestamp,
       mention_everyone: mention.mention_everyone,
-      mentions: mention.mentions.map((user) => ({
-        id: user.id,
-        username: user.username,
-      })),
+      mentioned_users: mention.mentions.map((u) => u.username),
+      guild_id: mention.guild_id || null,
     }))
 
     console.log(formatOutput(output, options.pretty))
@@ -53,11 +45,11 @@ async function listAction(options: {
 
 export const mentionCommand = new Command('mention').description('Mention commands').addCommand(
   new Command('list')
-    .description('List recent mentions')
-    .option('--limit <n>', 'Number of mentions to retrieve', '50')
-    .option('--guild <id>', 'Filter by guild ID')
+    .description('List mentions')
+    .option('--limit <n>', 'Number of mentions to fetch', '25')
+    .option('--guild <guild-id>', 'Filter by guild ID')
     .option('--pretty', 'Pretty print JSON output')
-    .action((options: any) => {
+    .action((options) => {
       listAction({
         limit: options.limit ? parseInt(options.limit, 10) : undefined,
         guild: options.guild,

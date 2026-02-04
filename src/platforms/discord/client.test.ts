@@ -90,37 +90,37 @@ describe('DiscordClient', () => {
     })
   })
 
-  describe('listGuilds', () => {
-    test('returns list of guilds', async () => {
+  describe('listServers', () => {
+    test('returns list of servers', async () => {
       mockResponse([
-        { id: '111', name: 'Guild One' },
-        { id: '222', name: 'Guild Two' },
+        { id: '111', name: 'Server One' },
+        { id: '222', name: 'Server Two' },
       ])
 
       const client = new DiscordClient('test-token')
-      const guilds = await client.listGuilds()
+      const servers = await client.listServers()
 
-      expect(guilds).toHaveLength(2)
-      expect(guilds[0].name).toBe('Guild One')
+      expect(servers).toHaveLength(2)
+      expect(servers[0].name).toBe('Server One')
       expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/users/@me/guilds')
     })
   })
 
-  describe('getGuild', () => {
-    test('returns guild info', async () => {
-      mockResponse({ id: '111', name: 'Test Guild' })
+  describe('getServer', () => {
+    test('returns server info', async () => {
+      mockResponse({ id: '111', name: 'Test Server' })
 
       const client = new DiscordClient('test-token')
-      const guild = await client.getGuild('111')
+      const server = await client.getServer('111')
 
-      expect(guild.id).toBe('111')
-      expect(guild.name).toBe('Test Guild')
+      expect(server.id).toBe('111')
+      expect(server.name).toBe('Test Server')
       expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/guilds/111')
     })
   })
 
   describe('listChannels', () => {
-    test('returns list of channels for guild', async () => {
+    test('returns list of channels for server', async () => {
       mockResponse([
         { id: 'ch1', guild_id: '111', name: 'general', type: 0 },
         { id: 'ch2', guild_id: '111', name: 'random', type: 0 },
@@ -347,7 +347,7 @@ describe('DiscordClient', () => {
   })
 
   describe('listUsers', () => {
-    test('returns list of guild members', async () => {
+    test('returns list of server members', async () => {
       mockResponse([
         { user: { id: 'u1', username: 'user1' } },
         { user: { id: 'u2', username: 'user2' } },

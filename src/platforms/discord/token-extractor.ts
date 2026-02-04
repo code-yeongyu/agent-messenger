@@ -3,6 +3,7 @@ import { createDecipheriv, pbkdf2Sync } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { DerivedKeyCache } from '../../shared/utils/derived-key-cache'
 
 export interface ExtractedDiscordToken {
   token: string
@@ -59,11 +60,19 @@ export class DiscordTokenExtractor {
   private platform: NodeJS.Platform
   private startupWait: number
   private killWait: number
+  private keyCache: DerivedKeyCache
+  private cachedKey: Buffer | null = null
 
-  constructor(platform?: NodeJS.Platform, startupWait?: number, killWait?: number) {
+  constructor(
+    platform?: NodeJS.Platform,
+    startupWait?: number,
+    killWait?: number,
+    keyCache?: DerivedKeyCache
+  ) {
     this.platform = platform ?? process.platform
     this.startupWait = startupWait ?? DISCORD_STARTUP_WAIT
     this.killWait = killWait ?? 1000
+    this.keyCache = keyCache ?? new DerivedKeyCache()
   }
 
   getDiscordDirs(): string[] {
@@ -123,6 +132,8 @@ export class DiscordTokenExtractor {
   }
 
   async extract(): Promise<ExtractedDiscordToken | null> {
+    await this.loadCachedKey()
+
     const levelDbToken = await this.extractFromLevelDB()
     if (levelDbToken) {
       return levelDbToken
@@ -136,6 +147,20 @@ export class DiscordTokenExtractor {
     }
 
     return null
+  }
+
+  private async loadCachedKey(): Promise<void> {
+    if (this.platform !== 'darwin') return
+
+    const cached = await this.keyCache.get('discord')
+    if (cached) {
+      this.cachedKey = cached
+    }
+  }
+
+  async clearKeyCache(): Promise<void> {
+    await this.keyCache.clear('discord')
+    this.cachedKey = null
   }
 
   private async tryExtractViaCDP(): Promise<string | null> {
@@ -288,6 +313,11 @@ export class DiscordTokenExtractor {
   }
 
   private decryptMacToken(encryptedData: Buffer, discordDir: string): string | null {
+    if (this.cachedKey) {
+      const decrypted = this.decryptAESCBC(encryptedData, this.cachedKey)
+      if (decrypted) return decrypted
+    }
+
     const variant = this.getVariantFromPath(discordDir)
     const keychainVariants = this.getKeychainVariants().filter((v) => {
       const lowerAccount = v.account.toLowerCase()
@@ -308,7 +338,11 @@ export class DiscordTokenExtractor {
 
         const key = pbkdf2Sync(password, 'saltysalt', 1003, 16, 'sha1')
         const decrypted = this.decryptAESCBC(encryptedData, key)
-        if (decrypted) return decrypted
+        if (decrypted) {
+          this.cachedKey = key
+          this.keyCache.set('discord', key).catch(() => {})
+          return decrypted
+        }
       } catch {}
     }
 

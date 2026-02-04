@@ -3,6 +3,7 @@ import { createDecipheriv, pbkdf2Sync } from 'node:crypto'
 import { copyFileSync, existsSync, readFileSync, unlinkSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DerivedKeyCache } from '../../shared/utils/derived-key-cache'
 
 export interface ExtractedTeamsToken {
   token: string
@@ -30,9 +31,12 @@ const TEAMS_HOST_PATTERNS = [
 
 export class TeamsTokenExtractor {
   private platform: NodeJS.Platform
+  private keyCache: DerivedKeyCache
+  private cachedKey: Buffer | null = null
 
-  constructor(platform?: NodeJS.Platform) {
+  constructor(platform?: NodeJS.Platform, keyCache?: DerivedKeyCache) {
     this.platform = platform ?? process.platform
+    this.keyCache = keyCache ?? new DerivedKeyCache()
   }
 
   getTeamsCookiesPaths(): string[] {
@@ -195,13 +199,28 @@ export class TeamsTokenExtractor {
   }
 
   async extract(): Promise<ExtractedTeamsToken | null> {
-    // Extract from Cookies database (works for both New Teams and Classic Teams)
+    await this.loadCachedKey()
+
     const cookieToken = await this.extractFromCookiesDB()
     if (cookieToken && this.isValidSkypeToken(cookieToken)) {
       return { token: cookieToken }
     }
 
     return null
+  }
+
+  private async loadCachedKey(): Promise<void> {
+    if (this.platform !== 'darwin') return
+
+    const cached = await this.keyCache.get('teams')
+    if (cached) {
+      this.cachedKey = cached
+    }
+  }
+
+  async clearKeyCache(): Promise<void> {
+    await this.keyCache.clear('teams')
+    this.cachedKey = null
   }
 
   private async extractFromCookiesDB(): Promise<string | null> {
@@ -342,12 +361,21 @@ export class TeamsTokenExtractor {
   }
 
   private decryptMacCookie(encryptedData: Buffer): string | null {
+    if (this.cachedKey) {
+      const decrypted = this.decryptAESCBC(encryptedData, this.cachedKey)
+      if (decrypted) return decrypted
+    }
+
     const password = this.getKeychainPassword()
     if (!password) return null
 
-    // Derive key using PBKDF2 (Chromium uses 1003 iterations, 16 byte key for AES-128-CBC)
     const key = pbkdf2Sync(password, 'saltysalt', 1003, 16, 'sha1')
-    return this.decryptAESCBC(encryptedData, key)
+    const decrypted = this.decryptAESCBC(encryptedData, key)
+    if (decrypted) {
+      this.cachedKey = key
+      this.keyCache.set('teams', key).catch(() => {})
+    }
+    return decrypted
   }
 
   private decryptLinuxCookie(encryptedData: Buffer): string | null {

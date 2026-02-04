@@ -1,70 +1,146 @@
-import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test'
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
-import { createAction, sendAction } from './dm'
+import type { DiscordDMChannel } from '../types'
+import { createAction, listAction } from './dm'
 
+let clientListDMChannelsSpy: ReturnType<typeof spyOn>
 let clientCreateDMSpy: ReturnType<typeof spyOn>
-let clientSendMessageSpy: ReturnType<typeof spyOn>
-let clientTriggerTypingSpy: ReturnType<typeof spyOn>
 let credManagerLoadSpy: ReturnType<typeof spyOn>
 
-beforeEach(() => {
-  clientCreateDMSpy = spyOn(DiscordClient.prototype, 'createDM').mockResolvedValue({
-    id: 'dm_123',
+const mockChannels: DiscordDMChannel[] = [
+  {
+    id: '123',
     type: 1,
-    recipients: [{ id: 'user_123', username: 'testuser', global_name: 'Test User' }],
-  })
+    recipients: [
+      {
+        id: '456',
+        username: 'testuser',
+      },
+    ],
+  },
+  {
+    id: '789',
+    type: 3,
+    name: 'Group Chat',
+    recipients: [
+      {
+        id: '111',
+        username: 'user1',
+      },
+      {
+        id: '222',
+        username: 'user2',
+      },
+    ],
+  },
+]
 
-  clientSendMessageSpy = spyOn(DiscordClient.prototype, 'sendMessage').mockResolvedValue({
-    id: 'msg_123',
-    channel_id: 'dm_123',
-    author: { id: 'user_123', username: 'testuser' },
-    content: 'Hello DM',
-    timestamp: '2025-01-29T10:00:00Z',
-  })
-
-  clientTriggerTypingSpy = spyOn(DiscordClient.prototype, 'triggerTyping').mockResolvedValue(
-    undefined
+beforeEach(() => {
+  clientListDMChannelsSpy = spyOn(DiscordClient.prototype, 'listDMChannels').mockResolvedValue(
+    mockChannels
   )
+
+  clientCreateDMSpy = spyOn(DiscordClient.prototype, 'createDM').mockResolvedValue({
+    id: '999',
+    type: 1,
+    recipients: [
+      {
+        id: '456',
+        username: 'newuser',
+      },
+    ],
+  })
 
   credManagerLoadSpy = spyOn(DiscordCredentialManager.prototype, 'load').mockResolvedValue({
     token: 'test-token',
-    current_guild: 'guild_123',
-    guilds: {},
+    current_server: null,
+    servers: {},
   })
 })
 
 afterEach(() => {
+  clientListDMChannelsSpy?.mockRestore()
   clientCreateDMSpy?.mockRestore()
-  clientSendMessageSpy?.mockRestore()
-  clientTriggerTypingSpy?.mockRestore()
   credManagerLoadSpy?.mockRestore()
 })
 
-test('create: returns DM channel info', async () => {
-  // given: a DM create request
-  const consoleSpy = mock((_msg: string) => {})
-  console.log = consoleSpy
+describe('dm commands', () => {
+  describe('listAction', () => {
+    it('should list DM channels', async () => {
+      const consoleSpy = mock(() => {})
+      const originalLog = console.log
+      console.log = consoleSpy
 
-  // when: creating a DM channel
-  await createAction('user_123', { pretty: false })
+      await listAction({ pretty: false })
 
-  // then: output includes DM channel id
-  expect(consoleSpy).toHaveBeenCalled()
-  const output = consoleSpy.mock.calls[0][0]
-  expect(output).toContain('dm_123')
-})
+      console.log = originalLog
 
-test('send: sends a DM message', async () => {
-  // given: a DM send request
-  const consoleSpy = mock((_msg: string) => {})
-  console.log = consoleSpy
+      expect(consoleSpy).toHaveBeenCalled()
+      expect(clientListDMChannelsSpy).toHaveBeenCalled()
+    })
 
-  // when: sending a DM message
-  await sendAction('user_123', 'Hello DM', { pretty: false })
+    it('should handle authentication error', async () => {
+      credManagerLoadSpy.mockResolvedValue({
+        token: '',
+        current_server: null,
+        servers: {},
+      })
 
-  // then: output includes message id
-  expect(consoleSpy).toHaveBeenCalled()
-  const output = consoleSpy.mock.calls[0][0]
-  expect(output).toContain('msg_123')
+      const exitSpy = mock(() => {})
+      const originalExit = process.exit
+      process.exit = exitSpy as any
+
+      const consoleSpy = mock(() => {})
+      const originalLog = console.log
+      console.log = consoleSpy
+
+      await listAction({ pretty: false })
+
+      console.log = originalLog
+      process.exit = originalExit
+
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Not authenticated'))
+      expect(exitSpy).toHaveBeenCalledWith(1)
+    })
+  })
+
+  describe('createAction', () => {
+    it('should create a DM channel', async () => {
+      const consoleSpy = mock(() => {})
+      const originalLog = console.log
+      console.log = consoleSpy
+
+      await createAction('456', { pretty: false })
+
+      console.log = originalLog
+
+      expect(consoleSpy).toHaveBeenCalled()
+      expect(clientCreateDMSpy).toHaveBeenCalledWith('456')
+    })
+
+    it('should handle authentication error', async () => {
+      credManagerLoadSpy.mockResolvedValue({
+        token: '',
+        current_server: null,
+        servers: {},
+      })
+
+      const exitSpy = mock(() => {})
+      const originalExit = process.exit
+      process.exit = exitSpy as any
+
+      const consoleSpy = mock(() => {})
+      const originalLog = console.log
+      console.log = consoleSpy
+
+      await createAction('456', { pretty: false })
+
+      console.log = originalLog
+      process.exit = originalExit
+
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Not authenticated'))
+      expect(exitSpy).toHaveBeenCalledWith(1)
+    })
+  })
 })

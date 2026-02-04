@@ -84,6 +84,64 @@ export interface SlackSearchResult {
   permalink: string
 }
 
+export interface SlackUnreadCounts {
+  channels: Array<{
+    id: string
+    name: string
+    unread_count: number
+    mention_count: number
+  }>
+  total_unread: number
+  total_mentions: number
+}
+
+export interface SlackThreadView {
+  channel_id: string
+  thread_ts: string
+  unread_count: number
+  last_read: string
+  subscribed: boolean
+}
+
+export interface SlackSavedItem {
+  type: string
+  message: SlackMessage
+  channel: {
+    id: string
+    name: string
+  }
+  date_created: number
+}
+
+export interface SlackActivityItem {
+  id: string
+  type: string
+  channel: string
+  ts: string
+  text: string
+  user: string
+  created: number
+}
+
+export interface SlackDraft {
+  id: string
+  channel_id: string
+  message: {
+    text?: string
+    blocks?: any[]
+  } | null
+  date_created: number
+  date_updated: number
+}
+
+export interface SlackChannelSection {
+  id: string
+  name: string
+  channel_ids: string[]
+  date_created: number
+  date_updated: number
+}
+
 export interface WorkspaceCredentials {
   workspace_id: string
   workspace_name: string

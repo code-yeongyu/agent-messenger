@@ -1,47 +1,45 @@
 import { Command } from 'commander'
-import { handleError } from '../../../shared/utils/error-handler'
-import { formatOutput } from '../../../shared/utils/output'
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
-import type { DiscordRelationship } from '../types'
-
-async function listAction(options: { pretty?: boolean }): Promise<void> {
-  try {
-    const credManager = new DiscordCredentialManager()
-    const config = await credManager.load()
-
-    if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
-      process.exit(1)
-    }
-
-    const client = new DiscordClient(config.token)
-    const relationships = await client.getRelationships()
-
-    const output = relationships.map((rel: DiscordRelationship) => ({
-      id: rel.id,
-      type: rel.type,
-      user: {
-        id: rel.user.id,
-        username: rel.user.username,
-        global_name: rel.user.global_name,
-        avatar: rel.user.avatar,
-      },
-    }))
-
-    console.log(formatOutput(output, options.pretty))
-  } catch (error) {
-    handleError(error as Error)
-  }
-}
 
 export const friendCommand = new Command('friend')
-  .description('Friend commands')
+  .description('Manage Discord relationships (friends)')
   .addCommand(
     new Command('list')
-      .description('List friends')
-      .option('--pretty', 'Pretty print JSON output')
-      .action(listAction)
+      .description('List all relationships')
+      .option('--pretty', 'Pretty print output')
+      .action(async (options) => {
+        const credManager = new DiscordCredentialManager()
+        const config = await credManager.load()
+
+        if (!config.token) {
+          throw new Error('No Discord token found. Run auth extract first.')
+        }
+
+        const client = new DiscordClient(config.token)
+
+        const relationships = await client.getRelationships()
+
+        if (options.pretty) {
+          const typeNames: Record<number, string> = {
+            1: 'Friend',
+            2: 'Blocked',
+            3: 'Incoming Request',
+            4: 'Outgoing Request',
+          }
+
+          console.log(`\nRelationships (${relationships.length}):\n`)
+          for (const rel of relationships) {
+            const displayName = rel.user.global_name || rel.user.username
+            const nickname = rel.nickname ? ` (${rel.nickname})` : ''
+            const type = typeNames[rel.type] || `Type ${rel.type}`
+            console.log(`  ${displayName}${nickname} - ${type}`)
+            console.log(`    ID: ${rel.user.id}`)
+            console.log(`    Username: ${rel.user.username}`)
+            console.log()
+          }
+        } else {
+          console.log(JSON.stringify(relationships, null, 2))
+        }
+      })
   )

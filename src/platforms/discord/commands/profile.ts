@@ -20,12 +20,20 @@ async function getAction(userId: string, options: { pretty?: boolean }): Promise
     const profile = await client.getUserProfile(userId)
 
     const output = {
-      user_id: profile.user.id,
-      username: profile.user.username,
-      global_name: profile.user.global_name,
-      bio: profile.user.bio,
-      avatar: profile.user.avatar,
-      connected_accounts: profile.connected_accounts,
+      user: {
+        id: profile.user.id,
+        username: profile.user.username,
+        global_name: profile.user.global_name,
+        avatar: profile.user.avatar,
+        bot: profile.user.bot,
+        bio: profile.user.bio,
+      },
+      connected_accounts: profile.connected_accounts.map((acc) => ({
+        type: acc.type,
+        id: acc.id,
+        name: acc.name,
+        verified: acc.verified,
+      })),
       premium_since: profile.premium_since,
       mutual_guilds: profile.mutual_guilds,
     }
@@ -41,7 +49,7 @@ export const profileCommand = new Command('profile')
   .addCommand(
     new Command('get')
       .description('Get user profile')
-      .argument('<user_id>', 'User ID')
+      .argument('<user-id>', 'User ID')
       .option('--pretty', 'Pretty print JSON output')
       .action(getAction)
   )

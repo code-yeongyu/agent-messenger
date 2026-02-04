@@ -3,7 +3,7 @@ import { handleError } from '../../../shared/utils/error-handler'
 import { formatOutput } from '../../../shared/utils/output'
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
-import type { DiscordMessage } from '../types'
+import type { DiscordMessage, DiscordSearchOptions } from '../types'
 
 export async function sendAction(
   channelId: string,
@@ -242,7 +242,7 @@ export async function deleteAction(
   }
 }
 
-async function ackAction(
+export async function ackAction(
   channelId: string,
   messageId: string,
   options: { pretty?: boolean }
@@ -267,35 +267,18 @@ async function ackAction(
   }
 }
 
-export async function pinAction(
-  channelId: string,
-  messageId: string,
-  options: { pretty?: boolean }
-): Promise<void> {
-  try {
-    const credManager = new DiscordCredentialManager()
-    const config = await credManager.load()
-
-    if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
-      process.exit(1)
-    }
-
-    const client = new DiscordClient(config.token)
-    await client.pinMessage(channelId, messageId)
-
-    console.log(formatOutput({ pinned: messageId }, options.pretty))
-  } catch (error) {
-    handleError(error as Error)
+export async function searchAction(
+  query: string,
+  options: {
+    channel?: string
+    author?: string
+    has?: string
+    sort?: string
+    sortDir?: string
+    limit?: number
+    offset?: number
+    pretty?: boolean
   }
-}
-
-export async function unpinAction(
-  channelId: string,
-  messageId: string,
-  options: { pretty?: boolean }
 ): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
@@ -308,39 +291,50 @@ export async function unpinAction(
       process.exit(1)
     }
 
-    const client = new DiscordClient(config.token)
-    await client.unpinMessage(channelId, messageId)
-
-    console.log(formatOutput({ unpinned: messageId }, options.pretty))
-  } catch (error) {
-    handleError(error as Error)
-  }
-}
-
-export async function pinsListAction(
-  channelId: string,
-  options: { pretty?: boolean }
-): Promise<void> {
-  try {
-    const credManager = new DiscordCredentialManager()
-    const config = await credManager.load()
-
-    if (!config.token) {
+    if (!config.current_server) {
       console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
+        formatOutput(
+          { error: 'No server selected. Run "server switch <server-id>" first.' },
+          options.pretty
+        )
       )
       process.exit(1)
     }
 
     const client = new DiscordClient(config.token)
-    const messages = await client.getPinnedMessages(channelId)
 
-    const output = messages.map((msg: DiscordMessage) => ({
-      id: msg.id,
-      content: msg.content,
-      author: msg.author.username,
-      timestamp: msg.timestamp,
-    }))
+    const searchOptions: DiscordSearchOptions = {}
+    if (options.channel) searchOptions.channelId = options.channel
+    if (options.author) searchOptions.authorId = options.author
+    if (options.has) {
+      searchOptions.has = options.has as DiscordSearchOptions['has']
+    }
+    if (options.sort) {
+      searchOptions.sortBy = options.sort as DiscordSearchOptions['sortBy']
+    }
+    if (options.sortDir) {
+      searchOptions.sortOrder = options.sortDir as DiscordSearchOptions['sortOrder']
+    }
+    if (options.limit !== undefined) searchOptions.limit = options.limit
+    if (options.offset !== undefined) searchOptions.offset = options.offset
+
+    const { results, total } = await client.searchMessages(
+      config.current_server,
+      query,
+      searchOptions
+    )
+
+    const output = {
+      total_results: total,
+      results: results.map((msg) => ({
+        id: msg.id,
+        content: msg.content,
+        author_id: msg.author.id,
+        author_username: msg.author.username,
+        channel_id: msg.channel_id,
+        timestamp: msg.timestamp,
+      })),
+    }
 
     console.log(formatOutput(output, options.pretty))
   } catch (error) {
@@ -400,7 +394,7 @@ export const messageCommand = new Command('message')
   )
   .addCommand(
     new Command('ack')
-      .description('Mark message as read')
+      .description('Mark message as read (acknowledge)')
       .argument('<channel-id>', 'Channel ID')
       .argument('<message-id>', 'Message ID')
       .option('--pretty', 'Pretty print JSON output')
@@ -408,45 +402,26 @@ export const messageCommand = new Command('message')
   )
   .addCommand(
     new Command('search')
-      .description('Search messages in a guild')
+      .description('Search messages in current server')
       .argument('<query>', 'Search query')
-      .option('--guild <guild-id>', 'Guild ID (defaults to current guild)')
-      .option('--author <user-id>', 'Filter by author user ID')
-      .option('--channel <channel-id>', 'Filter by channel ID')
-      .option('--limit <n>', 'Maximum number of results')
-      .option('--offset <n>', 'Pagination offset')
+      .option('--channel <id>', 'Filter by channel ID')
+      .option('--author <id>', 'Filter by author ID')
+      .option('--has <type>', 'Filter by attachment type: file, image, video, embed, link, sticker')
+      .option('--sort <type>', 'Sort by: timestamp, relevance (default: timestamp)')
+      .option('--sort-dir <dir>', 'Sort direction: asc, desc (default: desc)')
+      .option('--limit <n>', 'Number of results (max 25)', '25')
+      .option('--offset <n>', 'Offset for pagination', '0')
       .option('--pretty', 'Pretty print JSON output')
       .action((query: string, options: any) => {
         searchAction(query, {
-          guild: options.guild,
-          author: options.author,
           channel: options.channel,
-          limit: options.limit ? parseInt(options.limit, 10) : undefined,
-          offset: options.offset ? parseInt(options.offset, 10) : undefined,
+          author: options.author,
+          has: options.has,
+          sort: options.sort,
+          sortDir: options.sortDir,
+          limit: parseInt(options.limit, 10),
+          offset: parseInt(options.offset, 10),
           pretty: options.pretty,
         })
       })
-  )
-  .addCommand(
-    new Command('pin')
-      .description('Pin a message to channel')
-      .argument('<channel-id>', 'Channel ID')
-      .argument('<message-id>', 'Message ID')
-      .option('--pretty', 'Pretty print JSON output')
-      .action(pinAction)
-  )
-  .addCommand(
-    new Command('unpin')
-      .description('Unpin a message from channel')
-      .argument('<channel-id>', 'Channel ID')
-      .argument('<message-id>', 'Message ID')
-      .option('--pretty', 'Pretty print JSON output')
-      .action(unpinAction)
-  )
-  .addCommand(
-    new Command('pins')
-      .description('List pinned messages in channel')
-      .argument('<channel-id>', 'Channel ID')
-      .option('--pretty', 'Pretty print JSON output')
-      .action(pinsListAction)
   )

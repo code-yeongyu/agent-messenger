@@ -17,10 +17,10 @@ async function listAction(options: { pretty?: boolean }): Promise<void> {
       process.exit(1)
     }
 
-    if (!config.current_guild) {
+    if (!config.current_server) {
       console.log(
         formatOutput(
-          { error: 'No current guild set. Run "guild switch <id>" first.' },
+          { error: 'No current server set. Run "server switch <id>" first.' },
           options.pretty
         )
       )
@@ -28,7 +28,7 @@ async function listAction(options: { pretty?: boolean }): Promise<void> {
     }
 
     const client = new DiscordClient(config.token)
-    const users = await client.listUsers(config.current_guild)
+    const users = await client.listUsers(config.current_server)
 
     const output = users.map((user) => ({
       id: user.id,
@@ -116,7 +116,7 @@ export const userCommand = new Command('user')
   .description('User commands')
   .addCommand(
     new Command('list')
-      .description('List guild members')
+      .description('List server members')
       .option('--pretty', 'Pretty print JSON output')
       .action(listAction)
   )

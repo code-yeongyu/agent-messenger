@@ -20,18 +20,16 @@ async function listAction(options: { pretty?: boolean }): Promise<void> {
     }
 
     const client = new SlackClient(workspace.token, workspace.cookie)
-    const response = await client.getChannelSections()
+    const sections = await client.getChannelSections()
 
-    const output = {
-      channel_sections: response.channel_sections.map((s) => ({
-        id: s.id,
-        name: s.name,
-        emoji: s.emoji,
-        is_expanded: s.is_expanded,
-        position: s.position,
-        channels: s.channels,
-      })),
-    }
+    const output = sections.map((section) => ({
+      id: section.id,
+      name: section.name,
+      channel_count: section.channel_ids.length,
+      channel_ids: section.channel_ids,
+      date_created: section.date_created,
+      date_updated: section.date_updated,
+    }))
 
     console.log(formatOutput(output, options.pretty))
   } catch (error) {
@@ -39,11 +37,14 @@ async function listAction(options: { pretty?: boolean }): Promise<void> {
   }
 }
 
-export const sectionsCommand = new Command('sections')
-  .description('Channel sections (sidebar folders) commands')
-  .addCommand(
-    new Command('list')
-      .description('List channel sections')
-      .option('--pretty', 'Pretty print JSON output')
-      .action(listAction)
-  )
+const sections = new Command('sections').description(
+  'Manage Slack channel sections (sidebar folders)'
+)
+
+sections
+  .command('list')
+  .description('List all channel sections')
+  .option('--pretty', 'Pretty print output')
+  .action(listAction)
+
+export const sectionsCommand = sections

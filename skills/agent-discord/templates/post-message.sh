@@ -128,15 +128,15 @@ if echo "$AUTH_STATUS" | jq -e '.error' > /dev/null 2>&1; then
 fi
 
 USER_NAME=$(echo "$AUTH_STATUS" | jq -r '.user // "Unknown"')
-GUILD_ID=$(echo "$AUTH_STATUS" | jq -r '.current_guild // ""')
+SERVER_ID=$(echo "$AUTH_STATUS" | jq -r '.current_server // ""')
 echo -e "${GREEN}Authenticated as: $USER_NAME${NC}"
 
-if [ -z "$GUILD_ID" ]; then
-  echo -e "${RED}No guild selected!${NC}"
+if [ -z "$SERVER_ID" ]; then
+  echo -e "${RED}No server selected!${NC}"
   echo ""
-  echo "Run this to select a guild:"
-  echo "  agent-discord guild list"
-  echo "  agent-discord guild switch <guild-id>"
+  echo "Run this to select a server:"
+  echo "  agent-discord server list"
+  echo "  agent-discord server switch <server-id>"
   exit 1
 fi
 

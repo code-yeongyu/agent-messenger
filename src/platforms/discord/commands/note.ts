@@ -19,12 +19,11 @@ async function getAction(userId: string, options: { pretty?: boolean }): Promise
     const client = new DiscordClient(config.token)
     const note = await client.getUserNote(userId)
 
-    if (!note) {
-      console.log(formatOutput({ user_id: userId, note: null }, options.pretty))
-      return
+    if (note === null) {
+      console.log(formatOutput({ note: null }, options.pretty))
+    } else {
+      console.log(formatOutput(note, options.pretty))
     }
-
-    console.log(formatOutput(note, options.pretty))
   } catch (error) {
     handleError(error as Error)
   }
@@ -47,9 +46,9 @@ async function setAction(
     }
 
     const client = new DiscordClient(config.token)
-    await client.setUserNote(userId, note)
+    const result = await client.setUserNote(userId, note)
 
-    console.log(formatOutput({ success: true, user_id: userId, note }, options.pretty))
+    console.log(formatOutput(result, options.pretty))
   } catch (error) {
     handleError(error as Error)
   }
@@ -60,15 +59,15 @@ export const noteCommand = new Command('note')
   .addCommand(
     new Command('get')
       .description('Get note for a user')
-      .argument('<user_id>', 'User ID')
+      .argument('<user-id>', 'User ID')
       .option('--pretty', 'Pretty print JSON output')
       .action(getAction)
   )
   .addCommand(
     new Command('set')
       .description('Set note for a user')
-      .argument('<user_id>', 'User ID')
-      .argument('<note>', 'Note text')
+      .argument('<user-id>', 'User ID')
+      .argument('<note>', 'Note content')
       .option('--pretty', 'Pretty print JSON output')
       .action(setAction)
   )

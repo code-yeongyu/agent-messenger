@@ -37,8 +37,8 @@ beforeEach(() => {
   // Spy on DiscordCredentialManager.prototype methods
   credManagerLoadSpy = spyOn(DiscordCredentialManager.prototype, 'load').mockResolvedValue({
     token: 'test-token',
-    current_guild: null,
-    guilds: {},
+    current_server: null,
+    servers: {},
   })
 })
 
@@ -109,8 +109,8 @@ test('add: handles missing token gracefully', async () => {
   // Temporarily override the credential manager spy to return null token
   credManagerLoadSpy?.mockResolvedValue({
     token: null,
-    current_guild: null,
-    guilds: {},
+    current_server: null,
+    servers: {},
   })
 
   const consoleSpy = mock((_msg: string) => {})

@@ -61,20 +61,20 @@ export async function extractAction(options: { pretty?: boolean; debug?: boolean
 
       if (options.debug) {
         console.error(`[debug] ✓ Token valid for user: ${authInfo.username}`)
-        console.error(`[debug] Discovering guilds...`)
+        console.error(`[debug] Discovering servers...`)
       }
 
-      const guilds = await client.listGuilds()
+      const servers = await client.listServers()
 
       if (options.debug) {
-        console.error(`[debug] ✓ Found ${guilds.length} guild(s)`)
+        console.error(`[debug] ✓ Found ${servers.length} server(s)`)
       }
 
-      if (guilds.length === 0) {
+      if (servers.length === 0) {
         console.log(
           formatOutput(
             {
-              error: 'No guilds found. Make sure you are a member of at least one Discord server.',
+              error: 'No servers found. Make sure you are a member of at least one Discord server.',
             },
             options.pretty
           )
@@ -83,19 +83,19 @@ export async function extractAction(options: { pretty?: boolean; debug?: boolean
       }
 
       const credManager = new DiscordCredentialManager()
-      const guildMap: Record<string, { guild_id: string; guild_name: string }> = {}
+      const serverMap: Record<string, { server_id: string; server_name: string }> = {}
 
-      for (const guild of guilds) {
-        guildMap[guild.id] = {
-          guild_id: guild.id,
-          guild_name: guild.name,
+      for (const server of servers) {
+        serverMap[server.id] = {
+          server_id: server.id,
+          server_name: server.name,
         }
       }
 
       const config = {
         token: extracted.token,
-        current_guild: guilds[0].id,
-        guilds: guildMap,
+        current_server: servers[0].id,
+        servers: serverMap,
       }
 
       await credManager.save(config)
@@ -105,8 +105,8 @@ export async function extractAction(options: { pretty?: boolean; debug?: boolean
       }
 
       const output = {
-        guilds: guilds.map((g) => `${g.id}/${g.name}`),
-        current: guilds[0].id,
+        servers: servers.map((g) => `${g.id}/${g.name}`),
+        current: servers[0].id,
       }
 
       console.log(formatOutput(output, options.pretty))
@@ -173,8 +173,8 @@ export async function statusAction(options: { pretty?: boolean }): Promise<void>
     const output = {
       authenticated: valid,
       user: authInfo?.username,
-      current_guild: config.current_guild,
-      guilds_count: Object.keys(config.guilds).length,
+      current_server: config.current_server,
+      servers_count: Object.keys(config.servers).length,
     }
 
     console.log(formatOutput(output, options.pretty))

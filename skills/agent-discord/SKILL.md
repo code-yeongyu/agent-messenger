@@ -6,7 +6,7 @@ allowed-tools: Bash(agent-discord:*)
 
 # Agent Discord
 
-A TypeScript CLI tool that enables AI agents and humans to interact with Discord servers through a simple command interface. Features seamless token extraction from the Discord desktop app and multi-guild support.
+A TypeScript CLI tool that enables AI agents and humans to interact with Discord servers through a simple command interface. Features seamless token extraction from the Discord desktop app and multi-server support.
 
 ## Quick Start
 
@@ -14,7 +14,7 @@ A TypeScript CLI tool that enables AI agents and humans to interact with Discord
 # Extract credentials from Discord desktop app (zero-config)
 agent-discord auth extract
 
-# Get guild snapshot
+# Get server snapshot
 agent-discord snapshot
 
 # Send a message
@@ -42,20 +42,20 @@ This command:
 - Auto-detects your platform (macOS/Linux/Windows)
 - Extracts user token from Discord desktop app's LevelDB storage
 - Validates token against Discord API before saving
-- Discovers ALL joined guilds (servers)
+- Discovers ALL joined servers
 - Stores credentials securely in `~/.config/agent-messenger/`
 
-### Multi-Guild Support
+### Multi-Server Support
 
 ```bash
-# List all available guilds
-agent-discord guild list
+# List all available servers
+agent-discord server list
 
-# Switch to a different guild
-agent-discord guild switch <guild-id>
+# Switch to a different server
+agent-discord server switch <server-id>
 
-# Show current guild
-agent-discord guild current
+# Show current server
+agent-discord server current
 
 # Check auth status
 agent-discord auth status
@@ -85,15 +85,14 @@ agent-discord message get 1234567890123456789 9876543210987654321
 # Delete a message
 agent-discord message delete <channel-id> <message-id> --force
 
-# Search messages in a guild
-agent-discord message search "error" --guild <guild-id> --limit 10
-agent-discord message search "deploy" --author <user-id> --channel <channel-id>
+# Acknowledge/mark a message as read
+agent-discord message ack <channel-id> <message-id>
 ```
 
 ### Channel Commands
 
 ```bash
-# List channels in current guild (text channels only)
+# List channels in current server (text channels only)
 agent-discord channel list
 
 # Get channel info
@@ -104,26 +103,26 @@ agent-discord channel info 1234567890123456789
 agent-discord channel history <channel-id> --limit 100
 ```
 
-### Guild Commands
+### Server Commands
 
 ```bash
-# List all guilds
-agent-discord guild list
+# List all servers
+agent-discord server list
 
-# Get guild info
-agent-discord guild info <guild-id>
+# Get server info
+agent-discord server info <server-id>
 
-# Switch active guild
-agent-discord guild switch <guild-id>
+# Switch active server
+agent-discord server switch <server-id>
 
-# Show current guild
-agent-discord guild current
+# Show current server
+agent-discord server current
 ```
 
 ### User Commands
 
 ```bash
-# List guild members
+# List server members
 agent-discord user list
 
 # Get user info
@@ -139,37 +138,25 @@ agent-discord user me
 # List DM channels
 agent-discord dm list
 
-# Create a DM channel
+# Create a DM channel with a user
 agent-discord dm create <user-id>
-
-# Send a DM to a user
-agent-discord dm send <user-id> <content>
-```
-
-### Thread Commands
-
-```bash
-# Create a thread
-agent-discord thread create <channel-id> <name>
-
-# Archive a thread
-agent-discord thread archive <thread-id>
 ```
 
 ### Mention Commands
 
 ```bash
-# List mentions
+# List recent mentions
 agent-discord mention list
 agent-discord mention list --limit 50
-agent-discord mention list --guild <guild-id>
+agent-discord mention list --guild <server-id>
 ```
 
 ### Friend Commands
 
 ```bash
-# List friends/relationships
+# List all relationships (friends, blocked, pending requests)
 agent-discord friend list
+agent-discord friend list --pretty
 ```
 
 ### Note Commands
@@ -179,22 +166,33 @@ agent-discord friend list
 agent-discord note get <user-id>
 
 # Set note for a user
-agent-discord note set <user-id> <note>
-```
-
-### Member Commands
-
-```bash
-# Search members in a guild
-agent-discord member search <guild-id> <query>
-agent-discord member search 1234567890123456789 "john" --limit 20
+agent-discord note set <user-id> "Note content"
 ```
 
 ### Profile Commands
 
 ```bash
-# Get user profile (bio, connected accounts, etc.)
+# Get detailed user profile
 agent-discord profile get <user-id>
+```
+
+### Member Commands
+
+```bash
+# Search guild members
+agent-discord member search <guild-id> <query>
+agent-discord member search 1234567890123456789 "john" --limit 20
+```
+
+### Thread Commands
+
+```bash
+# Create a thread in a channel
+agent-discord thread create <channel-id> <name>
+agent-discord thread create 1234567890123456789 "Discussion" --auto-archive-duration 1440
+
+# Archive a thread
+agent-discord thread archive <thread-id>
 ```
 
 ### Reaction Commands
@@ -227,7 +225,7 @@ agent-discord file info <channel-id> <file-id>
 
 ### Snapshot Command
 
-Get comprehensive guild state for AI agents:
+Get comprehensive server state for AI agents:
 
 ```bash
 # Full snapshot
@@ -242,7 +240,7 @@ agent-discord snapshot --limit 10
 ```
 
 Returns JSON with:
-- Guild metadata (id, name)
+- Server metadata (id, name)
 - Channels (id, name, type, topic)
 - Recent messages (id, content, author, timestamp)
 - Members (id, username, global_name)
@@ -274,7 +272,7 @@ agent-discord channel list --pretty
 
 | Feature | Discord | Slack |
 |---------|---------|-------|
-| Server terminology | Guild | Workspace |
+| Server terminology | Server | Workspace |
 | Channel identifiers | Snowflake IDs | Channel name or ID |
 | Message identifiers | Snowflake IDs | Timestamps (ts) |
 | Threads | Thread ID field | Thread timestamp |
@@ -291,7 +289,7 @@ See `references/common-patterns.md` for typical AI agent workflows.
 See `templates/` directory for runnable examples:
 - `post-message.sh` - Send messages with error handling
 - `monitor-channel.sh` - Monitor channel for new messages
-- `guild-summary.sh` - Generate guild summary
+- `server-summary.sh` - Generate server summary
 
 ## Error Handling
 
@@ -305,7 +303,7 @@ All commands return consistent error format:
 
 Common errors:
 - `Not authenticated`: No valid token - run `auth extract`
-- `No current guild set`: Run `guild switch <id>` first
+- `No current server set`: Run `server switch <id>` first
 - `Message not found`: Invalid message ID
 - `Unknown Channel`: Invalid channel ID
 
@@ -317,11 +315,11 @@ Format:
 ```json
 {
   "token": "user_token_here",
-  "current_guild": "1234567890123456789",
-  "guilds": {
+  "current_server": "1234567890123456789",
+  "servers": {
     "1234567890123456789": {
-      "guild_id": "1234567890123456789",
-      "guild_name": "My Server"
+      "server_id": "1234567890123456789",
+      "server_name": "My Server"
     }
   }
 }

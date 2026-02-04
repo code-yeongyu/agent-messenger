@@ -35,11 +35,11 @@ program.addCommand(userCommand)
 program.addCommand(reactionCommand)
 program.addCommand(fileCommand)
 program.addCommand(snapshotCommand)
-program.addCommand(unreadCommand)
 program.addCommand(activityCommand)
-program.addCommand(savedCommand)
 program.addCommand(draftsCommand)
+program.addCommand(savedCommand)
 program.addCommand(sectionsCommand)
+program.addCommand(unreadCommand)
 
 program.parse(process.argv)
 

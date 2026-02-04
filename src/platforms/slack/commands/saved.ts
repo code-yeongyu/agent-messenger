@@ -3,9 +3,12 @@ import { handleError } from '../../../shared/utils/error-handler'
 import { formatOutput } from '../../../shared/utils/output'
 import { SlackClient } from '../client'
 import { CredentialManager } from '../credential-manager'
-import type { SlackSavedItem } from '../types'
 
-async function listAction(options: { limit?: number; pretty?: boolean }): Promise<void> {
+async function listAction(options: {
+  limit?: number
+  cursor?: string
+  pretty?: boolean
+}): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
@@ -21,20 +24,29 @@ async function listAction(options: { limit?: number; pretty?: boolean }): Promis
     }
 
     const client = new SlackClient(workspace.token, workspace.cookie)
-    const response = await client.getSavedItems({
-      limit: options.limit,
-    })
+    const result = await client.getSavedItems(options.cursor)
+
+    let items = result.items
+
+    if (options.limit) {
+      items = items.slice(0, options.limit)
+    }
 
     const output = {
-      saved_items: response.saved_items.map((item: SlackSavedItem) => ({
-        item_id: item.item_id,
-        item_type: item.item_type,
-        ts: item.ts,
-        state: item.state,
+      items: items.map((item) => ({
+        type: item.type,
+        message: {
+          ts: item.message.ts,
+          text: item.message.text,
+          user: item.message.user,
+          username: item.message.username,
+          thread_ts: item.message.thread_ts,
+        },
+        channel: item.channel,
         date_created: item.date_created,
-        is_archived: item.is_archived,
       })),
-      counts: response.counts,
+      has_more: result.has_more,
+      next_cursor: result.next_cursor,
     }
 
     console.log(formatOutput(output, options.pretty))
@@ -45,12 +57,14 @@ async function listAction(options: { limit?: number; pretty?: boolean }): Promis
 
 export const savedCommand = new Command('saved').description('Saved items commands').addCommand(
   new Command('list')
-    .description('List saved items (Later)')
-    .option('--limit <n>', 'Number of items to retrieve', '25')
+    .description('List saved items')
+    .option('--limit <n>', 'Number of items to display')
+    .option('--cursor <cursor>', 'Pagination cursor')
     .option('--pretty', 'Pretty print JSON output')
-    .action((options: any) => {
+    .action((options) => {
       listAction({
         limit: options.limit ? parseInt(options.limit, 10) : undefined,
+        cursor: options.cursor,
         pretty: options.pretty,
       })
     })

@@ -5,7 +5,7 @@ import { SlackClient } from '../client'
 import { CredentialManager } from '../credential-manager'
 
 async function listAction(options: {
-  limit?: string
+  limit?: number
   cursor?: string
   pretty?: boolean
 }): Promise<void> {
@@ -24,22 +24,21 @@ async function listAction(options: {
     }
 
     const client = new SlackClient(workspace.token, workspace.cookie)
-    const response = await client.getDrafts({
-      limit: options.limit ? parseInt(options.limit, 10) : undefined,
-      cursor: options.cursor,
-    })
+    const result = await client.getDrafts(options.cursor)
 
-    const output = {
-      drafts: response.drafts.map((d) => ({
-        id: d.id,
-        channel_id: d.channel_id,
-        text: d.message?.text ?? null,
-        date_created: d.date_created,
-        date_updated: d.date_updated,
-        type: d.type,
-      })),
-      next_cursor: response.response_metadata?.next_cursor,
+    let drafts = result.drafts
+
+    if (options.limit) {
+      drafts = drafts.slice(0, options.limit)
     }
+
+    const output = drafts.map((draft) => ({
+      id: draft.id,
+      channel_id: draft.channel_id,
+      text: draft.message?.text || '',
+      date_created: draft.date_created,
+      date_updated: draft.date_updated,
+    }))
 
     console.log(formatOutput(output, options.pretty))
   } catch (error) {
@@ -47,15 +46,15 @@ async function listAction(options: {
   }
 }
 
-export const draftsCommand = new Command('drafts').description('Draft message commands').addCommand(
+export const draftsCommand = new Command('drafts').description('Drafts commands').addCommand(
   new Command('list')
     .description('List message drafts')
-    .option('--limit <n>', 'Number of drafts to retrieve')
+    .option('--limit <n>', 'Number of drafts to display')
     .option('--cursor <cursor>', 'Pagination cursor')
     .option('--pretty', 'Pretty print JSON output')
-    .action((options: any) => {
+    .action((options) => {
       listAction({
-        limit: options.limit,
+        limit: options.limit ? parseInt(options.limit, 10) : undefined,
         cursor: options.cursor,
         pretty: options.pretty,
       })

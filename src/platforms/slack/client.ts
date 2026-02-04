@@ -1,15 +1,15 @@
 import { WebClient } from '@slack/web-api'
 import type {
-  SlackActivityFeedResponse,
+  SlackActivityItem,
   SlackChannel,
-  SlackChannelSectionsResponse,
-  SlackDraftsResponse,
+  SlackChannelSection,
+  SlackDraft,
   SlackFile,
   SlackMessage,
-  SlackSavedItemsResponse,
+  SlackSavedItem,
   SlackSearchResult,
+  SlackThreadView,
   SlackUnreadCounts,
-  SlackUnreadThreadsResponse,
   SlackUser,
 } from './types'
 
@@ -478,26 +478,47 @@ export class SlackClient {
 
   async getUnreadCounts(): Promise<SlackUnreadCounts> {
     return this.withRetry(async () => {
-      const response = await this.client.apiCall('client.counts', {})
+      const response = await (this.client as any).client.counts()
       this.checkResponse(response)
-      return response as unknown as SlackUnreadCounts
+
+      const channels = (response.channels || []).map((ch: any) => ({
+        id: ch.id || '',
+        name: ch.name || '',
+        unread_count: ch.unread_count || 0,
+        mention_count: ch.mention_count || 0,
+      }))
+
+      return {
+        channels,
+        total_unread: channels.reduce((sum: number, ch: any) => sum + ch.unread_count, 0),
+        total_mentions: channels.reduce((sum: number, ch: any) => sum + ch.mention_count, 0),
+      }
     })
   }
 
-  async getUnreadThreads(limit: number = 25): Promise<SlackUnreadThreadsResponse> {
+  async getThreadView(channelId: string, ts: string): Promise<SlackThreadView> {
     return this.withRetry(async () => {
-      const response = await this.client.apiCall('subscriptions.thread.getView', {
-        limit,
+      const response = await (this.client as any).subscriptions.thread.getView({
+        channel: channelId,
+        thread_ts: ts,
       })
       this.checkResponse(response)
-      return response as unknown as SlackUnreadThreadsResponse
+
+      const view = response.view as any
+      return {
+        channel_id: view.channel_id || channelId,
+        thread_ts: view.thread_ts || ts,
+        unread_count: view.unread_count || 0,
+        last_read: view.last_read || '',
+        subscribed: view.subscribed || false,
+      }
     })
   }
 
-  async markAsRead(channel: string, ts: string): Promise<void> {
+  async markRead(channelId: string, ts: string): Promise<void> {
     return this.withRetry(async () => {
       const response = await this.client.conversations.mark({
-        channel,
+        channel: channelId,
         ts,
       })
       this.checkResponse(response)
@@ -505,62 +526,112 @@ export class SlackClient {
   }
 
   async getActivityFeed(options?: {
+    types?: string
+    mode?: string
     limit?: number
-    unread?: boolean
-    types?: string[]
-  }): Promise<SlackActivityFeedResponse> {
+  }): Promise<SlackActivityItem[]> {
     return this.withRetry(async () => {
-      const defaultTypes = ['thread_reply', 'message_reaction', 'at_user', 'at_channel', 'keyword']
-      const params: Record<string, unknown> = {
-        limit: options?.limit || 25,
-        mode: options?.unread ? 'priority_unreads_v1' : 'chrono_reads_and_unreads',
-        types: (options?.types && options.types.length > 0 ? options.types : defaultTypes).join(
-          ','
-        ),
-      }
-      const response = await this.client.apiCall('activity.feed', params)
+      const response = await (this.client as any).activity.feed({
+        types: options?.types,
+        mode: options?.mode || 'chrono_reads_and_unreads',
+        limit: options?.limit || 20,
+      })
       this.checkResponse(response)
-      return response as unknown as SlackActivityFeedResponse
+
+      const items = (response.items || []).map((item: any) => ({
+        id: item.id || '',
+        type: item.type || '',
+        channel: item.channel || '',
+        ts: item.ts || '',
+        text: item.text || '',
+        user: item.user || '',
+        created: item.created || 0,
+      }))
+
+      return items
     })
   }
 
-  async getSavedItems(options?: {
-    limit?: number
-    cursor?: string
-  }): Promise<SlackSavedItemsResponse> {
+  async getSavedItems(cursor?: string): Promise<{
+    items: SlackSavedItem[]
+    has_more: boolean
+    next_cursor?: string
+  }> {
     return this.withRetry(async () => {
-      const params: Record<string, unknown> = {
-        limit: options?.limit || 25,
-      }
-      if (options?.cursor) {
-        params.cursor = options.cursor
-      }
-      const response = await this.client.apiCall('saved.list', params)
+      const response = await (this.client as any).apiCall('saved.list', {
+        cursor,
+        limit: 100,
+      })
       this.checkResponse(response)
-      return response as unknown as SlackSavedItemsResponse
+
+      const items = (response.items || []).map((item: any) => ({
+        type: item.type || 'message',
+        message: {
+          ts: item.message?.ts || '',
+          text: item.message?.text || '',
+          user: item.message?.user,
+          username: item.message?.username,
+          type: item.message?.type || 'message',
+          thread_ts: item.message?.thread_ts,
+          reply_count: item.message?.reply_count,
+          replies: item.message?.replies,
+          edited: item.message?.edited
+            ? {
+                user: item.message.edited.user || '',
+                ts: item.message.edited.ts || '',
+              }
+            : undefined,
+        },
+        channel: {
+          id: item.channel?.id || '',
+          name: item.channel?.name || '',
+        },
+        date_created: item.date_created || 0,
+      }))
+
+      return {
+        items,
+        has_more: response.has_more || false,
+        next_cursor: response.response_metadata?.next_cursor,
+      }
     })
   }
 
-  async getDrafts(options?: { limit?: number; cursor?: string }): Promise<SlackDraftsResponse> {
+  async getChannelSections(): Promise<SlackChannelSection[]> {
     return this.withRetry(async () => {
-      const params: Record<string, unknown> = {}
-      if (options?.limit) {
-        params.limit = options.limit
-      }
-      if (options?.cursor) {
-        params.cursor = options.cursor
-      }
-      const response = await this.client.apiCall('drafts.list', params)
+      const response = await (this.client as any).apiCall('users.channelSections.list')
       this.checkResponse(response)
-      return response as unknown as SlackDraftsResponse
+
+      const sections = (response as any).channel_sections || []
+      return sections.map((section: any) => ({
+        id: section.id!,
+        name: section.name || '',
+        channel_ids: section.channel_ids || [],
+        date_created: section.date_created || 0,
+        date_updated: section.date_updated || 0,
+      }))
     })
   }
 
-  async getChannelSections(): Promise<SlackChannelSectionsResponse> {
+  async getDrafts(cursor?: string): Promise<{ drafts: SlackDraft[]; next_cursor?: string }> {
     return this.withRetry(async () => {
-      const response = await this.client.apiCall('users.channelSections.list', {})
+      const response = await this.client.apiCall('drafts.list', {
+        cursor,
+      })
       this.checkResponse(response)
-      return response as unknown as SlackChannelSectionsResponse
+
+      const drafts = ((response as any).drafts || []).map((draft: any) => ({
+        id: draft.id || '',
+        channel_id: draft.channel_id || '',
+        message: draft.message || null,
+        date_created: draft.date_created || 0,
+        date_updated: draft.date_updated || 0,
+      }))
+
+      return {
+        drafts,
+        next_cursor: (response as any).response_metadata?.next_cursor,
+      }
     })
   }
 }

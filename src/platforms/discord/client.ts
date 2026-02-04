@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { getDiscordHeaders, humanDelay } from './super-properties'
+import { getDiscordHeaders } from './super-properties'
 import type {
   DiscordChannel,
   DiscordDMChannel,
@@ -8,9 +8,10 @@ import type {
   DiscordGuildMember,
   DiscordMention,
   DiscordMessage,
-  DiscordMessageSearchResponse,
-  DiscordReadState,
   DiscordRelationship,
+  DiscordSearchOptions,
+  DiscordSearchResponse,
+  DiscordSearchResult,
   DiscordUser,
   DiscordUserNote,
   DiscordUserProfile,
@@ -109,7 +110,7 @@ export class DiscordClient {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       await this.waitForRateLimit(bucketKey)
 
-      const headers = getDiscordHeaders(this.token)
+      const headers: Record<string, string> = getDiscordHeaders(this.token)
 
       const options: RequestInit = {
         method,
@@ -163,8 +164,6 @@ export class DiscordClient {
     await this.waitForRateLimit(bucketKey)
 
     const headers = getDiscordHeaders(this.token)
-    delete headers['Content-Type']
-
     const response = await fetch(url, {
       method: 'POST',
       headers,
@@ -188,16 +187,16 @@ export class DiscordClient {
     return this.request<DiscordUser>('GET', '/users/@me')
   }
 
-  async listGuilds(): Promise<DiscordGuild[]> {
+  async listServers(): Promise<DiscordGuild[]> {
     return this.request<DiscordGuild[]>('GET', '/users/@me/guilds')
   }
 
-  async getGuild(guildId: string): Promise<DiscordGuild> {
-    return this.request<DiscordGuild>('GET', `/guilds/${guildId}`)
+  async getServer(serverId: string): Promise<DiscordGuild> {
+    return this.request<DiscordGuild>('GET', `/guilds/${serverId}`)
   }
 
-  async listChannels(guildId: string): Promise<DiscordChannel[]> {
-    return this.request<DiscordChannel[]>('GET', `/guilds/${guildId}/channels`)
+  async listChannels(serverId: string): Promise<DiscordChannel[]> {
+    return this.request<DiscordChannel[]>('GET', `/guilds/${serverId}/channels`)
   }
 
   async getChannel(channelId: string): Promise<DiscordChannel> {
@@ -287,13 +286,19 @@ export class DiscordClient {
     )
   }
 
-  async listUsers(guildId: string): Promise<DiscordUser[]> {
+  async ackMessage(channelId: string, messageId: string): Promise<void> {
+    return this.request<void>('POST', `/channels/${channelId}/messages/${messageId}/ack`, {
+      token: null,
+    })
+  }
+
+  async listUsers(serverId: string): Promise<DiscordUser[]> {
     interface GuildMember {
       user: DiscordUser
     }
     const members = await this.request<GuildMember[]>(
       'GET',
-      `/guilds/${guildId}/members?limit=1000`
+      `/guilds/${serverId}/members?limit=1000`
     )
     return members.map((m) => m.user)
   }
@@ -348,48 +353,36 @@ export class DiscordClient {
     })
   }
 
-  async getMentions(options?: {
-    limit?: number
-    guildId?: string
-    roles?: boolean
-    everyone?: boolean
-  }): Promise<DiscordMention[]> {
+  async getMentions(options?: { limit?: number; guildId?: string }): Promise<DiscordMention[]> {
     const params = new URLSearchParams()
-    if (options?.limit) params.set('limit', String(options.limit))
-    if (options?.guildId) params.set('guild_id', options.guildId)
-    if (options?.roles !== false) params.set('roles', 'true')
-    if (options?.everyone !== false) params.set('everyone', 'true')
-    const query = params.toString()
-    return this.request<DiscordMention[]>('GET', `/users/@me/mentions${query ? '?' + query : ''}`)
-  }
+    params.set('limit', (options?.limit ?? 25).toString())
+    params.set('roles', 'true')
+    params.set('everyone', 'true')
 
-  async ackMessage(channelId: string, messageId: string): Promise<void> {
-    return this.request<void>('POST', `/channels/${channelId}/messages/${messageId}/ack`, {
-      token: null,
-    })
-  }
+    if (options?.guildId) {
+      params.set('guild_id', options.guildId)
+    }
 
-  async getReadStates(): Promise<DiscordReadState[]> {
-    return this.request<DiscordReadState[]>('GET', '/users/@me/read-states')
-  }
-
-  async getRelationships(): Promise<DiscordRelationship[]> {
-    return this.request<DiscordRelationship[]>('GET', '/users/@me/relationships')
+    return this.request<DiscordMention[]>('GET', `/users/@me/mentions?${params.toString()}`)
   }
 
   async getUserNote(userId: string): Promise<DiscordUserNote | null> {
     try {
       return await this.request<DiscordUserNote>('GET', `/users/@me/notes/${userId}`)
     } catch (error) {
-      if (error instanceof DiscordError && error.code === '10013') {
+      if (error instanceof DiscordError && error.code === 'http_404') {
         return null
       }
       throw error
     }
   }
 
-  async setUserNote(userId: string, note: string): Promise<void> {
-    return this.request<void>('PUT', `/users/@me/notes/${userId}`, { note })
+  async setUserNote(userId: string, note: string): Promise<DiscordUserNote> {
+    return this.request<DiscordUserNote>('PUT', `/users/@me/notes/${userId}`, { note })
+  }
+
+  async getRelationships(): Promise<DiscordRelationship[]> {
+    return this.request<DiscordRelationship[]>('GET', '/users/@me/relationships')
   }
 
   async searchMembers(
@@ -399,11 +392,66 @@ export class DiscordClient {
   ): Promise<DiscordGuildMember[]> {
     const params = new URLSearchParams()
     params.set('query', query)
-    params.set('limit', String(limit))
+    params.set('limit', limit.toString())
+
     return this.request<DiscordGuildMember[]>(
       'GET',
       `/guilds/${guildId}/members/search?${params.toString()}`
     )
+  }
+
+  async searchMessages(
+    guildId: string,
+    query: string,
+    options: DiscordSearchOptions = {}
+  ): Promise<{ results: DiscordSearchResult[]; total: number }> {
+    const params = new URLSearchParams()
+    params.set('content', query)
+
+    if (options.channelId) {
+      params.set('channel_id', options.channelId)
+    }
+    if (options.authorId) {
+      params.set('author_id', options.authorId)
+    }
+    if (options.has) {
+      params.set('has', options.has)
+    }
+    if (options.sortBy) {
+      params.set('sort_by', options.sortBy)
+    }
+    if (options.sortOrder) {
+      params.set('sort_order', options.sortOrder)
+    }
+    if (options.limit !== undefined) {
+      params.set('limit', Math.max(1, Math.min(options.limit, 25)).toString())
+    }
+    if (options.offset !== undefined) {
+      params.set('offset', options.offset.toString())
+    }
+
+    const response = await this.request<DiscordSearchResponse>(
+      'GET',
+      `/guilds/${guildId}/messages/search?${params.toString()}`
+    )
+
+    const results = response.messages
+      .flat()
+      .filter((msg) => msg.hit)
+      .map((msg) => ({
+        id: msg.id,
+        channel_id: msg.channel_id,
+        guild_id: msg.guild_id,
+        content: msg.content,
+        author: msg.author,
+        timestamp: msg.timestamp,
+        hit: msg.hit,
+      }))
+
+    return {
+      results,
+      total: response.total_results,
+    }
   }
 
   async getUserProfile(userId: string): Promise<DiscordUserProfile> {
@@ -414,33 +462,17 @@ export class DiscordClient {
     channelId: string,
     name: string,
     options?: {
-      autoArchiveDuration?: number
-      rateLimitPerUser?: number
+      auto_archive_duration?: number
+      rate_limit_per_user?: number
     }
   ): Promise<DiscordChannel> {
-    const body: Record<string, unknown> = { name }
-    if (options?.autoArchiveDuration !== undefined) {
-      body.auto_archive_duration = options.autoArchiveDuration
-    }
-    if (options?.rateLimitPerUser !== undefined) {
-      body.rate_limit_per_user = options.rateLimitPerUser
-    }
-    return this.request<DiscordChannel>('POST', `/channels/${channelId}/threads`, body)
+    return this.request<DiscordChannel>('POST', `/channels/${channelId}/threads`, {
+      name,
+      ...options,
+    })
   }
 
-  async archiveThread(threadId: string, archived: boolean): Promise<DiscordChannel> {
+  async archiveThread(threadId: string, archived: boolean = true): Promise<DiscordChannel> {
     return this.request<DiscordChannel>('PATCH', `/channels/${threadId}`, { archived })
-  }
-
-  async pinMessage(channelId: string, messageId: string): Promise<void> {
-    await this.request<void>('PUT', `/channels/${channelId}/pins/${messageId}`)
-  }
-
-  async unpinMessage(channelId: string, messageId: string): Promise<void> {
-    await this.request<void>('DELETE', `/channels/${channelId}/pins/${messageId}`)
-  }
-
-  async getPinnedMessages(channelId: string): Promise<DiscordMessage[]> {
-    return this.request<DiscordMessage[]>('GET', `/channels/${channelId}/pins`)
   }
 }

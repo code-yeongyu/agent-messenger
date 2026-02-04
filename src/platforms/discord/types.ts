@@ -19,6 +19,12 @@ export interface DiscordChannel {
   topic?: string
   position?: number
   parent_id?: string
+  thread_metadata?: {
+    archived?: boolean
+    auto_archive_duration?: number
+    archive_timestamp?: string
+    locked?: boolean
+  }
 }
 
 export interface DiscordMessage {
@@ -87,6 +93,14 @@ export interface DiscordUser {
   bot?: boolean
 }
 
+export interface DiscordDMChannel {
+  id: string
+  type: number // 1=DM, 3=Group DM
+  last_message_id?: string
+  recipients: DiscordUser[]
+  name?: string // Only for group DMs
+}
+
 export interface DiscordReaction {
   emoji: {
     id?: string
@@ -105,18 +119,92 @@ export interface DiscordFile {
   width?: number
 }
 
+export interface DiscordMention {
+  id: string
+  channel_id: string
+  author: { id: string; username: string }
+  content: string
+  timestamp: string
+  mention_everyone: boolean
+  mentions: DiscordUser[]
+  guild_id?: string
+}
+
+export interface DiscordUserNote {
+  user_id: string
+  note_user_id: string
+  note: string
+}
+
+export interface DiscordSearchResult {
+  id: string
+  channel_id: string
+  guild_id?: string
+  content: string
+  author: {
+    id: string
+    username: string
+  }
+  timestamp: string
+  hit: boolean
+}
+
+export interface DiscordSearchResponse {
+  total_results: number
+  messages: DiscordSearchResult[][]
+}
+
+export interface DiscordSearchOptions {
+  channelId?: string
+  authorId?: string
+  has?: 'file' | 'image' | 'video' | 'embed' | 'link' | 'sticker'
+  sortBy?: 'timestamp' | 'relevance'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  offset?: number
+}
+
+export interface DiscordRelationship {
+  id: string
+  type: number
+  user: DiscordUser
+  nickname?: string
+}
+
+export interface DiscordGuildMember {
+  user: DiscordUser
+  nick?: string
+  roles: string[]
+  joined_at: string
+  deaf: boolean
+  mute: boolean
+  flags: number
+}
+
+export interface DiscordUserProfile {
+  user: DiscordUser & { bio?: string }
+  connected_accounts: Array<{
+    type: string
+    id: string
+    name: string
+    verified: boolean
+  }>
+  premium_since?: string
+  mutual_guilds?: Array<{ id: string; nick?: string }>
+}
+
 export interface DiscordCredentials {
   token: string
 }
 
 export interface DiscordConfig {
-  current_guild: string | null
+  current_server: string | null
   token: string
-  guilds: Record<
+  servers: Record<
     string,
     {
-      guild_id: string
-      guild_name: string
+      server_id: string
+      server_name: string
     }
   >
 }
@@ -211,6 +299,14 @@ export const DiscordUserSchema = z.object({
   bot: z.boolean().optional(),
 })
 
+export const DiscordDMChannelSchema = z.object({
+  id: z.string(),
+  type: z.number(),
+  last_message_id: z.string().optional(),
+  recipients: z.array(DiscordUserSchema),
+  name: z.string().optional(),
+})
+
 export const DiscordReactionSchema = z.object({
   emoji: z.object({
     id: z.string().optional(),
@@ -229,18 +325,57 @@ export const DiscordFileSchema = z.object({
   width: z.number().optional(),
 })
 
+export const DiscordMentionSchema = z.object({
+  id: z.string(),
+  channel_id: z.string(),
+  author: z.object({
+    id: z.string(),
+    username: z.string(),
+  }),
+  content: z.string(),
+  timestamp: z.string(),
+  mention_everyone: z.boolean(),
+  mentions: z.array(DiscordUserSchema),
+  guild_id: z.string().optional(),
+})
+
+export const DiscordRelationshipSchema = z.object({
+  id: z.string(),
+  type: z.number(),
+  user: DiscordUserSchema,
+  nickname: z.string().optional(),
+})
+
+export const DiscordSearchResultSchema = z.object({
+  id: z.string(),
+  channel_id: z.string(),
+  guild_id: z.string().optional(),
+  content: z.string(),
+  author: z.object({
+    id: z.string(),
+    username: z.string(),
+  }),
+  timestamp: z.string(),
+  hit: z.boolean(),
+})
+
+export const DiscordSearchResponseSchema = z.object({
+  total_results: z.number(),
+  messages: z.array(z.array(DiscordSearchResultSchema)),
+})
+
 export const DiscordCredentialsSchema = z.object({
   token: z.string(),
 })
 
 export const DiscordConfigSchema = z.object({
-  current_guild: z.string().nullable(),
+  current_server: z.string().nullable(),
   token: z.string(),
-  guilds: z.record(
+  servers: z.record(
     z.string(),
     z.object({
-      guild_id: z.string(),
-      guild_name: z.string(),
+      server_id: z.string(),
+      server_name: z.string(),
     })
   ),
 })

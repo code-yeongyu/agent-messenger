@@ -1,8 +1,9 @@
-# Discord Integration
+---
+title: Discord
+description: Complete reference for the agent-discord CLI.
+---
 
-Detailed documentation for Discord integration in agent-messenger.
-
-> **Note**: `agent-discord` is a convenient shortcut for `agent-messenger discord`.
+> **Tip**: `agent-discord` is a shortcut for `agent-messenger discord`.
 
 ## Quick Start
 
@@ -10,7 +11,7 @@ Detailed documentation for Discord integration in agent-messenger.
 # 1. Extract credentials from Discord desktop app (zero-config!)
 agent-discord auth extract
 
-# 2. Get guild snapshot
+# 2. Get server snapshot
 agent-discord snapshot
 
 # 3. Send a message
@@ -34,7 +35,7 @@ This command:
 - Auto-detects your platform (macOS/Linux/Windows)
 - Extracts Discord user token from the desktop app
 - Validates token against Discord API
-- Discovers ALL joined guilds (servers)
+- Discovers ALL joined servers
 - Stores credentials securely in `~/.config/agent-messenger/`
 
 ### Authentication Commands
@@ -47,22 +48,22 @@ agent-discord auth status
 agent-discord auth logout
 ```
 
-## Guild Management
+## Server Management
 
-Discord uses "guilds" (servers) instead of workspaces. You must select a guild before using most commands.
+You must select a server before using most commands.
 
 ```bash
-# List all guilds
-agent-discord guild list
+# List all servers
+agent-discord server list
 
-# Switch to a different guild
-agent-discord guild switch <guild-id>
+# Switch to a different server
+agent-discord server switch <server-id>
 
-# Show current guild
-agent-discord guild current
+# Show current server
+agent-discord server current
 
-# Get guild info
-agent-discord guild info <guild-id>
+# Get server info
+agent-discord server info <server-id>
 ```
 
 ## Commands
@@ -83,12 +84,36 @@ agent-discord message get <channel-id> <message-id>
 
 # Delete a message
 agent-discord message delete <channel-id> <message-id> --force
+
+# Search messages in current server
+agent-discord message search <query>
+agent-discord message search "bug fix"
+
+# Search with filters
+agent-discord message search "meeting" --channel 123456789
+agent-discord message search "report" --author 987654321
+agent-discord message search "screenshot" --has image
+
+# Search with sorting and pagination
+agent-discord message search "hello" --sort timestamp --sort-dir desc
+agent-discord message search "test" --limit 10 --offset 20
 ```
+
+**Search Options:**
+- `--channel <id>` - Filter by specific channel
+- `--author <id>` - Filter by specific author
+- `--has <type>` - Filter by attachment type: `file`, `image`, `video`, `embed`, `link`, `sticker`
+- `--sort <type>` - Sort by: `timestamp` (default), `relevance`
+- `--sort-dir <dir>` - Sort direction: `asc`, `desc` (default)
+- `--limit <n>` - Number of results (max 25, default 25)
+- `--offset <n>` - Pagination offset (default 0)
+
+> **Note:** Search requires a current server to be set. Use `agent-discord server switch <server-id>` first.
 
 ### Channel Commands
 
 ```bash
-# List channels in current guild
+# List channels in current server
 agent-discord channel list
 
 # Get channel info
@@ -102,7 +127,7 @@ agent-discord channel history 123456789 --limit 100
 ### User Commands
 
 ```bash
-# List guild members
+# List server members
 agent-discord user list
 
 # Get user info
@@ -190,7 +215,7 @@ agent-discord file info <channel-id> <file-id>
 
 ### Snapshot Command
 
-Get comprehensive guild state for AI agents:
+Get comprehensive server state for AI agents:
 
 ```bash
 # Full snapshot (channels, members, recent messages)
@@ -210,14 +235,14 @@ All commands support these options:
 
 ```bash
 --pretty    # Pretty-print JSON output (default is compact JSON)
---guild <id>  # Use specific guild (overrides current guild)
+--server <id>  # Use specific server (overrides current server)
 ```
 
 ## Key Differences from Slack
 
 | Concept | Slack | Discord |
 |---------|-------|---------|
-| Server | Workspace | Guild |
+| Server | Workspace | Server |
 | Channel ID | Alphanumeric (C01234567) | Numeric snowflake (123456789012345678) |
 | Message ID | Timestamp (1234567890.123456) | Numeric snowflake (123456789012345678) |
 | User ID | Alphanumeric (U01234567) | Numeric snowflake (123456789012345678) |

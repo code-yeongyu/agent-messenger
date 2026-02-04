@@ -1,4 +1,4 @@
-# 💬 Agent Messenger
+![Agent Messenger](https://github.com/user-attachments/assets/ab21caf0-441a-40f6-8cda-4e969ae2395a)
 
 **Give your AI agent the power to read and send messages across Slack, Discord, Teams and more**
 
@@ -10,6 +10,7 @@ A unified, agent-friendly CLI for messaging platforms. Zero-config credential ex
 - 🌐 **One interface, multiple platforms** — Learn once, use everywhere (Slack, Discord, Teams)
 - 🤖 **AI-agent friendly** — JSON output by default, perfect for LLM tool use
 - 👤 **Human friendly too** — Add `--pretty` for readable output
+- 🪙 **Token efficient** — CLI, not MCP. Load only what you need. ([Why not MCP?](#-philosophy))
 
 ## 📦 Installation
 
@@ -57,7 +58,7 @@ Add to your `opencode.jsonc`:
 ```jsonc
 {
   "plugins": [
-    "agent-messenger@1.0.0"
+    "agent-messenger@1.2.0"
   ]
 }
 ```

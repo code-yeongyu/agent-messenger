@@ -24,16 +24,21 @@ async function searchAction(
     const limit = options.limit ? parseInt(options.limit, 10) : 10
     const members = await client.searchMembers(guildId, query, limit)
 
-    const output = {
-      members: members.map((m) => ({
-        user_id: m.user.id,
-        username: m.user.username,
-        global_name: m.user.global_name,
-        nick: m.nick,
-        joined_at: m.joined_at,
-        roles: m.roles,
-      })),
-    }
+    const output = members.map((member) => ({
+      user: {
+        id: member.user.id,
+        username: member.user.username,
+        global_name: member.user.global_name,
+        avatar: member.user.avatar,
+        bot: member.user.bot,
+      },
+      nick: member.nick,
+      roles: member.roles,
+      joined_at: member.joined_at,
+      deaf: member.deaf,
+      mute: member.mute,
+      flags: member.flags,
+    }))
 
     console.log(formatOutput(output, options.pretty))
   } catch (error) {
@@ -42,13 +47,13 @@ async function searchAction(
 }
 
 export const memberCommand = new Command('member')
-  .description('Guild member commands')
+  .description('Member commands')
   .addCommand(
     new Command('search')
-      .description('Search members in a guild')
-      .argument('<guild_id>', 'Guild ID')
+      .description('Search guild members')
+      .argument('<guild-id>', 'Guild ID')
       .argument('<query>', 'Search query')
-      .option('--limit <n>', 'Maximum number of results', '10')
+      .option('--limit <number>', 'Maximum number of results (default: 10)')
       .option('--pretty', 'Pretty print JSON output')
       .action(searchAction)
   )

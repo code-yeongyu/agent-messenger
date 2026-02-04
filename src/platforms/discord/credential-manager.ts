@@ -5,8 +5,8 @@ import { join } from 'node:path'
 
 export interface DiscordConfig {
   token: string | null
-  current_guild: string | null
-  guilds: Record<string, { guild_id: string; guild_name: string }>
+  current_server: string | null
+  servers: Record<string, { server_id: string; server_name: string }>
 }
 
 export class DiscordCredentialManager {
@@ -22,8 +22,8 @@ export class DiscordCredentialManager {
     if (!existsSync(this.credentialsPath)) {
       return {
         token: null,
-        current_guild: null,
-        guilds: {},
+        current_server: null,
+        servers: {},
       }
     }
 
@@ -61,42 +61,44 @@ export class DiscordCredentialManager {
     await this.save(config)
   }
 
-  async getCurrentGuild(): Promise<string | null> {
+  async getCurrentServer(): Promise<string | null> {
     // Check env var first (takes precedence over file-based credentials)
-    const envGuildId = process.env.E2E_DISCORD_GUILD_ID
-    if (envGuildId) {
-      return envGuildId
+    const envServerId = process.env.E2E_DISCORD_SERVER_ID
+    if (envServerId) {
+      return envServerId
     }
 
     const config = await this.load()
-    return config.current_guild
+    return config.current_server
   }
 
-  async setCurrentGuild(guildId: string): Promise<void> {
+  async setCurrentServer(serverId: string): Promise<void> {
     const config = await this.load()
-    config.current_guild = guildId
+    config.current_server = serverId
     await this.save(config)
   }
 
-  async getGuilds(): Promise<Record<string, { guild_id: string; guild_name: string }>> {
+  async getServers(): Promise<Record<string, { server_id: string; server_name: string }>> {
     const config = await this.load()
-    return config.guilds
+    return config.servers
   }
 
-  async setGuilds(guilds: Record<string, { guild_id: string; guild_name: string }>): Promise<void> {
+  async setServers(
+    servers: Record<string, { server_id: string; server_name: string }>
+  ): Promise<void> {
     const config = await this.load()
-    config.guilds = guilds
+    config.servers = servers
     await this.save(config)
   }
 
-  async getCredentials(): Promise<{ token: string; guildId: string } | null> {
+  async getCredentials(): Promise<{ token: string; serverId: string } | null> {
     const token = await this.getToken()
-    const guildId = await this.getCurrentGuild()
+    const serverId = await this.getCurrentServer()
 
-    if (!token || !guildId) {
+    if (!token || !serverId) {
       return null
     }
 
-    return { token, guildId }
+    return { token, serverId }
   }
 }

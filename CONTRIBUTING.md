@@ -67,7 +67,7 @@ Follow conventional commits:
 Examples:
 ```
 feat(slack): add message send command
-feat(discord): add guild switching
+feat(discord): add server switching
 fix(auth): handle missing credentials gracefully
 docs: update README with new examples
 test(channel): add channel list tests
@@ -109,7 +109,7 @@ src/
       commands/             # Command handlers
         auth.ts
         channel.ts
-        guild.ts
+        server.ts
         message.ts
         ...
   shared/

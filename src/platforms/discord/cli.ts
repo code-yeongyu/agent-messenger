@@ -7,14 +7,11 @@ import {
   channelCommand,
   dmCommand,
   fileCommand,
-  friendCommand,
-  guildCommand,
-  memberCommand,
-  mentionCommand,
   messageCommand,
   noteCommand,
   profileCommand,
   reactionCommand,
+  serverCommand,
   snapshotCommand,
   threadCommand,
   userCommand,
@@ -27,10 +24,10 @@ program
   .description('CLI tool for Discord communication')
   .version(pkg.version)
   .option('--pretty', 'Pretty-print JSON output')
-  .option('--guild <id>', 'Use specific guild')
+  .option('--server <id>', 'Use specific server')
 
 program.addCommand(authCommand)
-program.addCommand(guildCommand)
+program.addCommand(serverCommand)
 program.addCommand(channelCommand)
 program.addCommand(dmCommand)
 program.addCommand(fileCommand)

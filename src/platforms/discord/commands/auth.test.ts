@@ -5,7 +5,7 @@ import { DiscordTokenExtractor } from '../token-extractor'
 
 let extractorExtractSpy: ReturnType<typeof spyOn>
 let clientTestAuthSpy: ReturnType<typeof spyOn>
-let clientListGuildsSpy: ReturnType<typeof spyOn>
+let clientListServersSpy: ReturnType<typeof spyOn>
 let credManagerLoadSpy: ReturnType<typeof spyOn>
 let credManagerSaveSpy: ReturnType<typeof spyOn>
 let credManagerClearTokenSpy: ReturnType<typeof spyOn>
@@ -22,16 +22,16 @@ beforeEach(() => {
     username: 'testuser',
   })
 
-  clientListGuildsSpy = spyOn(DiscordClient.prototype, 'listGuilds').mockResolvedValue([
-    { id: 'guild-1', name: 'Guild One' },
-    { id: 'guild-2', name: 'Guild Two' },
+  clientListServersSpy = spyOn(DiscordClient.prototype, 'listServers').mockResolvedValue([
+    { id: 'server-1', name: 'Server One' },
+    { id: 'server-2', name: 'Server Two' },
   ])
 
   // Spy on DiscordCredentialManager.prototype methods
   credManagerLoadSpy = spyOn(DiscordCredentialManager.prototype, 'load').mockResolvedValue({
     token: null,
-    current_guild: null,
-    guilds: {},
+    current_server: null,
+    servers: {},
   })
 
   credManagerSaveSpy = spyOn(DiscordCredentialManager.prototype, 'save').mockResolvedValue(
@@ -47,7 +47,7 @@ beforeEach(() => {
 afterEach(() => {
   extractorExtractSpy?.mockRestore()
   clientTestAuthSpy?.mockRestore()
-  clientListGuildsSpy?.mockRestore()
+  clientListServersSpy?.mockRestore()
   credManagerLoadSpy?.mockRestore()
   credManagerSaveSpy?.mockRestore()
   credManagerClearTokenSpy?.mockRestore()
@@ -67,11 +67,11 @@ test('extract: validates token with DiscordClient', async () => {
   expect(authInfo.id).toBe('user-123')
 })
 
-test('extract: discovers guilds', async () => {
+test('extract: discovers servers', async () => {
   const client = new DiscordClient('test-token-123')
-  const guilds = await client.listGuilds()
-  expect(guilds).toHaveLength(2)
-  expect(guilds[0].id).toBe('guild-1')
+  const servers = await client.listServers()
+  expect(servers).toHaveLength(2)
+  expect(servers[0].id).toBe('server-1')
 })
 
 test('logout: clears credentials', async () => {
@@ -84,5 +84,5 @@ test('status: returns auth state', async () => {
   const credManager = new DiscordCredentialManager()
   const config = await credManager.load()
   expect(config.token).toBeNull()
-  expect(config.current_guild).toBeNull()
+  expect(config.current_server).toBeNull()
 })
