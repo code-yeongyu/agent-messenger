@@ -36,6 +36,12 @@ Credentials are stored in `~/.config/agent-messenger/`.
 
 ---
 
+## 중요: 파일 업로드 관련
+
+파일 업로드 명령어 실행 시 에러 메시지(`"undefined is not an object"` 등)가 나와도 **실제로는 업로드가 성공한 경우가 많음**. 응답 파싱 버그로 인한 것이므로, 에러가 나면 채널에서 파일이 올라갔는지 직접 확인할 것.
+
+---
+
 ## Slack Commands (`agent-slack`)
 
 ### Authentication
@@ -59,6 +65,7 @@ agent-slack workspace current         # Show current workspace
 ```bash
 agent-slack message send <channel> "<text>"           # Send to channel
 agent-slack message send <channel> "<text>" --thread <ts>  # Send threaded reply
+agent-slack message send <channel> "<text>" --workspace <name>  # 특정 워크스페이스로 전송
 agent-slack message list <channel> [--limit N]        # List recent messages
 agent-slack message get <channel> <ts>                # Get specific message
 agent-slack message update <channel> <ts> "<text>"    # Update message
@@ -66,6 +73,8 @@ agent-slack message delete <channel> <ts>             # Delete message
 agent-slack message search "<query>" [--limit N]      # Search messages
 agent-slack message replies <channel> <thread_ts>    # Get thread replies
 ```
+
+> **팁**: `--workspace` 옵션으로 워크스페이스 지정 가능 (예: `--workspace indent`)
 
 ### Channels
 
@@ -95,9 +104,14 @@ agent-slack reaction list <channel> <ts>              # List reactions
 
 ```bash
 agent-slack file upload <channel> <path>  # Upload file
+agent-slack file upload <channel> <path> --filename "name.ext"  # Upload with custom filename
 agent-slack file list                     # List files
 agent-slack file info <file>              # Show file details
 ```
+
+> **주의**: 파일 업로드 시 에러 메시지가 나와도 실제로는 업로드가 성공한 경우가 있음!
+> `"undefined is not an object"` 에러가 나와도 채널에서 파일이 올라갔는지 확인할 것.
+> 응답 파싱 버그로 인해 성공해도 에러처럼 보일 수 있음.
 
 ### Snapshot
 
@@ -134,6 +148,20 @@ agent-slack sections list             # List channel sections (sidebar folders)
 ---
 
 ## Discord Commands (`agent-discord`)
+
+### 중요: Discord 답장 규칙
+
+**Discord에서 메시지에 답장할 때는 항상 `--reply` 옵션을 사용할 것.**
+
+```bash
+# 올바른 답장 방법
+agent-discord message send <channel-id> "<content>" --reply <msg-id>
+
+# 단순 메시지 전송 (답장이 아닐 때만)
+agent-discord message send <channel-id> "<content>"
+```
+
+이렇게 해야 Discord에서 어떤 메시지에 대한 답장인지 문맥이 명확하게 표시됨.
 
 ### Authentication
 
@@ -201,6 +229,9 @@ agent-discord file upload <channel-id> <path>  # Upload file
 agent-discord file list <channel-id>           # List files
 agent-discord file info <channel-id> <file>    # Show file details
 ```
+
+> **주의**: 파일 업로드 시 에러 메시지가 나와도 실제로는 업로드가 성공한 경우가 있음!
+> 응답 파싱 버그로 인해 성공해도 에러처럼 보일 수 있으니 채널에서 직접 확인할 것.
 
 ### Snapshot
 
