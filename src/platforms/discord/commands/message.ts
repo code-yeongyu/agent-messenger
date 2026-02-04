@@ -8,42 +8,6 @@ import type { DiscordMessage, DiscordSearchOptions } from '../types'
 export async function sendAction(
   channelId: string,
   content: string,
-  options: { reply?: string; pretty?: boolean }
-): Promise<void> {
-  try {
-    const credManager = new DiscordCredentialManager()
-    const config = await credManager.load()
-
-    if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
-      process.exit(1)
-    }
-
-    const client = new DiscordClient(config.token)
-    await client.triggerTyping(channelId)
-    const message = await client.sendMessage(channelId, content, {
-      replyTo: options.reply,
-    })
-
-    const output = {
-      id: message.id,
-      content: message.content,
-      author: message.author.username,
-      timestamp: message.timestamp,
-    }
-
-    console.log(formatOutput(output, options.pretty))
-  } catch (error) {
-    handleError(error as Error)
-  }
-}
-
-export async function editAction(
-  channelId: string,
-  messageId: string,
-  content: string,
   options: { pretty?: boolean }
 ): Promise<void> {
   try {
@@ -58,77 +22,13 @@ export async function editAction(
     }
 
     const client = new DiscordClient(config.token)
-    const message = await client.editMessage(channelId, messageId, content)
+    const message = await client.sendMessage(channelId, content)
 
     const output = {
       id: message.id,
       content: message.content,
       author: message.author.username,
       timestamp: message.timestamp,
-      edited_timestamp: message.edited_timestamp || null,
-    }
-
-    console.log(formatOutput(output, options.pretty))
-  } catch (error) {
-    handleError(error as Error)
-  }
-}
-
-export async function searchAction(
-  query: string,
-  options: {
-    guild?: string
-    author?: string
-    channel?: string
-    limit?: number
-    offset?: number
-    pretty?: boolean
-  }
-): Promise<void> {
-  try {
-    const credManager = new DiscordCredentialManager()
-    const config = await credManager.load()
-
-    if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
-      process.exit(1)
-    }
-
-    const guildId = options.guild || config.current_guild
-    if (!guildId) {
-      console.log(
-        formatOutput(
-          { error: 'No guild specified. Use --guild or set current guild.' },
-          options.pretty
-        )
-      )
-      process.exit(1)
-    }
-
-    const client = new DiscordClient(config.token)
-    const result = await client.searchMessages(guildId, {
-      content: query,
-      authorId: options.author,
-      channelId: options.channel,
-      limit: options.limit,
-      offset: options.offset,
-    })
-
-    const output = {
-      total_results: result.total_results,
-      messages: result.messages.map((group: DiscordMessage[]) =>
-        group.map((msg) => ({
-          id: msg.id,
-          channel_id: msg.channel_id,
-          content: msg.content,
-          author: msg.author.username,
-          timestamp: msg.timestamp,
-          thread_id: msg.thread_id || null,
-          embeds: msg.embeds ?? [],
-        }))
-      ),
     }
 
     console.log(formatOutput(output, options.pretty))
@@ -162,7 +62,6 @@ export async function listAction(
       author: msg.author.username,
       timestamp: msg.timestamp,
       thread_id: msg.thread_id || null,
-      embeds: msg.embeds ?? [],
     }))
 
     console.log(formatOutput(output, options.pretty))
@@ -201,7 +100,6 @@ export async function getAction(
       author: message.author.username,
       timestamp: message.timestamp,
       thread_id: message.thread_id || null,
-      embeds: message.embeds ?? [],
     }
 
     console.log(formatOutput(output, options.pretty))
@@ -349,18 +247,8 @@ export const messageCommand = new Command('message')
       .description('Send message to channel')
       .argument('<channel-id>', 'Channel ID')
       .argument('<content>', 'Message content')
-      .option('--reply <message-id>', 'Reply to a message (creates thread)')
       .option('--pretty', 'Pretty print JSON output')
       .action(sendAction)
-  )
-  .addCommand(
-    new Command('edit')
-      .description('Edit message content')
-      .argument('<channel-id>', 'Channel ID')
-      .argument('<message-id>', 'Message ID')
-      .argument('<content>', 'New message content')
-      .option('--pretty', 'Pretty print JSON output')
-      .action(editAction)
   )
   .addCommand(
     new Command('list')

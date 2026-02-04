@@ -38,51 +38,6 @@ export interface DiscordMessage {
   timestamp: string
   edited_timestamp?: string
   thread_id?: string
-  embeds?: DiscordEmbed[]
-}
-
-export interface DiscordEmbedField {
-  name: string
-  value: string
-  inline?: boolean
-}
-
-export interface DiscordEmbedFooter {
-  text: string
-  icon_url?: string
-  proxy_icon_url?: string
-}
-
-export interface DiscordEmbedAuthor {
-  name: string
-  url?: string
-  icon_url?: string
-  proxy_icon_url?: string
-}
-
-export interface DiscordEmbedImage {
-  url?: string
-  proxy_url?: string
-  height?: number
-  width?: number
-}
-
-export interface DiscordEmbed {
-  title?: string
-  description?: string
-  url?: string
-  timestamp?: string
-  color?: number
-  footer?: DiscordEmbedFooter
-  image?: DiscordEmbedImage
-  thumbnail?: DiscordEmbedImage
-  author?: DiscordEmbedAuthor
-  fields?: DiscordEmbedField[]
-}
-
-export interface DiscordMessageSearchResponse {
-  total_results: number
-  messages: DiscordMessage[][]
 }
 
 export interface DiscordUser {
@@ -224,7 +179,6 @@ export const DiscordChannelSchema = z.object({
   type: z.number(),
   topic: z.string().optional(),
   position: z.number().optional(),
-  parent_id: z.string().optional(),
 })
 
 export const DiscordMessageSchema = z.object({
@@ -238,57 +192,6 @@ export const DiscordMessageSchema = z.object({
   timestamp: z.string(),
   edited_timestamp: z.string().optional(),
   thread_id: z.string().optional(),
-  embeds: z
-    .array(
-      z.object({
-        title: z.string().optional(),
-        description: z.string().optional(),
-        url: z.string().optional(),
-        timestamp: z.string().optional(),
-        color: z.number().optional(),
-        footer: z
-          .object({
-            text: z.string(),
-            icon_url: z.string().optional(),
-            proxy_icon_url: z.string().optional(),
-          })
-          .optional(),
-        image: z
-          .object({
-            url: z.string().optional(),
-            proxy_url: z.string().optional(),
-            height: z.number().optional(),
-            width: z.number().optional(),
-          })
-          .optional(),
-        thumbnail: z
-          .object({
-            url: z.string().optional(),
-            proxy_url: z.string().optional(),
-            height: z.number().optional(),
-            width: z.number().optional(),
-          })
-          .optional(),
-        author: z
-          .object({
-            name: z.string(),
-            url: z.string().optional(),
-            icon_url: z.string().optional(),
-            proxy_icon_url: z.string().optional(),
-          })
-          .optional(),
-        fields: z
-          .array(
-            z.object({
-              name: z.string(),
-              value: z.string(),
-              inline: z.boolean().optional(),
-            })
-          )
-          .optional(),
-      })
-    )
-    .optional(),
 })
 
 export const DiscordUserSchema = z.object({
@@ -379,84 +282,6 @@ export const DiscordConfigSchema = z.object({
     })
   ),
 })
-
-// DM Channel from /users/@me/channels
-export interface DiscordDMChannel {
-  id: string
-  type: 1 | 3 // 1=DM, 3=Group DM
-  last_message_id?: string
-  recipients: DiscordUser[]
-  name?: string // For group DMs only
-}
-
-// Mention from /users/@me/mentions
-export interface DiscordMention {
-  id: string
-  channel_id: string
-  guild_id?: string
-  author: {
-    id: string
-    username: string
-    global_name?: string
-    avatar?: string
-  }
-  content: string
-  timestamp: string
-  mention_everyone: boolean
-  mentions: DiscordUser[]
-}
-
-// Read state from /users/@me/read-states
-export interface DiscordReadState {
-  id: string // channel_id
-  last_message_id?: string
-  mention_count: number
-}
-
-// Relationship (friend) from /users/@me/relationships
-export interface DiscordRelationship {
-  id: string
-  type: 1 | 2 | 3 | 4 // 1=Friend, 2=Blocked, 3=Incoming, 4=Outgoing
-  user: DiscordUser
-}
-
-// User note from /users/@me/notes/{user_id}
-export interface DiscordUserNote {
-  user_id: string
-  note_user_id: string
-  note: string
-}
-
-// Guild member from /guilds/{id}/members/search
-export interface DiscordGuildMember {
-  user: DiscordUser
-  nick?: string
-  roles: string[]
-  joined_at: string
-  deaf: boolean
-  mute: boolean
-  flags: number
-  pending?: boolean
-  avatar?: string
-}
-
-// User profile from /users/{id}/profile
-export interface DiscordUserProfile {
-  user: DiscordUser & { bio?: string }
-  connected_accounts: Array<{
-    type: string
-    id: string
-    name: string
-    verified: boolean
-  }>
-  premium_since?: string
-  mutual_guilds?: Array<{
-    id: string
-    nick?: string
-  }>
-  premium_type?: number
-  premium_guild_since?: string
-}
 
 export class DiscordError extends Error {
   code: string

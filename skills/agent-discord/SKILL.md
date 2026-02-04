@@ -70,10 +70,6 @@ agent-discord auth status
 agent-discord message send <channel-id> <content>
 agent-discord message send 1234567890123456789 "Hello world"
 
-# Edit a message
-agent-discord message edit <channel-id> <message-id> <content>
-agent-discord message edit 1234567890123456789 9876543210987654321 "Updated text"
-
 # List messages
 agent-discord message list <channel-id>
 agent-discord message list 1234567890123456789 --limit 50
@@ -334,7 +330,7 @@ Format:
 - No server management (create/delete channels, roles)
 - No slash commands
 - No webhook support
-- Embed creation not supported (embed output is read-only)
+- Plain text messages only (no embeds in v1)
 - User tokens only (no bot tokens)
 
 ## References
