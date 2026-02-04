@@ -1,41 +1,29 @@
 import { Command } from 'commander'
 import { handleError } from '../../../shared/utils/error-handler'
 import { formatOutput } from '../../../shared/utils/output'
-import { DiscordClient } from '../client'
-import { DiscordCredentialManager } from '../credential-manager'
-import type { DiscordUser } from '../types'
+import { TeamsClient } from '../client'
+import { TeamsCredentialManager } from '../credential-manager'
 
-async function listAction(options: { pretty?: boolean }): Promise<void> {
+async function listAction(teamId: string, options: { pretty?: boolean }): Promise<void> {
   try {
-    const credManager = new DiscordCredentialManager()
-    const config = await credManager.load()
+    const credManager = new TeamsCredentialManager()
+    const config = await credManager.loadConfig()
 
-    if (!config.token) {
+    if (!config?.token) {
       console.log(
         formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
       )
       process.exit(1)
     }
 
-    if (!config.current_guild) {
-      console.log(
-        formatOutput(
-          { error: 'No current guild set. Run "guild switch <id>" first.' },
-          options.pretty
-        )
-      )
-      process.exit(1)
-    }
-
-    const client = new DiscordClient(config.token)
-    const users = await client.listUsers(config.current_guild)
+    const client = new TeamsClient(config.token, config.token_expires_at)
+    const users = await client.listUsers(teamId)
 
     const output = users.map((user) => ({
       id: user.id,
-      username: user.username,
-      global_name: user.global_name,
-      avatar: user.avatar,
-      bot: user.bot,
+      displayName: user.displayName,
+      email: user.email,
+      userPrincipalName: user.userPrincipalName,
     }))
 
     console.log(formatOutput(output, options.pretty))
@@ -46,35 +34,24 @@ async function listAction(options: { pretty?: boolean }): Promise<void> {
 
 async function infoAction(userId: string, options: { pretty?: boolean }): Promise<void> {
   try {
-    const credManager = new DiscordCredentialManager()
-    const config = await credManager.load()
+    const credManager = new TeamsCredentialManager()
+    const config = await credManager.loadConfig()
 
-    if (!config.token) {
+    if (!config?.token) {
       console.log(
         formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
       )
       process.exit(1)
     }
 
-    const client = new DiscordClient(config.token)
-
-    // Check if requesting current user - use @me endpoint (works with user tokens)
-    const me = await client.testAuth()
-    let user: DiscordUser
-
-    if (userId === me.id) {
-      user = me
-    } else {
-      // For other users, try the regular endpoint (requires bot token)
-      user = await client.getUser(userId)
-    }
+    const client = new TeamsClient(config.token, config.token_expires_at)
+    const user = await client.getUser(userId)
 
     const output = {
       id: user.id,
-      username: user.username,
-      global_name: user.global_name,
-      avatar: user.avatar,
-      bot: user.bot,
+      displayName: user.displayName,
+      email: user.email,
+      userPrincipalName: user.userPrincipalName,
     }
 
     console.log(formatOutput(output, options.pretty))
@@ -85,25 +62,24 @@ async function infoAction(userId: string, options: { pretty?: boolean }): Promis
 
 async function meAction(options: { pretty?: boolean }): Promise<void> {
   try {
-    const credManager = new DiscordCredentialManager()
-    const config = await credManager.load()
+    const credManager = new TeamsCredentialManager()
+    const config = await credManager.loadConfig()
 
-    if (!config.token) {
+    if (!config?.token) {
       console.log(
         formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
       )
       process.exit(1)
     }
 
-    const client = new DiscordClient(config.token)
+    const client = new TeamsClient(config.token, config.token_expires_at)
     const user = await client.testAuth()
 
     const output = {
       id: user.id,
-      username: user.username,
-      global_name: user.global_name,
-      avatar: user.avatar,
-      bot: user.bot,
+      displayName: user.displayName,
+      email: user.email,
+      userPrincipalName: user.userPrincipalName,
     }
 
     console.log(formatOutput(output, options.pretty))
@@ -116,7 +92,8 @@ export const userCommand = new Command('user')
   .description('User commands')
   .addCommand(
     new Command('list')
-      .description('List guild members')
+      .description('List team members')
+      .argument('<team-id>', 'Team ID')
       .option('--pretty', 'Pretty print JSON output')
       .action(listAction)
   )

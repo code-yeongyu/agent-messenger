@@ -1,8 +1,8 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { CredentialManager } from '../../src/platforms/slack/credential-manager'
-import type { WorkspaceCredentials } from '../../src/platforms/slack/types'
+import { CredentialManager } from '@/platforms/slack/credential-manager'
+import type { WorkspaceCredentials } from '@/platforms/slack/types'
 
 const testDirs: string[] = []
 

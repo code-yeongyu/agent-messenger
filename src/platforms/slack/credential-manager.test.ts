@@ -1,8 +1,8 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test'
 import { existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { CredentialManager } from '../src/platforms/slack/credential-manager'
-import type { Config, WorkspaceCredentials } from '../src/platforms/slack/types'
+import { CredentialManager } from '@/platforms/slack/credential-manager'
+import type { Config, WorkspaceCredentials } from '@/platforms/slack/types'
 
 const testConfigDir = join(import.meta.dir, '.test-config')
 

@@ -7,7 +7,7 @@ import {
   SlackReactionSchema,
   SlackUserSchema,
   WorkspaceCredentialsSchema,
-} from '../src/platforms/slack/types'
+} from '@/platforms/slack/types'
 
 test('SlackChannelSchema validates correct data', () => {
   const validChannel = {

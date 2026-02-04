@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { spawn } from 'bun'
-import pkg from '../package.json'
-import { handleError } from '../src/shared/utils/error-handler'
-import { formatOutput } from '../src/shared/utils/output'
+import { handleError } from '@/shared/utils/error-handler'
+import { formatOutput } from '@/shared/utils/output'
+import pkg from '../../../package.json'
 
 describe('CLI Framework', () => {
   describe('formatOutput utility', () => {

@@ -70,6 +70,10 @@ agent-discord auth status
 agent-discord message send <channel-id> <content>
 agent-discord message send 1234567890123456789 "Hello world"
 
+# Edit a message
+agent-discord message edit <channel-id> <message-id> <content>
+agent-discord message edit 1234567890123456789 9876543210987654321 "Updated text"
+
 # List messages
 agent-discord message list <channel-id>
 agent-discord message list 1234567890123456789 --limit 50
@@ -80,6 +84,10 @@ agent-discord message get 1234567890123456789 9876543210987654321
 
 # Delete a message
 agent-discord message delete <channel-id> <message-id> --force
+
+# Search messages in a guild
+agent-discord message search "error" --guild <guild-id> --limit 10
+agent-discord message search "deploy" --author <user-id> --channel <channel-id>
 ```
 
 ### Channel Commands
@@ -130,6 +138,22 @@ agent-discord user me
 ```bash
 # List DM channels
 agent-discord dm list
+
+# Create a DM channel
+agent-discord dm create <user-id>
+
+# Send a DM to a user
+agent-discord dm send <user-id> <content>
+```
+
+### Thread Commands
+
+```bash
+# Create a thread
+agent-discord thread create <channel-id> <name>
+
+# Archive a thread
+agent-discord thread archive <thread-id>
 ```
 
 ### Mention Commands
@@ -312,7 +336,7 @@ Format:
 - No server management (create/delete channels, roles)
 - No slash commands
 - No webhook support
-- Plain text messages only (no embeds in v1)
+- Embed creation not supported (embed output is read-only)
 - User tokens only (no bot tokens)
 
 ## References

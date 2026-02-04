@@ -9,12 +9,14 @@
     "agent-messenger": "./src/cli.ts",
     "amsg": "./src/cli.ts",
     "agent-slack": "./src/platforms/slack/cli.ts",
-    "agent-discord": "./src/platforms/discord/cli.ts"
+    "agent-discord": "./src/platforms/discord/cli.ts",
+    "agent-teams": "./src/platforms/teams/cli.ts"
   },
   "scripts": {
     "build": "tsc",
     "postbuild": "bun scripts/postbuild.ts",
-    "test": "bun test",
+    "test": "bun test src/",
+    "test:e2e": "bun test e2e/",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome format --write .",
