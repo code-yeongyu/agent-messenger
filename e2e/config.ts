@@ -29,6 +29,32 @@ export async function validateSlackEnvironment() {
   }
 }
 
+// SlackBot Test Environment (same workspace as Slack, bot token)
+export const SLACKBOT_TEST_WORKSPACE_ID = 'T0AC55BSF6E'
+export const SLACKBOT_TEST_WORKSPACE_NAME = 'Agent Messenger'
+export const SLACKBOT_TEST_CHANNEL_ID = 'C0ACZKTDDC0'
+export const SLACKBOT_TEST_CHANNEL = 'e2e-test'
+
+export async function validateSlackBotEnvironment() {
+  const { runCLI, parseJSON } = await import('./helpers')
+
+  const result = await runCLI('slackbot', ['auth', 'status'])
+  if (result.exitCode !== 0) {
+    throw new Error('SlackBot authentication failed. Please run: agent-slackbot auth set <token>')
+  }
+
+  const data = parseJSON<{ workspace_id: string; valid: boolean }>(result.stdout)
+  if (!data?.valid) {
+    throw new Error('SlackBot token is invalid or expired. Please run: agent-slackbot auth set <token>')
+  }
+  if (data?.workspace_id !== SLACKBOT_TEST_WORKSPACE_ID) {
+    throw new Error(
+      `Wrong SlackBot workspace. Expected: ${SLACKBOT_TEST_WORKSPACE_NAME} (${SLACKBOT_TEST_WORKSPACE_ID}), ` +
+      `Got: ${data?.workspace_id}`
+    )
+  }
+}
+
 export async function validateDiscordEnvironment() {
   const { runCLI, parseJSON } = await import('./helpers')
   

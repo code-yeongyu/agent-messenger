@@ -7,7 +7,12 @@ export interface CLIResult {
 }
 
 export async function runCLI(platform: string, args: string[]): Promise<CLIResult> {
-  const command = platform === 'slack' ? 'agent-slack' : 'agent-discord'
+  const commandMap: Record<string, string> = {
+    slack: 'agent-slack',
+    discord: 'agent-discord',
+    slackbot: 'agent-slackbot',
+  }
+  const command = commandMap[platform] || platform
   
   try {
     const result = await $`${command} ${args}`.quiet()
