@@ -339,6 +339,51 @@ export class SlackBotClient {
     })
   }
 
+  async updateMessage(channel: string, ts: string, text: string): Promise<SlackMessage> {
+    return this.withRetry(async () => {
+      const response = await this.client.chat.update({ channel, ts, text })
+      this.checkResponse(response)
+      return {
+        ts: response.ts!,
+        text: response.text || text,
+        type: 'message',
+        user: (response as any).user,
+      }
+    })
+  }
+
+  async getThreadReplies(
+    channel: string,
+    ts: string,
+    options?: { limit?: number; cursor?: string }
+  ): Promise<SlackMessage[]> {
+    return this.withRetry(async () => {
+      const response = await this.client.conversations.replies({
+        channel,
+        ts,
+        limit: options?.limit || 100,
+        cursor: options?.cursor,
+      })
+      this.checkResponse(response)
+
+      return (response.messages || []).map((msg: any) => ({
+        ts: msg.ts!,
+        text: msg.text || '',
+        type: msg.type || 'message',
+        user: msg.user,
+        username: msg.username,
+        thread_ts: msg.thread_ts,
+        reply_count: msg.reply_count,
+        edited: msg.edited
+          ? {
+              user: msg.edited.user || '',
+              ts: msg.edited.ts || '',
+            }
+          : undefined,
+      }))
+    })
+  }
+
   async joinChannel(channel: string): Promise<void> {
     return this.withRetry(async () => {
       const response = await this.client.conversations.join({ channel })

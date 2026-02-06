@@ -4,22 +4,28 @@ import { formatOutput } from '../../../shared/utils/output'
 import { SlackBotClient } from '../client'
 import { SlackBotCredentialManager } from '../credential-manager'
 
+async function getClient(pretty?: boolean): Promise<SlackBotClient> {
+  const credManager = new SlackBotCredentialManager()
+  const creds = await credManager.getCredentials()
+
+  if (!creds) {
+    console.log(formatOutput({ error: 'No credentials. Run "auth set" first.' }, pretty))
+    process.exit(1)
+  }
+
+  return new SlackBotClient(creds.token)
+}
+
 async function sendAction(
   channel: string,
   text: string,
-  options: { pretty?: boolean }
+  options: { thread?: string; pretty?: boolean }
 ): Promise<void> {
   try {
-    const credManager = new SlackBotCredentialManager()
-    const creds = await credManager.getCredentials()
-
-    if (!creds) {
-      console.log(formatOutput({ error: 'No credentials. Run "auth set" first.' }, options.pretty))
-      process.exit(1)
-    }
-
-    const client = new SlackBotClient(creds.token)
-    const result = await client.postMessage(channel, text)
+    const client = await getClient(options.pretty)
+    const result = await client.postMessage(channel, text, {
+      thread_ts: options.thread,
+    })
 
     console.log(
       formatOutput(
@@ -27,6 +33,7 @@ async function sendAction(
           ts: result.ts,
           channel,
           text: result.text,
+          thread_ts: result.thread_ts,
         },
         options.pretty
       )
@@ -41,15 +48,7 @@ async function listAction(
   options: { limit?: string; pretty?: boolean }
 ): Promise<void> {
   try {
-    const credManager = new SlackBotCredentialManager()
-    const creds = await credManager.getCredentials()
-
-    if (!creds) {
-      console.log(formatOutput({ error: 'No credentials. Run "auth set" first.' }, options.pretty))
-      process.exit(1)
-    }
-
-    const client = new SlackBotClient(creds.token)
+    const client = await getClient(options.pretty)
     const limit = options.limit ? parseInt(options.limit, 10) : 20
     const messages = await client.getConversationHistory(channel, { limit })
 
@@ -65,15 +64,7 @@ async function getAction(
   options: { pretty?: boolean }
 ): Promise<void> {
   try {
-    const credManager = new SlackBotCredentialManager()
-    const creds = await credManager.getCredentials()
-
-    if (!creds) {
-      console.log(formatOutput({ error: 'No credentials. Run "auth set" first.' }, options.pretty))
-      process.exit(1)
-    }
-
-    const client = new SlackBotClient(creds.token)
+    const client = await getClient(options.pretty)
     const message = await client.getMessage(channel, ts)
 
     if (!message) {
@@ -87,6 +78,68 @@ async function getAction(
   }
 }
 
+async function updateAction(
+  channel: string,
+  ts: string,
+  text: string,
+  options: { pretty?: boolean }
+): Promise<void> {
+  try {
+    const client = await getClient(options.pretty)
+    const message = await client.updateMessage(channel, ts, text)
+
+    console.log(
+      formatOutput(
+        {
+          ts: message.ts,
+          text: message.text,
+          type: message.type,
+          user: message.user,
+        },
+        options.pretty
+      )
+    )
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
+async function deleteAction(
+  channel: string,
+  ts: string,
+  options: { force?: boolean; pretty?: boolean }
+): Promise<void> {
+  try {
+    if (!options.force) {
+      console.log(formatOutput({ warning: 'Use --force to confirm deletion', ts }, options.pretty))
+      process.exit(0)
+    }
+
+    const client = await getClient(options.pretty)
+    await client.deleteMessage(channel, ts)
+
+    console.log(formatOutput({ deleted: ts }, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
+async function repliesAction(
+  channel: string,
+  threadTs: string,
+  options: { limit?: string; pretty?: boolean }
+): Promise<void> {
+  try {
+    const client = await getClient(options.pretty)
+    const limit = options.limit ? parseInt(options.limit, 10) : 100
+    const messages = await client.getThreadReplies(channel, threadTs, { limit })
+
+    console.log(formatOutput(messages, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
 export const messageCommand = new Command('message')
   .description('Message commands')
   .addCommand(
@@ -94,6 +147,7 @@ export const messageCommand = new Command('message')
       .description('Send a message to a channel')
       .argument('<channel>', 'Channel ID')
       .argument('<text>', 'Message text')
+      .option('--thread <ts>', 'Thread timestamp for replies')
       .option('--pretty', 'Pretty print JSON output')
       .action(sendAction)
   )
@@ -112,4 +166,31 @@ export const messageCommand = new Command('message')
       .argument('<ts>', 'Message timestamp')
       .option('--pretty', 'Pretty print JSON output')
       .action(getAction)
+  )
+  .addCommand(
+    new Command('update')
+      .description('Update a message')
+      .argument('<channel>', 'Channel ID')
+      .argument('<ts>', 'Message timestamp')
+      .argument('<text>', 'New message text')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(updateAction)
+  )
+  .addCommand(
+    new Command('delete')
+      .description('Delete a message')
+      .argument('<channel>', 'Channel ID')
+      .argument('<ts>', 'Message timestamp')
+      .option('--force', 'Skip confirmation')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(deleteAction)
+  )
+  .addCommand(
+    new Command('replies')
+      .description('Get thread replies')
+      .argument('<channel>', 'Channel ID')
+      .argument('<thread_ts>', 'Thread timestamp')
+      .option('--limit <n>', 'Number of replies to fetch', '100')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(repliesAction)
   )
