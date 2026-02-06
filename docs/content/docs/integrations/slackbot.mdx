@@ -20,27 +20,57 @@ agent-slackbot message send C0ACZKTDDC0 "Hello from bot!"
 
 ## Authentication
 
-### Bot Token Setup
+### Create a Slack App
 
-Get a bot token from the Slack API portal:
+The fastest way to get started is to create an app from the manifest below:
 
-1. Go to [api.slack.com/apps](https://api.slack.com/apps) and create a new app
-2. Add required bot token scopes under **OAuth & Permissions**
-3. Install app to workspace
-4. Copy the **Bot User OAuth Token** (starts with `xoxb-`)
+1. Go to [api.slack.com/apps](https://api.slack.com/apps) → **Create New App** → **From an app manifest**
+2. Select your workspace
+3. Paste the manifest below (choose YAML tab) and click **Next** → **Create**
+4. Click **Install App** in the left sidebar, then hit **Install to Workspace**
+5. Copy the **Bot User OAuth Token** (starts with `xoxb-`) from the **Install App** page
 
-```bash
-# Set bot token (validates against Slack API before saving)
-agent-slackbot auth set xoxb-your-bot-token
+```yaml
+display_information:
+  name: Agent Messenger Bot
+  description: Bot for agent-messenger CLI integration
+  background_color: "#1a1a2e"
 
-# Check auth status
-agent-slackbot auth status
+features:
+  bot_user:
+    display_name: agent-messenger
+    always_online: false
 
-# Clear stored credentials
-agent-slackbot auth clear
+oauth_config:
+  scopes:
+    bot:
+      - chat:write
+      - channels:history
+      - channels:read
+      - channels:join
+      - groups:history
+      - groups:read
+      - users:read
+      - users:read.email
+      - reactions:write
+      - reactions:read
+
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
 ```
 
-### Required Scopes
+Then set the token:
+
+```bash
+agent-slackbot auth set xoxb-your-bot-token
+
+# Verify it works
+agent-slackbot auth status
+```
+
+### Scopes Reference
 
 | Scope | Used For |
 |-------|----------|
