@@ -338,4 +338,18 @@ export class SlackBotClient {
       }
     })
   }
+
+  async joinChannel(channel: string): Promise<void> {
+    return this.withRetry(async () => {
+      const response = await this.client.conversations.join({ channel })
+      this.checkResponse(response)
+    })
+  }
+
+  async deleteMessage(channel: string, ts: string): Promise<void> {
+    return this.withRetry(async () => {
+      const response = await this.client.chat.delete({ channel, ts })
+      this.checkResponse(response)
+    })
+  }
 }
