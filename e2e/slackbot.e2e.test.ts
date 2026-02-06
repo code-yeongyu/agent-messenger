@@ -193,10 +193,12 @@ describe('SlackBot E2E Tests', () => {
 
       await waitForRateLimit()
 
-      await runCLI('slackbot', [
+      const replyResult = await runCLI('slackbot', [
         'message', 'send', SLACKBOT_TEST_CHANNEL_ID, `Thread reply ${testId}`,
         '--thread', parent!.ts,
       ])
+      const reply = parseJSON<{ ts: string }>(replyResult.stdout)
+      if (reply?.ts) testMessages.push(reply.ts)
 
       await waitForRateLimit()
 

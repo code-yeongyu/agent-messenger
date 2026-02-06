@@ -224,6 +224,18 @@ describe('SlackBotCredentialManager', () => {
     test('returns false for unknown bot', async () => {
       expect(await manager.removeBot('nonexistent')).toBe(false)
     })
+
+    test('returns false for ambiguous bot_id across workspaces', async () => {
+      await manager.setCredentials(CREDS_A)
+      await manager.setCredentials(CREDS_C)
+
+      const removed = await manager.removeBot('deploy')
+
+      expect(removed).toBe(false)
+      const config = await manager.load()
+      expect(config.workspaces.T123.bots.deploy).toBeDefined()
+      expect(config.workspaces.T999.bots.deploy).toBeDefined()
+    })
   })
 
   describe('clearCredentials', () => {

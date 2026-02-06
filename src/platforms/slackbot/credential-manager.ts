@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import type { SlackBotConfig, SlackBotCredentials } from './types'
+import type { SlackBotConfig, SlackBotCredentials, SlackBotWorkspace } from './types'
 
 export class SlackBotCredentialManager {
   private configDir: string
@@ -29,6 +29,12 @@ export class SlackBotCredentialManager {
   }
 
   async getCredentials(botId?: string): Promise<SlackBotCredentials | null> {
+    const config = await this.load()
+
+    if (botId) {
+      return this.findBot(config, botId)
+    }
+
     const envToken = process.env.E2E_SLACKBOT_TOKEN
     const envWorkspaceId = process.env.E2E_SLACKBOT_WORKSPACE_ID
     const envWorkspaceName = process.env.E2E_SLACKBOT_WORKSPACE_NAME
@@ -41,12 +47,6 @@ export class SlackBotCredentialManager {
         bot_id: 'env',
         bot_name: 'env',
       }
-    }
-
-    const config = await this.load()
-
-    if (botId) {
-      return this.findBot(config, botId)
     }
 
     if (!config.current) {
@@ -152,25 +152,28 @@ export class SlackBotCredentialManager {
       return true
     }
 
-    // Search by bot_id
+    const matches: { workspace: SlackBotWorkspace }[] = []
     for (const workspace of Object.values(config.workspaces)) {
       if (workspace.bots[botId]) {
-        delete workspace.bots[botId]
-        if (Object.keys(workspace.bots).length === 0) {
-          delete config.workspaces[workspace.workspace_id]
-        }
-        if (
-          config.current?.workspace_id === workspace.workspace_id &&
-          config.current?.bot_id === botId
-        ) {
-          config.current = null
-        }
-        await this.save(config)
-        return true
+        matches.push({ workspace })
       }
     }
 
-    return false
+    if (matches.length !== 1) return false
+
+    const { workspace } = matches[0]
+    delete workspace.bots[botId]
+    if (Object.keys(workspace.bots).length === 0) {
+      delete config.workspaces[workspace.workspace_id]
+    }
+    if (
+      config.current?.workspace_id === workspace.workspace_id &&
+      config.current?.bot_id === botId
+    ) {
+      config.current = null
+    }
+    await this.save(config)
+    return true
   }
 
   async setCurrent(botId: string): Promise<boolean> {

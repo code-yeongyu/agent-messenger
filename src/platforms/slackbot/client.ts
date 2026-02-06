@@ -343,11 +343,12 @@ export class SlackBotClient {
     return this.withRetry(async () => {
       const response = await this.client.chat.update({ channel, ts, text })
       this.checkResponse(response)
+      const msg = (response as any).message
       return {
         ts: response.ts!,
-        text: response.text || text,
-        type: 'message',
-        user: (response as any).user,
+        text: msg?.text || response.text || text,
+        type: msg?.type || 'message',
+        user: msg?.user,
       }
     })
   }

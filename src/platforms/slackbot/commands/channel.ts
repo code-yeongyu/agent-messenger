@@ -1,30 +1,7 @@
 import { Command } from 'commander'
 import { handleError } from '../../../shared/utils/error-handler'
 import { formatOutput } from '../../../shared/utils/output'
-import { SlackBotClient } from '../client'
-import { SlackBotCredentialManager } from '../credential-manager'
-
-interface BotOption {
-  bot?: string
-  pretty?: boolean
-}
-
-async function getClient(options: BotOption): Promise<SlackBotClient> {
-  const credManager = new SlackBotCredentialManager()
-  const creds = await credManager.getCredentials(options.bot)
-
-  if (!creds) {
-    console.log(
-      formatOutput(
-        { error: 'No credentials. Run "auth set <token> --bot <name>" first.' },
-        options.pretty
-      )
-    )
-    process.exit(1)
-  }
-
-  return new SlackBotClient(creds.token)
-}
+import { type BotOption, getClient } from './shared'
 
 async function listAction(options: BotOption & { limit?: string }): Promise<void> {
   try {

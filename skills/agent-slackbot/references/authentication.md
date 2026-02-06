@@ -153,7 +153,7 @@ Output when not authenticated:
 ```json
 {
   "valid": false,
-  "error": "No credentials configured. Run \"auth set <token> --bot <name>\" first."
+  "error": "No credentials configured. Run \"auth set <token>\" first."
 }
 ```
 

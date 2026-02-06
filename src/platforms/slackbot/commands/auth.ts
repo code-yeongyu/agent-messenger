@@ -38,7 +38,7 @@ export async function setAction(token: string, options: ActionOptions): Promise<
     const client = new SlackBotClient(token)
     const authInfo = await client.testAuth()
 
-    const botId = options.bot || authInfo.user || 'default'
+    const botId = options.bot || authInfo.bot_id || authInfo.user || 'default'
     const botName = options.name || authInfo.user || botId
 
     const credManager = options._credManager ?? new SlackBotCredentialManager()
@@ -84,7 +84,7 @@ export async function statusAction(options: ActionOptions): Promise<ActionResult
         valid: false,
         error: options.bot
           ? `Bot "${options.bot}" not found. Run "auth list" to see available bots.`
-          : 'No credentials configured. Run "auth set <token> --bot <name>" first.',
+          : 'No credentials configured. Run "auth set <token>" first.',
       }
     }
 
@@ -209,7 +209,7 @@ export const authCommand = new Command('auth')
       .action(async (opts: { bot?: string; pretty?: boolean }) => {
         const result = await statusAction(opts)
         console.log(formatOutput(result, opts.pretty))
-        if (!result.valid && result.error) process.exit(1)
+        if (!result.valid) process.exit(1)
       })
   )
   .addCommand(
@@ -217,7 +217,7 @@ export const authCommand = new Command('auth')
       .description('List all stored bots')
       .option('--pretty', 'Pretty print JSON output')
       .action(async (opts: { pretty?: boolean }) => {
-        cliOutput(await listAction(opts), opts.pretty, false)
+        cliOutput(await listAction(opts), opts.pretty)
       })
   )
   .addCommand(

@@ -55,11 +55,11 @@ describe('auth commands', () => {
 
       expect(result.success).toBe(true)
       expect(result.workspace_id).toBe('T456')
-      expect(result.bot_id).toBe('testbot')
+      expect(result.bot_id).toBe('B789')
 
       const creds = await manager.getCredentials()
       expect(creds?.token).toBe('xoxb-test-token')
-      expect(creds?.bot_id).toBe('testbot')
+      expect(creds?.bot_id).toBe('B789')
     })
 
     test('uses --bot flag as bot_id', async () => {
