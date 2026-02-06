@@ -6,18 +6,25 @@ export interface SlackBotCredentials {
   token: string
   workspace_id: string
   workspace_name: string
+  bot_id: string
+  bot_name: string
+}
+
+export interface SlackBotEntry {
+  bot_id: string
+  bot_name: string
+  token: string
+}
+
+export interface SlackBotWorkspace {
+  workspace_id: string
+  workspace_name: string
+  bots: Record<string, SlackBotEntry>
 }
 
 export interface SlackBotConfig {
-  current_workspace: string | null
-  token: string | null
-  workspaces: Record<
-    string,
-    {
-      workspace_id: string
-      workspace_name: string
-    }
-  >
+  current: { workspace_id: string; bot_id: string } | null
+  workspaces: Record<string, SlackBotWorkspace>
 }
 
 // Error class for SlackBot operations
@@ -101,22 +108,34 @@ export interface SlackFile {
 }
 
 // Zod validation schemas
+export const SlackBotEntrySchema = z.object({
+  bot_id: z.string(),
+  bot_name: z.string(),
+  token: z.string().startsWith('xoxb-', 'Token must be a bot token (xoxb-)'),
+})
+
+export const SlackBotWorkspaceSchema = z.object({
+  workspace_id: z.string(),
+  workspace_name: z.string(),
+  bots: z.record(z.string(), SlackBotEntrySchema),
+})
+
 export const SlackBotCredentialsSchema = z.object({
   token: z.string().startsWith('xoxb-', 'Token must be a bot token (xoxb-)'),
   workspace_id: z.string(),
   workspace_name: z.string(),
+  bot_id: z.string(),
+  bot_name: z.string(),
 })
 
 export const SlackBotConfigSchema = z.object({
-  current_workspace: z.string().nullable(),
-  token: z.string().nullable(),
-  workspaces: z.record(
-    z.string(),
-    z.object({
+  current: z
+    .object({
       workspace_id: z.string(),
-      workspace_name: z.string(),
+      bot_id: z.string(),
     })
-  ),
+    .nullable(),
+  workspaces: z.record(z.string(), SlackBotWorkspaceSchema),
 })
 
 export const SlackChannelSchema = z.object({

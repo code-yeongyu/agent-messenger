@@ -64,10 +64,36 @@ settings:
 Then set the token:
 
 ```bash
+# Basic setup
 agent-slackbot auth set xoxb-your-bot-token
+
+# Or with a custom bot identifier for multi-bot setups
+agent-slackbot auth set xoxb-your-bot-token --bot deploy --name "Deploy Bot"
 
 # Verify it works
 agent-slackbot auth status
+```
+
+### Multi-Bot Support
+
+Store multiple bot tokens and switch between them:
+
+```bash
+# Add multiple bots
+agent-slackbot auth set xoxb-deploy-token --bot deploy --name "Deploy Bot"
+agent-slackbot auth set xoxb-alert-token --bot alert --name "Alert Bot"
+
+# List all stored bots
+agent-slackbot auth list
+
+# Switch active bot
+agent-slackbot auth use deploy
+
+# Use a specific bot for one command (without switching)
+agent-slackbot message send C0ACZKTDDC0 "Alert!" --bot alert
+
+# Remove a stored bot
+agent-slackbot auth remove deploy
 ```
 
 ### Scopes Reference
@@ -167,6 +193,7 @@ agent-slackbot reaction remove <channel> <ts> <emoji>
 | File operations | Yes | No |
 | Snapshot | Yes | No |
 | Edit/delete messages | Any message | Bot's own only |
+| Multi-bot support | N/A | Yes (`--bot` flag) |
 | CI/CD friendly | Requires desktop app | Yes |
 
 ## AI Agent Integration

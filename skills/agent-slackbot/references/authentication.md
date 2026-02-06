@@ -39,14 +39,19 @@ Add these **Bot Token Scopes**:
 ### Setting the Token
 
 ```bash
+# Basic setup
 agent-slackbot auth set xoxb-your-bot-token
+
+# With a custom bot identifier (for multi-bot setups)
+agent-slackbot auth set xoxb-your-bot-token --bot deploy --name "Deploy Bot"
 ```
 
 This command:
 1. Validates the token format (must start with `xoxb-`)
 2. Calls `auth.test` to verify the token against Slack API
-3. Stores workspace ID and name alongside the token
-4. Saves credentials to `~/.config/agent-messenger/slackbot-credentials.json`
+3. Stores the bot under the workspace with its bot ID and name
+4. Sets this bot as the current active bot
+5. Saves credentials to `~/.config/agent-messenger/slackbot-credentials.json`
 
 ## Credential Storage
 
@@ -60,12 +65,21 @@ This command:
 
 ```json
 {
-  "current_workspace": "T123456",
-  "token": "xoxb-1234567890-1234567890-abcdef...",
+  "current": {
+    "workspace_id": "T123456",
+    "bot_id": "deploy"
+  },
   "workspaces": {
     "T123456": {
       "workspace_id": "T123456",
-      "workspace_name": "My Workspace"
+      "workspace_name": "My Workspace",
+      "bots": {
+        "deploy": {
+          "bot_id": "deploy",
+          "bot_name": "Deploy Bot",
+          "token": "xoxb-1234567890-1234567890-abcdef..."
+        }
+      }
     }
   }
 }
@@ -89,6 +103,31 @@ export E2E_SLACKBOT_WORKSPACE_NAME="My Workspace"
 
 Environment variables take precedence over file-based credentials.
 
+## Multi-Bot Management
+
+Store and switch between multiple bot tokens:
+
+```bash
+# Add multiple bots
+agent-slackbot auth set xoxb-deploy-token --bot deploy --name "Deploy Bot"
+agent-slackbot auth set xoxb-alert-token --bot alert --name "Alert Bot"
+
+# List all stored bots
+agent-slackbot auth list
+
+# Switch active bot
+agent-slackbot auth use deploy
+
+# Use a specific bot for one command
+agent-slackbot message send C0ACZKTDDC0 "Alert!" --bot alert
+
+# Remove a stored bot
+agent-slackbot auth remove deploy
+
+# Disambiguate across workspaces
+agent-slackbot auth use T123456/deploy
+```
+
 ## Authentication Status
 
 Check current authentication state:
@@ -103,7 +142,8 @@ Output when authenticated:
   "valid": true,
   "workspace_id": "T123456",
   "workspace_name": "My Workspace",
-  "bot_id": "B123456",
+  "bot_id": "deploy",
+  "bot_name": "Deploy Bot",
   "user": "mybot",
   "team": "My Workspace"
 }
@@ -113,7 +153,7 @@ Output when not authenticated:
 ```json
 {
   "valid": false,
-  "error": "No credentials configured. Run \"auth set <token>\" first."
+  "error": "No credentials configured. Run \"auth set <token> --bot <name>\" first."
 }
 ```
 

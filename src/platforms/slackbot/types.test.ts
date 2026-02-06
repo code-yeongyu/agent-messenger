@@ -24,6 +24,8 @@ describe('SlackBotCredentialsSchema', () => {
       token: 'xoxb-123456789-abcdef',
       workspace_id: 'T12345678',
       workspace_name: 'test-workspace',
+      bot_id: 'deploy',
+      bot_name: 'Deploy Bot',
     }
 
     const result = SlackBotCredentialsSchema.safeParse(creds)
@@ -35,6 +37,8 @@ describe('SlackBotCredentialsSchema', () => {
       token: 'xoxp-123456789-abcdef',
       workspace_id: 'T12345678',
       workspace_name: 'test-workspace',
+      bot_id: 'deploy',
+      bot_name: 'Deploy Bot',
     }
 
     const result = SlackBotCredentialsSchema.safeParse(creds)
@@ -54,12 +58,18 @@ describe('SlackBotCredentialsSchema', () => {
 describe('SlackBotConfigSchema', () => {
   test('validates correct config', () => {
     const config: SlackBotConfig = {
-      current_workspace: 'T12345678',
-      token: 'xoxb-123456789-abcdef',
+      current: { workspace_id: 'T12345678', bot_id: 'deploy' },
       workspaces: {
         T12345678: {
           workspace_id: 'T12345678',
           workspace_name: 'test-workspace',
+          bots: {
+            deploy: {
+              bot_id: 'deploy',
+              bot_name: 'Deploy Bot',
+              token: 'xoxb-123456789-abcdef',
+            },
+          },
         },
       },
     }
@@ -68,10 +78,9 @@ describe('SlackBotConfigSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  test('validates config with null current_workspace', () => {
+  test('validates config with null current', () => {
     const config: SlackBotConfig = {
-      current_workspace: null,
-      token: null,
+      current: null,
       workspaces: {},
     }
 

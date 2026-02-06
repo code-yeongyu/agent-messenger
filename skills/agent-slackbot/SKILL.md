@@ -14,6 +14,9 @@ A TypeScript CLI tool that enables AI agents and humans to interact with Slack w
 # Set your bot token
 agent-slackbot auth set xoxb-your-bot-token
 
+# Or set with a custom bot identifier for multi-bot setups
+agent-slackbot auth set xoxb-your-bot-token --bot deploy --name "Deploy Bot"
+
 # Verify authentication
 agent-slackbot auth status
 
@@ -34,12 +37,42 @@ agent-slackbot uses Slack Bot tokens (xoxb-) which you get from the Slack App co
 # Set bot token (validates against Slack API before saving)
 agent-slackbot auth set xoxb-your-bot-token
 
+# Set with a custom bot identifier
+agent-slackbot auth set xoxb-your-bot-token --bot deploy --name "Deploy Bot"
+
 # Check auth status
 agent-slackbot auth status
 
 # Clear stored credentials
 agent-slackbot auth clear
 ```
+
+### Multi-Bot Management
+
+Store multiple bot tokens and switch between them:
+
+```bash
+# Add multiple bots
+agent-slackbot auth set xoxb-deploy-token --bot deploy --name "Deploy Bot"
+agent-slackbot auth set xoxb-alert-token --bot alert --name "Alert Bot"
+
+# List all stored bots
+agent-slackbot auth list
+
+# Switch active bot
+agent-slackbot auth use deploy
+
+# Use a specific bot for one command (without switching)
+agent-slackbot message send C0ACZKTDDC0 "Alert!" --bot alert
+
+# Remove a stored bot
+agent-slackbot auth remove deploy
+
+# Disambiguate bots with same ID across workspaces
+agent-slackbot auth use T123456/deploy
+```
+
+The `--bot <id>` flag is available on all commands to override the active bot for a single invocation.
 
 ### Getting a Bot Token
 
@@ -195,12 +228,26 @@ Credentials stored in: `~/.config/agent-messenger/slackbot-credentials.json`
 Format:
 ```json
 {
-  "current_workspace": "T123456",
-  "token": "xoxb-...",
+  "current": {
+    "workspace_id": "T123456",
+    "bot_id": "deploy"
+  },
   "workspaces": {
     "T123456": {
       "workspace_id": "T123456",
-      "workspace_name": "My Workspace"
+      "workspace_name": "My Workspace",
+      "bots": {
+        "deploy": {
+          "bot_id": "deploy",
+          "bot_name": "Deploy Bot",
+          "token": "xoxb-..."
+        },
+        "alert": {
+          "bot_id": "alert",
+          "bot_name": "Alert Bot",
+          "token": "xoxb-..."
+        }
+      }
     }
   }
 }
@@ -218,7 +265,7 @@ Format:
 | File operations | Yes | No |
 | Snapshot | Yes | No |
 | Edit/delete messages | Any message | Bot's own messages only |
-| Workspace management | Multi-workspace | Single workspace |
+| Workspace management | Multi-workspace | Multi-bot, multi-workspace |
 | CI/CD friendly | Requires desktop app | Yes (just set token) |
 
 ## Limitations

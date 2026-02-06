@@ -15,11 +15,7 @@ export class SlackBotCredentialManager {
 
   async load(): Promise<SlackBotConfig> {
     if (!existsSync(this.credentialsPath)) {
-      return {
-        current_workspace: null,
-        token: null,
-        workspaces: {},
-      }
+      return { current: null, workspaces: {} }
     }
 
     const content = await readFile(this.credentialsPath, 'utf-8')
@@ -32,8 +28,7 @@ export class SlackBotCredentialManager {
     await chmod(this.credentialsPath, 0o600)
   }
 
-  async getCredentials(): Promise<SlackBotCredentials | null> {
-    // Check env vars first (take precedence over file-based credentials)
+  async getCredentials(botId?: string): Promise<SlackBotCredentials | null> {
     const envToken = process.env.E2E_SLACKBOT_TOKEN
     const envWorkspaceId = process.env.E2E_SLACKBOT_WORKSPACE_ID
     const envWorkspaceName = process.env.E2E_SLACKBOT_WORKSPACE_NAME
@@ -43,68 +38,178 @@ export class SlackBotCredentialManager {
         token: envToken,
         workspace_id: envWorkspaceId,
         workspace_name: envWorkspaceName,
+        bot_id: 'env',
+        bot_name: 'env',
       }
     }
 
     const config = await this.load()
 
-    if (!config.token || !config.current_workspace) {
+    if (botId) {
+      return this.findBot(config, botId)
+    }
+
+    if (!config.current) {
       return null
     }
 
-    const workspace = config.workspaces[config.current_workspace]
-    if (!workspace) {
-      return null
-    }
+    const workspace = config.workspaces[config.current.workspace_id]
+    if (!workspace) return null
+
+    const bot = workspace.bots[config.current.bot_id]
+    if (!bot) return null
 
     return {
-      token: config.token,
+      token: bot.token,
       workspace_id: workspace.workspace_id,
       workspace_name: workspace.workspace_name,
+      bot_id: bot.bot_id,
+      bot_name: bot.bot_name,
     }
+  }
+
+  private findBot(config: SlackBotConfig, botId: string): SlackBotCredentials | null {
+    // Try "workspace_id/bot_id" format first
+    if (botId.includes('/')) {
+      const [workspaceId, id] = botId.split('/')
+      const workspace = config.workspaces[workspaceId]
+      if (!workspace) return null
+      const bot = workspace.bots[id]
+      if (!bot) return null
+      return {
+        token: bot.token,
+        workspace_id: workspace.workspace_id,
+        workspace_name: workspace.workspace_name,
+        bot_id: bot.bot_id,
+        bot_name: bot.bot_name,
+      }
+    }
+
+    // Search by bot_id across all workspaces — must be unique
+    const matches: SlackBotCredentials[] = []
+    for (const workspace of Object.values(config.workspaces)) {
+      const bot = workspace.bots[botId]
+      if (bot) {
+        matches.push({
+          token: bot.token,
+          workspace_id: workspace.workspace_id,
+          workspace_name: workspace.workspace_name,
+          bot_id: bot.bot_id,
+          bot_name: bot.bot_name,
+        })
+      }
+    }
+
+    if (matches.length === 1) return matches[0]
+    return null
   }
 
   async setCredentials(creds: SlackBotCredentials): Promise<void> {
     const config = await this.load()
 
-    config.token = creds.token
-    config.current_workspace = creds.workspace_id
-    config.workspaces[creds.workspace_id] = {
+    if (!config.workspaces[creds.workspace_id]) {
+      config.workspaces[creds.workspace_id] = {
+        workspace_id: creds.workspace_id,
+        workspace_name: creds.workspace_name,
+        bots: {},
+      }
+    }
+
+    const workspace = config.workspaces[creds.workspace_id]
+    workspace.workspace_name = creds.workspace_name
+    workspace.bots[creds.bot_id] = {
+      bot_id: creds.bot_id,
+      bot_name: creds.bot_name,
+      token: creds.token,
+    }
+
+    config.current = {
       workspace_id: creds.workspace_id,
-      workspace_name: creds.workspace_name,
+      bot_id: creds.bot_id,
     }
 
     await this.save(config)
+  }
+
+  async removeBot(botId: string): Promise<boolean> {
+    const config = await this.load()
+
+    if (botId.includes('/')) {
+      const [workspaceId, id] = botId.split('/')
+      const workspace = config.workspaces[workspaceId]
+      if (!workspace || !workspace.bots[id]) return false
+
+      delete workspace.bots[id]
+      if (Object.keys(workspace.bots).length === 0) {
+        delete config.workspaces[workspaceId]
+      }
+
+      if (config.current?.workspace_id === workspaceId && config.current?.bot_id === id) {
+        config.current = null
+      }
+
+      await this.save(config)
+      return true
+    }
+
+    // Search by bot_id
+    for (const workspace of Object.values(config.workspaces)) {
+      if (workspace.bots[botId]) {
+        delete workspace.bots[botId]
+        if (Object.keys(workspace.bots).length === 0) {
+          delete config.workspaces[workspace.workspace_id]
+        }
+        if (
+          config.current?.workspace_id === workspace.workspace_id &&
+          config.current?.bot_id === botId
+        ) {
+          config.current = null
+        }
+        await this.save(config)
+        return true
+      }
+    }
+
+    return false
+  }
+
+  async setCurrent(botId: string): Promise<boolean> {
+    const config = await this.load()
+    const creds = this.findBot(config, botId)
+    if (!creds) return false
+
+    config.current = {
+      workspace_id: creds.workspace_id,
+      bot_id: creds.bot_id,
+    }
+
+    await this.save(config)
+    return true
+  }
+
+  async listAll(): Promise<Array<SlackBotCredentials & { is_current: boolean }>> {
+    const config = await this.load()
+    const results: Array<SlackBotCredentials & { is_current: boolean }> = []
+
+    for (const workspace of Object.values(config.workspaces)) {
+      for (const bot of Object.values(workspace.bots)) {
+        results.push({
+          token: bot.token,
+          workspace_id: workspace.workspace_id,
+          workspace_name: workspace.workspace_name,
+          bot_id: bot.bot_id,
+          bot_name: bot.bot_name,
+          is_current:
+            config.current?.workspace_id === workspace.workspace_id &&
+            config.current?.bot_id === bot.bot_id,
+        })
+      }
+    }
+
+    return results
   }
 
   async clearCredentials(): Promise<void> {
-    const config: SlackBotConfig = {
-      current_workspace: null,
-      token: null,
-      workspaces: {},
-    }
-    await this.save(config)
-  }
-
-  async getToken(): Promise<string | null> {
-    // Check env var first
-    const envToken = process.env.E2E_SLACKBOT_TOKEN
-    if (envToken) {
-      return envToken
-    }
-
-    const config = await this.load()
-    return config.token
-  }
-
-  async getCurrentWorkspace(): Promise<string | null> {
-    // Check env var first
-    const envWorkspaceId = process.env.E2E_SLACKBOT_WORKSPACE_ID
-    if (envWorkspaceId) {
-      return envWorkspaceId
-    }
-
-    const config = await this.load()
-    return config.current_workspace
+    await this.save({ current: null, workspaces: {} })
   }
 }

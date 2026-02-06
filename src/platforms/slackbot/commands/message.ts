@@ -4,12 +4,22 @@ import { formatOutput } from '../../../shared/utils/output'
 import { SlackBotClient } from '../client'
 import { SlackBotCredentialManager } from '../credential-manager'
 
-async function getClient(pretty?: boolean): Promise<SlackBotClient> {
+interface BotOption {
+  bot?: string
+  pretty?: boolean
+}
+
+async function getClient(options: BotOption): Promise<SlackBotClient> {
   const credManager = new SlackBotCredentialManager()
-  const creds = await credManager.getCredentials()
+  const creds = await credManager.getCredentials(options.bot)
 
   if (!creds) {
-    console.log(formatOutput({ error: 'No credentials. Run "auth set" first.' }, pretty))
+    console.log(
+      formatOutput(
+        { error: 'No credentials. Run "auth set <token> --bot <name>" first.' },
+        options.pretty
+      )
+    )
     process.exit(1)
   }
 
@@ -19,10 +29,10 @@ async function getClient(pretty?: boolean): Promise<SlackBotClient> {
 async function sendAction(
   channel: string,
   text: string,
-  options: { thread?: string; pretty?: boolean }
+  options: BotOption & { thread?: string }
 ): Promise<void> {
   try {
-    const client = await getClient(options.pretty)
+    const client = await getClient(options)
     const result = await client.postMessage(channel, text, {
       thread_ts: options.thread,
     })
@@ -43,12 +53,9 @@ async function sendAction(
   }
 }
 
-async function listAction(
-  channel: string,
-  options: { limit?: string; pretty?: boolean }
-): Promise<void> {
+async function listAction(channel: string, options: BotOption & { limit?: string }): Promise<void> {
   try {
-    const client = await getClient(options.pretty)
+    const client = await getClient(options)
     const limit = options.limit ? parseInt(options.limit, 10) : 20
     const messages = await client.getConversationHistory(channel, { limit })
 
@@ -58,13 +65,9 @@ async function listAction(
   }
 }
 
-async function getAction(
-  channel: string,
-  ts: string,
-  options: { pretty?: boolean }
-): Promise<void> {
+async function getAction(channel: string, ts: string, options: BotOption): Promise<void> {
   try {
-    const client = await getClient(options.pretty)
+    const client = await getClient(options)
     const message = await client.getMessage(channel, ts)
 
     if (!message) {
@@ -82,10 +85,10 @@ async function updateAction(
   channel: string,
   ts: string,
   text: string,
-  options: { pretty?: boolean }
+  options: BotOption
 ): Promise<void> {
   try {
-    const client = await getClient(options.pretty)
+    const client = await getClient(options)
     const message = await client.updateMessage(channel, ts, text)
 
     console.log(
@@ -107,7 +110,7 @@ async function updateAction(
 async function deleteAction(
   channel: string,
   ts: string,
-  options: { force?: boolean; pretty?: boolean }
+  options: BotOption & { force?: boolean }
 ): Promise<void> {
   try {
     if (!options.force) {
@@ -115,7 +118,7 @@ async function deleteAction(
       process.exit(0)
     }
 
-    const client = await getClient(options.pretty)
+    const client = await getClient(options)
     await client.deleteMessage(channel, ts)
 
     console.log(formatOutput({ deleted: ts }, options.pretty))
@@ -127,10 +130,10 @@ async function deleteAction(
 async function repliesAction(
   channel: string,
   threadTs: string,
-  options: { limit?: string; pretty?: boolean }
+  options: BotOption & { limit?: string }
 ): Promise<void> {
   try {
-    const client = await getClient(options.pretty)
+    const client = await getClient(options)
     const limit = options.limit ? parseInt(options.limit, 10) : 100
     const messages = await client.getThreadReplies(channel, threadTs, { limit })
 
@@ -148,6 +151,7 @@ export const messageCommand = new Command('message')
       .argument('<channel>', 'Channel ID')
       .argument('<text>', 'Message text')
       .option('--thread <ts>', 'Thread timestamp for replies')
+      .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
       .action(sendAction)
   )
@@ -156,6 +160,7 @@ export const messageCommand = new Command('message')
       .description('List messages in a channel')
       .argument('<channel>', 'Channel ID')
       .option('--limit <n>', 'Number of messages to fetch', '20')
+      .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
       .action(listAction)
   )
@@ -164,6 +169,7 @@ export const messageCommand = new Command('message')
       .description('Get a single message')
       .argument('<channel>', 'Channel ID')
       .argument('<ts>', 'Message timestamp')
+      .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
       .action(getAction)
   )
@@ -173,6 +179,7 @@ export const messageCommand = new Command('message')
       .argument('<channel>', 'Channel ID')
       .argument('<ts>', 'Message timestamp')
       .argument('<text>', 'New message text')
+      .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
       .action(updateAction)
   )
@@ -182,6 +189,7 @@ export const messageCommand = new Command('message')
       .argument('<channel>', 'Channel ID')
       .argument('<ts>', 'Message timestamp')
       .option('--force', 'Skip confirmation')
+      .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
       .action(deleteAction)
   )
@@ -191,6 +199,7 @@ export const messageCommand = new Command('message')
       .argument('<channel>', 'Channel ID')
       .argument('<thread_ts>', 'Thread timestamp')
       .option('--limit <n>', 'Number of replies to fetch', '100')
+      .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
       .action(repliesAction)
   )
