@@ -143,7 +143,7 @@ export class DiscordClient {
         const errorBody = await response.json().catch(() => ({}))
         throw new DiscordError(
           (errorBody as any).message || `HTTP ${response.status}`,
-          (errorBody as any).code?.toString() || `http_${response.status}`
+          (errorBody as any).code?.toString() || `http_${response.status}`,
         )
       }
 
@@ -176,7 +176,7 @@ export class DiscordClient {
       const errorBody = await response.json().catch(() => ({}))
       throw new DiscordError(
         (errorBody as any).message || `HTTP ${response.status}`,
-        (errorBody as any).code?.toString() || `http_${response.status}`
+        (errorBody as any).code?.toString() || `http_${response.status}`,
       )
     }
 
@@ -221,18 +221,12 @@ export class DiscordClient {
 
   async addReaction(channelId: string, messageId: string, emoji: string): Promise<void> {
     const encodedEmoji = encodeURIComponent(emoji)
-    return this.request<void>(
-      'PUT',
-      `/channels/${channelId}/messages/${messageId}/reactions/${encodedEmoji}/@me`
-    )
+    return this.request<void>('PUT', `/channels/${channelId}/messages/${messageId}/reactions/${encodedEmoji}/@me`)
   }
 
   async removeReaction(channelId: string, messageId: string, emoji: string): Promise<void> {
     const encodedEmoji = encodeURIComponent(emoji)
-    return this.request<void>(
-      'DELETE',
-      `/channels/${channelId}/messages/${messageId}/reactions/${encodedEmoji}/@me`
-    )
+    return this.request<void>('DELETE', `/channels/${channelId}/messages/${messageId}/reactions/${encodedEmoji}/@me`)
   }
 
   async ackMessage(channelId: string, messageId: string): Promise<void> {
@@ -245,10 +239,7 @@ export class DiscordClient {
     interface GuildMember {
       user: DiscordUser
     }
-    const members = await this.request<GuildMember[]>(
-      'GET',
-      `/guilds/${serverId}/members?limit=1000`
-    )
+    const members = await this.request<GuildMember[]>('GET', `/guilds/${serverId}/members?limit=1000`)
     return members.map((m) => m.user)
   }
 
@@ -266,10 +257,7 @@ export class DiscordClient {
     interface MessageWithAttachments extends DiscordMessage {
       attachments: DiscordFile[]
     }
-    const message = await this.requestFormData<MessageWithAttachments>(
-      `/channels/${channelId}/messages`,
-      formData
-    )
+    const message = await this.requestFormData<MessageWithAttachments>(`/channels/${channelId}/messages`, formData)
 
     return message.attachments[0]
   }
@@ -278,10 +266,7 @@ export class DiscordClient {
     interface MessageWithAttachments extends DiscordMessage {
       attachments: DiscordFile[]
     }
-    const messages = await this.request<MessageWithAttachments[]>(
-      'GET',
-      `/channels/${channelId}/messages?limit=100`
-    )
+    const messages = await this.request<MessageWithAttachments[]>('GET', `/channels/${channelId}/messages?limit=100`)
 
     const files: DiscordFile[] = []
     for (const msg of messages) {
@@ -334,25 +319,18 @@ export class DiscordClient {
     return this.request<DiscordRelationship[]>('GET', '/users/@me/relationships')
   }
 
-  async searchMembers(
-    guildId: string,
-    query: string,
-    limit: number = 10
-  ): Promise<DiscordGuildMember[]> {
+  async searchMembers(guildId: string, query: string, limit: number = 10): Promise<DiscordGuildMember[]> {
     const params = new URLSearchParams()
     params.set('query', query)
     params.set('limit', limit.toString())
 
-    return this.request<DiscordGuildMember[]>(
-      'GET',
-      `/guilds/${guildId}/members/search?${params.toString()}`
-    )
+    return this.request<DiscordGuildMember[]>('GET', `/guilds/${guildId}/members/search?${params.toString()}`)
   }
 
   async searchMessages(
     guildId: string,
     query: string,
-    options: DiscordSearchOptions = {}
+    options: DiscordSearchOptions = {},
   ): Promise<{ results: DiscordSearchResult[]; total: number }> {
     const params = new URLSearchParams()
     params.set('content', query)
@@ -381,7 +359,7 @@ export class DiscordClient {
 
     const response = await this.request<DiscordSearchResponse>(
       'GET',
-      `/guilds/${guildId}/messages/search?${params.toString()}`
+      `/guilds/${guildId}/messages/search?${params.toString()}`,
     )
 
     const results = response.messages
@@ -413,7 +391,7 @@ export class DiscordClient {
     options?: {
       auto_archive_duration?: number
       rate_limit_per_user?: number
-    }
+    },
   ): Promise<DiscordChannel> {
     return this.request<DiscordChannel>('POST', `/channels/${channelId}/threads`, {
       name,

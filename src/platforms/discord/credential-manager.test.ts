@@ -8,7 +8,7 @@ const testDirs: string[] = []
 function setup(): DiscordCredentialManager {
   const testConfigDir = join(
     import.meta.dir,
-    `.test-discord-config-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `.test-discord-config-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   )
   testDirs.push(testConfigDir)
   return new DiscordCredentialManager(testConfigDir)
@@ -35,7 +35,7 @@ describe('DiscordCredentialManager', () => {
   test('save creates config file with correct permissions', async () => {
     const testConfigDir = join(
       import.meta.dir,
-      `.test-discord-config-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      `.test-discord-config-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     )
     testDirs.push(testConfigDir)
     const manager = new DiscordCredentialManager(testConfigDir)

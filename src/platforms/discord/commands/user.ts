@@ -11,19 +11,12 @@ async function listAction(options: { pretty?: boolean }): Promise<void> {
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
     if (!config.current_server) {
-      console.log(
-        formatOutput(
-          { error: 'No current server set. Run "server switch <id>" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current server set. Run "server switch <id>" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -50,9 +43,7 @@ async function infoAction(userId: string, options: { pretty?: boolean }): Promis
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -89,9 +80,7 @@ async function meAction(options: { pretty?: boolean }): Promise<void> {
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -118,18 +107,18 @@ export const userCommand = new Command('user')
     new Command('list')
       .description('List server members')
       .option('--pretty', 'Pretty print JSON output')
-      .action(listAction)
+      .action(listAction),
   )
   .addCommand(
     new Command('info')
       .description('Get user info')
       .argument('<user-id>', 'User ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(infoAction)
+      .action(infoAction),
   )
   .addCommand(
     new Command('me')
       .description('Show current authenticated user')
       .option('--pretty', 'Pretty print JSON output')
-      .action(meAction)
+      .action(meAction),
   )

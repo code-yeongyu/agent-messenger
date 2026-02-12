@@ -15,12 +15,7 @@ async function listAction(options: {
     const ws = await credManager.getWorkspace()
 
     if (!ws) {
-      console.log(
-        formatOutput(
-          { error: 'No workspace configured. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No workspace configured. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -41,8 +36,8 @@ async function listAction(options: {
           items,
           count: items.length,
         },
-        options.pretty
-      )
+        options.pretty,
+      ),
     )
   } catch (error) {
     handleError(error as Error)
@@ -59,7 +54,7 @@ export const activityCommand = new Command('activity')
       .option('--limit <number>', 'Number of items to return (default: 20)')
       .option(
         '--types <types>',
-        'Filter by activity types (comma-separated: thread_reply,message_reaction,at_user,at_channel,keyword)'
+        'Filter by activity types (comma-separated: thread_reply,message_reaction,at_user,at_channel,keyword)',
       )
-      .action(listAction)
+      .action(listAction),
   )

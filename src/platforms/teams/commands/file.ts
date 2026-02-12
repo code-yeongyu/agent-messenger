@@ -10,16 +10,14 @@ export async function uploadAction(
   teamId: string,
   channelId: string,
   path: string,
-  options: { pretty?: boolean }
+  options: { pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
     const config = await credManager.loadConfig()
 
     if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -41,19 +39,13 @@ export async function uploadAction(
   }
 }
 
-export async function listAction(
-  teamId: string,
-  channelId: string,
-  options: { pretty?: boolean }
-): Promise<void> {
+export async function listAction(teamId: string, channelId: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
     const config = await credManager.loadConfig()
 
     if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -78,16 +70,14 @@ export async function infoAction(
   teamId: string,
   channelId: string,
   fileId: string,
-  options: { pretty?: boolean }
+  options: { pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
     const config = await credManager.loadConfig()
 
     if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -123,7 +113,7 @@ export const fileCommand = new Command('file')
       .argument('<channel>', 'channel ID')
       .argument('<path>', 'file path')
       .option('--pretty', 'Pretty print JSON output')
-      .action(uploadAction)
+      .action(uploadAction),
   )
   .addCommand(
     new Command('list')
@@ -131,7 +121,7 @@ export const fileCommand = new Command('file')
       .argument('<team>', 'team ID')
       .argument('<channel>', 'channel ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(listAction)
+      .action(listAction),
   )
   .addCommand(
     new Command('info')
@@ -140,5 +130,5 @@ export const fileCommand = new Command('file')
       .argument('<channel>', 'channel ID')
       .argument('<file>', 'file ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(infoAction)
+      .action(infoAction),
   )

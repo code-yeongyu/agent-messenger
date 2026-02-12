@@ -5,11 +5,7 @@ import { TeamsClient } from '../client'
 import { TeamsCredentialManager } from '../credential-manager'
 import { TeamsTokenExtractor } from '../token-extractor'
 
-export async function extractAction(options: {
-  pretty?: boolean
-  debug?: boolean
-  token?: string
-}): Promise<void> {
+export async function extractAction(options: { pretty?: boolean; debug?: boolean; token?: string }): Promise<void> {
   try {
     let token: string
 
@@ -48,12 +44,11 @@ export async function extractAction(options: {
         console.log(
           formatOutput(
             {
-              error:
-                'No Teams token found. Make sure Microsoft Teams desktop app is installed and logged in.',
+              error: 'No Teams token found. Make sure Microsoft Teams desktop app is installed and logged in.',
               hint: 'Run with --token <token> to manually provide a token, or --debug for more info.',
             },
-            options.pretty
-          )
+            options.pretty,
+          ),
         )
         process.exit(1)
       }
@@ -88,11 +83,10 @@ export async function extractAction(options: {
         console.log(
           formatOutput(
             {
-              error:
-                'No teams found. Make sure you are a member of at least one Microsoft Teams team.',
+              error: 'No teams found. Make sure you are a member of at least one Microsoft Teams team.',
             },
-            options.pretty
-          )
+            options.pretty,
+          ),
         )
         process.exit(1)
       }
@@ -137,8 +131,8 @@ export async function extractAction(options: {
               ? 'Token expired. Open Microsoft Teams, send a message to refresh your session, then run "auth extract" again.'
               : 'Make sure Microsoft Teams desktop app is running and you are logged in.',
           },
-          options.pretty
-        )
+          options.pretty,
+        ),
       )
       process.exit(1)
     }
@@ -153,9 +147,7 @@ export async function logoutAction(options: { pretty?: boolean }): Promise<void>
     const config = await credManager.loadConfig()
 
     if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -173,9 +165,7 @@ export async function statusAction(options: { pretty?: boolean }): Promise<void>
     const config = await credManager.loadConfig()
 
     if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -216,17 +206,17 @@ export const authCommand = new Command('auth')
       .option('--pretty', 'Pretty print JSON output')
       .option('--debug', 'Show debug output for troubleshooting')
       .option('--token <token>', 'Manually provide a token (bypasses auto-extraction)')
-      .action(extractAction)
+      .action(extractAction),
   )
   .addCommand(
     new Command('logout')
       .description('Logout from Microsoft Teams')
       .option('--pretty', 'Pretty print JSON output')
-      .action(logoutAction)
+      .action(logoutAction),
   )
   .addCommand(
     new Command('status')
       .description('Show authentication status')
       .option('--pretty', 'Pretty print JSON output')
-      .action(statusAction)
+      .action(statusAction),
   )

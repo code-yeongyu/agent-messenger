@@ -9,13 +9,8 @@ let credManagerLoadConfigSpy: ReturnType<typeof spyOn>
 
 beforeEach(() => {
   clientAddReactionSpy = spyOn(TeamsClient.prototype, 'addReaction').mockResolvedValue(undefined)
-  clientRemoveReactionSpy = spyOn(TeamsClient.prototype, 'removeReaction').mockResolvedValue(
-    undefined
-  )
-  credManagerLoadConfigSpy = spyOn(
-    TeamsCredentialManager.prototype,
-    'loadConfig'
-  ).mockResolvedValue({
+  clientRemoveReactionSpy = spyOn(TeamsClient.prototype, 'removeReaction').mockResolvedValue(undefined)
+  credManagerLoadConfigSpy = spyOn(TeamsCredentialManager.prototype, 'loadConfig').mockResolvedValue({
     token: 'test-token',
     current_team: null,
     teams: {},

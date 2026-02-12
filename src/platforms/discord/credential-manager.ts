@@ -83,9 +83,7 @@ export class DiscordCredentialManager {
     return config.servers
   }
 
-  async setServers(
-    servers: Record<string, { server_id: string; server_name: string }>
-  ): Promise<void> {
+  async setServers(servers: Record<string, { server_id: string; server_name: string }>): Promise<void> {
     const config = await this.load()
     config.servers = servers
     await this.save(config)

@@ -34,7 +34,7 @@ export const channelCommand = new Command('channel')
       .option('--limit <n>', 'Number of channels to fetch')
       .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
-      .action(listAction)
+      .action(listAction),
   )
   .addCommand(
     new Command('info')
@@ -42,5 +42,5 @@ export const channelCommand = new Command('channel')
       .argument('<channel>', 'Channel ID')
       .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
-      .action(infoAction)
+      .action(infoAction),
   )

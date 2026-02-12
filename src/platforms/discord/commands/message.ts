@@ -5,19 +5,13 @@ import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
 import type { DiscordMessage, DiscordSearchOptions } from '../types'
 
-export async function sendAction(
-  channelId: string,
-  content: string,
-  options: { pretty?: boolean }
-): Promise<void> {
+export async function sendAction(channelId: string, content: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -37,18 +31,13 @@ export async function sendAction(
   }
 }
 
-export async function listAction(
-  channelId: string,
-  options: { limit?: number; pretty?: boolean }
-): Promise<void> {
+export async function listAction(channelId: string, options: { limit?: number; pretty?: boolean }): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -70,19 +59,13 @@ export async function listAction(
   }
 }
 
-export async function getAction(
-  channelId: string,
-  messageId: string,
-  options: { pretty?: boolean }
-): Promise<void> {
+export async function getAction(channelId: string, messageId: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -111,23 +94,19 @@ export async function getAction(
 export async function deleteAction(
   channelId: string,
   messageId: string,
-  options: { force?: boolean; pretty?: boolean }
+  options: { force?: boolean; pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
     if (!options.force) {
-      console.log(
-        formatOutput({ warning: 'Use --force to confirm deletion', messageId }, options.pretty)
-      )
+      console.log(formatOutput({ warning: 'Use --force to confirm deletion', messageId }, options.pretty))
       process.exit(0)
     }
 
@@ -140,19 +119,13 @@ export async function deleteAction(
   }
 }
 
-export async function ackAction(
-  channelId: string,
-  messageId: string,
-  options: { pretty?: boolean }
-): Promise<void> {
+export async function ackAction(channelId: string, messageId: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -176,26 +149,19 @@ export async function searchAction(
     limit?: number
     offset?: number
     pretty?: boolean
-  }
+  },
 ): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
     if (!config.current_server) {
-      console.log(
-        formatOutput(
-          { error: 'No server selected. Run "server switch <server-id>" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No server selected. Run "server switch <server-id>" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -216,11 +182,7 @@ export async function searchAction(
     if (options.limit !== undefined) searchOptions.limit = options.limit
     if (options.offset !== undefined) searchOptions.offset = options.offset
 
-    const { results, total } = await client.searchMessages(
-      config.current_server,
-      query,
-      searchOptions
-    )
+    const { results, total } = await client.searchMessages(config.current_server, query, searchOptions)
 
     const output = {
       total_results: total,
@@ -248,7 +210,7 @@ export const messageCommand = new Command('message')
       .argument('<channel-id>', 'Channel ID')
       .argument('<content>', 'Message content')
       .option('--pretty', 'Pretty print JSON output')
-      .action(sendAction)
+      .action(sendAction),
   )
   .addCommand(
     new Command('list')
@@ -261,7 +223,7 @@ export const messageCommand = new Command('message')
           limit: parseInt(options.limit, 10),
           pretty: options.pretty,
         })
-      })
+      }),
   )
   .addCommand(
     new Command('get')
@@ -269,7 +231,7 @@ export const messageCommand = new Command('message')
       .argument('<channel-id>', 'Channel ID')
       .argument('<message-id>', 'Message ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(getAction)
+      .action(getAction),
   )
   .addCommand(
     new Command('delete')
@@ -278,7 +240,7 @@ export const messageCommand = new Command('message')
       .argument('<message-id>', 'Message ID')
       .option('--force', 'Skip confirmation')
       .option('--pretty', 'Pretty print JSON output')
-      .action(deleteAction)
+      .action(deleteAction),
   )
   .addCommand(
     new Command('ack')
@@ -286,7 +248,7 @@ export const messageCommand = new Command('message')
       .argument('<channel-id>', 'Channel ID')
       .argument('<message-id>', 'Message ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(ackAction)
+      .action(ackAction),
   )
   .addCommand(
     new Command('search')
@@ -311,5 +273,5 @@ export const messageCommand = new Command('message')
           offset: parseInt(options.offset, 10),
           pretty: options.pretty,
         })
-      })
+      }),
   )

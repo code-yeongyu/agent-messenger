@@ -132,9 +132,7 @@ beforeEach(() => {
     team: 'Test Workspace',
   })
 
-  clientListChannelsSpy = spyOn(SlackClient.prototype, 'listChannels').mockResolvedValue(
-    mockChannels
-  )
+  clientListChannelsSpy = spyOn(SlackClient.prototype, 'listChannels').mockResolvedValue(mockChannels)
   clientListUsersSpy = spyOn(SlackClient.prototype, 'listUsers').mockResolvedValue(mockUsers)
   clientGetMessagesSpy = spyOn(SlackClient.prototype, 'getMessages').mockResolvedValue(mockMessages)
 })

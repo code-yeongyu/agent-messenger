@@ -12,7 +12,7 @@ const mockAuth = {
       bot_id: 'B789',
       user: 'testbot',
       team: 'Test Team',
-    })
+    }),
   ),
 }
 const mockConversations = {
@@ -29,7 +29,7 @@ const mockConversations = {
           creator: 'U001',
         },
       ],
-    })
+    }),
   ),
   info: mock(() =>
     Promise.resolve({
@@ -42,13 +42,13 @@ const mockConversations = {
         created: 1234567890,
         creator: 'U001',
       },
-    })
+    }),
   ),
   history: mock(() =>
     Promise.resolve({
       ok: true,
       messages: [{ ts: '1234567890.123456', text: 'Hello', type: 'message', user: 'U123' }],
-    })
+    }),
   ),
 }
 const mockChat = {
@@ -57,7 +57,7 @@ const mockChat = {
       ok: true,
       ts: '1234567890.123456',
       message: { text: 'Hello', type: 'message' },
-    })
+    }),
   ),
 }
 const mockReactions = {
@@ -79,7 +79,7 @@ const mockUsers = {
           is_app_user: false,
         },
       ],
-    })
+    }),
   ),
   info: mock(() =>
     Promise.resolve({
@@ -93,7 +93,7 @@ const mockUsers = {
         is_bot: false,
         is_app_user: false,
       },
-    })
+    }),
   ),
 }
 

@@ -17,12 +17,7 @@ async function snapshotAction(options: {
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -64,7 +59,7 @@ async function snapshotAction(options: {
               channel_name: channel.name,
             }))
           },
-          5
+          5,
         )
 
         snapshot.recent_messages = channelMessages.flat().map((msg) => ({

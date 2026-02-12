@@ -15,22 +15,17 @@ beforeEach(() => {
     { id: 'team-2', name: 'Team Two', description: 'Second team' },
   ])
 
-  clientGetTeamSpy = spyOn(TeamsClient.prototype, 'getTeam').mockImplementation(
-    async (teamId: string) => {
-      if (teamId === 'team-1') {
-        return { id: 'team-1', name: 'Team One', description: 'First team' }
-      }
-      if (teamId === 'team-2') {
-        return { id: 'team-2', name: 'Team Two', description: 'Second team' }
-      }
-      throw new Error('Team not found')
+  clientGetTeamSpy = spyOn(TeamsClient.prototype, 'getTeam').mockImplementation(async (teamId: string) => {
+    if (teamId === 'team-1') {
+      return { id: 'team-1', name: 'Team One', description: 'First team' }
     }
-  )
+    if (teamId === 'team-2') {
+      return { id: 'team-2', name: 'Team Two', description: 'Second team' }
+    }
+    throw new Error('Team not found')
+  })
 
-  credManagerLoadConfigSpy = spyOn(
-    TeamsCredentialManager.prototype,
-    'loadConfig'
-  ).mockResolvedValue({
+  credManagerLoadConfigSpy = spyOn(TeamsCredentialManager.prototype, 'loadConfig').mockResolvedValue({
     token: 'test-token',
     current_team: 'team-1',
     teams: {
@@ -39,20 +34,14 @@ beforeEach(() => {
     },
   })
 
-  credManagerSetCurrentTeamSpy = spyOn(
-    TeamsCredentialManager.prototype,
-    'setCurrentTeam'
-  ).mockResolvedValue(undefined)
+  credManagerSetCurrentTeamSpy = spyOn(TeamsCredentialManager.prototype, 'setCurrentTeam').mockResolvedValue(undefined)
 
-  credManagerGetCurrentTeamSpy = spyOn(
-    TeamsCredentialManager.prototype,
-    'getCurrentTeam'
-  ).mockResolvedValue({ team_id: 'team-1', team_name: 'Team One' })
+  credManagerGetCurrentTeamSpy = spyOn(TeamsCredentialManager.prototype, 'getCurrentTeam').mockResolvedValue({
+    team_id: 'team-1',
+    team_name: 'Team One',
+  })
 
-  credManagerSaveConfigSpy = spyOn(
-    TeamsCredentialManager.prototype,
-    'saveConfig'
-  ).mockResolvedValue(undefined)
+  credManagerSaveConfigSpy = spyOn(TeamsCredentialManager.prototype, 'saveConfig').mockResolvedValue(undefined)
 })
 
 afterEach(() => {

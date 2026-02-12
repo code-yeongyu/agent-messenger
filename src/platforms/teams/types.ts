@@ -125,7 +125,7 @@ export const TeamsConfigSchema = z.object({
     z.object({
       team_id: z.string(),
       team_name: z.string(),
-    })
+    }),
   ),
 })
 

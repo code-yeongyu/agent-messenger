@@ -38,7 +38,7 @@ describe('TokenExtractor', () => {
         'Data',
         'Library',
         'Application Support',
-        'Slack'
+        'Slack',
       )
       expect([directPath, sandboxedPath]).toContain(dir)
     })
@@ -274,7 +274,7 @@ describe('Auth Commands Integration', () => {
           team_id: 'T123',
           user: 'testuser',
           team: 'Test Team',
-        })
+        }),
       )
 
       // When: testAuth is called

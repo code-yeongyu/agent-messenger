@@ -55,7 +55,7 @@ export class TokenExtractor {
           'Data',
           'Library',
           'Application Support',
-          'Slack'
+          'Slack',
         )
         if (existsSync(sandboxedPath)) {
           return sandboxedPath
@@ -306,12 +306,7 @@ export class TokenExtractor {
       } else {
         // Check for 4-byte fragmentation marker pattern
         // Pattern: 0x19 0x0d 0xf0 0xNN (where NN varies)
-        if (
-          i + 3 < chunk.length &&
-          chunk[i] === 0x19 &&
-          chunk[i + 1] === 0x0d &&
-          chunk[i + 2] === 0xf0
-        ) {
+        if (i + 3 < chunk.length && chunk[i] === 0x19 && chunk[i + 1] === 0x0d && chunk[i + 2] === 0xf0) {
           // Skip the 4 garbage bytes and insert a hyphen
           result.push(0x2d) // hyphen
           i += 4
@@ -419,10 +414,7 @@ export class TokenExtractor {
   private readCookieFromDB(dbPath: string): string {
     // Copy the database to a temp file to avoid SQLite lock contention
     // when Slack is running and has a write lock on the Cookies database
-    const tempDbPath = join(
-      tmpdir(),
-      `slack-cookies-${Date.now()}-${Math.random().toString(36).slice(2)}.db`
-    )
+    const tempDbPath = join(tmpdir(), `slack-cookies-${Date.now()}-${Math.random().toString(36).slice(2)}.db`)
 
     try {
       copyFileSync(dbPath, tempDbPath)
@@ -555,13 +547,12 @@ export class TokenExtractor {
       try {
         password = execSync(
           'security find-generic-password -ga "Slack App Store Key" -s "Slack Safe Storage" -w 2>/dev/null',
-          { encoding: 'utf8' }
+          { encoding: 'utf8' },
         ).trim()
       } catch {
-        password = execSync(
-          'security find-generic-password -ga "Slack Key" -s "Slack Safe Storage" -w 2>/dev/null',
-          { encoding: 'utf8' }
-        ).trim()
+        password = execSync('security find-generic-password -ga "Slack Key" -s "Slack Safe Storage" -w 2>/dev/null', {
+          encoding: 'utf8',
+        }).trim()
       }
 
       return pbkdf2Sync(password, 'saltysalt', 1003, 16, 'sha1')

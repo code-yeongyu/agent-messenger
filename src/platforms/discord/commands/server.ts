@@ -28,9 +28,7 @@ export async function infoAction(serverId: string, options: { pretty?: boolean }
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -73,18 +71,14 @@ export async function currentAction(options: { pretty?: boolean }): Promise<void
     const config = await credManager.load()
 
     if (!config.current_server) {
-      console.log(
-        formatOutput({ error: 'No current server set. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'No current server set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
     const server = config.servers[config.current_server]
 
     if (!server) {
-      console.log(
-        formatOutput({ error: 'Current server not found in configuration.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Current server not found in configuration.' }, options.pretty))
       process.exit(1)
     }
 
@@ -105,25 +99,25 @@ export const serverCommand = new Command('server')
     new Command('list')
       .description('List all servers')
       .option('--pretty', 'Pretty print JSON output')
-      .action(listAction)
+      .action(listAction),
   )
   .addCommand(
     new Command('info')
       .description('Get server info')
       .argument('<server-id>', 'Server ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(infoAction)
+      .action(infoAction),
   )
   .addCommand(
     new Command('switch')
       .description('Switch to server')
       .argument('<server-id>', 'Server ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(switchAction)
+      .action(switchAction),
   )
   .addCommand(
     new Command('current')
       .description('Show current server')
       .option('--pretty', 'Pretty print JSON output')
-      .action(currentAction)
+      .action(currentAction),
   )

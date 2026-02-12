@@ -10,9 +10,7 @@ async function listAction(teamId: string, options: { pretty?: boolean }): Promis
     const config = await credManager.loadConfig()
 
     if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -38,9 +36,7 @@ async function infoAction(userId: string, options: { pretty?: boolean }): Promis
     const config = await credManager.loadConfig()
 
     if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -66,9 +62,7 @@ async function meAction(options: { pretty?: boolean }): Promise<void> {
     const config = await credManager.loadConfig()
 
     if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -95,18 +89,18 @@ export const userCommand = new Command('user')
       .description('List team members')
       .argument('<team-id>', 'Team ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(listAction)
+      .action(listAction),
   )
   .addCommand(
     new Command('info')
       .description('Get user info')
       .argument('<user-id>', 'User ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(infoAction)
+      .action(infoAction),
   )
   .addCommand(
     new Command('me')
       .description('Show current authenticated user')
       .option('--pretty', 'Pretty print JSON output')
-      .action(meAction)
+      .action(meAction),
   )

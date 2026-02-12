@@ -10,9 +10,7 @@ export async function listAction(teamId: string, options: { pretty?: boolean }):
     const config = await credManager.loadConfig()
 
     if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -32,19 +30,13 @@ export async function listAction(teamId: string, options: { pretty?: boolean }):
   }
 }
 
-export async function infoAction(
-  teamId: string,
-  channelId: string,
-  options: { pretty?: boolean }
-): Promise<void> {
+export async function infoAction(teamId: string, channelId: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
     const config = await credManager.loadConfig()
 
     if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -67,16 +59,14 @@ export async function infoAction(
 export async function historyAction(
   teamId: string,
   channelId: string,
-  options: { limit?: number; pretty?: boolean }
+  options: { limit?: number; pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
     const config = await credManager.loadConfig()
 
     if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -103,7 +93,7 @@ export const channelCommand = new Command('channel')
       .description('List channels in a team')
       .argument('<team-id>', 'Team ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(listAction)
+      .action(listAction),
   )
   .addCommand(
     new Command('info')
@@ -111,7 +101,7 @@ export const channelCommand = new Command('channel')
       .argument('<team-id>', 'Team ID')
       .argument('<channel-id>', 'Channel ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(infoAction)
+      .action(infoAction),
   )
   .addCommand(
     new Command('history')
@@ -125,5 +115,5 @@ export const channelCommand = new Command('channel')
           limit: parseInt(options.limit, 10),
           pretty: options.pretty,
         })
-      })
+      }),
   )

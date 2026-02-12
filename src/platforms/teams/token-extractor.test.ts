@@ -29,7 +29,7 @@ describe('TeamsTokenExtractor', () => {
           'MSTeams',
           'EBWebView',
           'WV2Profile_tfw',
-          'Cookies'
+          'Cookies',
         ),
         join(
           homedir(),
@@ -43,7 +43,7 @@ describe('TeamsTokenExtractor', () => {
           'MSTeams',
           'EBWebView',
           'WV2Profile_tfl',
-          'Cookies'
+          'Cookies',
         ),
         join(
           homedir(),
@@ -57,7 +57,7 @@ describe('TeamsTokenExtractor', () => {
           'MSTeams',
           'EBWebView',
           'Default',
-          'Cookies'
+          'Cookies',
         ),
         join(homedir(), 'Library', 'Application Support', 'Microsoft', 'Teams', 'Cookies'),
       ])
@@ -86,7 +86,7 @@ describe('TeamsTokenExtractor', () => {
           'MSTeams',
           'EBWebView',
           'WV2Profile_tfw',
-          'Cookies'
+          'Cookies',
         ),
         join(
           localAppData,
@@ -97,7 +97,7 @@ describe('TeamsTokenExtractor', () => {
           'MSTeams',
           'EBWebView',
           'WV2Profile_tfl',
-          'Cookies'
+          'Cookies',
         ),
         join(
           localAppData,
@@ -108,7 +108,7 @@ describe('TeamsTokenExtractor', () => {
           'MSTeams',
           'EBWebView',
           'Default',
-          'Cookies'
+          'Cookies',
         ),
         join(appdata, 'Microsoft', 'Teams', 'Cookies'),
       ])
@@ -127,9 +127,7 @@ describe('TeamsTokenExtractor', () => {
       const darwinExtractor = new TeamsTokenExtractor('darwin')
       const path = darwinExtractor.getLocalStatePath()
 
-      expect(path).toBe(
-        join(homedir(), 'Library', 'Application Support', 'Microsoft', 'Teams', 'Local State')
-      )
+      expect(path).toBe(join(homedir(), 'Library', 'Application Support', 'Microsoft', 'Teams', 'Local State'))
     })
 
     test('returns linux Local State path on Linux', () => {
@@ -166,8 +164,7 @@ describe('TeamsTokenExtractor', () => {
 
   describe('isValidSkypeToken', () => {
     test('validates JWT-like skype token format', () => {
-      const validToken =
-        'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature'
+      const validToken = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature'
       expect(extractor.isValidSkypeToken(validToken)).toBe(true)
     })
 
@@ -220,10 +217,7 @@ describe('TeamsTokenExtractor', () => {
   describe('extract', () => {
     test('returns null when cookies path does not exist', async () => {
       const linuxExtractor = new TeamsTokenExtractor('linux')
-      const extractFromCookiesDBSpy = spyOn(
-        linuxExtractor as any,
-        'extractFromCookiesDB'
-      ).mockResolvedValue(null)
+      const extractFromCookiesDBSpy = spyOn(linuxExtractor as any, 'extractFromCookiesDB').mockResolvedValue(null)
 
       const result = await linuxExtractor.extract()
       expect(result).toBeNull()
@@ -232,14 +226,10 @@ describe('TeamsTokenExtractor', () => {
     })
 
     test('extracts token from cookies database when available', async () => {
-      const mockToken =
-        'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature_here'
+      const mockToken = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature_here'
 
       const linuxExtractor = new TeamsTokenExtractor('linux')
-      const extractFromCookiesDBSpy = spyOn(
-        linuxExtractor as any,
-        'extractFromCookiesDB'
-      ).mockResolvedValue(mockToken)
+      const extractFromCookiesDBSpy = spyOn(linuxExtractor as any, 'extractFromCookiesDB').mockResolvedValue(mockToken)
 
       const result = await linuxExtractor.extract()
 
@@ -251,10 +241,7 @@ describe('TeamsTokenExtractor', () => {
 
     test('returns null when extraction fails', async () => {
       const darwinExtractor = new TeamsTokenExtractor('darwin')
-      const extractFromCookiesDBSpy = spyOn(
-        darwinExtractor as any,
-        'extractFromCookiesDB'
-      ).mockResolvedValue(null)
+      const extractFromCookiesDBSpy = spyOn(darwinExtractor as any, 'extractFromCookiesDB').mockResolvedValue(null)
 
       const result = await darwinExtractor.extract()
       expect(result).toBeNull()
@@ -267,15 +254,9 @@ describe('TeamsTokenExtractor', () => {
     test('attempts to copy database to temp location', async () => {
       const darwinExtractor = new TeamsTokenExtractor('darwin')
 
-      const copyFileSpy = spyOn(darwinExtractor as any, 'copyDatabaseToTemp').mockReturnValue(
-        '/tmp/test-cookies'
-      )
-      const extractSpy = spyOn(darwinExtractor as any, 'extractFromSQLite').mockResolvedValue(
-        'test_token'
-      )
-      const cleanupSpy = spyOn(darwinExtractor as any, 'cleanupTempFile').mockImplementation(
-        () => {}
-      )
+      const copyFileSpy = spyOn(darwinExtractor as any, 'copyDatabaseToTemp').mockReturnValue('/tmp/test-cookies')
+      const extractSpy = spyOn(darwinExtractor as any, 'extractFromSQLite').mockResolvedValue('test_token')
+      const cleanupSpy = spyOn(darwinExtractor as any, 'cleanupTempFile').mockImplementation(() => {})
 
       const result = await (darwinExtractor as any).copyAndExtract('/path/to/Cookies')
 
@@ -292,11 +273,9 @@ describe('TeamsTokenExtractor', () => {
     test('returns null when copy fails (file locked)', async () => {
       const darwinExtractor = new TeamsTokenExtractor('darwin')
 
-      const copyFileSpy = spyOn(darwinExtractor as any, 'copyDatabaseToTemp').mockImplementation(
-        () => {
-          throw new Error('EBUSY: resource busy or locked')
-        }
-      )
+      const copyFileSpy = spyOn(darwinExtractor as any, 'copyDatabaseToTemp').mockImplementation(() => {
+        throw new Error('EBUSY: resource busy or locked')
+      })
 
       const result = await (darwinExtractor as any).copyAndExtract('/path/to/Cookies')
 
@@ -349,9 +328,7 @@ describe('TeamsTokenExtractor', () => {
 
       test('returns null when all keychain variants fail', async () => {
         const darwinExtractor = new TeamsTokenExtractor('darwin')
-        const execSyncSpy = spyOn(darwinExtractor as any, 'execSecurityCommand').mockReturnValue(
-          null
-        )
+        const execSyncSpy = spyOn(darwinExtractor as any, 'execSecurityCommand').mockReturnValue(null)
 
         const result = (darwinExtractor as any).getKeychainPassword()
 
@@ -366,10 +343,7 @@ describe('TeamsTokenExtractor', () => {
     describe('isTeamsRunning', () => {
       test('returns true when Teams process is found', async () => {
         const darwinExtractor = new TeamsTokenExtractor('darwin')
-        const checkProcessRunningSpy = spyOn(
-          darwinExtractor as any,
-          'checkProcessRunning'
-        ).mockReturnValue(true)
+        const checkProcessRunningSpy = spyOn(darwinExtractor as any, 'checkProcessRunning').mockReturnValue(true)
 
         const result = await darwinExtractor.isTeamsRunning()
         expect(result).toBe(true)
@@ -379,10 +353,7 @@ describe('TeamsTokenExtractor', () => {
 
       test('returns false when no Teams process is found', async () => {
         const darwinExtractor = new TeamsTokenExtractor('darwin')
-        const checkProcessRunningSpy = spyOn(
-          darwinExtractor as any,
-          'checkProcessRunning'
-        ).mockReturnValue(false)
+        const checkProcessRunningSpy = spyOn(darwinExtractor as any, 'checkProcessRunning').mockReturnValue(false)
 
         const result = await darwinExtractor.isTeamsRunning()
         expect(result).toBe(false)

@@ -28,9 +28,7 @@ export async function infoAction(teamId: string, options: { pretty?: boolean }):
     const config = await credManager.loadConfig()
 
     if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -73,18 +71,14 @@ export async function currentAction(options: { pretty?: boolean }): Promise<void
     const config = await credManager.loadConfig()
 
     if (!config?.current_team) {
-      console.log(
-        formatOutput({ error: 'No current team set. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'No current team set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
     const team = config.teams[config.current_team]
 
     if (!team) {
-      console.log(
-        formatOutput({ error: 'Current team not found in configuration.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Current team not found in configuration.' }, options.pretty))
       process.exit(1)
     }
 
@@ -130,35 +124,32 @@ export async function removeAction(teamId: string, options: { pretty?: boolean }
 export const teamCommand = new Command('team')
   .description('Team management commands')
   .addCommand(
-    new Command('list')
-      .description('List all teams')
-      .option('--pretty', 'Pretty print JSON output')
-      .action(listAction)
+    new Command('list').description('List all teams').option('--pretty', 'Pretty print JSON output').action(listAction),
   )
   .addCommand(
     new Command('info')
       .description('Get team info')
       .argument('<team-id>', 'Team ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(infoAction)
+      .action(infoAction),
   )
   .addCommand(
     new Command('switch')
       .description('Switch to team')
       .argument('<team-id>', 'Team ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(switchAction)
+      .action(switchAction),
   )
   .addCommand(
     new Command('current')
       .description('Show current team')
       .option('--pretty', 'Pretty print JSON output')
-      .action(currentAction)
+      .action(currentAction),
   )
   .addCommand(
     new Command('remove')
       .description('Remove team from config')
       .argument('<team-id>', 'Team ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(removeAction)
+      .action(removeAction),
   )

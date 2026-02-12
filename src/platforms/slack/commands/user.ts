@@ -9,9 +9,7 @@ async function getClient(pretty?: boolean): Promise<SlackClient | null> {
   const workspace = await credManager.getWorkspace()
 
   if (!workspace) {
-    console.log(
-      formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, pretty)
-    )
+    console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, pretty))
     return null
   }
 
@@ -49,7 +47,7 @@ export const userCommand = new Command('user')
         } catch (error) {
           handleError(error as Error)
         }
-      })
+      }),
   )
   .addCommand(
     new Command('info')
@@ -78,7 +76,7 @@ export const userCommand = new Command('user')
         } catch (error) {
           handleError(error as Error)
         }
-      })
+      }),
   )
   .addCommand(
     new Command('me')
@@ -106,5 +104,5 @@ export const userCommand = new Command('user')
         } catch (error) {
           handleError(error as Error)
         }
-      })
+      }),
   )

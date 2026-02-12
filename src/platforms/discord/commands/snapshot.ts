@@ -17,9 +17,7 @@ export async function snapshotAction(options: {
     const config = await credManager.load()
 
     if (!config.token || !config.current_server) {
-      console.log(
-        formatOutput({ error: 'No current server set. Run "server switch" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'No current server set. Run "server switch" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -58,7 +56,7 @@ export async function snapshotAction(options: {
               channel_name: channel.name,
             }))
           },
-          5
+          5,
         )
 
         snapshot.recent_messages = channelMessages.flat().map((msg) => ({

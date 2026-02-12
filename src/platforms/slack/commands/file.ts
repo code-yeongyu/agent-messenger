@@ -9,19 +9,14 @@ import { CredentialManager } from '../credential-manager'
 async function uploadAction(
   channel: string,
   path: string,
-  options: { filename?: string; pretty?: boolean }
+  options: { filename?: string; pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -57,12 +52,7 @@ async function listAction(options: { channel?: string; pretty?: boolean }): Prom
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -93,12 +83,7 @@ async function infoAction(fileId: string, options: { pretty?: boolean }): Promis
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -137,17 +122,12 @@ export const fileCommand = new Command('file')
       .argument('<channel>', 'channel ID or name')
       .argument('<path>', 'file path')
       .option('--filename <name>', 'override filename')
-      .action(uploadAction)
+      .action(uploadAction),
   )
   .addCommand(
     new Command('list')
       .description('list files in workspace')
       .option('--channel <id>', 'filter by channel')
-      .action(listAction)
+      .action(listAction),
   )
-  .addCommand(
-    new Command('info')
-      .description('show file details')
-      .argument('<file>', 'file ID')
-      .action(infoAction)
-  )
+  .addCommand(new Command('info').description('show file details').argument('<file>', 'file ID').action(infoAction))

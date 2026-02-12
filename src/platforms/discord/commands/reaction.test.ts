@@ -12,9 +12,7 @@ beforeEach(() => {
   // Spy on DiscordClient.prototype methods
   clientAddReactionSpy = spyOn(DiscordClient.prototype, 'addReaction').mockResolvedValue(undefined)
 
-  clientRemoveReactionSpy = spyOn(DiscordClient.prototype, 'removeReaction').mockResolvedValue(
-    undefined
-  )
+  clientRemoveReactionSpy = spyOn(DiscordClient.prototype, 'removeReaction').mockResolvedValue(undefined)
 
   clientGetMessageSpy = spyOn(DiscordClient.prototype, 'getMessage').mockResolvedValue({
     id: 'msg123',

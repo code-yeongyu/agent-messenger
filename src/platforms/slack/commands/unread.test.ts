@@ -9,14 +9,12 @@ let clientGetThreadViewSpy: ReturnType<typeof spyOn>
 let clientMarkReadSpy: ReturnType<typeof spyOn>
 
 beforeEach(() => {
-  credManagerGetWorkspaceSpy = spyOn(CredentialManager.prototype, 'getWorkspace').mockResolvedValue(
-    {
-      workspace_id: 'T123',
-      workspace_name: 'Test Workspace',
-      token: 'xoxc-test',
-      cookie: 'test-cookie',
-    }
-  )
+  credManagerGetWorkspaceSpy = spyOn(CredentialManager.prototype, 'getWorkspace').mockResolvedValue({
+    workspace_id: 'T123',
+    workspace_name: 'Test Workspace',
+    token: 'xoxc-test',
+    cookie: 'test-cookie',
+  })
 
   clientGetUnreadCountsSpy = spyOn(SlackClient.prototype, 'getUnreadCounts').mockResolvedValue({
     channels: [{ id: 'C123', name: 'general', unread_count: 5, mention_count: 2 }],

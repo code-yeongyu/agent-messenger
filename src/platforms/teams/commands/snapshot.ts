@@ -18,19 +18,14 @@ export async function snapshotAction(options: {
     const config = await credManager.loadConfig()
 
     if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
     const teamId = options.teamId || config.current_team
     if (!teamId) {
       console.log(
-        formatOutput(
-          { error: 'No current team set. Run "team switch" first or use --team-id.' },
-          options.pretty
-        )
+        formatOutput({ error: 'No current team set. Run "team switch" first or use --team-id.' }, options.pretty),
       )
       process.exit(1)
     }
@@ -66,7 +61,7 @@ export async function snapshotAction(options: {
               channel_name: channel.name,
             }))
           },
-          5
+          5,
         )
 
         snapshot.recent_messages = channelMessages.flat().map((msg) => ({

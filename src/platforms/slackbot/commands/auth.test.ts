@@ -12,7 +12,7 @@ const mockTestAuth = mock(() =>
     bot_id: 'B789',
     user: 'testbot',
     team: 'Test Team',
-  })
+  }),
 )
 
 mock.module('../client', () => ({

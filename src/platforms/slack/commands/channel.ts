@@ -4,22 +4,13 @@ import { formatOutput } from '../../../shared/utils/output'
 import { SlackClient } from '../client'
 import { CredentialManager } from '../credential-manager'
 
-async function listAction(options: {
-  type?: string
-  includeArchived?: boolean
-  pretty?: boolean
-}): Promise<void> {
+async function listAction(options: { type?: string; includeArchived?: boolean; pretty?: boolean }): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -60,12 +51,7 @@ async function infoAction(channel: string, options: { pretty?: boolean }): Promi
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -89,21 +75,13 @@ async function infoAction(channel: string, options: { pretty?: boolean }): Promi
   }
 }
 
-async function historyAction(
-  channel: string,
-  options: { limit?: number; pretty?: boolean }
-): Promise<void> {
+async function historyAction(channel: string, options: { limit?: number; pretty?: boolean }): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -134,14 +112,14 @@ export const channelCommand = new Command('channel')
       .option('--type <public|private|dm>', 'Filter by channel type')
       .option('--include-archived', 'Include archived channels')
       .option('--pretty', 'Pretty print JSON output')
-      .action(listAction)
+      .action(listAction),
   )
   .addCommand(
     new Command('info')
       .description('Get channel info')
       .argument('<channel>', 'Channel ID or name')
       .option('--pretty', 'Pretty print JSON output')
-      .action(infoAction)
+      .action(infoAction),
   )
   .addCommand(
     new Command('history')
@@ -154,5 +132,5 @@ export const channelCommand = new Command('channel')
           limit: parseInt(options.limit, 10),
           pretty: options.pretty,
         })
-      })
+      }),
   )

@@ -10,9 +10,7 @@ const mockWebClient: any = {
     replies: mock((): Promise<any> => Promise.resolve({ ok: true, messages: [], has_more: false })),
   },
   chat: {
-    postMessage: mock(
-      (): Promise<any> => Promise.resolve({ ok: true, ts: '123.456', message: {} })
-    ),
+    postMessage: mock((): Promise<any> => Promise.resolve({ ok: true, ts: '123.456', message: {} })),
     update: mock((): Promise<any> => Promise.resolve({ ok: true, ts: '123.456', message: {} })),
     delete: mock((): Promise<any> => Promise.resolve({ ok: true })),
   },
@@ -249,7 +247,7 @@ describe('SlackClient', () => {
       const result = await client.getMessages('C123')
       expect(result).toHaveLength(20)
       expect(mockWebClient.conversations.history).toHaveBeenCalledWith(
-        expect.objectContaining({ channel: 'C123', limit: 20 })
+        expect.objectContaining({ channel: 'C123', limit: 20 }),
       )
     })
 
@@ -265,7 +263,7 @@ describe('SlackClient', () => {
 
       await client.getMessages('C123', 50)
       expect(mockWebClient.conversations.history).toHaveBeenCalledWith(
-        expect.objectContaining({ channel: 'C123', limit: 50 })
+        expect.objectContaining({ channel: 'C123', limit: 50 }),
       )
     })
 
@@ -300,7 +298,7 @@ describe('SlackClient', () => {
       const message = await client.sendMessage('C123', 'Hello')
       expect(message.ts).toBe('123.456')
       expect(mockWebClient.chat.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ channel: 'C123', text: 'Hello' })
+        expect.objectContaining({ channel: 'C123', text: 'Hello' }),
       )
     })
 
@@ -318,7 +316,7 @@ describe('SlackClient', () => {
       const message = await client.sendMessage('C123', 'Reply', '123.456')
       expect(message.thread_ts).toBe('123.456')
       expect(mockWebClient.chat.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ channel: 'C123', text: 'Reply', thread_ts: '123.456' })
+        expect.objectContaining({ channel: 'C123', text: 'Reply', thread_ts: '123.456' }),
       )
     })
 
@@ -353,7 +351,7 @@ describe('SlackClient', () => {
       const message = await client.updateMessage('C123', '123.456', 'Updated')
       expect(message.text).toBe('Updated')
       expect(mockWebClient.chat.update).toHaveBeenCalledWith(
-        expect.objectContaining({ channel: 'C123', ts: '123.456', text: 'Updated' })
+        expect.objectContaining({ channel: 'C123', ts: '123.456', text: 'Updated' }),
       )
     })
 
@@ -383,7 +381,7 @@ describe('SlackClient', () => {
 
       await expect(client.deleteMessage('C123', '123.456')).resolves.toBeUndefined()
       expect(mockWebClient.chat.delete).toHaveBeenCalledWith(
-        expect.objectContaining({ channel: 'C123', ts: '123.456' })
+        expect.objectContaining({ channel: 'C123', ts: '123.456' }),
       )
     })
 
@@ -413,7 +411,7 @@ describe('SlackClient', () => {
 
       await expect(client.addReaction('C123', '123.456', 'thumbsup')).resolves.toBeUndefined()
       expect(mockWebClient.reactions.add).toHaveBeenCalledWith(
-        expect.objectContaining({ channel: 'C123', timestamp: '123.456', name: 'thumbsup' })
+        expect.objectContaining({ channel: 'C123', timestamp: '123.456', name: 'thumbsup' }),
       )
     })
 
@@ -443,7 +441,7 @@ describe('SlackClient', () => {
 
       await expect(client.removeReaction('C123', '123.456', 'thumbsup')).resolves.toBeUndefined()
       expect(mockWebClient.reactions.remove).toHaveBeenCalledWith(
-        expect.objectContaining({ channel: 'C123', timestamp: '123.456', name: 'thumbsup' })
+        expect.objectContaining({ channel: 'C123', timestamp: '123.456', name: 'thumbsup' }),
       )
     })
 
@@ -619,7 +617,7 @@ describe('SlackClient', () => {
       const file = await client.uploadFile(['C123'], Buffer.from('test'), 'test.txt')
       expect(file.id).toBe('F123')
       expect(mockWebClient.files.uploadV2).toHaveBeenCalledWith(
-        expect.objectContaining({ channel_id: 'C123', filename: 'test.txt' })
+        expect.objectContaining({ channel_id: 'C123', filename: 'test.txt' }),
       )
     })
 
@@ -633,9 +631,7 @@ describe('SlackClient', () => {
       // @ts-expect-error - accessing private property for testing
       client.client = mockWebClient as unknown as WebClient
 
-      await expect(client.uploadFile(['C123'], Buffer.from('test'), 'test.txt')).rejects.toThrow(
-        SlackError
-      )
+      await expect(client.uploadFile(['C123'], Buffer.from('test'), 'test.txt')).rejects.toThrow(SlackError)
     })
   })
 
@@ -679,9 +675,7 @@ describe('SlackClient', () => {
       client.client = mockWebClient as unknown as WebClient
 
       await client.listFiles('C123')
-      expect(mockWebClient.files.list).toHaveBeenCalledWith(
-        expect.objectContaining({ channel: 'C123' })
-      )
+      expect(mockWebClient.files.list).toHaveBeenCalledWith(expect.objectContaining({ channel: 'C123' }))
     })
 
     test('throws SlackError on API failure', async () => {
@@ -757,7 +751,7 @@ describe('SlackClient', () => {
 
       await client.getThreadReplies('C123', '123.456', { limit: 50 })
       expect(mockWebClient.conversations.replies).toHaveBeenCalledWith(
-        expect.objectContaining({ channel: 'C123', ts: '123.456', limit: 50 })
+        expect.objectContaining({ channel: 'C123', ts: '123.456', limit: 50 }),
       )
     })
 
@@ -782,7 +776,7 @@ describe('SlackClient', () => {
           ts: '123.456',
           oldest: '123.400',
           latest: '123.500',
-        })
+        }),
       )
     })
 

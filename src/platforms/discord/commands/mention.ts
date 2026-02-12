@@ -4,19 +4,13 @@ import { formatOutput } from '../../../shared/utils/output'
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
 
-export async function listAction(options: {
-  limit?: number
-  guild?: string
-  pretty?: boolean
-}): Promise<void> {
+export async function listAction(options: { limit?: number; guild?: string; pretty?: boolean }): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -55,5 +49,5 @@ export const mentionCommand = new Command('mention').description('Mention comman
         guild: options.guild,
         pretty: options.pretty,
       })
-    })
+    }),
 )

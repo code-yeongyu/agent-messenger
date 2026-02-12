@@ -22,7 +22,7 @@ beforeEach(() => {
         return { id: 'ch-2', team_id: teamId, name: 'Announcements', type: 'standard' }
       }
       throw new Error('Channel not found')
-    }
+    },
   )
 
   clientGetMessagesSpy = spyOn(TeamsClient.prototype, 'getMessages').mockResolvedValue([
@@ -42,10 +42,7 @@ beforeEach(() => {
     },
   ])
 
-  credManagerLoadConfigSpy = spyOn(
-    TeamsCredentialManager.prototype,
-    'loadConfig'
-  ).mockResolvedValue({
+  credManagerLoadConfigSpy = spyOn(TeamsCredentialManager.prototype, 'loadConfig').mockResolvedValue({
     token: 'test-token',
     current_team: 'team-1',
     teams: {

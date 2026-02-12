@@ -166,10 +166,7 @@ export class SlackBotCredentialManager {
     if (Object.keys(workspace.bots).length === 0) {
       delete config.workspaces[workspace.workspace_id]
     }
-    if (
-      config.current?.workspace_id === workspace.workspace_id &&
-      config.current?.bot_id === botId
-    ) {
+    if (config.current?.workspace_id === workspace.workspace_id && config.current?.bot_id === botId) {
       config.current = null
     }
     await this.save(config)
@@ -202,9 +199,7 @@ export class SlackBotCredentialManager {
           workspace_name: workspace.workspace_name,
           bot_id: bot.bot_id,
           bot_name: bot.bot_name,
-          is_current:
-            config.current?.workspace_id === workspace.workspace_id &&
-            config.current?.bot_id === bot.bot_id,
+          is_current: config.current?.workspace_id === workspace.workspace_id && config.current?.bot_id === bot.bot_id,
         })
       }
     }

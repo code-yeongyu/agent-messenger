@@ -57,10 +57,7 @@ export class SlackClient {
         break
       }
     }
-    throw new SlackError(
-      lastError?.message || 'Unknown error',
-      (lastError as any)?.code || 'unknown_error'
-    )
+    throw new SlackError(lastError?.message || 'Unknown error', (lastError as any)?.code || 'unknown_error')
   }
 
   private sleep(ms: number): Promise<void> {
@@ -410,7 +407,7 @@ export class SlackClient {
 
   async searchMessages(
     query: string,
-    options: { sort?: 'score' | 'timestamp'; sortDir?: 'asc' | 'desc'; count?: number } = {}
+    options: { sort?: 'score' | 'timestamp'; sortDir?: 'asc' | 'desc'; count?: number } = {},
   ): Promise<SlackSearchResult[]> {
     return this.withRetry(async () => {
       const response = await this.client.search.messages({
@@ -439,7 +436,7 @@ export class SlackClient {
   async getThreadReplies(
     channel: string,
     threadTs: string,
-    options: { limit?: number; oldest?: string; latest?: string; cursor?: string } = {}
+    options: { limit?: number; oldest?: string; latest?: string; cursor?: string } = {},
   ): Promise<{ messages: SlackMessage[]; has_more: boolean; next_cursor?: string }> {
     return this.withRetry(async () => {
       const response = await this.client.conversations.replies({
@@ -525,11 +522,7 @@ export class SlackClient {
     })
   }
 
-  async getActivityFeed(options?: {
-    types?: string
-    mode?: string
-    limit?: number
-  }): Promise<SlackActivityItem[]> {
+  async getActivityFeed(options?: { types?: string; mode?: string; limit?: number }): Promise<SlackActivityItem[]> {
     return this.withRetry(async () => {
       const response = await (this.client as any).activity.feed({
         types: options?.types,

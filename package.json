@@ -20,6 +20,7 @@
     "test:e2e": "bun test e2e/",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
+    "lint:fix": "biome check --write --unsafe .",
     "format": "biome format --write .",
     "dev": "bun --hot ./dist/cli.js",
     "prepublishOnly": "bun run build"

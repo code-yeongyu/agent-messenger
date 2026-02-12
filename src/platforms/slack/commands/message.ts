@@ -8,19 +8,14 @@ import type { SlackMessage } from '../types'
 async function sendAction(
   channel: string,
   text: string,
-  options: { thread?: string; pretty?: boolean }
+  options: { thread?: string; pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -43,19 +38,14 @@ async function sendAction(
 
 async function listAction(
   channel: string,
-  options: { limit?: number; thread?: string; pretty?: boolean }
+  options: { limit?: number; thread?: string; pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -80,22 +70,13 @@ async function listAction(
   }
 }
 
-async function getAction(
-  channel: string,
-  ts: string,
-  options: { pretty?: boolean }
-): Promise<void> {
+async function getAction(channel: string, ts: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -124,23 +105,13 @@ async function getAction(
   }
 }
 
-async function updateAction(
-  channel: string,
-  ts: string,
-  text: string,
-  options: { pretty?: boolean }
-): Promise<void> {
+async function updateAction(channel: string, ts: string, text: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -163,19 +134,14 @@ async function updateAction(
 async function deleteAction(
   channel: string,
   ts: string,
-  options: { force?: boolean; pretty?: boolean }
+  options: { force?: boolean; pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -195,19 +161,14 @@ async function deleteAction(
 
 async function searchAction(
   query: string,
-  options: { sort?: string; sortDir?: string; limit?: number; pretty?: boolean }
+  options: { sort?: string; sortDir?: string; limit?: number; pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -237,19 +198,14 @@ async function searchAction(
 async function repliesAction(
   channel: string,
   threadTs: string,
-  options: { limit?: number; oldest?: string; latest?: string; cursor?: string; pretty?: boolean }
+  options: { limit?: number; oldest?: string; latest?: string; cursor?: string; pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -287,7 +243,7 @@ export const messageCommand = new Command('message')
       .argument('<text>', 'Message text')
       .option('--thread <ts>', 'Thread timestamp for replies')
       .option('--pretty', 'Pretty print JSON output')
-      .action(sendAction)
+      .action(sendAction),
   )
   .addCommand(
     new Command('list')
@@ -302,7 +258,7 @@ export const messageCommand = new Command('message')
           thread: options.thread,
           pretty: options.pretty,
         })
-      })
+      }),
   )
   .addCommand(
     new Command('get')
@@ -310,7 +266,7 @@ export const messageCommand = new Command('message')
       .argument('<channel>', 'Channel ID or name')
       .argument('<ts>', 'Message timestamp')
       .option('--pretty', 'Pretty print JSON output')
-      .action(getAction)
+      .action(getAction),
   )
   .addCommand(
     new Command('update')
@@ -319,7 +275,7 @@ export const messageCommand = new Command('message')
       .argument('<ts>', 'Message timestamp')
       .argument('<text>', 'New message text')
       .option('--pretty', 'Pretty print JSON output')
-      .action(updateAction)
+      .action(updateAction),
   )
   .addCommand(
     new Command('delete')
@@ -328,7 +284,7 @@ export const messageCommand = new Command('message')
       .argument('<ts>', 'Message timestamp')
       .option('--force', 'Skip confirmation')
       .option('--pretty', 'Pretty print JSON output')
-      .action(deleteAction)
+      .action(deleteAction),
   )
   .addCommand(
     new Command('search')
@@ -345,7 +301,7 @@ export const messageCommand = new Command('message')
           limit: parseInt(options.limit, 10),
           pretty: options.pretty,
         })
-      })
+      }),
   )
   .addCommand(
     new Command('replies')
@@ -365,5 +321,5 @@ export const messageCommand = new Command('message')
           cursor: options.cursor,
           pretty: options.pretty,
         })
-      })
+      }),
   )

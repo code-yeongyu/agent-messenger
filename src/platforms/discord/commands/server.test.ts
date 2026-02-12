@@ -15,17 +15,15 @@ beforeEach(() => {
     { id: 'server-2', name: 'Server Two', icon: 'icon2', owner: false },
   ])
 
-  clientGetServerSpy = spyOn(DiscordClient.prototype, 'getServer').mockImplementation(
-    async (serverId: string) => {
-      if (serverId === 'server-1') {
-        return { id: 'server-1', name: 'Server One', icon: 'icon1', owner: true }
-      }
-      if (serverId === 'server-2') {
-        return { id: 'server-2', name: 'Server Two', icon: 'icon2', owner: false }
-      }
-      throw new Error('Server not found')
+  clientGetServerSpy = spyOn(DiscordClient.prototype, 'getServer').mockImplementation(async (serverId: string) => {
+    if (serverId === 'server-1') {
+      return { id: 'server-1', name: 'Server One', icon: 'icon1', owner: true }
     }
-  )
+    if (serverId === 'server-2') {
+      return { id: 'server-2', name: 'Server Two', icon: 'icon2', owner: false }
+    }
+    throw new Error('Server not found')
+  })
 
   // Spy on DiscordCredentialManager.prototype methods
   credManagerLoadSpy = spyOn(DiscordCredentialManager.prototype, 'load').mockResolvedValue({
@@ -37,15 +35,13 @@ beforeEach(() => {
     },
   })
 
-  credManagerSetCurrentServerSpy = spyOn(
-    DiscordCredentialManager.prototype,
-    'setCurrentServer'
-  ).mockResolvedValue(undefined)
+  credManagerSetCurrentServerSpy = spyOn(DiscordCredentialManager.prototype, 'setCurrentServer').mockResolvedValue(
+    undefined,
+  )
 
-  credManagerGetCurrentServerSpy = spyOn(
-    DiscordCredentialManager.prototype,
-    'getCurrentServer'
-  ).mockResolvedValue('server-1')
+  credManagerGetCurrentServerSpy = spyOn(DiscordCredentialManager.prototype, 'getCurrentServer').mockResolvedValue(
+    'server-1',
+  )
 })
 
 afterEach(() => {

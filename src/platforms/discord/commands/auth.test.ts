@@ -34,14 +34,9 @@ beforeEach(() => {
     servers: {},
   })
 
-  credManagerSaveSpy = spyOn(DiscordCredentialManager.prototype, 'save').mockResolvedValue(
-    undefined
-  )
+  credManagerSaveSpy = spyOn(DiscordCredentialManager.prototype, 'save').mockResolvedValue(undefined)
 
-  credManagerClearTokenSpy = spyOn(
-    DiscordCredentialManager.prototype,
-    'clearToken'
-  ).mockResolvedValue(undefined)
+  credManagerClearTokenSpy = spyOn(DiscordCredentialManager.prototype, 'clearToken').mockResolvedValue(undefined)
 })
 
 afterEach(() => {

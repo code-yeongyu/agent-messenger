@@ -44,9 +44,7 @@ beforeEach(() => {
     timestamp: '2025-01-29T10:00:00Z',
   })
 
-  clientDeleteMessageSpy = spyOn(TeamsClient.prototype, 'deleteMessage').mockResolvedValue(
-    undefined
-  )
+  clientDeleteMessageSpy = spyOn(TeamsClient.prototype, 'deleteMessage').mockResolvedValue(undefined)
 
   credManagerLoadSpy = spyOn(TeamsCredentialManager.prototype, 'loadConfig').mockResolvedValue({
     token: 'test_token',

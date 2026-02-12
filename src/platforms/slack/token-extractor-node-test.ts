@@ -22,7 +22,7 @@ try {
     )
   `)
   db.prepare(
-    "INSERT INTO cookies (name, value, host_key, last_access_utc) VALUES ('d', 'xoxd-test-cookie', '.slack.com', 1000)"
+    "INSERT INTO cookies (name, value, host_key, last_access_utc) VALUES ('d', 'xoxd-test-cookie', '.slack.com', 1000)",
   ).run()
   db.close()
 

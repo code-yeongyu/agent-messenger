@@ -10,10 +10,7 @@ const __dirname = dirname(__filename)
 
 const program = new Command()
 
-program
-  .name('agent-messenger')
-  .description('Multi-platform messaging CLI for AI agents')
-  .version(pkg.version)
+program.name('agent-messenger').description('Multi-platform messaging CLI for AI agents').version(pkg.version)
 
 // Use absolute paths for CWD-independence
 program.command('slack', 'Interact with Slack workspaces', {

@@ -82,10 +82,7 @@ describe('DiscordTokenExtractor', () => {
   describe('extract', () => {
     test('returns null when no Discord directories exist on linux', async () => {
       const linuxExtractor = new DiscordTokenExtractor('linux')
-      const extractFromLevelDBSpy = spyOn(
-        linuxExtractor as any,
-        'extractFromLevelDB'
-      ).mockResolvedValue(null)
+      const extractFromLevelDBSpy = spyOn(linuxExtractor as any, 'extractFromLevelDB').mockResolvedValue(null)
 
       const result = await linuxExtractor.extract()
       expect(result).toBeNull()
@@ -97,10 +94,9 @@ describe('DiscordTokenExtractor', () => {
       const mockToken = 'XXXXXXXXXXXXXXXXXXXXXXXX.YYYYYY.ZZZZZZZZZZZZZZZZZZZZZZZZZ'
 
       const linuxExtractor = new DiscordTokenExtractor('linux')
-      const extractFromLevelDBSpy = spyOn(
-        linuxExtractor as any,
-        'extractFromLevelDB'
-      ).mockResolvedValue({ token: mockToken })
+      const extractFromLevelDBSpy = spyOn(linuxExtractor as any, 'extractFromLevelDB').mockResolvedValue({
+        token: mockToken,
+      })
 
       const result = await linuxExtractor.extract()
 
@@ -114,14 +110,8 @@ describe('DiscordTokenExtractor', () => {
       const mockToken = 'XXXXXXXXXXXXXXXXXXXXXXXX.YYYYYY.cdp_token_12345678901234567'
 
       const darwinExtractor = new DiscordTokenExtractor('darwin', 0)
-      const extractFromLevelDBSpy = spyOn(
-        darwinExtractor as any,
-        'extractFromLevelDB'
-      ).mockResolvedValue(null)
-      const tryExtractViaCDPSpy = spyOn(
-        darwinExtractor as any,
-        'tryExtractViaCDP'
-      ).mockResolvedValue(mockToken)
+      const extractFromLevelDBSpy = spyOn(darwinExtractor as any, 'extractFromLevelDB').mockResolvedValue(null)
+      const tryExtractViaCDPSpy = spyOn(darwinExtractor as any, 'tryExtractViaCDP').mockResolvedValue(mockToken)
 
       const result = await darwinExtractor.extract()
 
@@ -136,10 +126,9 @@ describe('DiscordTokenExtractor', () => {
       const mockToken = 'XXXXXXXXXXXXXXXXXXXXXXXX.YYYYYY.first_token_found_1234567'
 
       const linuxExtractor = new DiscordTokenExtractor('linux')
-      const extractFromLevelDBSpy = spyOn(
-        linuxExtractor as any,
-        'extractFromLevelDB'
-      ).mockResolvedValue({ token: mockToken })
+      const extractFromLevelDBSpy = spyOn(linuxExtractor as any, 'extractFromLevelDB').mockResolvedValue({
+        token: mockToken,
+      })
 
       const result = await linuxExtractor.extract()
 
@@ -186,10 +175,7 @@ describe('DiscordTokenExtractor', () => {
     describe('isDiscordRunning', () => {
       test('returns true when Discord process is found', async () => {
         const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
-        const checkProcessRunningSpy = spyOn(
-          darwinExtractor as any,
-          'checkProcessRunning'
-        ).mockReturnValue(true)
+        const checkProcessRunningSpy = spyOn(darwinExtractor as any, 'checkProcessRunning').mockReturnValue(true)
 
         const result = await darwinExtractor.isDiscordRunning('stable')
         expect(result).toBe(true)
@@ -199,10 +185,7 @@ describe('DiscordTokenExtractor', () => {
 
       test('returns false when no Discord process is found', async () => {
         const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
-        const checkProcessRunningSpy = spyOn(
-          darwinExtractor as any,
-          'checkProcessRunning'
-        ).mockReturnValue(false)
+        const checkProcessRunningSpy = spyOn(darwinExtractor as any, 'checkProcessRunning').mockReturnValue(false)
 
         const result = await darwinExtractor.isDiscordRunning('stable')
         expect(result).toBe(false)
@@ -213,13 +196,12 @@ describe('DiscordTokenExtractor', () => {
       test('checks all variants when no specific variant provided', async () => {
         const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
         const checkedProcesses: string[] = []
-        const checkProcessRunningSpy = spyOn(
-          darwinExtractor as any,
-          'checkProcessRunning'
-        ).mockImplementation((name: string) => {
-          checkedProcesses.push(name)
-          return false
-        })
+        const checkProcessRunningSpy = spyOn(darwinExtractor as any, 'checkProcessRunning').mockImplementation(
+          (name: string) => {
+            checkedProcesses.push(name)
+            return false
+          },
+        )
 
         await darwinExtractor.isDiscordRunning()
 
@@ -235,11 +217,9 @@ describe('DiscordTokenExtractor', () => {
       test('kills Discord process', async () => {
         const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
         const killedProcesses: string[] = []
-        const killProcessSpy = spyOn(darwinExtractor as any, 'killProcess').mockImplementation(
-          (name: string) => {
-            killedProcesses.push(name)
-          }
-        )
+        const killProcessSpy = spyOn(darwinExtractor as any, 'killProcess').mockImplementation((name: string) => {
+          killedProcesses.push(name)
+        })
 
         await darwinExtractor.killDiscord('stable')
 
@@ -251,11 +231,9 @@ describe('DiscordTokenExtractor', () => {
       test('kills all variants when no specific variant provided', async () => {
         const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
         const killedProcesses: string[] = []
-        const killProcessSpy = spyOn(darwinExtractor as any, 'killProcess').mockImplementation(
-          (name: string) => {
-            killedProcesses.push(name)
-          }
-        )
+        const killProcessSpy = spyOn(darwinExtractor as any, 'killProcess').mockImplementation((name: string) => {
+          killedProcesses.push(name)
+        })
 
         await darwinExtractor.killDiscord()
 
@@ -270,13 +248,9 @@ describe('DiscordTokenExtractor', () => {
     describe('launchDiscordWithDebug', () => {
       test('throws error when Discord app not found', async () => {
         const darwinExtractor = new DiscordTokenExtractor('darwin', 0, 0)
-        const getAppPathSpy = spyOn(darwinExtractor as any, 'getAppPath').mockReturnValue(
-          '/nonexistent/path'
-        )
+        const getAppPathSpy = spyOn(darwinExtractor as any, 'getAppPath').mockReturnValue('/nonexistent/path')
 
-        await expect(darwinExtractor.launchDiscordWithDebug('stable')).rejects.toThrow(
-          'Discord stable not found'
-        )
+        await expect(darwinExtractor.launchDiscordWithDebug('stable')).rejects.toThrow('Discord stable not found')
 
         getAppPathSpy.mockRestore()
       })
@@ -429,10 +403,7 @@ describe('DiscordTokenExtractor', () => {
         globalThis.WebSocket = mockWebSocket as unknown as typeof WebSocket
 
         const extractor = new DiscordTokenExtractor('darwin')
-        const result = await extractor.executeJSViaCDP(
-          'ws://localhost:9222/devtools/page/1',
-          TOKEN_EXTRACTION_JS
-        )
+        const result = await extractor.executeJSViaCDP('ws://localhost:9222/devtools/page/1', TOKEN_EXTRACTION_JS)
         expect(result).toBe(mockToken)
       })
 
@@ -467,7 +438,7 @@ describe('DiscordTokenExtractor', () => {
 
         const extractor = new DiscordTokenExtractor('darwin')
         await expect(
-          extractor.executeJSViaCDP('ws://localhost:9222/devtools/page/1', TOKEN_EXTRACTION_JS)
+          extractor.executeJSViaCDP('ws://localhost:9222/devtools/page/1', TOKEN_EXTRACTION_JS),
         ).rejects.toThrow('Evaluation failed')
       })
 
@@ -491,7 +462,7 @@ describe('DiscordTokenExtractor', () => {
 
         const extractor = new DiscordTokenExtractor('darwin')
         await expect(
-          extractor.executeJSViaCDP('ws://localhost:9222/devtools/page/1', TOKEN_EXTRACTION_JS)
+          extractor.executeJSViaCDP('ws://localhost:9222/devtools/page/1', TOKEN_EXTRACTION_JS),
         ).rejects.toThrow()
       })
     })

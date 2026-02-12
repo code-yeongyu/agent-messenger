@@ -36,12 +36,11 @@ export async function extractAction(options: { pretty?: boolean; debug?: boolean
       console.log(
         formatOutput(
           {
-            error:
-              'No Discord token found. Make sure Discord desktop app is installed and logged in.',
+            error: 'No Discord token found. Make sure Discord desktop app is installed and logged in.',
             hint: options.debug ? undefined : 'Run with --debug for more info.',
           },
-          options.pretty
-        )
+          options.pretty,
+        ),
       )
       process.exit(1)
     }
@@ -76,8 +75,8 @@ export async function extractAction(options: { pretty?: boolean; debug?: boolean
             {
               error: 'No servers found. Make sure you are a member of at least one Discord server.',
             },
-            options.pretty
-          )
+            options.pretty,
+          ),
         )
         process.exit(1)
       }
@@ -117,8 +116,8 @@ export async function extractAction(options: { pretty?: boolean; debug?: boolean
             error: `Token validation failed: ${(error as Error).message}`,
             hint: 'Make sure your Discord token is valid and has not expired.',
           },
-          options.pretty
-        )
+          options.pretty,
+        ),
       )
       process.exit(1)
     }
@@ -133,9 +132,7 @@ export async function logoutAction(options: { pretty?: boolean }): Promise<void>
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -153,9 +150,7 @@ export async function statusAction(options: { pretty?: boolean }): Promise<void>
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -190,17 +185,17 @@ export const authCommand = new Command('auth')
       .description('Extract token from Discord desktop app')
       .option('--pretty', 'Pretty print JSON output')
       .option('--debug', 'Show debug output for troubleshooting')
-      .action(extractAction)
+      .action(extractAction),
   )
   .addCommand(
     new Command('logout')
       .description('Logout from Discord')
       .option('--pretty', 'Pretty print JSON output')
-      .action(logoutAction)
+      .action(logoutAction),
   )
   .addCommand(
     new Command('status')
       .description('Show authentication status')
       .option('--pretty', 'Pretty print JSON output')
-      .action(statusAction)
+      .action(statusAction),
   )

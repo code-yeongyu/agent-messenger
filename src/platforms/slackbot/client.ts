@@ -33,10 +33,7 @@ export class SlackBotClient {
         break
       }
     }
-    throw new SlackBotError(
-      lastError?.message || 'Unknown error',
-      (lastError as any)?.code || 'unknown_error'
-    )
+    throw new SlackBotError(lastError?.message || 'Unknown error', (lastError as any)?.code || 'unknown_error')
   }
 
   private sleep(ms: number): Promise<void> {
@@ -69,11 +66,7 @@ export class SlackBotClient {
     })
   }
 
-  async postMessage(
-    channel: string,
-    text: string,
-    options?: { thread_ts?: string }
-  ): Promise<SlackMessage> {
+  async postMessage(channel: string, text: string, options?: { thread_ts?: string }): Promise<SlackMessage> {
     return this.withRetry(async () => {
       const response = await this.client.chat.postMessage({
         channel,
@@ -95,7 +88,7 @@ export class SlackBotClient {
 
   async getConversationHistory(
     channel: string,
-    options?: { limit?: number; cursor?: string }
+    options?: { limit?: number; cursor?: string },
   ): Promise<SlackMessage[]> {
     return this.withRetry(async () => {
       const response = await this.client.conversations.history({
@@ -356,7 +349,7 @@ export class SlackBotClient {
   async getThreadReplies(
     channel: string,
     ts: string,
-    options?: { limit?: number; cursor?: string }
+    options?: { limit?: number; cursor?: string },
   ): Promise<SlackMessage[]> {
     return this.withRetry(async () => {
       const response = await this.client.conversations.replies({

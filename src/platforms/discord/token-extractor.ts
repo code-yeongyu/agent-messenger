@@ -41,10 +41,7 @@ export const CDP_TIMEOUT = 5000
 export const DISCORD_STARTUP_WAIT = 4000
 export const TOKEN_EXTRACTION_JS = `(webpackChunkdiscord_app.push([[''], {}, e => { m = []; for (let c in e.c) m.push(e.c[c]); }]), m).find(m => m?.exports?.default?.getToken !== void 0).exports.default.getToken()`
 
-const DISCORD_PROCESS_NAMES: Record<
-  DiscordVariant,
-  { darwin: string; win32: string; linux: string }
-> = {
+const DISCORD_PROCESS_NAMES: Record<DiscordVariant, { darwin: string; win32: string; linux: string }> = {
   stable: { darwin: 'Discord', win32: 'Discord.exe', linux: 'discord' },
   canary: { darwin: 'Discord Canary', win32: 'DiscordCanary.exe', linux: 'discordcanary' },
   ptb: { darwin: 'Discord PTB', win32: 'DiscordPTB.exe', linux: 'discordptb' },
@@ -63,12 +60,7 @@ export class DiscordTokenExtractor {
   private keyCache: DerivedKeyCache
   private cachedKey: Buffer | null = null
 
-  constructor(
-    platform?: NodeJS.Platform,
-    startupWait?: number,
-    killWait?: number,
-    keyCache?: DerivedKeyCache
-  ) {
+  constructor(platform?: NodeJS.Platform, startupWait?: number, killWait?: number, keyCache?: DerivedKeyCache) {
     this.platform = platform ?? process.platform
     this.startupWait = startupWait ?? DISCORD_STARTUP_WAIT
     this.killWait = killWait ?? 1000
@@ -91,11 +83,7 @@ export class DiscordTokenExtractor {
         ]
       case 'win32': {
         const appdata = process.env.APPDATA || join(homedir(), 'AppData', 'Roaming')
-        return [
-          join(appdata, 'Discord'),
-          join(appdata, 'discordcanary'),
-          join(appdata, 'discordptb'),
-        ]
+        return [join(appdata, 'Discord'), join(appdata, 'discordcanary'), join(appdata, 'discordptb')]
       }
       default:
         return []
@@ -322,10 +310,8 @@ export class DiscordTokenExtractor {
     const keychainVariants = this.getKeychainVariants().filter((v) => {
       const lowerAccount = v.account.toLowerCase()
       if (variant === 'stable') return lowerAccount === 'discord' || lowerAccount === 'discord key'
-      if (variant === 'canary')
-        return lowerAccount === 'discord canary' || lowerAccount === 'discordcanary key'
-      if (variant === 'ptb')
-        return lowerAccount === 'discord ptb' || lowerAccount === 'discordptb key'
+      if (variant === 'canary') return lowerAccount === 'discord canary' || lowerAccount === 'discordcanary key'
+      if (variant === 'ptb') return lowerAccount === 'discord ptb' || lowerAccount === 'discordptb key'
       return false
     })
 
@@ -333,7 +319,7 @@ export class DiscordTokenExtractor {
       try {
         const password = execSync(
           `security find-generic-password -s "${keychainVariant.service}" -a "${keychainVariant.account}" -w 2>/dev/null`,
-          { encoding: 'utf8' }
+          { encoding: 'utf8' },
         ).trim()
 
         const key = pbkdf2Sync(password, 'saltysalt', 1003, 16, 'sha1')
@@ -473,8 +459,7 @@ export class DiscordTokenExtractor {
       return DISCORD_APP_PATHS[variant].darwin
     } else if (this.platform === 'win32') {
       const localAppData = process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local')
-      const appName =
-        variant === 'stable' ? 'Discord' : variant === 'canary' ? 'DiscordCanary' : 'DiscordPTB'
+      const appName = variant === 'stable' ? 'Discord' : variant === 'canary' ? 'DiscordCanary' : 'DiscordPTB'
       return join(localAppData, appName, 'Update.exe')
     } else {
       return variant === 'stable' ? 'discord' : `discord${variant}`
@@ -497,9 +482,7 @@ export class DiscordTokenExtractor {
 
   findDiscordPageTarget(targets: CDPTarget[]): CDPTarget | null {
     const discordTarget = targets.find(
-      (t) =>
-        t.type === 'page' &&
-        (t.url.includes('discord.com') || t.title.toLowerCase().includes('discord'))
+      (t) => t.type === 'page' && (t.url.includes('discord.com') || t.title.toLowerCase().includes('discord')),
     )
     return discordTarget ?? null
   }
@@ -568,10 +551,7 @@ export class DiscordTokenExtractor {
     }
 
     try {
-      const result = await this.executeJSViaCDP(
-        discordTarget.webSocketDebuggerUrl,
-        TOKEN_EXTRACTION_JS
-      )
+      const result = await this.executeJSViaCDP(discordTarget.webSocketDebuggerUrl, TOKEN_EXTRACTION_JS)
       if (typeof result === 'string' && this.isValidToken(result)) {
         return result
       }

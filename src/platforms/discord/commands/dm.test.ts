@@ -37,9 +37,7 @@ const mockChannels: DiscordDMChannel[] = [
 ]
 
 beforeEach(() => {
-  clientListDMChannelsSpy = spyOn(DiscordClient.prototype, 'listDMChannels').mockResolvedValue(
-    mockChannels
-  )
+  clientListDMChannelsSpy = spyOn(DiscordClient.prototype, 'listDMChannels').mockResolvedValue(mockChannels)
 
   clientCreateDMSpy = spyOn(DiscordClient.prototype, 'createDM').mockResolvedValue({
     id: '999',

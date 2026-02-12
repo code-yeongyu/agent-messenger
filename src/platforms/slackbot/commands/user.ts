@@ -34,7 +34,7 @@ export const userCommand = new Command('user')
       .option('--limit <n>', 'Number of users to fetch')
       .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
-      .action(listAction)
+      .action(listAction),
   )
   .addCommand(
     new Command('info')
@@ -42,5 +42,5 @@ export const userCommand = new Command('user')
       .argument('<user>', 'User ID')
       .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
-      .action(infoAction)
+      .action(infoAction),
   )

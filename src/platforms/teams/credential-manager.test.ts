@@ -6,10 +6,7 @@ import { TeamsCredentialManager } from './credential-manager'
 const testDirs: string[] = []
 
 function setup(): TeamsCredentialManager {
-  const testConfigDir = join(
-    import.meta.dir,
-    `.test-teams-config-${Date.now()}-${Math.random().toString(36).slice(2)}`
-  )
+  const testConfigDir = join(import.meta.dir, `.test-teams-config-${Date.now()}-${Math.random().toString(36).slice(2)}`)
   testDirs.push(testConfigDir)
   return new TeamsCredentialManager(testConfigDir)
 }
@@ -31,7 +28,7 @@ describe('TeamsCredentialManager', () => {
   test('saveConfig creates config file with correct permissions', async () => {
     const testConfigDir = join(
       import.meta.dir,
-      `.test-teams-config-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      `.test-teams-config-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     )
     testDirs.push(testConfigDir)
     const manager = new TeamsCredentialManager(testConfigDir)

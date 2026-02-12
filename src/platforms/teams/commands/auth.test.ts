@@ -27,25 +27,15 @@ beforeEach(() => {
     { id: 'team-2', name: 'Team Two' },
   ])
 
-  credManagerLoadConfigSpy = spyOn(
-    TeamsCredentialManager.prototype,
-    'loadConfig'
-  ).mockResolvedValue(null)
+  credManagerLoadConfigSpy = spyOn(TeamsCredentialManager.prototype, 'loadConfig').mockResolvedValue(null)
 
-  credManagerSaveConfigSpy = spyOn(
-    TeamsCredentialManager.prototype,
-    'saveConfig'
-  ).mockResolvedValue(undefined)
+  credManagerSaveConfigSpy = spyOn(TeamsCredentialManager.prototype, 'saveConfig').mockResolvedValue(undefined)
 
-  credManagerClearCredentialsSpy = spyOn(
-    TeamsCredentialManager.prototype,
-    'clearCredentials'
-  ).mockResolvedValue(undefined)
+  credManagerClearCredentialsSpy = spyOn(TeamsCredentialManager.prototype, 'clearCredentials').mockResolvedValue(
+    undefined,
+  )
 
-  credManagerIsTokenExpiredSpy = spyOn(
-    TeamsCredentialManager.prototype,
-    'isTokenExpired'
-  ).mockResolvedValue(false)
+  credManagerIsTokenExpiredSpy = spyOn(TeamsCredentialManager.prototype, 'isTokenExpired').mockResolvedValue(false)
 })
 
 afterEach(() => {

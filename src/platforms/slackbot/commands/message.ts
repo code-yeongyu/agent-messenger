@@ -3,11 +3,7 @@ import { handleError } from '../../../shared/utils/error-handler'
 import { formatOutput } from '../../../shared/utils/output'
 import { type BotOption, getClient } from './shared'
 
-async function sendAction(
-  channel: string,
-  text: string,
-  options: BotOption & { thread?: string }
-): Promise<void> {
+async function sendAction(channel: string, text: string, options: BotOption & { thread?: string }): Promise<void> {
   try {
     const client = await getClient(options)
     const result = await client.postMessage(channel, text, {
@@ -22,8 +18,8 @@ async function sendAction(
           text: result.text,
           thread_ts: result.thread_ts,
         },
-        options.pretty
-      )
+        options.pretty,
+      ),
     )
   } catch (error) {
     handleError(error as Error)
@@ -58,12 +54,7 @@ async function getAction(channel: string, ts: string, options: BotOption): Promi
   }
 }
 
-async function updateAction(
-  channel: string,
-  ts: string,
-  text: string,
-  options: BotOption
-): Promise<void> {
+async function updateAction(channel: string, ts: string, text: string, options: BotOption): Promise<void> {
   try {
     const client = await getClient(options)
     const message = await client.updateMessage(channel, ts, text)
@@ -76,19 +67,15 @@ async function updateAction(
           type: message.type,
           user: message.user,
         },
-        options.pretty
-      )
+        options.pretty,
+      ),
     )
   } catch (error) {
     handleError(error as Error)
   }
 }
 
-async function deleteAction(
-  channel: string,
-  ts: string,
-  options: BotOption & { force?: boolean }
-): Promise<void> {
+async function deleteAction(channel: string, ts: string, options: BotOption & { force?: boolean }): Promise<void> {
   try {
     if (!options.force) {
       console.log(formatOutput({ warning: 'Use --force to confirm deletion', ts }, options.pretty))
@@ -107,7 +94,7 @@ async function deleteAction(
 async function repliesAction(
   channel: string,
   threadTs: string,
-  options: BotOption & { limit?: string }
+  options: BotOption & { limit?: string },
 ): Promise<void> {
   try {
     const client = await getClient(options)
@@ -130,7 +117,7 @@ export const messageCommand = new Command('message')
       .option('--thread <ts>', 'Thread timestamp for replies')
       .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
-      .action(sendAction)
+      .action(sendAction),
   )
   .addCommand(
     new Command('list')
@@ -139,7 +126,7 @@ export const messageCommand = new Command('message')
       .option('--limit <n>', 'Number of messages to fetch', '20')
       .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
-      .action(listAction)
+      .action(listAction),
   )
   .addCommand(
     new Command('get')
@@ -148,7 +135,7 @@ export const messageCommand = new Command('message')
       .argument('<ts>', 'Message timestamp')
       .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
-      .action(getAction)
+      .action(getAction),
   )
   .addCommand(
     new Command('update')
@@ -158,7 +145,7 @@ export const messageCommand = new Command('message')
       .argument('<text>', 'New message text')
       .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
-      .action(updateAction)
+      .action(updateAction),
   )
   .addCommand(
     new Command('delete')
@@ -168,7 +155,7 @@ export const messageCommand = new Command('message')
       .option('--force', 'Skip confirmation')
       .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
-      .action(deleteAction)
+      .action(deleteAction),
   )
   .addCommand(
     new Command('replies')
@@ -178,5 +165,5 @@ export const messageCommand = new Command('message')
       .option('--limit <n>', 'Number of replies to fetch', '100')
       .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
-      .action(repliesAction)
+      .action(repliesAction),
   )

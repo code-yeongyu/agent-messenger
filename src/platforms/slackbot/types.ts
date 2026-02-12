@@ -174,7 +174,7 @@ export const SlackMessageSchema = z.object({
       z.object({
         user: z.string(),
         ts: z.string(),
-      })
+      }),
     )
     .optional(),
   edited: z

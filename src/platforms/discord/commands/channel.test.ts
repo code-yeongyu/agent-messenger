@@ -15,29 +15,27 @@ beforeEach(() => {
     { id: 'ch-3', guild_id: 'guild-1', name: 'voice-channel', type: 2, topic: undefined },
   ])
 
-  clientGetChannelSpy = spyOn(DiscordClient.prototype, 'getChannel').mockImplementation(
-    async (channelId: string) => {
-      if (channelId === 'ch-1') {
-        return {
-          id: 'ch-1',
-          guild_id: 'guild-1',
-          name: 'general',
-          type: 0,
-          topic: 'General discussion',
-        }
+  clientGetChannelSpy = spyOn(DiscordClient.prototype, 'getChannel').mockImplementation(async (channelId: string) => {
+    if (channelId === 'ch-1') {
+      return {
+        id: 'ch-1',
+        guild_id: 'guild-1',
+        name: 'general',
+        type: 0,
+        topic: 'General discussion',
       }
-      if (channelId === 'ch-2') {
-        return {
-          id: 'ch-2',
-          guild_id: 'guild-1',
-          name: 'announcements',
-          type: 0,
-          topic: 'Announcements',
-        }
-      }
-      throw new Error('Channel not found')
     }
-  )
+    if (channelId === 'ch-2') {
+      return {
+        id: 'ch-2',
+        guild_id: 'guild-1',
+        name: 'announcements',
+        type: 0,
+        topic: 'Announcements',
+      }
+    }
+    throw new Error('Channel not found')
+  })
 
   clientGetMessagesSpy = spyOn(DiscordClient.prototype, 'getMessages').mockResolvedValue([
     {

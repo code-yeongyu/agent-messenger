@@ -9,16 +9,14 @@ export async function addAction(
   channelId: string,
   messageId: string,
   emoji: string,
-  options: { pretty?: boolean }
+  options: { pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
     const config = await credManager.loadConfig()
 
     if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -34,8 +32,8 @@ export async function addAction(
           message_id: messageId,
           emoji,
         },
-        options.pretty
-      )
+        options.pretty,
+      ),
     )
   } catch (error) {
     handleError(error as Error)
@@ -47,16 +45,14 @@ export async function removeAction(
   channelId: string,
   messageId: string,
   emoji: string,
-  options: { pretty?: boolean }
+  options: { pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
     const config = await credManager.loadConfig()
 
     if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -72,8 +68,8 @@ export async function removeAction(
           message_id: messageId,
           emoji,
         },
-        options.pretty
-      )
+        options.pretty,
+      ),
     )
   } catch (error) {
     handleError(error as Error)
@@ -90,7 +86,7 @@ export const reactionCommand = new Command('reaction')
       .argument('<message-id>', 'Message ID')
       .argument('<emoji>', 'Emoji name')
       .option('--pretty', 'Pretty print JSON output')
-      .action(addAction)
+      .action(addAction),
   )
   .addCommand(
     new Command('remove')
@@ -100,5 +96,5 @@ export const reactionCommand = new Command('reaction')
       .argument('<message-id>', 'Message ID')
       .argument('<emoji>', 'Emoji name')
       .option('--pretty', 'Pretty print JSON output')
-      .action(removeAction)
+      .action(removeAction),
   )

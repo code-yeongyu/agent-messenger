@@ -55,7 +55,7 @@ export class TeamsTokenExtractor {
             'MSTeams',
             'EBWebView',
             'WV2Profile_tfw',
-            'Cookies'
+            'Cookies',
           ),
           join(
             homedir(),
@@ -69,7 +69,7 @@ export class TeamsTokenExtractor {
             'MSTeams',
             'EBWebView',
             'WV2Profile_tfl',
-            'Cookies'
+            'Cookies',
           ),
           join(
             homedir(),
@@ -83,7 +83,7 @@ export class TeamsTokenExtractor {
             'MSTeams',
             'EBWebView',
             'Default',
-            'Cookies'
+            'Cookies',
           ),
           join(homedir(), 'Library', 'Application Support', 'Microsoft', 'Teams', 'Cookies'),
         ]
@@ -103,7 +103,7 @@ export class TeamsTokenExtractor {
             'MSTeams',
             'EBWebView',
             'WV2Profile_tfw',
-            'Cookies'
+            'Cookies',
           ),
           join(
             localAppData,
@@ -114,7 +114,7 @@ export class TeamsTokenExtractor {
             'MSTeams',
             'EBWebView',
             'WV2Profile_tfl',
-            'Cookies'
+            'Cookies',
           ),
           join(
             localAppData,
@@ -125,7 +125,7 @@ export class TeamsTokenExtractor {
             'MSTeams',
             'EBWebView',
             'Default',
-            'Cookies'
+            'Cookies',
           ),
           // Classic Teams fallback
           join(appdata, 'Microsoft', 'Teams', 'Cookies'),
@@ -139,14 +139,7 @@ export class TeamsTokenExtractor {
   getLocalStatePath(): string {
     switch (this.platform) {
       case 'darwin':
-        return join(
-          homedir(),
-          'Library',
-          'Application Support',
-          'Microsoft',
-          'Teams',
-          'Local State'
-        )
+        return join(homedir(), 'Library', 'Application Support', 'Microsoft', 'Teams', 'Local State')
       case 'linux':
         return join(homedir(), '.config', 'Microsoft', 'Microsoft Teams', 'Local State')
       case 'win32': {
@@ -160,7 +153,7 @@ export class TeamsTokenExtractor {
           'Microsoft',
           'MSTeams',
           'EBWebView',
-          'Local State'
+          'Local State',
         )
         if (existsSync(newTeamsPath)) return newTeamsPath
         return join(appdata, 'Microsoft', 'Teams', 'Local State')
@@ -400,10 +393,9 @@ export class TeamsTokenExtractor {
       // Escape double quotes in service/account to prevent command injection
       const safeService = service.replace(/"/g, '\\"')
       const safeAccount = account.replace(/"/g, '\\"')
-      const result = execSync(
-        `security find-generic-password -s "${safeService}" -a "${safeAccount}" -w 2>/dev/null`,
-        { encoding: 'utf8' }
-      )
+      const result = execSync(`security find-generic-password -s "${safeService}" -a "${safeAccount}" -w 2>/dev/null`, {
+        encoding: 'utf8',
+      })
       return result.trim()
     } catch {
       return null

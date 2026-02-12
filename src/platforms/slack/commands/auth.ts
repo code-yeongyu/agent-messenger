@@ -36,7 +36,7 @@ async function extractAction(options: { pretty?: boolean; debug?: boolean }): Pr
       console.error(`[debug] Found ${workspaces.length} workspace(s)`)
       for (const ws of workspaces) {
         console.error(
-          `[debug] - ${ws.workspace_id}: token=${ws.token.substring(0, 20)}..., cookie=${ws.cookie ? 'present' : 'missing'}`
+          `[debug] - ${ws.workspace_id}: token=${ws.token.substring(0, 20)}..., cookie=${ws.cookie ? 'present' : 'missing'}`,
         )
       }
     }
@@ -48,8 +48,8 @@ async function extractAction(options: { pretty?: boolean; debug?: boolean }): Pr
             error: 'No workspaces found. Make sure Slack desktop app is installed and logged in.',
             hint: options.debug ? undefined : 'Run with --debug for more info.',
           },
-          options.pretty
-        )
+          options.pretty,
+        ),
       )
       process.exit(1)
     }
@@ -84,12 +84,11 @@ async function extractAction(options: { pretty?: boolean; debug?: boolean }): Pr
       console.log(
         formatOutput(
           {
-            error:
-              'Extracted tokens are invalid. Make sure you are logged into the Slack desktop app.',
+            error: 'Extracted tokens are invalid. Make sure you are logged into the Slack desktop app.',
             extracted_count: workspaces.length,
           },
-          options.pretty
-        )
+          options.pretty,
+        ),
       )
       process.exit(1)
     }
@@ -109,10 +108,7 @@ async function extractAction(options: { pretty?: boolean; debug?: boolean }): Pr
   }
 }
 
-async function logoutAction(
-  workspace: string | undefined,
-  options: { pretty?: boolean }
-): Promise<void> {
+async function logoutAction(workspace: string | undefined, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const config = await credManager.load()
@@ -121,21 +117,14 @@ async function logoutAction(
 
     if (!targetWorkspace) {
       if (!config.current_workspace) {
-        console.log(
-          formatOutput(
-            { error: 'No current workspace set. Specify a workspace ID.' },
-            options.pretty
-          )
-        )
+        console.log(formatOutput({ error: 'No current workspace set. Specify a workspace ID.' }, options.pretty))
         process.exit(1)
       }
       targetWorkspace = config.current_workspace
     }
 
     if (!config.workspaces[targetWorkspace]) {
-      console.log(
-        formatOutput({ error: `Workspace not found: ${targetWorkspace}` }, options.pretty)
-      )
+      console.log(formatOutput({ error: `Workspace not found: ${targetWorkspace}` }, options.pretty))
       process.exit(1)
     }
 
@@ -153,12 +142,7 @@ async function statusAction(options: { pretty?: boolean }): Promise<void> {
     const ws = await credManager.getWorkspace()
 
     if (!ws) {
-      console.log(
-        formatOutput(
-          { error: 'No workspace configured. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No workspace configured. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -194,18 +178,18 @@ export const authCommand = new Command('auth')
       .description('Extract tokens from Slack desktop app')
       .option('--pretty', 'Pretty print JSON output')
       .option('--debug', 'Show debug output for troubleshooting')
-      .action(extractAction)
+      .action(extractAction),
   )
   .addCommand(
     new Command('logout')
       .description('Logout from workspace')
       .argument('[workspace]', 'Workspace ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(logoutAction)
+      .action(logoutAction),
   )
   .addCommand(
     new Command('status')
       .description('Show authentication status')
       .option('--pretty', 'Pretty print JSON output')
-      .action(statusAction)
+      .action(statusAction),
   )

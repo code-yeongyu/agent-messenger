@@ -9,7 +9,7 @@ const testDirs: string[] = []
 function setup(): CredentialManager {
   const testConfigDir = join(
     import.meta.dir,
-    `.test-workspace-config-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `.test-workspace-config-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   )
   testDirs.push(testConfigDir)
   return new CredentialManager(testConfigDir)

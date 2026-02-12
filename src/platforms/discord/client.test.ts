@@ -11,10 +11,7 @@ describe('DiscordClient', () => {
     fetchCalls = []
     fetchResponses = []
     fetchIndex = 0
-    ;(globalThis as any).fetch = async (
-      url: string | URL | Request,
-      options?: RequestInit
-    ): Promise<Response> => {
+    ;(globalThis as any).fetch = async (url: string | URL | Request, options?: RequestInit): Promise<Response> => {
       fetchCalls.push({ url: url.toString(), options })
       const response = fetchResponses[fetchIndex]
       fetchIndex++
@@ -45,7 +42,7 @@ describe('DiscordClient', () => {
       new Response(body === null ? null : JSON.stringify(body), {
         status,
         headers: defaultHeaders,
-      })
+      }),
     )
   }
 
@@ -236,7 +233,7 @@ describe('DiscordClient', () => {
       await client.addReaction('ch1', 'msg1', '👍')
 
       expect(fetchCalls[0].url).toBe(
-        'https://discord.com/api/v10/channels/ch1/messages/msg1/reactions/%F0%9F%91%8D/@me'
+        'https://discord.com/api/v10/channels/ch1/messages/msg1/reactions/%F0%9F%91%8D/@me',
       )
       expect(fetchCalls[0].options?.method).toBe('PUT')
     })
@@ -250,7 +247,7 @@ describe('DiscordClient', () => {
       await client.removeReaction('ch1', 'msg1', '👍')
 
       expect(fetchCalls[0].url).toBe(
-        'https://discord.com/api/v10/channels/ch1/messages/msg1/reactions/%F0%9F%91%8D/@me'
+        'https://discord.com/api/v10/channels/ch1/messages/msg1/reactions/%F0%9F%91%8D/@me',
       )
       expect(fetchCalls[0].options?.method).toBe('DELETE')
     })
@@ -258,10 +255,7 @@ describe('DiscordClient', () => {
 
   describe('listUsers', () => {
     test('returns list of server members', async () => {
-      mockResponse([
-        { user: { id: 'u1', username: 'user1' } },
-        { user: { id: 'u2', username: 'user2' } },
-      ])
+      mockResponse([{ user: { id: 'u1', username: 'user1' } }, { user: { id: 'u2', username: 'user2' } }])
 
       const client = new DiscordClient('test-token')
       const users = await client.listUsers('111')
@@ -324,9 +318,7 @@ describe('DiscordClient', () => {
           author: { id: '123', username: 'user1' },
           content: '',
           timestamp: '2024-01-01T00:00:00.000Z',
-          attachments: [
-            { id: 'att1', filename: 'file1.txt', size: 100, url: 'https://example.com/file1.txt' },
-          ],
+          attachments: [{ id: 'att1', filename: 'file1.txt', size: 100, url: 'https://example.com/file1.txt' }],
         },
         {
           id: 'msg2',

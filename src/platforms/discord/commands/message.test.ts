@@ -46,9 +46,7 @@ beforeEach(() => {
     timestamp: '2025-01-29T10:00:00Z',
   })
 
-  clientDeleteMessageSpy = spyOn(DiscordClient.prototype, 'deleteMessage').mockResolvedValue(
-    undefined
-  )
+  clientDeleteMessageSpy = spyOn(DiscordClient.prototype, 'deleteMessage').mockResolvedValue(undefined)
 
   clientAckMessageSpy = spyOn(DiscordClient.prototype, 'ackMessage').mockResolvedValue(undefined)
 

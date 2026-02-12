@@ -3,12 +3,7 @@ import { handleError } from '../../../shared/utils/error-handler'
 import { formatOutput } from '../../../shared/utils/output'
 import { type BotOption, getClient } from './shared'
 
-async function addAction(
-  channel: string,
-  timestamp: string,
-  emoji: string,
-  options: BotOption
-): Promise<void> {
+async function addAction(channel: string, timestamp: string, emoji: string, options: BotOption): Promise<void> {
   try {
     const client = await getClient(options)
     await client.addReaction(channel, timestamp, emoji)
@@ -19,12 +14,7 @@ async function addAction(
   }
 }
 
-async function removeAction(
-  channel: string,
-  timestamp: string,
-  emoji: string,
-  options: BotOption
-): Promise<void> {
+async function removeAction(channel: string, timestamp: string, emoji: string, options: BotOption): Promise<void> {
   try {
     const client = await getClient(options)
     await client.removeReaction(channel, timestamp, emoji)
@@ -45,7 +35,7 @@ export const reactionCommand = new Command('reaction')
       .argument('<emoji>', 'Emoji name (with or without colons)')
       .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
-      .action(addAction)
+      .action(addAction),
   )
   .addCommand(
     new Command('remove')
@@ -55,5 +45,5 @@ export const reactionCommand = new Command('reaction')
       .argument('<emoji>', 'Emoji name (with or without colons)')
       .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
-      .action(removeAction)
+      .action(removeAction),
   )

@@ -13,9 +13,7 @@ export async function getClient(options: BotOption): Promise<SlackBotClient> {
   const creds = await credManager.getCredentials(options.bot)
 
   if (!creds) {
-    console.log(
-      formatOutput({ error: 'No credentials. Run "auth set <token>" first.' }, options.pretty)
-    )
+    console.log(formatOutput({ error: 'No credentials. Run "auth set <token>" first.' }, options.pretty))
     process.exit(1)
   }
 

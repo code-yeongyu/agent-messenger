@@ -191,7 +191,7 @@ export const authCommand = new Command('auth')
       .option('--pretty', 'Pretty print JSON output')
       .action(async (token: string, opts: { bot?: string; name?: string; pretty?: boolean }) => {
         cliOutput(await setAction(token, opts), opts.pretty)
-      })
+      }),
   )
   .addCommand(
     new Command('clear')
@@ -199,7 +199,7 @@ export const authCommand = new Command('auth')
       .option('--pretty', 'Pretty print JSON output')
       .action(async (opts: { pretty?: boolean }) => {
         cliOutput(await clearAction(opts), opts.pretty)
-      })
+      }),
   )
   .addCommand(
     new Command('status')
@@ -210,7 +210,7 @@ export const authCommand = new Command('auth')
         const result = await statusAction(opts)
         console.log(formatOutput(result, opts.pretty))
         if (!result.valid) process.exit(1)
-      })
+      }),
   )
   .addCommand(
     new Command('list')
@@ -218,7 +218,7 @@ export const authCommand = new Command('auth')
       .option('--pretty', 'Pretty print JSON output')
       .action(async (opts: { pretty?: boolean }) => {
         cliOutput(await listAction(opts), opts.pretty)
-      })
+      }),
   )
   .addCommand(
     new Command('use')
@@ -227,7 +227,7 @@ export const authCommand = new Command('auth')
       .option('--pretty', 'Pretty print JSON output')
       .action(async (botId: string, opts: { pretty?: boolean }) => {
         cliOutput(await useAction(botId, opts), opts.pretty)
-      })
+      }),
   )
   .addCommand(
     new Command('remove')
@@ -236,5 +236,5 @@ export const authCommand = new Command('auth')
       .option('--pretty', 'Pretty print JSON output')
       .action(async (botId: string, opts: { pretty?: boolean }) => {
         cliOutput(await removeAction(botId, opts), opts.pretty)
-      })
+      }),
   )

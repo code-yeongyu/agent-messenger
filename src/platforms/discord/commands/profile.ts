@@ -10,9 +10,7 @@ async function getAction(userId: string, options: { pretty?: boolean }): Promise
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -51,5 +49,5 @@ export const profileCommand = new Command('profile')
       .description('Get user profile')
       .argument('<user-id>', 'User ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(getAction)
+      .action(getAction),
   )

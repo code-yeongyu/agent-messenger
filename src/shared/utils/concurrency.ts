@@ -1,7 +1,7 @@
 export async function parallelMap<T, R>(
   items: T[],
   fn: (item: T, index: number) => Promise<R>,
-  concurrency = 5
+  concurrency = 5,
 ): Promise<R[]> {
   const results: R[] = new Array(items.length)
   let currentIndex = 0

@@ -10,12 +10,7 @@ async function listAction(options: { pretty?: boolean }): Promise<void> {
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -37,9 +32,7 @@ async function listAction(options: { pretty?: boolean }): Promise<void> {
   }
 }
 
-const sections = new Command('sections').description(
-  'Manage Slack channel sections (sidebar folders)'
-)
+const sections = new Command('sections').description('Manage Slack channel sections (sidebar folders)')
 
 sections
   .command('list')
