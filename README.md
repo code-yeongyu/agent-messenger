@@ -6,6 +6,9 @@ A unified, agent-friendly CLI for messaging platforms. Zero-config credential ex
 
 ## Why Agent Messenger?
 
+Messaging platforms like Slack, Discord, and Teams only offer Bot tokens for API access. This means your AI agent can never act **as you**—it can only act as a bot. Agent Messenger changes this by extracting user credentials directly from your installed desktop apps, letting your agent send messages, react, and interact on your behalf. Of course, it fully supports bot tokens too for server-side and CI/CD use cases.
+
+- **Act as yourself, not a bot** — Extracted user tokens let your agent operate on your behalf
 - **No API keys needed** — Automatically extracts credentials from your installed desktop apps
 - **One interface, multiple platforms** — Learn once, use everywhere (Slack, Discord, Teams)
 - **AI-agent friendly** — JSON output by default, perfect for LLM tool use
