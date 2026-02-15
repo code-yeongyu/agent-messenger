@@ -18,7 +18,7 @@ Agent Skills provide this knowledge in a structured format that AI agents can un
 
 ## Installation
 
-### Skills CLI
+### Skills CLI (OpenCode, Cline, etc.)
 
 The fastest way to add Agent Messenger skills to your project:
 
@@ -26,7 +26,7 @@ The fastest way to add Agent Messenger skills to your project:
 npx skills add devxoul/agent-messenger
 ```
 
-This adds the skill files to your project's `.skills/` directory.
+This adds the skill files to your project's `.skills/` directory. See [skills.sh](https://skills.sh/) for more details.
 
 ### Claude Code
 
@@ -45,14 +45,14 @@ Or from within Claude Code:
 /plugin install agent-messenger
 ```
 
-### OpenCode
+### OpenCode (via plugin)
 
 Add to your `opencode.jsonc`:
 
 ```jsonc
 {
   "plugins": [
-    "agent-messenger@1.1.0"
+    "agent-messenger"
   ]
 }
 ```
