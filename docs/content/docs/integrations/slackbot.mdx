@@ -74,6 +74,16 @@ agent-slackbot auth set xoxb-your-bot-token --bot deploy --name "Deploy Bot"
 agent-slackbot auth status
 ```
 
+### Authentication Commands
+
+```bash
+# Check bot auth status
+agent-slackbot auth status
+
+# Clear all stored credentials
+agent-slackbot auth clear
+```
+
 ### Multi-Bot Support
 
 Store multiple bot tokens and switch between them:
@@ -198,7 +208,7 @@ agent-slackbot reaction remove <channel> <ts> <emoji>
 
 ## AI Agent Integration
 
-See `skills/agent-slackbot/` directory for:
+See [`skills/agent-slackbot/`](https://github.com/devxoul/agent-messenger/tree/main/skills/agent-slackbot) for:
 - Complete skill documentation
 - Runnable templates
 - Common patterns for AI agents
