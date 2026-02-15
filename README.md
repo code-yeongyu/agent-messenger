@@ -6,7 +6,7 @@ A unified, agent-friendly CLI for messaging platforms. Zero-config credential ex
 
 ## 🤔 Why Agent Messenger?
 
-Messaging platforms like Slack, Discord, and Teams only offer Bot tokens for API access. This means your AI agent can never act **as you**—it can only act as a bot. Agent Messenger changes this by extracting user credentials directly from your installed desktop apps, letting your agent send messages, react, and interact on your behalf. Of course, it fully supports bot tokens too for server-side and CI/CD use cases.
+Messaging platforms only offer Bot tokens for API access—your AI agent can never act **as you**. Agent Messenger extracts user credentials directly from your installed desktop apps, letting your agent operate on your behalf. Bot tokens are fully supported too for server-side and CI/CD use cases.
 
 - 🎭 **Act as yourself, not a bot** — Extracted user tokens let your agent operate on your behalf
 - 🔑 **No API keys needed** — Automatically extracts credentials from your installed desktop apps
@@ -31,9 +31,9 @@ This installs:
 
 ## 🧠 Agent Skills
 
-Agent Messenger includes [Agent Skills](https://agentskills.io/) that teach your AI agent how to use these CLIs effectively.
+Agent Messenger includes [Agent Skills](https://agentskills.io/) that teach your AI agent how to use these CLIs effectively. Install the skill for your platform:
 
-### Skills CLI
+### Skills CLI (OpenCode, Cline, etc.)
 
 ```bash
 npx skills add devxoul/agent-messenger
@@ -55,14 +55,14 @@ Or within Claude Code:
 /plugin install agent-messenger
 ```
 
-### OpenCode
+### OpenCode (via plugin)
 
 Add to your `opencode.jsonc`:
 
 ```jsonc
 {
   "plugins": [
-    "agent-messenger@1.3.0"
+    "agent-messenger"
   ]
 }
 ```
@@ -98,14 +98,14 @@ That's it. No OAuth flows. No API tokens. No configuration files.
 | Multi-workspace | ✅ | ✅ | ✅ |
 | Bot support | ✅ | — | — |
 
-> **Note**: Teams tokens expire in 60-90 minutes. See [Teams Guide](docs/teams.md) for token refresh patterns.
+> ⚠️ **Teams tokens expire in 60-90 minutes.** Re-run `agent-teams auth extract` to refresh. See [Teams Guide](skills/agent-teams/SKILL.md) for details.
 
 ## 📖 Platform Guides
 
-- **[Slack Guide](docs/slack.md)** — Full command reference for Slack
-- **[Slack Bot Guide](docs/slackbot.md)** — Bot token integration for server-side and CI/CD
-- **[Discord Guide](docs/discord.md)** — Full command reference for Discord
-- **[Teams Guide](docs/teams.md)** — Full command reference for Microsoft Teams
+- **[Slack Guide](skills/agent-slack/SKILL.md)** — Full command reference for Slack
+- **[Slack Bot Guide](skills/agent-slackbot/SKILL.md)** — Bot token integration for server-side and CI/CD
+- **[Discord Guide](skills/agent-discord/SKILL.md)** — Full command reference for Discord
+- **[Teams Guide](skills/agent-teams/SKILL.md)** — Full command reference for Microsoft Teams
 
 ## 💡 Use Cases
 
@@ -128,7 +128,7 @@ That's it. No OAuth flows. No API tokens. No configuration files.
 
 **Why not MCP?** MCP servers expose all tools at once, bloating context and confusing agents. **[Agent Skills](https://agentskills.io/) + agent-friendly CLI** offer a better approach—load what you need, when you need it. Fewer tokens, cleaner context, better output.
 
-**Why not OAuth?** OAuth requires an app and it requires workspace admin approval to install, which can take days. This tool just works—zero setup required. For those who prefer bot tokens (e.g., server-side or CI/CD), see [`agent-slackbot`](docs/slackbot.md).
+**Why not OAuth?** OAuth requires an app and it requires workspace admin approval to install, which can take days. This tool just works—zero setup required. For those who prefer bot tokens (e.g., server-side or CI/CD), see [`agent-slackbot`](skills/agent-slackbot/SKILL.md).
 
 Inspired by [agent-browser](https://github.com/vercel-labs/agent-browser) from Vercel Labs.
 
