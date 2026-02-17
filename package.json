@@ -14,7 +14,7 @@
     "agent-slackbot": "./src/platforms/slackbot/cli.ts"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc-alias",
     "postbuild": "bun scripts/postbuild.ts",
     "test": "bun test src/",
     "test:e2e": "bun test e2e/",
@@ -38,6 +38,7 @@
     "@types/better-sqlite3": "^7.6.8",
     "@types/bun": "latest",
     "@types/node": "^20.10.6",
+    "tsc-alias": "^1.8.16",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
