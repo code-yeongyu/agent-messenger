@@ -25,6 +25,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -64,7 +65,7 @@ jobs:
           git push origin HEAD --tags
 
       - name: Publish to npm
-        run: npm publish --provenance --access public --registry https://registry.npmjs.org
+        run: npm publish --provenance --access public
 
       - name: Create GitHub Release
         run: gh release create "${{ inputs.version }}" --generate-notes
