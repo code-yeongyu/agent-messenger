@@ -65,7 +65,9 @@ jobs:
           git push origin HEAD --tags
 
       - name: Publish to npm
-        run: npm publish --provenance --access public
+        run: |
+          npm config delete "//registry.npmjs.org/:_authToken" --location=user
+          npm publish --provenance --access public
 
       - name: Create GitHub Release
         run: gh release create "${{ inputs.version }}" --generate-notes
