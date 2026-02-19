@@ -198,6 +198,7 @@ export class SlackClient {
         thread_ts: msg.thread_ts,
         reply_count: msg.reply_count,
         replies: (msg as any).replies,
+        reactions: (msg as any).reactions,
         edited: msg.edited
           ? {
               user: msg.edited.user || '',
@@ -232,6 +233,7 @@ export class SlackClient {
         thread_ts: msg.thread_ts,
         reply_count: msg.reply_count,
         replies: (msg as any).replies,
+        reactions: (msg as any).reactions,
         edited: msg.edited
           ? {
               user: msg.edited.user || '',

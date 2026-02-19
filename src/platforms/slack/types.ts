@@ -36,6 +36,7 @@ export interface SlackMessage {
     user: string
     ts: string
   }
+  reactions?: SlackReaction[]
 }
 
 export interface SlackUser {
@@ -199,6 +200,15 @@ export const SlackMessageSchema = z.object({
       user: z.string(),
       ts: z.string(),
     })
+    .optional(),
+  reactions: z
+    .array(
+      z.object({
+        name: z.string(),
+        count: z.number(),
+        users: z.array(z.string()),
+      }),
+    )
     .optional(),
 })
 
