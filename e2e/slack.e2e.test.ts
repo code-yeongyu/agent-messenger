@@ -280,6 +280,83 @@ describe('Slack E2E Tests', () => {
     })
   })
 
+  describe('channel history', () => {
+    test('channel history returns messages', async () => {
+      const result = await runCLI('slack', ['channel', 'history', SLACK_TEST_CHANNEL_ID, '--limit', '5'])
+      expect(result.exitCode).toBe(0)
+
+      const data = parseJSON<Array<{ ts: string }>>(result.stdout)
+      expect(Array.isArray(data)).toBe(true)
+    })
+  })
+
+  describe('unread', () => {
+    test('unread counts returns unread summary', async () => {
+      const result = await runCLI('slack', ['unread', 'counts'])
+      expect(result.exitCode).toBe(0)
+
+      const data = parseJSON<{ total_unread: number; channels: unknown[] }>(result.stdout)
+      expect(data?.total_unread).toBeDefined()
+      expect(Array.isArray(data?.channels)).toBe(true)
+    })
+
+    test('unread mark marks channel as read', async () => {
+      const testId = generateTestId()
+      const { id: ts } = await createTestMessage('slack', SLACK_TEST_CHANNEL_ID, `Unread mark test ${testId}`)
+      testMessages.push(ts)
+
+      await waitForRateLimit()
+
+      const result = await runCLI('slack', ['unread', 'mark', SLACK_TEST_CHANNEL_ID, ts])
+      expect(result.exitCode).toBe(0)
+
+      const data = parseJSON<{ marked_read: boolean }>(result.stdout)
+      expect(data?.marked_read).toBe(true)
+    })
+  })
+
+  describe('activity', () => {
+    test('activity list returns activity items', async () => {
+      const result = await runCLI('slack', ['activity', 'list', '--limit', '5'])
+      expect(result.exitCode).toBe(0)
+
+      const data = parseJSON<{ items: unknown[]; count: number }>(result.stdout)
+      expect(data?.items).toBeDefined()
+      expect(typeof data?.count).toBe('number')
+    })
+  })
+
+  describe('saved', () => {
+    test('saved list returns saved items', async () => {
+      const result = await runCLI('slack', ['saved', 'list'])
+      expect(result.exitCode).toBe(0)
+
+      const data = parseJSON<{ items: unknown[] }>(result.stdout)
+      expect(data?.items).toBeDefined()
+      expect(Array.isArray(data?.items)).toBe(true)
+    })
+  })
+
+  describe('drafts', () => {
+    test('drafts list returns drafts', async () => {
+      const result = await runCLI('slack', ['drafts', 'list'])
+      expect(result.exitCode).toBe(0)
+
+      const data = parseJSON<unknown[]>(result.stdout)
+      expect(Array.isArray(data)).toBe(true)
+    })
+  })
+
+  describe('sections', () => {
+    test('sections list returns channel sections', async () => {
+      const result = await runCLI('slack', ['sections', 'list'])
+      expect(result.exitCode).toBe(0)
+
+      const data = parseJSON<unknown[]>(result.stdout)
+      expect(Array.isArray(data)).toBe(true)
+    })
+  })
+
   describe('snapshot', () => {
     test('snapshot returns full workspace data', async () => {
       const result = await runCLI('slack', ['snapshot', '--limit', '2'])

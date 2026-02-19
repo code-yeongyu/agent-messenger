@@ -104,6 +104,29 @@ describe('Discord E2E Tests', () => {
       const result = await runCLI('discord', ['message', 'delete', DISCORD_TEST_CHANNEL_ID, id, '--force'])
       expect(result.exitCode).toBe(0)
     })
+
+    test('message ack acknowledges message', async () => {
+      const testId = generateTestId()
+      const { id } = await createTestMessage('discord', DISCORD_TEST_CHANNEL_ID, `Ack test ${testId}`)
+      testMessages.push(id)
+
+      await waitForRateLimit()
+
+      const result = await runCLI('discord', ['message', 'ack', DISCORD_TEST_CHANNEL_ID, id])
+      expect(result.exitCode).toBe(0)
+
+      const data = parseJSON<{ acknowledged: string }>(result.stdout)
+      expect(data?.acknowledged).toBe(id)
+    })
+
+    test('message search finds messages', async () => {
+      const result = await runCLI('discord', ['message', 'search', 'test', '--limit', '5'])
+      expect(result.exitCode).toBe(0)
+
+      const data = parseJSON<{ results: unknown[]; total: number }>(result.stdout)
+      expect(data?.results).toBeDefined()
+      expect(typeof data?.total).toBe('number')
+    })
   })
 
   describe('channel', () => {
@@ -203,7 +226,7 @@ describe('Discord E2E Tests', () => {
       expect(Array.isArray(data)).toBe(true)
     })
 
-    test('file upload uploads file', async () => {
+    test('file upload uploads file and file info retrieves it', async () => {
       const testId = generateTestId()
       const testFilePath = `/tmp/discord-e2e-${testId}.txt`
       await Bun.write(testFilePath, `Discord E2E test file ${testId}`)
@@ -212,13 +235,37 @@ describe('Discord E2E Tests', () => {
         const result = await runCLI('discord', ['file', 'upload', DISCORD_TEST_CHANNEL_ID, testFilePath])
         expect(result.exitCode).toBe(0)
         
-        const data = parseJSON<{ id: string }>(result.stdout)
+        const data = parseJSON<{ id: string; attachments?: Array<{ id: string }> }>(result.stdout)
         expect(data?.id).toBeTruthy()
         
         // Track message for cleanup (file uploads create messages)
         if (data?.id) testMessages.push(data.id)
+
+        // Test file info using the attachment from the uploaded message
+        if (data?.attachments?.[0]?.id) {
+          await waitForRateLimit()
+          const infoResult = await runCLI('discord', ['file', 'info', DISCORD_TEST_CHANNEL_ID, data.attachments[0].id])
+          expect(infoResult.exitCode).toBe(0)
+        }
       } finally {
         await Bun.$`rm -f ${testFilePath}`.quiet()
+      }
+    })
+
+    test('file info retrieves file details', async () => {
+      // List files first to get a file ID
+      const listResult = await runCLI('discord', ['file', 'list', DISCORD_TEST_CHANNEL_ID])
+      expect(listResult.exitCode).toBe(0)
+
+      const files = parseJSON<Array<{ id: string }>>(listResult.stdout)
+      if (files && files.length > 0) {
+        await waitForRateLimit()
+
+        const result = await runCLI('discord', ['file', 'info', DISCORD_TEST_CHANNEL_ID, files[0].id])
+        expect(result.exitCode).toBe(0)
+
+        const data = parseJSON<{ id: string }>(result.stdout)
+        expect(data?.id).toBeTruthy()
       }
     })
   })
