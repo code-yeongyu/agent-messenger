@@ -24,8 +24,10 @@ Before running E2E tests, you need:
 |------|-------------|
 | `config.ts` | Hardcoded test workspace/server IDs and validation |
 | `helpers.ts` | CLI runner, JSON parser, message cleanup utilities |
-| `slack.e2e.test.ts` | Slack command tests (23 tests) |
-| `discord.e2e.test.ts` | Discord command tests (20 tests) |
+| `slack.e2e.test.ts` | Slack command tests |
+| `slackbot.e2e.test.ts` | SlackBot command tests |
+| `discord.e2e.test.ts` | Discord command tests |
+| `teams.e2e.test.ts` | Teams command tests |
 
 ## Running E2E Tests Locally
 
@@ -39,6 +41,9 @@ agent-slack auth extract
 
 # Extract Discord credentials  
 agent-discord auth extract
+
+# Extract Teams credentials
+agent-teams auth extract
 ```
 
 ### Step 2: Switch to Test Workspace
@@ -71,8 +76,14 @@ bun test e2e/
 # Run only Slack tests
 bun test e2e/slack.e2e.test.ts
 
+# Run only SlackBot tests
+bun test e2e/slackbot.e2e.test.ts
+
 # Run only Discord tests
 bun test e2e/discord.e2e.test.ts
+
+# Run only Teams tests
+E2E_TEAMS_TEAM_ID=<id> E2E_TEAMS_CHANNEL_ID=<id> bun test e2e/teams.e2e.test.ts
 
 # Run specific test by name
 bun test e2e/slack.e2e.test.ts --test-name-pattern "message send"
@@ -99,6 +110,15 @@ Set these secrets in your GitHub repository settings:
 |--------|-------------|------------|
 | `E2E_DISCORD_TOKEN` | Discord auth token | `agent-discord auth extract` → check output |
 | `E2E_DISCORD_SERVER_ID` | Test server ID | `agent-discord server current` |
+
+#### Teams Secrets
+
+| Secret | Description | How to Get |
+|--------|-------------|------------|
+| `E2E_TEAMS_TOKEN` | Teams auth token (skypetoken_asm) | `agent-teams auth extract` → check output |
+| `E2E_TEAMS_TEAM_ID` | Test team ID | `agent-teams team list` |
+| `E2E_TEAMS_CHANNEL_ID` | Test channel ID | `agent-teams channel list` |
+| `E2E_TEAMS_TEAM_NAME` | Test team name (optional) | `agent-teams team current` |
 
 ### Getting Credentials for CI
 
@@ -133,33 +153,63 @@ When triggering manually, you can select which platform to test:
 
 ## Test Coverage
 
-### Slack Tests (23 tests)
+### Slack Tests
 
 | Command Group | Tests |
 |---------------|-------|
 | `auth` | status |
 | `workspace` | list, current |
 | `message` | send, list, get, update, delete, thread reply, replies, search |
-| `channel` | list, list --type, info |
+| `channel` | list, list --type, info, history |
 | `user` | list, me, info |
 | `reaction` | add, list, remove |
-| `file` | upload, list, list --channel, info |
-| `snapshot` | default, --channels-only, --users-only, --limit |
+| `file` | upload, list |
+| `unread` | counts, mark |
+| `activity` | list |
+| `saved` | list |
+| `drafts` | list |
+| `sections` | list |
+| `snapshot` | default, --channels-only, --users-only |
 
-### Discord Tests (20 tests)
+### SlackBot Tests
+
+| Command Group | Tests |
+|---------------|-------|
+| `auth` | status |
+| `message` | send, list, get, update, delete, thread reply, replies |
+| `channel` | list, info |
+| `user` | list, info |
+| `reaction` | add, remove |
+
+### Discord Tests
 
 | Command Group | Tests |
 |---------------|-------|
 | `auth` | status |
 | `server` | list, current, info |
-| `message` | send, list, get*, delete |
+| `message` | send, list, get\*, delete, ack, search |
 | `channel` | list, info, history |
-| `user` | list, me, info* |
-| `reaction` | add*, list*, remove* |
-| `file` | upload, list |
-| `snapshot` | default, --channels-only, --users-only |
+| `user` | list\*, me, info |
+| `reaction` | add\*, list\*, remove\* |
+| `file` | upload, list, info |
+| `snapshot` | default\*, --channels-only, --users-only\* |
 
 \* Some Discord tests are skipped because they require Bot Token permissions not available to user tokens.
+
+### Teams Tests
+
+| Command Group | Tests |
+|---------------|-------|
+| `auth` | status |
+| `team` | list, current, info |
+| `message` | send, list, get, delete |
+| `channel` | list, info, history |
+| `user` | list, me, info |
+| `reaction` | add, list, remove |
+| `file` | upload, list, info |
+| `snapshot` | default, --channels-only, --users-only |
+
+> ⚠️ Teams tests require `E2E_TEAMS_TEAM_ID` and `E2E_TEAMS_CHANNEL_ID` environment variables. Teams tokens expire in 60-90 minutes.
 
 ## Troubleshooting
 

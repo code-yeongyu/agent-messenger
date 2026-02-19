@@ -75,3 +75,41 @@ export async function validateDiscordEnvironment() {
     }
   }
 }
+
+// Teams Test Environment
+export const TEAMS_TEST_TEAM_ID = process.env.E2E_TEAMS_TEAM_ID || ''
+export const TEAMS_TEST_TEAM_NAME = process.env.E2E_TEAMS_TEAM_NAME || 'Agent Messenger'
+export const TEAMS_TEST_CHANNEL_ID = process.env.E2E_TEAMS_CHANNEL_ID || ''
+export const TEAMS_TEST_CHANNEL = 'e2e-test'
+
+export async function validateTeamsEnvironment() {
+  const { runCLI, parseJSON } = await import('./helpers')
+
+  if (!TEAMS_TEST_TEAM_ID || !TEAMS_TEST_CHANNEL_ID) {
+    throw new Error(
+      'Teams E2E environment not configured. Set E2E_TEAMS_TEAM_ID and E2E_TEAMS_CHANNEL_ID environment variables.',
+    )
+  }
+
+  const result = await runCLI('teams', ['auth', 'status'])
+  if (result.exitCode !== 0) {
+    throw new Error('Teams authentication failed. Please run: agent-teams auth extract')
+  }
+
+  const data = parseJSON<{ authenticated: boolean; expired?: boolean }>(result.stdout)
+  if (data?.expired) {
+    throw new Error('Teams token expired. Please run: agent-teams auth extract')
+  }
+
+  const currentResult = await runCLI('teams', ['team', 'current'])
+  const team = parseJSON<{ team_id: string }>(currentResult.stdout)
+  if (team?.team_id !== TEAMS_TEST_TEAM_ID) {
+    const switchResult = await runCLI('teams', ['team', 'switch', TEAMS_TEST_TEAM_ID])
+    if (switchResult.exitCode !== 0) {
+      throw new Error(
+        `Failed to switch to test team. Expected: ${TEAMS_TEST_TEAM_NAME} (${TEAMS_TEST_TEAM_ID}). ` +
+        `Make sure you have access to the test team.`,
+      )
+    }
+  }
+}
