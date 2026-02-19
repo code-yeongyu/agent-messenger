@@ -21,7 +21,7 @@
     "build": "tsc && tsc-alias --resolve-full-paths",
     "postbuild": "bun scripts/postbuild.ts",
     "test": "bun test src/",
-    "test:e2e": "bun test e2e/",
+    "test:e2e": "bun --config=bunfig.e2e.toml test",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write --unsafe .",
