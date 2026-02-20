@@ -35,9 +35,15 @@ beforeEach(() => {
   ])
 
   credManagerLoadConfigSpy = spyOn(TeamsCredentialManager.prototype, 'loadConfig').mockResolvedValue({
-    token: 'test_token',
-    current_team: 'team_123',
-    teams: { team_123: { team_id: 'team_123', team_name: 'Test Team' } },
+    current_account: 'work',
+    accounts: {
+      work: {
+        token: 'test_token',
+        account_type: 'work' as const,
+        current_team: 'team_123',
+        teams: { team_123: { team_id: 'team_123', team_name: 'Test Team' } },
+      },
+    },
   })
 })
 
