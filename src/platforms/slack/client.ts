@@ -161,6 +161,28 @@ export class SlackClient {
     })
   }
 
+  async resolveChannel(channel: string): Promise<string> {
+    const normalized = channel.replace(/^#/, '')
+
+    if (/^[CDG][A-Z0-9]+$/.test(normalized)) {
+      return normalized
+    }
+
+    const name = normalized
+
+    const channels = await this.listChannels()
+    const found = channels.find((ch) => ch.name === name)
+
+    if (!found) {
+      throw new SlackError(
+        `Channel not found: "${channel}". Use channel ID or exact channel name.`,
+        'channel_not_found',
+      )
+    }
+
+    return found.id
+  }
+
   async sendMessage(channel: string, text: string, threadTs?: string): Promise<SlackMessage> {
     return this.withRetry(async () => {
       const response = await this.client.chat.postMessage({
