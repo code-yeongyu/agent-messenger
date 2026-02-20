@@ -526,14 +526,14 @@ export class SlackClient {
 
   async getActivityFeed(options?: { types?: string; mode?: string; limit?: number }): Promise<SlackActivityItem[]> {
     return this.withRetry(async () => {
-      const response = await (this.client as any).activity.feed({
-        types: options?.types,
+      const response = await this.client.apiCall('activity.feed', {
+        types: options?.types || 'thread_reply,message_reaction,at_user,at_channel,keyword',
         mode: options?.mode || 'chrono_reads_and_unreads',
         limit: options?.limit || 20,
       })
       this.checkResponse(response)
 
-      const items = (response.items || []).map((item: any) => ({
+      const items = ((response as any).items || []).map((item: any) => ({
         id: item.id || '',
         type: item.type || '',
         channel: item.channel || '',
@@ -555,7 +555,7 @@ export class SlackClient {
     return this.withRetry(async () => {
       const response = await (this.client as any).apiCall('saved.list', {
         cursor,
-        limit: 100,
+        limit: 50,
       })
       this.checkResponse(response)
 
