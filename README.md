@@ -10,6 +10,7 @@ Messaging platforms only offer Bot tokens for API access—your AI agent can nev
 
 - 🎭 **Act as yourself, not a bot** — Extracted user tokens let your agent operate on your behalf
 - 🔑 **No API keys needed** — Automatically extracts credentials from your installed desktop apps
+- ⚡ **Zero setup** — Credentials are auto-extracted on first command. No manual auth step required
 - 🌐 **One interface, multiple platforms** — Learn once, use everywhere (Slack, Discord, Teams)
 - 🤖 **AI-agent friendly** — JSON output by default, perfect for LLM tool use
 - 👤 **Human friendly too** — Add `--pretty` for readable output
@@ -72,30 +73,33 @@ Add to your `opencode.jsonc`:
 Get up and running in 30 seconds:
 
 ```bash
-# 1. Extract credentials from your Slack desktop app
-agent-slack auth extract
-
-# 2. See your workspace at a glance
+# 1. See your workspace at a glance
 agent-slack snapshot --pretty
 
-# 3. Send a message
+# 2. Send a message
 agent-slack message send general "Hello from the CLI!"
 ```
 
-That's it. No OAuth flows. No API tokens. No configuration files.
+That's it. Credentials are extracted automatically from your Slack desktop app on first run. No OAuth flows. No API tokens. No configuration files.
 
 ## 📋 Supported Platforms
 
 | Feature | Slack | Discord | Teams |
 |---------|:-----:|:-------:|:-----:|
 | Auto credential extraction | ✅ | ✅ | ✅ |
-| Send / List / Search messages | ✅ | ✅ | ✅ |
-| Threads | ✅ | ✅ | ✅ |
+| Send & list messages | ✅ | ✅ | ✅ |
+| Search messages | ✅ | ✅ | — |
+| Threads | ✅ | ✅ | — |
 | Channels & Users | ✅ | ✅ | ✅ |
 | Reactions | ✅ | ✅ | ✅ |
 | File uploads | ✅ | ✅ | ✅ |
 | Workspace snapshots | ✅ | ✅ | ✅ |
 | Multi-workspace | ✅ | ✅ | ✅ |
+| Activity feed | ✅ | — | — |
+| Drafts | ✅ | — | — |
+| Saved items | ✅ | — | — |
+| Unread messages | ✅ | — | — |
+| Sidebar sections | ✅ | — | — |
 | Bot support | ✅ | — | — |
 
 > ⚠️ **Teams tokens expire in 60-90 minutes.** Re-run `agent-teams auth extract` to refresh. See [Teams Guide](skills/agent-teams/SKILL.md) for details.
