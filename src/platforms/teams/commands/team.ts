@@ -4,17 +4,10 @@ import { formatOutput } from '@/shared/utils/output'
 import { TeamsClient } from '../client'
 import { TeamsCredentialManager } from '../credential-manager'
 
-function getAccountFromConfig(config: NonNullable<Awaited<ReturnType<TeamsCredentialManager['loadConfig']>>>) {
-  const key = config.current_account
-  if (!key) return null
-  return config.accounts[key] ?? null
-}
-
 export async function listAction(options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
-    const config = await credManager.loadConfig()
-    const account = config ? getAccountFromConfig(config) : null
+    const account = await credManager.getCurrentAccount()
     const teams = account?.teams ? Object.values(account.teams) : []
 
     const output = teams.map((team) => ({
@@ -32,14 +25,14 @@ export async function listAction(options: { pretty?: boolean }): Promise<void> {
 export async function infoAction(teamId: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
-    const token = await credManager.getToken()
+    const cred = await credManager.getTokenWithExpiry()
 
-    if (!token) {
+    if (!cred) {
       console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
-    const client = new TeamsClient(token)
+    const client = new TeamsClient(cred.token, cred.tokenExpiresAt)
     const team = await client.getTeam(teamId)
 
     const output = {
@@ -57,8 +50,7 @@ export async function infoAction(teamId: string, options: { pretty?: boolean }):
 export async function switchAction(teamId: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
-    const config = await credManager.loadConfig()
-    const account = config ? getAccountFromConfig(config) : null
+    const account = await credManager.getCurrentAccount()
 
     if (!account?.teams?.[teamId]) {
       console.log(formatOutput({ error: `Team not found: ${teamId}` }, options.pretty))
@@ -99,7 +91,7 @@ export async function removeAction(teamId: string, options: { pretty?: boolean }
       process.exit(1)
     }
 
-    const account = getAccountFromConfig(config)
+    const account = await credManager.getCurrentAccount()
     if (!account) {
       console.log(formatOutput({ error: 'No active account.' }, options.pretty))
       process.exit(1)
