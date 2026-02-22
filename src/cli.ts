@@ -30,6 +30,10 @@ program.command('slackbot', 'Interact with Slack using bot tokens', {
   executableFile: join(__dirname, 'platforms', 'slackbot', `cli${ext}`),
 })
 
+program.command('discordbot', 'Interact with Discord using bot tokens', {
+  executableFile: join(__dirname, 'platforms', 'discordbot', `cli${ext}`),
+})
+
 program.parse(process.argv)
 
 export default program

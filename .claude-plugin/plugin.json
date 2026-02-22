@@ -25,6 +25,7 @@
     "./skills/agent-slack",
     "./skills/agent-slackbot",
     "./skills/agent-discord",
+    "./skills/agent-discordbot",
     "./skills/agent-teams"
   ]
 }

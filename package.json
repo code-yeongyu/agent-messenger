@@ -15,7 +15,8 @@
     "agent-slack": "./src/platforms/slack/cli.ts",
     "agent-discord": "./src/platforms/discord/cli.ts",
     "agent-teams": "./src/platforms/teams/cli.ts",
-    "agent-slackbot": "./src/platforms/slackbot/cli.ts"
+    "agent-slackbot": "./src/platforms/slackbot/cli.ts",
+    "agent-discordbot": "./src/platforms/discordbot/cli.ts"
   },
   "scripts": {
     "build": "tsc && tsc-alias --resolve-full-paths",
