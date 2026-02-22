@@ -9,7 +9,12 @@ import {
 import { DiscordBotClient } from '../src/platforms/discordbot/client'
 import { DiscordBotCredentialManager } from '../src/platforms/discordbot/credential-manager'
 
-let testMessages: string[] = []
+interface TrackedMessage {
+  id: string
+  channelId: string
+}
+
+let testMessages: TrackedMessage[] = []
 let cleanupClient: DiscordBotClient
 
 async function getClient(): Promise<DiscordBotClient> {
@@ -19,15 +24,19 @@ async function getClient(): Promise<DiscordBotClient> {
   return new DiscordBotClient(creds.token)
 }
 
-async function cleanupBotMessages(channelId: string, messageIds: string[]) {
-  for (const id of messageIds) {
+async function cleanupBotMessages(messages: TrackedMessage[]) {
+  for (const msg of messages) {
     try {
-      await cleanupClient.deleteMessage(channelId, id)
+      await cleanupClient.deleteMessage(msg.channelId, msg.id)
       await waitForRateLimit(500)
     } catch {
       // best-effort cleanup
     }
   }
+}
+
+function trackMessage(id: string, channelId: string = DISCORDBOT_TEST_CHANNEL_ID) {
+  testMessages.push({ id, channelId })
 }
 
 describe('DiscordBot E2E Tests', () => {
@@ -38,7 +47,7 @@ describe('DiscordBot E2E Tests', () => {
 
   afterEach(async () => {
     if (testMessages.length > 0) {
-      await cleanupBotMessages(DISCORDBOT_TEST_CHANNEL_ID, testMessages)
+      await cleanupBotMessages(testMessages)
       testMessages = []
     }
     await waitForRateLimit()
@@ -73,7 +82,7 @@ describe('DiscordBot E2E Tests', () => {
       expect(data?.id).toBeTruthy()
       expect(data?.channel_id).toBe(DISCORDBOT_TEST_CHANNEL_ID)
 
-      if (data?.id) testMessages.push(data.id)
+      if (data?.id) trackMessage(data.id)
     })
 
     test('message list returns messages array', async () => {
@@ -93,7 +102,7 @@ describe('DiscordBot E2E Tests', () => {
       ])
       const sent = parseJSON<{ id: string }>(sendResult.stdout)
       expect(sent?.id).toBeTruthy()
-      if (sent?.id) testMessages.push(sent.id)
+      if (sent?.id) trackMessage(sent.id)
 
       await waitForRateLimit()
 
@@ -114,7 +123,7 @@ describe('DiscordBot E2E Tests', () => {
       ])
       const sent = parseJSON<{ id: string }>(sendResult.stdout)
       expect(sent?.id).toBeTruthy()
-      if (sent?.id) testMessages.push(sent.id)
+      if (sent?.id) trackMessage(sent.id)
 
       await waitForRateLimit()
 
@@ -155,7 +164,7 @@ describe('DiscordBot E2E Tests', () => {
       ])
       const parent = parseJSON<{ id: string }>(sendResult.stdout)
       expect(parent?.id).toBeTruthy()
-      if (parent?.id) testMessages.push(parent.id)
+      if (parent?.id) trackMessage(parent.id)
 
       await waitForRateLimit()
 
@@ -168,7 +177,8 @@ describe('DiscordBot E2E Tests', () => {
       const reply = parseJSON<{ id: string; thread_id: string }>(replyResult.stdout)
       expect(reply?.id).toBeTruthy()
 
-      if (reply?.id) testMessages.push(reply.id)
+      const replyChannel = reply?.thread_id || DISCORDBOT_TEST_CHANNEL_ID
+      if (reply?.id) trackMessage(reply.id, replyChannel)
     }, 30000)
 
     test('message replies gets thread messages', async () => {
@@ -190,6 +200,8 @@ describe('DiscordBot E2E Tests', () => {
         'message', 'send', threadId, `Reply in thread ${testId}`,
       ])
       expect(sendResult.exitCode).toBe(0)
+      const threadMsg = parseJSON<{ id: string }>(sendResult.stdout)
+      if (threadMsg?.id) trackMessage(threadMsg.id, threadId)
 
       await waitForRateLimit()
 
@@ -264,7 +276,7 @@ describe('DiscordBot E2E Tests', () => {
       ])
       const sent = parseJSON<{ id: string }>(sendResult.stdout)
       expect(sent?.id).toBeTruthy()
-      if (sent?.id) testMessages.push(sent.id)
+      if (sent?.id) trackMessage(sent.id)
 
       await waitForRateLimit(2000)
 

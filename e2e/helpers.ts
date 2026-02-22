@@ -14,16 +14,21 @@ export async function runCLI(platform: string, args: string[]): Promise<CLIResul
   }
   const command = commandMap[platform] || platform
 
-  const proc = Bun.spawn([command, ...args], {
-    stdout: 'pipe',
-    stderr: 'pipe',
-  })
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ])
-  return { exitCode, stdout, stderr }
+  try {
+    const proc = Bun.spawn([command, ...args], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    })
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ])
+    return { exitCode, stdout, stderr }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return { exitCode: 1, stdout: '', stderr: message }
+  }
 }
 
 export function parseJSON<T>(output: string): T | null {
