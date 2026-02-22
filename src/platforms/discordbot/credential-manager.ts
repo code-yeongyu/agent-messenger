@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { DiscordBotConfig, DiscordBotCredentials } from './types'
@@ -30,6 +30,7 @@ export class DiscordBotCredentialManager {
   async save(config: DiscordBotConfig): Promise<void> {
     await mkdir(this.configDir, { recursive: true })
     await writeFile(this.credentialsPath, JSON.stringify(config, null, 2), { mode: 0o600 })
+    await chmod(this.credentialsPath, 0o600)
   }
 
   async getCredentials(botId?: string): Promise<DiscordBotCredentials | null> {
