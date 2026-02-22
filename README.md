@@ -28,6 +28,7 @@ This installs:
 - `agent-slack` — Slack CLI (user token, zero-config)
 - `agent-slackbot` — Slack Bot CLI (bot token, for server-side/CI/CD)
 - `agent-discord` — Discord CLI
+- `agent-discordbot` — Discord Bot CLI (bot token, for server-side/CI/CD)
 - `agent-teams` — Microsoft Teams CLI
 
 ## 🧠 Agent Skills
@@ -100,7 +101,7 @@ That's it. Credentials are extracted automatically from your Slack desktop app o
 | Saved items | ✅ | — | — |
 | Unread messages | ✅ | — | — |
 | Sidebar sections | ✅ | — | — |
-| Bot support | ✅ | — | — |
+| Bot support | ✅ | ✅ | — |
 
 > ⚠️ **Teams tokens expire in 60-90 minutes.** Re-run `agent-teams auth extract` to refresh. See [Teams Guide](skills/agent-teams/SKILL.md) for details.
 
@@ -109,6 +110,7 @@ That's it. Credentials are extracted automatically from your Slack desktop app o
 - **[Slack Guide](skills/agent-slack/SKILL.md)** — Full command reference for Slack
 - **[Slack Bot Guide](skills/agent-slackbot/SKILL.md)** — Bot token integration for server-side and CI/CD
 - **[Discord Guide](skills/agent-discord/SKILL.md)** — Full command reference for Discord
+- **[Discord Bot Guide](skills/agent-discordbot/SKILL.md)** — Bot token integration for server-side and CI/CD
 - **[Teams Guide](skills/agent-teams/SKILL.md)** — Full command reference for Microsoft Teams
 
 ## 💡 Use Cases

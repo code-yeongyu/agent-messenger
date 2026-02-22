@@ -76,6 +76,38 @@ export async function validateDiscordEnvironment() {
   }
 }
 
+// DiscordBot Test Environment (same server as Discord, bot token)
+export const DISCORDBOT_TEST_SERVER_ID = process.env.E2E_DISCORDBOT_SERVER_ID || '1467039439770357844'
+export const DISCORDBOT_TEST_SERVER_NAME = process.env.E2E_DISCORDBOT_SERVER_NAME || 'Agent Messenger'
+export const DISCORDBOT_TEST_CHANNEL_ID = process.env.E2E_DISCORDBOT_CHANNEL_ID || '1467062262996144162'
+export const DISCORDBOT_TEST_CHANNEL = 'e2e-test'
+
+export async function validateDiscordBotEnvironment() {
+  const { runCLI, parseJSON } = await import('./helpers')
+
+  const result = await runCLI('discordbot', ['auth', 'status'])
+  if (result.exitCode !== 0) {
+    throw new Error('DiscordBot authentication failed. Please run: agent-discordbot auth set <token>')
+  }
+
+  const data = parseJSON<{ valid: boolean; bot_id: string }>(result.stdout)
+  if (!data?.valid) {
+    throw new Error('DiscordBot token is invalid or expired. Please run: agent-discordbot auth set <token>')
+  }
+
+  const currentResult = await runCLI('discordbot', ['server', 'current'])
+  const server = parseJSON<{ server_id: string }>(currentResult.stdout)
+  if (server?.server_id !== DISCORDBOT_TEST_SERVER_ID) {
+    const switchResult = await runCLI('discordbot', ['server', 'switch', DISCORDBOT_TEST_SERVER_ID])
+    if (switchResult.exitCode !== 0) {
+      throw new Error(
+        `Failed to switch to test server. Expected: ${DISCORDBOT_TEST_SERVER_NAME} (${DISCORDBOT_TEST_SERVER_ID}). ` +
+        `Make sure the bot has been added to the test server.`
+      )
+    }
+  }
+}
+
 // Teams Test Environment
 export const TEAMS_TEST_TEAM_ID = process.env.E2E_TEAMS_TEAM_ID || ''
 export const TEAMS_TEST_TEAM_NAME = process.env.E2E_TEAMS_TEAM_NAME || 'Agent Messenger'
