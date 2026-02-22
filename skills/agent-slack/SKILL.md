@@ -1,7 +1,17 @@
 ---
 name: agent-slack
 description: Interact with Slack workspaces - send messages, read channels, manage reactions
+version: 1.7.0
 allowed-tools: Bash(agent-slack:*)
+metadata:
+  openclaw:
+    requires:
+      bins:
+        - agent-slack
+    install:
+      - kind: node
+        package: agent-messenger
+        bins: [agent-slack]
 ---
 
 # Agent Slack

@@ -1,7 +1,17 @@
 ---
 name: agent-discordbot
 description: Interact with Discord servers using bot tokens - send messages, read channels, manage reactions
+version: 1.7.0
 allowed-tools: Bash(agent-discordbot:*)
+metadata:
+  openclaw:
+    requires:
+      bins:
+        - agent-discordbot
+    install:
+      - kind: node
+        package: agent-messenger
+        bins: [agent-discordbot]
 ---
 
 # Agent DiscordBot

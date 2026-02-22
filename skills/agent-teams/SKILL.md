@@ -1,7 +1,17 @@
 ---
 name: agent-teams
 description: Interact with Microsoft Teams - send messages, read channels, manage reactions
+version: 1.7.0
 allowed-tools: Bash(agent-teams:*)
+metadata:
+  openclaw:
+    requires:
+      bins:
+        - agent-teams
+    install:
+      - kind: node
+        package: agent-messenger
+        bins: [agent-teams]
 ---
 
 # Agent Teams

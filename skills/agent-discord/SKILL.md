@@ -1,7 +1,17 @@
 ---
 name: agent-discord
 description: Interact with Discord servers - send messages, read channels, manage reactions
+version: 1.7.0
 allowed-tools: Bash(agent-discord:*)
+metadata:
+  openclaw:
+    requires:
+      bins:
+        - agent-discord
+    install:
+      - kind: node
+        package: agent-messenger
+        bins: [agent-discord]
 ---
 
 # Agent Discord
