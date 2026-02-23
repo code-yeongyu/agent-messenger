@@ -122,11 +122,11 @@ That's it. Credentials are extracted automatically from your Slack desktop app o
 
 ## 📖 Platform Guides
 
-- **[Slack Guide](skills/agent-slack/SKILL.md)** — Full command reference for Slack
-- **[Slack Bot Guide](skills/agent-slackbot/SKILL.md)** — Bot token integration for server-side and CI/CD
-- **[Discord Guide](skills/agent-discord/SKILL.md)** — Full command reference for Discord
-- **[Discord Bot Guide](skills/agent-discordbot/SKILL.md)** — Bot token integration for server-side and CI/CD
-- **[Teams Guide](skills/agent-teams/SKILL.md)** — Full command reference for Microsoft Teams
+- **[Slack Guide](https://agent-messenger.dev/docs/integrations/slack)** — Full command reference for Slack
+- **[Slack Bot Guide](https://agent-messenger.dev/docs/integrations/slackbot)** — Bot token integration for server-side and CI/CD
+- **[Discord Guide](https://agent-messenger.dev/docs/integrations/discord)** — Full command reference for Discord
+- **[Discord Bot Guide](https://agent-messenger.dev/docs/integrations/discordbot)** — Bot token integration for server-side and CI/CD
+- **[Teams Guide](https://agent-messenger.dev/docs/integrations/teams)** — Full command reference for Microsoft Teams
 
 ## 💡 Use Cases
 
