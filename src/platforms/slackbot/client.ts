@@ -113,6 +113,17 @@ export class SlackBotClient {
               ts: msg.edited.ts || '',
             }
           : undefined,
+        files: (msg as any).files?.map((f: any) => ({
+          id: f.id!,
+          name: f.name!,
+          title: f.title || f.name || '',
+          mimetype: f.mimetype || 'application/octet-stream',
+          size: f.size || 0,
+          url_private: f.url_private || '',
+          created: f.created || 0,
+          user: f.user || '',
+          channels: f.channels,
+        })),
       }))
     })
   }
@@ -147,6 +158,17 @@ export class SlackBotClient {
               ts: msg.edited.ts || '',
             }
           : undefined,
+        files: (msg as any).files?.map((f: any) => ({
+          id: f.id!,
+          name: f.name!,
+          title: f.title || f.name || '',
+          mimetype: f.mimetype || 'application/octet-stream',
+          size: f.size || 0,
+          url_private: f.url_private || '',
+          created: f.created || 0,
+          user: f.user || '',
+          channels: f.channels,
+        })),
       }
     })
   }
@@ -395,6 +417,17 @@ export class SlackBotClient {
               ts: msg.edited.ts || '',
             }
           : undefined,
+        files: msg.files?.map((f: any) => ({
+          id: f.id!,
+          name: f.name!,
+          title: f.title || f.name || '',
+          mimetype: f.mimetype || 'application/octet-stream',
+          size: f.size || 0,
+          url_private: f.url_private || '',
+          created: f.created || 0,
+          user: f.user || '',
+          channels: f.channels,
+        })),
       }))
     })
   }

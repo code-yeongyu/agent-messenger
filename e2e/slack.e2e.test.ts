@@ -7,6 +7,8 @@ import {
   SLACK_TEST_CHANNEL, SLACK_TEST_CHANNEL_ID,
   validateSlackEnvironment 
 } from './config'
+import { WebClient } from '@slack/web-api'
+import { CredentialManager } from '../src/platforms/slack/credential-manager'
 
 // Track messages created during tests for cleanup
 let testMessages: string[] = []
@@ -156,6 +158,71 @@ describe('Slack E2E Tests', () => {
       
       const result = await runCLI('slack', ['message', 'delete', SLACK_TEST_CHANNEL_ID, ts, '--force'])
       expect(result.exitCode).toBe(0)
+    })
+  })
+
+
+  describe('message files', () => {
+    test('message get includes files when message has file attachment', async () => {
+      // Upload file directly via Slack WebClient (bypasses CLI file upload mapping issue)
+      const credManager = new CredentialManager()
+      const workspace = await credManager.getWorkspace()
+      const webClient = new WebClient(workspace!.token, {
+        headers: { Cookie: `d=${workspace!.cookie}` },
+      })
+      const testId = generateTestId()
+      await webClient.files.uploadV2({
+        channel_id: SLACK_TEST_CHANNEL_ID,
+        file: Buffer.from(`E2E file test content ${testId}`),
+        filename: `e2e-test-${testId}.txt`,
+      })
+
+      await waitForRateLimit(3000)
+      const listResult = await runCLI('slack', ['message', 'list', SLACK_TEST_CHANNEL_ID, '--limit', '1'])
+      expect(listResult.exitCode).toBe(0)
+      const messages = parseJSON<Array<{
+        ts: string
+        files?: Array<{ id: string; name: string; mimetype: string; size: number; url_private: string }>
+      }>>(listResult.stdout)
+      expect(Array.isArray(messages)).toBe(true)
+      expect(messages!.length).toBeGreaterThan(0)
+      const latestMessage = messages![0]
+      testMessages.push(latestMessage.ts)
+      expect(latestMessage.files).toBeDefined()
+      expect(Array.isArray(latestMessage.files)).toBe(true)
+      expect(latestMessage.files!.length).toBeGreaterThan(0)
+      const file = latestMessage.files![0]
+      expect(file.id).toBeTruthy()
+      expect(file.name).toBeTruthy()
+      expect(file.size).toBeGreaterThan(0)
+      expect(file.url_private).toBeTruthy()
+
+      await waitForRateLimit()
+      // message get should also include files
+      const getResult = await runCLI('slack', ['message', 'get', SLACK_TEST_CHANNEL_ID, latestMessage.ts])
+      expect(getResult.exitCode).toBe(0)
+      const getMessage = parseJSON<{
+        ts: string
+        files?: Array<{ id: string; name: string }>
+      }>(getResult.stdout)
+      expect(getMessage?.files).toBeDefined()
+      expect(getMessage?.files!.length).toBeGreaterThan(0)
+      expect(getMessage?.files![0].id).toBe(file.id)
+    }, 30000)
+
+    test('message get omits files for plain text message', async () => {
+      const testId = generateTestId()
+      const { id: ts } = await createTestMessage('slack', SLACK_TEST_CHANNEL_ID, `No files ${testId}`)
+      testMessages.push(ts)
+
+      await waitForRateLimit()
+
+      const result = await runCLI('slack', ['message', 'get', SLACK_TEST_CHANNEL_ID, ts])
+      expect(result.exitCode).toBe(0)
+
+      const data = parseJSON<{ ts: string; text: string; files?: unknown[] }>(result.stdout)
+      expect(data?.text).toContain(testId)
+      expect(data?.files).toBeUndefined()
     })
   })
 
