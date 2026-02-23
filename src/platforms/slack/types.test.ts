@@ -78,6 +78,29 @@ test('SlackMessageSchema validates with optional fields', () => {
   expect(() => SlackMessageSchema.parse(validMessage)).not.toThrow()
 })
 
+test('SlackMessageSchema validates with files', () => {
+  const validMessage = {
+    ts: '1234567890.123456',
+    text: 'Hello world',
+    type: 'message',
+    user: 'U123456',
+    files: [
+      {
+        id: 'F123456',
+        name: 'screenshot.png',
+        title: 'Screenshot',
+        mimetype: 'image/png',
+        size: 2048,
+        url_private: 'https://files.slack.com/...',
+        created: 1234567890,
+        user: 'U123456',
+        channels: ['C123456'],
+      },
+    ],
+  }
+  expect(() => SlackMessageSchema.parse(validMessage)).not.toThrow()
+})
+
 test('SlackMessageSchema rejects missing required fields', () => {
   const invalidMessage = {
     ts: '1234567890.123456',
