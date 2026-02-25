@@ -1,4 +1,8 @@
-![Agent Messenger](https://github.com/user-attachments/assets/ab21caf0-441a-40f6-8cda-4e969ae2395a)
+# Agent Messenger
+
+[![npm version](https://img.shields.io/npm/v/agent-messenger)](https://www.npmjs.com/package/agent-messenger) [![SkillPad - agent-slack](https://img.shields.io/badge/SkillPad-agent--slack-1a1a1a)](https://skillpad.dev/install/devxoul/agent-messenger/agent-slack) [![SkillPad - agent-slackbot](https://img.shields.io/badge/SkillPad-agent--slackbot-1a1a1a)](https://skillpad.dev/install/devxoul/agent-messenger/agent-slackbot) [![SkillPad - agent-discord](https://img.shields.io/badge/SkillPad-agent--discord-1a1a1a)](https://skillpad.dev/install/devxoul/agent-messenger/agent-discord) [![SkillPad - agent-discordbot](https://img.shields.io/badge/SkillPad-agent--discordbot-1a1a1a)](https://skillpad.dev/install/devxoul/agent-messenger/agent-discordbot) [![SkillPad - agent-teams](https://img.shields.io/badge/SkillPad-agent--teams-1a1a1a)](https://skillpad.dev/install/devxoul/agent-messenger/agent-teams)
+
+![Agent Messenger](./docs/public/cover.png)
 
 **Give your AI agent the power to read and send messages across Slack, Discord, Teams and more**
 
@@ -17,6 +21,10 @@ A unified, agent-friendly CLI for messaging platforms. Zero-config credential ex
 - [Supported Platforms](#-supported-platforms)
 - [Platform Guides](#-platform-guides)
 - [Use Cases](#-use-cases)
+  - [Gathering Context](#gathering-context)
+  - [Communicating & Reporting](#communicating--reporting)
+  - [Automation & Pipelines](#automation--pipelines)
+  - [...and More](#and-more)
 - [Philosophy](#-philosophy)
 - [Contributing](#-contributing)
 - [License](#-license)
@@ -144,21 +152,51 @@ That's it. Credentials are extracted automatically from your Slack desktop app o
 
 ## 💡 Use Cases
 
-**For AI Agents**
-- Give Claude, GPT, or your custom agent the ability to read and send messages
-- Automate Slack/Discord/Teams workflows with simple CLI commands
-- Build integrations without OAuth complexity
+### Gathering Context
 
-**For Developers**
-- Quick message sending from terminal
-- Scripted notifications and alerts
-- Workspace snapshots for debugging
+Pull context from conversations before you start working — no tab-switching, no skimming.
 
-**For Teams**
-- Automate standups and reminders
-- Cross-post announcements to multiple platforms
-- Build custom notification pipelines
+> "Read the #incident-api-outage thread in Slack and summarize the root cause, timeline, and action items so I can write the postmortem."
 
+> "Search our Discord #architecture channel for any previous discussion about event sourcing before I write a proposal."
+
+> "Check my unread messages across all Slack channels and tell me if anything needs my attention."
+
+> "Look through #frontend in Slack for messages about the login page redesign from the past two weeks and summarize the decisions made."
+
+> "Search Teams for any messages mentioning 'API deprecation' so I know if this was discussed before."
+
+### Communicating & Reporting
+
+Send updates, file reports, and notify your team — all from a prompt.
+
+> "Post a deployment summary to #releases in Slack with the commit hash, changelog, and deploy status."
+
+> "Send a message to the #standup channel with what I worked on yesterday, what I'm doing today, and any blockers."
+
+> "Cross-post this announcement to #general in Slack, the announcements channel in Discord, and the General channel in Teams."
+
+> "Upload the latest test coverage report to #ci-results in Slack."
+
+> "React with ✅ to the last message in #deploy-requests to confirm I've handled it."
+
+### Automation & Pipelines
+
+Wire messaging into your CI, scripts, or agent workflows.
+
+> "After every CI run, post the build status and test results to #builds in Slack — include the branch name and commit link."
+
+> "When a long-running migration finishes, notify me in Discord with the final row count and elapsed time."
+
+> "Every morning at 9am, snapshot my Slack workspace and post a summary of active channels to #team-pulse."
+
+> "Send an alert to #oncall in Slack whenever the error rate exceeds 1% — include the service name and a link to the dashboard."
+
+> "Read the latest message in #releases, then cross-post it to our Discord announcements channel."
+
+### ...and More
+
+These are just starting points. Your agent has full read/write access to Slack, Discord, and Teams — anything you'd do manually in a chat app, it can handle for you. If you build something cool with Agent Messenger, [let me know](https://x.com/devxoul)!
 ## 💭 Philosophy
 
 **Why not MCP?** MCP servers expose all tools at once, bloating context and confusing agents. **[Agent Skills](https://agentskills.io/) + agent-friendly CLI** offer a better approach—load what you need, when you need it. Fewer tokens, cleaner context, better output.
