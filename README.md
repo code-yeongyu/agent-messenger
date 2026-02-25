@@ -9,6 +9,10 @@ A unified, agent-friendly CLI for messaging platforms. Zero-config credential ex
 - [Why Agent Messenger?](#-why-agent-messenger)
 - [Installation](#-installation)
 - [Agent Skills](#-agent-skills)
+  - [SkillPad](#skillpad)
+  - [Skills CLI](#skills-cli)
+  - [Claude Code Plugin](#claude-code-plugin)
+  - [OpenCode Plugin](#opencode-plugin)
 - [Quick Start](#-quick-start)
 - [Supported Platforms](#-supported-platforms)
 - [Platform Guides](#-platform-guides)
@@ -44,21 +48,31 @@ This installs:
 - `agent-discordbot` — Discord Bot CLI (bot token, for server-side/CI/CD)
 - `agent-teams` — Microsoft Teams CLI
 
-## 🧠 Agent Skills
+## 🧩 Agent Skills
 
-Agent Messenger includes [Agent Skills](https://agentskills.io/) that teach your AI agent how to use these CLIs effectively. Install the skill for your platform:
+Agent Messenger includes [Agent Skills](https://agentskills.io/) that teach your AI agent how to use these CLIs effectively. Five skills are available:
+
+- **`agent-slack`** — Slack (user token, zero-config)
+- **`agent-slackbot`** — Slack Bot (bot token, for server-side/CI/CD)
+- **`agent-discord`** — Discord
+- **`agent-discordbot`** — Discord Bot (bot token, for server-side/CI/CD)
+- **`agent-teams`** — Microsoft Teams
+
+### SkillPad
+
+SkillPad is a GUI app for Agent Skills. See [skillpad.dev](https://skillpad.dev/) for more details.
 
 [![Available on SkillPad](https://badge.skillpad.dev/agent-slack/dark.svg)](https://skillpad.dev/install/devxoul/agent-messenger/agent-slack) [![Available on SkillPad](https://badge.skillpad.dev/agent-slackbot/dark.svg)](https://skillpad.dev/install/devxoul/agent-messenger/agent-slackbot) [![Available on SkillPad](https://badge.skillpad.dev/agent-discord/dark.svg)](https://skillpad.dev/install/devxoul/agent-messenger/agent-discord) [![Available on SkillPad](https://badge.skillpad.dev/agent-discordbot/dark.svg)](https://skillpad.dev/install/devxoul/agent-messenger/agent-discordbot) [![Available on SkillPad](https://badge.skillpad.dev/agent-teams/dark.svg)](https://skillpad.dev/install/devxoul/agent-messenger/agent-teams)
 
-### Skills CLI (OpenCode, Cline, etc.)
+### Skills CLI
+
+Skills CLI is a CLI tool for Agent Skills. See [skills.sh](https://skills.sh/) for more details.
 
 ```bash
 npx skills add devxoul/agent-messenger
 ```
 
-See [skills.sh](https://skills.sh/) for more details.
-
-### Claude Code
+### Claude Code Plugin
 
 ```bash
 claude plugin marketplace add devxoul/agent-messenger
@@ -72,7 +86,7 @@ Or within Claude Code:
 /plugin install agent-messenger
 ```
 
-### OpenCode (via plugin)
+### OpenCode Plugin
 
 Add to your `opencode.jsonc`:
 
