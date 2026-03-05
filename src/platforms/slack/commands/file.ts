@@ -94,7 +94,12 @@ async function infoAction(fileId: string, options: { pretty?: boolean }): Promis
     const fileData = files.find((f) => f.id === fileId)
 
     if (!fileData) {
-      console.log(formatOutput({ error: `File not found: ${fileId}` }, options.pretty))
+      console.log(
+        formatOutput(
+          { error: `File not found: ${fileId}`, hint: 'Run "file list" to see available files.' },
+          options.pretty,
+        ),
+      )
       process.exit(1)
     }
 
