@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test'
 import { mkdirSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { getExtractionErrorMessage } from '@/platforms/slack/commands/auth'
 import { CredentialManager } from '@/platforms/slack/credential-manager'
 import { type ExtractedWorkspace, TokenExtractor } from '@/platforms/slack/token-extractor'
 
@@ -348,6 +349,28 @@ describe('Output Formatting', () => {
 
     // Then: Should be valid JSON
     expect(JSON.parse(json)).toEqual(output)
+  })
+})
+
+describe('getExtractionErrorMessage', () => {
+  test('returns cookie failure message for missing_cookie', () => {
+    expect(getExtractionErrorMessage(['missing_cookie'])).toContain('Cookie extraction failed')
+  })
+
+  test('returns session expired message for invalid_auth', () => {
+    expect(getExtractionErrorMessage(['invalid_auth'])).toContain('session has expired')
+  })
+
+  test('prioritizes missing_cookie over invalid_auth', () => {
+    expect(getExtractionErrorMessage(['invalid_auth', 'missing_cookie'])).toContain('Cookie extraction failed')
+  })
+
+  test('returns generic message for unknown error codes', () => {
+    expect(getExtractionErrorMessage(['unknown_error'])).toContain('Extracted tokens are invalid')
+  })
+
+  test('returns generic message for empty failure list', () => {
+    expect(getExtractionErrorMessage([])).toContain('Extracted tokens are invalid')
   })
 })
 
