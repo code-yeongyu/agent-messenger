@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
-import { SlackClient } from '../client'
+import { SlackClient, SlackError } from '../client'
 import { CredentialManager } from '../credential-manager'
 import { TokenExtractor } from '../token-extractor'
 
@@ -58,6 +58,7 @@ async function extractAction(options: { pretty?: boolean; debug?: boolean }): Pr
     const config = await credManager.load()
 
     const validWorkspaces = []
+    const failureReasons: string[] = []
     for (const ws of workspaces) {
       if (options.debug) {
         console.error(`[debug] Testing credentials for ${ws.workspace_id}...`)
@@ -74,6 +75,10 @@ async function extractAction(options: { pretty?: boolean; debug?: boolean }): Pr
           console.error(`[debug] ✓ Valid: ${authInfo.team} (${authInfo.user})`)
         }
       } catch (error) {
+        const code = error instanceof SlackError ? error.code : undefined
+        if (code && !failureReasons.includes(code)) {
+          failureReasons.push(code)
+        }
         if (options.debug) {
           console.error(`[debug] ✗ Invalid: ${(error as Error).message}`)
         }
@@ -81,11 +86,13 @@ async function extractAction(options: { pretty?: boolean; debug?: boolean }): Pr
     }
 
     if (validWorkspaces.length === 0) {
+      const errorMessage = getExtractionErrorMessage(failureReasons)
       console.log(
         formatOutput(
           {
-            error: 'Extracted tokens are invalid. Make sure you are logged into the Slack desktop app.',
+            error: errorMessage,
             extracted_count: workspaces.length,
+            hint: options.debug ? undefined : 'Run with --debug for more details.',
           },
           options.pretty,
         ),
@@ -169,6 +176,16 @@ async function statusAction(options: { pretty?: boolean }): Promise<void> {
   } catch (error) {
     handleError(error as Error)
   }
+}
+
+export function getExtractionErrorMessage(failureReasons: string[]): string {
+  if (failureReasons.includes('missing_cookie')) {
+    return 'Cookie extraction failed. Make sure the Slack desktop app is installed and grant Keychain access when prompted.'
+  }
+  if (failureReasons.includes('invalid_auth')) {
+    return 'Slack session has expired. Sign into the Slack desktop app, wait a few seconds, then re-run this command.'
+  }
+  return 'Extracted tokens are invalid. Make sure you are logged into the Slack desktop app.'
 }
 
 export const authCommand = new Command('auth')
