@@ -10,7 +10,7 @@ async function addAction(channel: string, ts: string, emoji: string, options: { 
     const ws = await credManager.getWorkspace()
 
     if (!ws) {
-      console.log(formatOutput({ error: 'No workspace configured. Run "auth extract" first.' }, options.pretty))
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -40,7 +40,7 @@ async function removeAction(channel: string, ts: string, emoji: string, options:
     const ws = await credManager.getWorkspace()
 
     if (!ws) {
-      console.log(formatOutput({ error: 'No workspace configured. Run "auth extract" first.' }, options.pretty))
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -70,7 +70,7 @@ async function listAction(channel: string, ts: string, options: { pretty?: boole
     const ws = await credManager.getWorkspace()
 
     if (!ws) {
-      console.log(formatOutput({ error: 'No workspace configured. Run "auth extract" first.' }, options.pretty))
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -82,7 +82,7 @@ async function listAction(channel: string, ts: string, options: { pretty?: boole
       console.log(
         formatOutput(
           {
-            error: 'Message not found',
+            error: `Message not found: ${ts}`,
             channel,
             ts,
           },

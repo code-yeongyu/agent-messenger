@@ -133,7 +133,15 @@ async function logoutAction(workspace: string | undefined, options: { pretty?: b
     }
 
     if (!config.workspaces[targetWorkspace]) {
-      console.log(formatOutput({ error: `Workspace not found: ${targetWorkspace}` }, options.pretty))
+      console.log(
+        formatOutput(
+          {
+            error: `Workspace not found: ${targetWorkspace}`,
+            hint: 'Run "workspace list" to see available workspaces.',
+          },
+          options.pretty,
+        ),
+      )
       process.exit(1)
     }
 
@@ -151,7 +159,7 @@ async function statusAction(options: { pretty?: boolean }): Promise<void> {
     const ws = await credManager.getWorkspace()
 
     if (!ws) {
-      console.log(formatOutput({ error: 'No workspace configured. Run "auth extract" first.' }, options.pretty))
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 

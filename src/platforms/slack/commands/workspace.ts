@@ -27,7 +27,12 @@ async function switchAction(id: string, options: { pretty?: boolean }): Promise<
     const config = await credManager.load()
 
     if (!config.workspaces[id]) {
-      console.log(formatOutput({ error: `Workspace not found: ${id}` }, options.pretty))
+      console.log(
+        formatOutput(
+          { error: `Workspace not found: ${id}`, hint: 'Run "workspace list" to see available workspaces.' },
+          options.pretty,
+        ),
+      )
       process.exit(1)
     }
 
@@ -65,7 +70,12 @@ async function removeAction(id: string, options: { pretty?: boolean }): Promise<
     const config = await credManager.load()
 
     if (!config.workspaces[id]) {
-      console.log(formatOutput({ error: `Workspace not found: ${id}` }, options.pretty))
+      console.log(
+        formatOutput(
+          { error: `Workspace not found: ${id}`, hint: 'Run "workspace list" to see available workspaces.' },
+          options.pretty,
+        ),
+      )
       process.exit(1)
     }
 
