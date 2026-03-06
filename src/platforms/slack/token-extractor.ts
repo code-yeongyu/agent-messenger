@@ -16,10 +16,33 @@ export interface ExtractedWorkspace {
   cookie: string
 }
 
-interface TokenInfo {
+type TokenSource = 'json-teams' | 'json-single' | 'log-file' | 'ldb-file' | 'classic-level'
+type TokenDirTier = 'storage' | 'local-storage' | 'indexeddb'
+
+interface RawTokenInfo {
   token: string
   teamId: string
   teamName: string
+  source: TokenSource
+}
+
+interface TokenInfo extends RawTokenInfo {
+  dirTier: TokenDirTier
+}
+
+// Higher = better. Structured JSON from the teams object is the most reliable source.
+const SOURCE_PRIORITY: Record<TokenSource, number> = {
+  'json-teams': 5,
+  'json-single': 4,
+  'log-file': 3,
+  'classic-level': 2,
+  'ldb-file': 1,
+}
+
+const DIR_TIER_PRIORITY: Record<TokenDirTier, number> = {
+  storage: 3,
+  'local-storage': 2,
+  indexeddb: 1,
 }
 
 export class TokenExtractor {
@@ -141,27 +164,27 @@ export class TokenExtractor {
   }
 
   private async extractTokensFromLevelDB(): Promise<TokenInfo[]> {
-    const possibleDirs = [
-      join(this.slackDir, 'storage'),
-      join(this.slackDir, 'Local Storage', 'leveldb'),
-      join(this.slackDir, 'IndexedDB'),
+    const tieredDirs: { dir: string; tier: TokenDirTier }[] = [
+      { dir: join(this.slackDir, 'storage'), tier: 'storage' },
+      { dir: join(this.slackDir, 'Local Storage', 'leveldb'), tier: 'local-storage' },
+      { dir: join(this.slackDir, 'IndexedDB'), tier: 'indexeddb' },
     ]
 
     const tokens: TokenInfo[] = []
 
-    for (const baseDir of possibleDirs) {
+    for (const { dir: baseDir, tier } of tieredDirs) {
       if (!existsSync(baseDir)) {
         continue
       }
 
       const levelDbDirs = this.findLevelDBDirs(baseDir)
-      if (baseDir.endsWith('leveldb') && this.isLevelDBDir(baseDir)) {
+      if (this.isLevelDBDir(baseDir)) {
         levelDbDirs.push(baseDir)
       }
 
       for (const dbDir of levelDbDirs) {
         try {
-          const extracted = await this.extractFromLevelDB(dbDir)
+          const extracted = await this.extractFromLevelDB(dbDir, tier)
           tokens.push(...extracted)
         } catch {}
       }
@@ -176,8 +199,17 @@ export class TokenExtractor {
       const existing = seen.get(token.teamId)
       if (!existing) {
         seen.set(token.teamId, token)
+        continue
+      }
+
+      const existingScore = SOURCE_PRIORITY[existing.source] * 10 + DIR_TIER_PRIORITY[existing.dirTier]
+      const candidateScore = SOURCE_PRIORITY[token.source] * 10 + DIR_TIER_PRIORITY[token.dirTier]
+
+      if (candidateScore > existingScore) {
+        const teamName = token.teamName !== 'unknown' ? token.teamName : existing.teamName
+        seen.set(token.teamId, { ...token, teamName })
       } else if (existing.teamName === 'unknown' && token.teamName !== 'unknown') {
-        seen.set(token.teamId, { ...token, token: existing.token })
+        seen.set(token.teamId, { ...existing, teamName: token.teamName })
       }
     }
     return Array.from(seen.values())
@@ -213,23 +245,21 @@ export class TokenExtractor {
     }
   }
 
-  private async extractFromLevelDB(dbPath: string): Promise<TokenInfo[]> {
-    // ClassicLevel on a copy avoids LevelDB prefix-compression artifacts
-    // that corrupt tokens when reading raw .ldb files
-    const classicLevelTokens = await this.extractViaClassicLevelCopy(dbPath)
+  private async extractFromLevelDB(dbPath: string, dirTier: TokenDirTier): Promise<TokenInfo[]> {
+    const classicLevelTokens = await this.extractViaClassicLevelCopy(dbPath, dirTier)
     if (classicLevelTokens.length > 0) {
       return classicLevelTokens
     }
 
-    const directTokens = this.extractTokensFromLDBFiles(dbPath)
+    const directTokens = this.extractTokensFromLDBFiles(dbPath, dirTier)
     if (directTokens.length > 0) {
       return directTokens
     }
 
-    return this.extractViaClassicLevel(dbPath)
+    return this.extractViaClassicLevel(dbPath, dirTier)
   }
 
-  private async extractViaClassicLevelCopy(dbPath: string): Promise<TokenInfo[]> {
+  private async extractViaClassicLevelCopy(dbPath: string, dirTier: TokenDirTier): Promise<TokenInfo[]> {
     const tempDir = join(tmpdir(), `slack-leveldb-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 
     try {
@@ -246,7 +276,7 @@ export class TokenExtractor {
         } catch {}
       }
 
-      return await this.extractViaClassicLevel(tempDir)
+      return await this.extractViaClassicLevel(tempDir, dirTier)
     } catch {
       return []
     } finally {
@@ -256,7 +286,7 @@ export class TokenExtractor {
     }
   }
 
-  private async extractViaClassicLevel(dbPath: string): Promise<TokenInfo[]> {
+  private async extractViaClassicLevel(dbPath: string, dirTier: TokenDirTier): Promise<TokenInfo[]> {
     const tokens: TokenInfo[] = []
     let db: ClassicLevel<string, string> | null = null
     try {
@@ -264,7 +294,10 @@ export class TokenExtractor {
 
       for await (const [key, value] of db.iterator()) {
         if (typeof value === 'string' && value.includes('xoxc-')) {
-          tokens.push(...this.parseTokenValue(key, value))
+          const parsed = this.parseTokenValue(key, value)
+          for (const t of parsed) {
+            tokens.push({ ...t, dirTier })
+          }
         }
       }
     } catch {
@@ -278,7 +311,7 @@ export class TokenExtractor {
     return tokens
   }
 
-  private extractTokensFromLDBFiles(dbPath: string): TokenInfo[] {
+  private extractTokensFromLDBFiles(dbPath: string, dirTier: TokenDirTier): TokenInfo[] {
     const tokens: TokenInfo[] = []
     try {
       // Prioritize .log files (not compacted, have clean data)
@@ -305,7 +338,7 @@ export class TokenExtractor {
             ? this.extractTokenFromLogFile(content, idx)
             : this.extractTokenFromBuffer(content, idx)
           if (tokenData) {
-            tokens.push(tokenData)
+            tokens.push({ ...tokenData, dirTier })
           }
           idx = content.indexOf(xoxcMarker, idx + 5)
         }
@@ -314,7 +347,7 @@ export class TokenExtractor {
     return tokens
   }
 
-  private extractTokenFromLogFile(buffer: Buffer, startIdx: number): TokenInfo | null {
+  private extractTokenFromLogFile(buffer: Buffer, startIdx: number): RawTokenInfo | null {
     // LOG files have clean (non-fragmented) JSON data
     const chunk = buffer.subarray(startIdx, startIdx + 300)
     const str = chunk.toString('utf8')
@@ -346,10 +379,10 @@ export class TokenExtractor {
       teamName = teamNameMatch[1]
     }
 
-    return { token, teamId, teamName }
+    return { token, teamId, teamName, source: 'log-file' }
   }
 
-  private extractTokenFromBuffer(buffer: Buffer, startIdx: number): TokenInfo | null {
+  private extractTokenFromBuffer(buffer: Buffer, startIdx: number): RawTokenInfo | null {
     const chunk = buffer.subarray(startIdx, startIdx + 200)
 
     // LevelDB fragmentation pattern observed:
@@ -440,10 +473,10 @@ export class TokenExtractor {
       teamName = teamNameMatch[1]
     }
 
-    return { token, teamId, teamName }
+    return { token, teamId, teamName, source: 'ldb-file' }
   }
 
-  private parseTokenValue(_key: string, value: string): TokenInfo[] {
+  private parseTokenValue(_key: string, value: string): RawTokenInfo[] {
     // LevelDB values may have leading control characters (e.g. 0x01).
     // Built dynamically to satisfy biome's noControlCharactersInRegex.
     const controlChars = new RegExp(
@@ -462,20 +495,21 @@ export class TokenExtractor {
     return single ? [single] : []
   }
 
-  private parseTeamsObject(teams: Record<string, any>): TokenInfo[] {
-    const tokens: TokenInfo[] = []
+  private parseTeamsObject(teams: Record<string, any>): RawTokenInfo[] {
+    const tokens: RawTokenInfo[] = []
     for (const [teamId, team] of Object.entries(teams)) {
       if (!team?.token || typeof team.token !== 'string' || !team.token.startsWith('xoxc-')) continue
       tokens.push({
         token: team.token,
         teamId: team.id || teamId,
         teamName: team.name || 'unknown',
+        source: 'json-teams',
       })
     }
     return tokens
   }
 
-  private parseSingleToken(value: string): TokenInfo | null {
+  private parseSingleToken(value: string): RawTokenInfo | null {
     const tokenMatch = value.match(/xoxc-[a-zA-Z0-9-]+/)
     if (!tokenMatch) return null
 
@@ -493,7 +527,7 @@ export class TokenExtractor {
       if (domainMatch) teamName = domainMatch[1]
     }
 
-    return { token: tokenMatch[0], teamId, teamName }
+    return { token: tokenMatch[0], teamId, teamName, source: 'json-single' }
   }
 
   private async extractCookieFromSQLite(): Promise<string> {

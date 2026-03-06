@@ -58,6 +58,83 @@ describe('TokenExtractor token deduplication', () => {
     expect(result[0].workspace_name).toBe('workspace-name')
   })
 
+  test('prefers Local Storage token over IndexedDB token for same team', async () => {
+    // given — same team in Local Storage (valid) and IndexedDB (stale)
+    const slackDir = mkdtempSync(join(tmpdir(), 'slack-dedup-tier-'))
+    tempDirs.push(slackDir)
+
+    const hex64valid = 'aa'.repeat(32)
+    const hex64stale = 'bb'.repeat(32)
+    const validToken = `xoxc-1111111111-2222222222-3333333333-${hex64valid}`
+    const staleToken = `xoxc-9999999999-8888888888-7777777777-${hex64stale}`
+
+    const localStorageDir = join(slackDir, 'Local Storage', 'leveldb')
+    mkdirSync(localStorageDir, { recursive: true })
+    writeFileSync(join(localStorageDir, '000001.log'), `"${validToken}"T12345678"name":"valid-workspace"`)
+
+    const indexedDbDir = join(slackDir, 'IndexedDB', 'https_app.slack.com_0.indexeddb.leveldb')
+    mkdirSync(indexedDbDir, { recursive: true })
+    writeFileSync(join(indexedDbDir, '000001.log'), `"${staleToken}"T12345678"name":"stale-workspace"`)
+
+    // when
+    const extractor = new TokenExtractor('darwin', slackDir)
+    const result = await extractor.extract()
+
+    // then — Local Storage token wins regardless of scan order
+    expect(result.length).toBe(1)
+    expect(result[0].token).toBe(validToken)
+    expect(result[0].workspace_name).toBe('valid-workspace')
+  })
+
+  test('prefers IndexedDB token when Local Storage has no token for team', async () => {
+    // given — token only in IndexedDB
+    const slackDir = mkdtempSync(join(tmpdir(), 'slack-dedup-idb-only-'))
+    tempDirs.push(slackDir)
+
+    const hex64 = 'a'.repeat(64)
+    const token = `xoxc-1111111111-2222222222-3333333333-${hex64}`
+
+    const indexedDbDir = join(slackDir, 'IndexedDB', 'https_app.slack.com_0.indexeddb.leveldb')
+    mkdirSync(indexedDbDir, { recursive: true })
+    writeFileSync(join(indexedDbDir, '000001.log'), `"${token}"T12345678"name":"only-workspace"`)
+
+    // when
+    const extractor = new TokenExtractor('darwin', slackDir)
+    const result = await extractor.extract()
+
+    // then — IndexedDB token is used since there's no better source
+    expect(result.length).toBe(1)
+    expect(result[0].token).toBe(token)
+  })
+
+  test('prefers storage dir token over IndexedDB token for same team', async () => {
+    // given — structured JSON in storage dir vs raw token in IndexedDB
+    const slackDir = mkdtempSync(join(tmpdir(), 'slack-dedup-storage-'))
+    tempDirs.push(slackDir)
+
+    const hex64storage = 'cc'.repeat(32)
+    const hex64idb = 'dd'.repeat(32)
+    const storageToken = `xoxc-1111111111-2222222222-3333333333-${hex64storage}`
+    const idbToken = `xoxc-9999999999-8888888888-7777777777-${hex64idb}`
+
+    const storageDir = join(slackDir, 'storage')
+    mkdirSync(storageDir, { recursive: true })
+    writeFileSync(join(storageDir, '000001.log'), `"${storageToken}"T12345678"name":"storage-workspace"`)
+
+    const indexedDbDir = join(slackDir, 'IndexedDB', 'https_app.slack.com_0.indexeddb.leveldb')
+    mkdirSync(indexedDbDir, { recursive: true })
+    writeFileSync(join(indexedDbDir, '000001.log'), `"${idbToken}"T12345678"name":"idb-workspace"`)
+
+    // when
+    const extractor = new TokenExtractor('darwin', slackDir)
+    const result = await extractor.extract()
+
+    // then — storage dir token wins
+    expect(result.length).toBe(1)
+    expect(result[0].token).toBe(storageToken)
+    expect(result[0].workspace_name).toBe('storage-workspace')
+  })
+
   test('prefers .log tokens over .ldb tokens for same team', async () => {
     // given — same team ID in both .log (fresh) and .ldb (stale)
     const slackDir = mkdtempSync(join(tmpdir(), 'slack-dedup-order-'))
