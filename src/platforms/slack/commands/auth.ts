@@ -4,10 +4,23 @@ import { formatOutput } from '@/shared/utils/output'
 import { SlackClient, SlackError } from '../client'
 import { CredentialManager } from '../credential-manager'
 import { refreshCookie } from '../ensure-auth'
-import { TokenExtractor } from '../token-extractor'
+import { type ExtractedWorkspace, TokenExtractor } from '../token-extractor'
 
-async function extractAction(options: { pretty?: boolean; debug?: boolean }): Promise<void> {
+export function formatCredentialDebug(ws: ExtractedWorkspace, showSecrets?: boolean): string {
+  const tokenDisplay = showSecrets ? ws.token : `${ws.token.substring(0, 20)}...`
+  const cookieDisplay = showSecrets ? ws.cookie : ws.cookie ? 'present' : 'missing'
+  return `${ws.workspace_id}: token=${tokenDisplay}, cookie=${cookieDisplay}`
+}
+
+async function extractAction(options: {
+  pretty?: boolean
+  debug?: boolean
+  unsafelyShowSecrets?: boolean
+}): Promise<void> {
   try {
+    if (options.unsafelyShowSecrets) {
+      options.debug = true
+    }
     const debugLog = options.debug ? (msg: string) => console.error(`[debug] ${msg}`) : undefined
     const extractor = new TokenExtractor(undefined, undefined, undefined, debugLog)
 
@@ -37,9 +50,7 @@ async function extractAction(options: { pretty?: boolean; debug?: boolean }): Pr
     if (options.debug) {
       console.error(`[debug] Found ${workspaces.length} workspace(s)`)
       for (const ws of workspaces) {
-        console.error(
-          `[debug] - ${ws.workspace_id}: token=${ws.token.substring(0, 20)}..., cookie=${ws.cookie ? 'present' : 'missing'}`,
-        )
+        console.error(`[debug] - ${formatCredentialDebug(ws, options.unsafelyShowSecrets)}`)
       }
     }
 
@@ -206,6 +217,7 @@ export const authCommand = new Command('auth')
       .description('Extract tokens from Slack desktop app')
       .option('--pretty', 'Pretty print JSON output')
       .option('--debug', 'Show debug output for troubleshooting')
+      .option('--unsafely-show-secrets', 'Show full token and cookie values in debug output')
       .action(extractAction),
   )
   .addCommand(

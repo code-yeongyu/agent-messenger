@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test'
 import { mkdirSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { getExtractionErrorMessage } from '@/platforms/slack/commands/auth'
+import { formatCredentialDebug, getExtractionErrorMessage } from '@/platforms/slack/commands/auth'
 import { CredentialManager } from '@/platforms/slack/credential-manager'
 import { type ExtractedWorkspace, TokenExtractor } from '@/platforms/slack/token-extractor'
 
@@ -349,6 +349,50 @@ describe('Output Formatting', () => {
 
     // Then: Should be valid JSON
     expect(JSON.parse(json)).toEqual(output)
+  })
+})
+
+describe('formatCredentialDebug', () => {
+  const ws = {
+    workspace_id: 'T123ABC',
+    workspace_name: 'test-workspace',
+    token:
+      'xoxc-1234567890123-4567890123456-7890123456789-abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+    cookie: 'xoxd-abc123def456ghi789jkl012mno345pqr678stu901vwx234yz',
+  }
+
+  test('truncates token and hides cookie by default', () => {
+    const result = formatCredentialDebug(ws)
+
+    expect(result).toContain('T123ABC')
+    expect(result).toContain(`${ws.token.substring(0, 20)}...`)
+    expect(result).not.toContain(ws.token)
+    expect(result).toContain('cookie=present')
+    expect(result).not.toContain(ws.cookie)
+  })
+
+  test('shows full token and cookie when showSecrets is true', () => {
+    const result = formatCredentialDebug(ws, true)
+
+    expect(result).toContain(ws.token)
+    expect(result).toContain(ws.cookie)
+    expect(result).not.toContain('...')
+    expect(result).not.toContain('present')
+  })
+
+  test('shows cookie=missing when cookie is empty and secrets hidden', () => {
+    const wsNoCookie = { ...ws, cookie: '' }
+    const result = formatCredentialDebug(wsNoCookie)
+
+    expect(result).toContain('cookie=missing')
+  })
+
+  test('shows empty cookie value when cookie is empty and secrets shown', () => {
+    const wsNoCookie = { ...ws, cookie: '' }
+    const result = formatCredentialDebug(wsNoCookie, true)
+
+    expect(result).toContain('cookie=')
+    expect(result).not.toContain('cookie=missing')
   })
 })
 
