@@ -91,10 +91,7 @@ export class TokenExtractor {
   }
 
   private findMsixSlackDir(): string | null {
-    const packagesDir = join(
-      process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'),
-      'Packages',
-    )
+    const packagesDir = join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'Packages')
     if (!existsSync(packagesDir)) {
       this.debug('MSIX Packages directory not found')
       return null
