@@ -10,38 +10,39 @@ A unified, agent-friendly CLI for messaging platforms. Zero-config credential ex
 
 ## Table of Contents
 
-- [Why Agent Messenger?](#-why-agent-messenger)
-- [Installation](#-installation)
-- [Agent Skills](#-agent-skills)
+- [Why Agent Messenger?](#why-agent-messenger)
+- [Installation](#installation)
+- [Agent Skills](#agent-skills)
   - [SkillPad](#skillpad)
   - [Skills CLI](#skills-cli)
   - [Claude Code Plugin](#claude-code-plugin)
   - [OpenCode Plugin](#opencode-plugin)
-- [Quick Start](#-quick-start)
-- [Supported Platforms](#-supported-platforms)
-- [Platform Guides](#-platform-guides)
-- [Use Cases](#-use-cases)
+- [Quick Start](#quick-start)
+- [Supported Platforms](#supported-platforms)
+- [Platform Guides](#platform-guides)
+- [Use Cases](#use-cases)
   - [Gathering Context](#gathering-context)
   - [Communicating & Reporting](#communicating--reporting)
   - [Automation & Pipelines](#automation--pipelines)
   - [...and More](#and-more)
-- [Philosophy](#-philosophy)
-- [Contributing](#-contributing)
-- [License](#-license)
+- [Philosophy](#philosophy)
+- [Contributing](#contributing)
+- [Thanks](#thanks)
+- [License](#license)
 
-## 🤔 Why Agent Messenger?
+## Why Agent Messenger?
 
 Messaging platforms only offer Bot tokens for API access—your AI agent can never act **as you**. Agent Messenger extracts user credentials directly from your installed desktop apps, letting your agent operate on your behalf. Bot tokens are fully supported too for server-side and CI/CD use cases.
 
-- 🎭 **Act as yourself, not a bot** — Extracted user tokens let your agent operate on your behalf
-- 🔑 **No API keys needed** — Automatically extracts credentials from your installed desktop apps
-- ⚡ **Zero setup** — Credentials are auto-extracted on first command. No manual auth step required
-- 🌐 **One interface, multiple platforms** — Learn once, use everywhere (Slack, Discord, Teams)
-- 🤖 **AI-agent friendly** — JSON output by default, perfect for LLM tool use
-- 👤 **Human friendly too** — Add `--pretty` for readable output
-- ⚡ **Token efficient** — CLI, not MCP. Load only what you need. ([Why not MCP?](#philosophy))
+- **Act as yourself, not a bot** — Extracted user tokens let your agent operate on your behalf
+- **No API keys needed** — Automatically extracts credentials from your installed desktop apps
+- **Zero setup** — Credentials are auto-extracted on first command. No manual auth step required
+- **One interface, multiple platforms** — Learn once, use everywhere (Slack, Discord, Teams)
+- **AI-agent friendly** — JSON output by default, perfect for LLM tool use
+- **Human friendly too** — Add `--pretty` for readable output
+- **Token efficient** — CLI, not MCP. Load only what you need. ([Why not MCP?](#philosophy))
 
-## 📦 Installation
+## Installation
 
 ```bash
 npm install -g agent-messenger
@@ -56,7 +57,7 @@ This installs:
 - `agent-discordbot` — Discord Bot CLI (bot token, for server-side/CI/CD)
 - `agent-teams` — Microsoft Teams CLI
 
-## 🧩 Agent Skills
+## Agent Skills
 
 Agent Messenger includes [Agent Skills](https://agentskills.io/) that teach your AI agent how to use these CLIs effectively. Five skills are available:
 
@@ -106,7 +107,7 @@ Add to your `opencode.jsonc`:
 }
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 Get up and running in 30 seconds:
 
@@ -120,7 +121,7 @@ agent-slack message send general "Hello from the CLI!"
 
 That's it. Credentials are extracted automatically from your Slack desktop app on first run. No OAuth flows. No API tokens. No configuration files.
 
-## 📋 Supported Platforms
+## Supported Platforms
 
 | Feature | Slack | Discord | Teams |
 |---------|:-----:|:-------:|:-----:|
@@ -142,7 +143,7 @@ That's it. Credentials are extracted automatically from your Slack desktop app o
 
 > ⚠️ **Teams tokens expire in 60-90 minutes.** Re-run `agent-teams auth extract` to refresh. See [Teams Guide](skills/agent-teams/SKILL.md) for details.
 
-## 📖 Platform Guides
+## Platform Guides
 
 - **[Slack Guide](https://agent-messenger.dev/docs/integrations/slack)** — Full command reference for Slack
 - **[Slack Bot Guide](https://agent-messenger.dev/docs/integrations/slackbot)** — Bot token integration for server-side and CI/CD
@@ -150,7 +151,7 @@ That's it. Credentials are extracted automatically from your Slack desktop app o
 - **[Discord Bot Guide](https://agent-messenger.dev/docs/integrations/discordbot)** — Bot token integration for server-side and CI/CD
 - **[Teams Guide](https://agent-messenger.dev/docs/integrations/teams)** — Full command reference for Microsoft Teams
 
-## 💡 Use Cases
+## Use Cases
 
 ### Gathering Context
 
@@ -197,7 +198,7 @@ Wire messaging into your CI, scripts, or agent workflows.
 ### ...and More
 
 These are just starting points. Your agent has full read/write access to Slack, Discord, and Teams — anything you'd do manually in a chat app, it can handle for you. If you build something cool with Agent Messenger, [let me know](https://x.com/devxoul)!
-## 💭 Philosophy
+## Philosophy
 
 **Why not MCP?** MCP servers expose all tools at once, bloating context and confusing agents. **[Agent Skills](https://agentskills.io/) + agent-friendly CLI** offer a better approach—load what you need, when you need it. Fewer tokens, cleaner context, better output.
 
@@ -205,7 +206,7 @@ These are just starting points. Your agent has full read/write access to Slack, 
 
 Inspired by [agent-browser](https://github.com/vercel-labs/agent-browser) from Vercel Labs.
 
-## 🤝 Contributing
+## Contributing
 
 ```bash
 bun install    # Install dependencies
@@ -216,6 +217,10 @@ bun lint       # Lint
 bun run build  # Build
 ```
 
-## 📄 License
+## Thanks
+
+- [@goden-park](https://github.com/goden-park)
+
+## License
 
 MIT
