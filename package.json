@@ -1,6 +1,6 @@
 {
   "name": "agent-messenger",
-  "version": "1.10.1",
+  "version": "1.10.2",
   "description": "Multi-platform messaging CLI for AI agents (Slack, Discord, Teams)",
   "repository": {
     "type": "git",
