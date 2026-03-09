@@ -132,6 +132,7 @@ That's it. Credentials are extracted automatically from your Slack desktop app o
 | Channels & Users           |  ✅   |   ✅    |  ✅   |
 | Reactions                  |  ✅   |   ✅    |  ✅   |
 | File uploads               |  ✅   |   ✅    |  ✅   |
+| File downloads             |  ✅   |    —    |   —   |
 | Workspace snapshots        |  ✅   |   ✅    |  ✅   |
 | Multi-workspace            |  ✅   |   ✅    |  ✅   |
 | Activity feed              |  ✅   |    —    |   —   |
