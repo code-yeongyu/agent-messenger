@@ -212,7 +212,35 @@ fi
 
 **When to use**: Automated reporting, log sharing, artifact distribution.
 
-## Pattern 8: User Lookup and Mention
+## Pattern 8: File Download
+
+**Use case**: Download a file shared in a channel
+
+```bash
+#!/bin/bash
+
+CHANNEL="engineering"
+
+# Find the latest file in the channel
+FILES=$(agent-slack file list --channel "$CHANNEL")
+FILE_ID=$(echo "$FILES" | jq -r '.[0].id')
+
+if [ -z "$FILE_ID" ] || [ "$FILE_ID" = "null" ]; then
+  echo "No files found in channel"
+  exit 1
+fi
+
+# Download to current directory (uses original filename)
+RESULT=$(agent-slack file download "$FILE_ID")
+echo "Downloaded: $(echo "$RESULT" | jq -r '.path')"
+
+# Or download to a specific directory
+agent-slack file download "$FILE_ID" ./downloads/
+```
+
+**When to use**: Retrieving shared documents, downloading attachments, archiving files.
+
+## Pattern 9: User Lookup and Mention
 
 **Use case**: Find a user and mention them in a message
 
@@ -239,7 +267,7 @@ agent-slack message send "$CHANNEL" "Hey <@$USER_ID>, the build is ready for rev
 
 **Note**: Slack mentions require actual user IDs (e.g., `<@U06WXYZ5678>`).
 
-## Pattern 9: Reaction-Based Workflow
+## Pattern 10: Reaction-Based Workflow
 
 **Use case**: Use reactions as simple state indicators
 
@@ -268,7 +296,7 @@ agent-slack message update "$CHANNEL" "$MSG_TS" "✅ Deployed v2.1.0 to producti
 
 **When to use**: Visual status tracking, workflow states, quick acknowledgments.
 
-## Pattern 10: Error Handling and Retry
+## Pattern 11: Error Handling and Retry
 
 **Use case**: Robust message sending with retries
 
@@ -318,7 +346,7 @@ send_with_retry "general" "Important message!"
 
 **When to use**: Production scripts, critical notifications, unreliable networks.
 
-## Pattern 11: Daily Digest
+## Pattern 12: Daily Digest
 
 **Use case**: Summarize channel activity
 
@@ -368,7 +396,7 @@ agent-slack message send "$CHANNEL" "$DIGEST"
 
 **When to use**: Daily summaries, activity reports, team updates.
 
-## Pattern 12: Conditional Messaging
+## Pattern 13: Conditional Messaging
 
 **Use case**: Send message only if condition is met
 

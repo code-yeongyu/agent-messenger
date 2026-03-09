@@ -245,6 +245,11 @@ agent-slack file list --channel general
 
 # Get file info
 agent-slack file info <file-id>
+
+# Download file
+agent-slack file download <file-id>
+agent-slack file download <file-id> [output-path]
+agent-slack file download F0ABC123 ./downloads/
 ```
 
 ### Unread Commands
