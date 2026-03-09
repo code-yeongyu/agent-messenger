@@ -29,6 +29,8 @@ const RATE_LIMIT_ERROR_CODE = 'slack_webapi_rate_limited_error'
 
 export class SlackClient {
   private client: WebClient
+  private token: string
+  private cookie: string
 
   constructor(token: string, cookie: string) {
     if (!token) {
@@ -38,6 +40,8 @@ export class SlackClient {
       throw new SlackError('Cookie is required', 'missing_cookie')
     }
 
+    this.token = token
+    this.cookie = cookie
     this.client = new WebClient(token, {
       headers: { Cookie: `d=${cookie}` },
     })
@@ -454,6 +458,51 @@ export class SlackClient {
         channels: f.channels,
       }))
     })
+  }
+
+  async getFileInfo(fileId: string): Promise<SlackFile> {
+    return this.withRetry(async () => {
+      const response = await this.client.files.info({ file: fileId })
+      this.checkResponse(response)
+
+      const f = response.file!
+      return {
+        id: f.id!,
+        name: f.name!,
+        title: f.title || f.name || '',
+        mimetype: f.mimetype || 'application/octet-stream',
+        size: f.size || 0,
+        url_private: f.url_private || '',
+        created: f.created || 0,
+        user: f.user || '',
+        channels: f.channels,
+      }
+    })
+  }
+
+  async downloadFile(fileId: string): Promise<{ buffer: Buffer; file: SlackFile }> {
+    const file = await this.getFileInfo(fileId)
+
+    if (!file.url_private) {
+      throw new SlackError('File has no download URL', 'no_download_url')
+    }
+
+    const response = await fetch(file.url_private, {
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+        Cookie: `d=${this.cookie}`,
+      },
+    })
+
+    if (!response.ok) {
+      throw new SlackError(`Failed to download file: ${response.statusText}`, 'download_failed')
+    }
+
+    const arrayBuffer = await response.arrayBuffer()
+    return {
+      buffer: Buffer.from(arrayBuffer),
+      file,
+    }
   }
 
   async searchMessages(
