@@ -95,8 +95,7 @@ jobs:
             npx clawhub@latest publish "$skill_dir" \
               --slug "$slug" \
               --version "${{ inputs.version }}" \
-              --tags latest \
-              --no-input
+              --tags latest
           done
         env:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
