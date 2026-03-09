@@ -36,7 +36,6 @@ export default async function Page(props: PageProps) {
     notFound()
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { body: MDX, toc } = page.data as any
 
   return (

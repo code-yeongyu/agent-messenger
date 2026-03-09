@@ -94,7 +94,7 @@ Documentation pages are written in MDX format and located in `src/content/docs/`
 - **Documentation**: [Fumadocs](https://fumadocs.vercel.app/) for MDX support and search
 - **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) with dark mode support
 - **Fonts**: [Geist](https://vercel.com/font) font family
-- **Linting**: [Biome](https://biomejs.dev/) for code quality
+- **Linting**: [oxlint](https://oxc.rs/docs/guide/usage/linter) + [oxfmt](https://oxc.rs/docs/guide/usage/formatter) for code quality
 - **Package Manager**: [Bun](https://bun.sh/)
 
 ## Features
