@@ -187,21 +187,14 @@ describe('File Commands', () => {
       expect(result.buffer.toString()).toBe('downloaded content')
     })
 
-    test('returns file metadata with download path', async () => {
-      const outputPath = '/tmp/downloaded-test.txt'
-      const result = await mockClient.downloadFile('F123')
-      const output = {
-        id: result.file.id,
-        name: result.file.name,
-        mimetype: result.file.mimetype,
-        size: result.file.size,
-        path: outputPath,
-      }
+    test('sanitizes filename to prevent path traversal', () => {
+      const { basename } = require('node:path')
+      const sanitize = (name: string) => basename(name.replace(/\\/g, '/'))
 
-      expect(output.id).toBe('F123')
-      expect(output.name).toBe('test.txt')
-      expect(output.path).toBe(outputPath)
-      expect(output.size).toBeGreaterThan(0)
+      expect(sanitize('../../../etc/passwd')).toBe('passwd')
+      expect(sanitize('test.txt')).toBe('test.txt')
+      expect(sanitize('/foo/bar/malicious.sh')).toBe('malicious.sh')
+      expect(sanitize('..\\..\\windows\\system32\\evil.exe')).toBe('evil.exe')
     })
   })
 

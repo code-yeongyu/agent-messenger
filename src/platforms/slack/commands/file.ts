@@ -1,5 +1,5 @@
 import { readFileSync, statSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 
 import { Command } from 'commander'
 
@@ -130,7 +130,8 @@ async function downloadAction(
     const client = new SlackClient(workspace.token, workspace.cookie)
     const { buffer, file } = await client.downloadFile(fileId)
 
-    let destPath = outputPath ? resolve(outputPath) : resolve(file.name)
+    const safeName = basename(file.name.replace(/\\/g, '/'))
+    let destPath = outputPath ? resolve(outputPath) : resolve(safeName)
     let isDirectory = false
     try {
       isDirectory = statSync(destPath).isDirectory()
@@ -142,7 +143,7 @@ async function downloadAction(
     }
 
     if (isDirectory) {
-      destPath = join(destPath, file.name)
+      destPath = join(destPath, safeName)
     }
 
     writeFileSync(destPath, buffer)
