@@ -26,12 +26,12 @@ npm consumers run compiled JS via Node.js. The `prepublishOnly` script runs the 
 
 ### Key Distinction
 
-| | Local (dev) | Published (npm) |
-|---|---|---|
-| Runtime | Bun | Node.js |
-| Entry files | `src/*.ts` | `dist/src/*.js` |
-| Shebang | `#!/usr/bin/env bun` | `#!/usr/bin/env node` |
-| Compilation | None (Bun runs TS) | `tsc` → `dist/` |
+|             | Local (dev)          | Published (npm)       |
+| ----------- | -------------------- | --------------------- |
+| Runtime     | Bun                  | Node.js               |
+| Entry files | `src/*.ts`           | `dist/src/*.js`       |
+| Shebang     | `#!/usr/bin/env bun` | `#!/usr/bin/env node` |
+| Compilation | None (Bun runs TS)   | `tsc` → `dist/`       |
 
 ## Commands
 
@@ -41,18 +41,19 @@ bun link        # Link CLI globally for local testing
 bun test        # Run unit tests
 bun test:e2e    # Run e2e tests
 bun typecheck   # Type check without emitting
-bun lint        # Lint with Biome
-bun lint:fix    # Lint with Biome
-bun format      # Format with Biome
+bun lint        # Lint with oxlint
+bun lint:fix    # Lint with oxlint (autofix)
+bun format      # Format with oxfmt
 ```
 
 ## Release
+
 Use the **Release** GitHub Actions workflow (`workflow_dispatch`). It typechecks, lints, tests, bumps version in `package.json` / `.claude-plugin/plugin.json` / `README.md` / `skills/*/SKILL.md`, commits, tags, publishes to npm, and creates a GitHub Release. Tags have no `v` prefix.
 
 ### Version Decision
 
 - If the user specifies an exact version (e.g., `1.5.0`), use it as-is.
- Otherwise, the agent decides the bump level based on the changes since the last release (never bump major unless user explicitly asks):
+  Otherwise, the agent decides the bump level based on the changes since the last release (never bump major unless user explicitly asks):
   - **minor** — New features, new commands, new platform support, breaking changes
   - **patch** — Bug fixes, refactors, docs, dependency updates, minor improvements
 - Never ask the user which version to bump. Decide and proceed.
