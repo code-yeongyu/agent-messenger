@@ -43,6 +43,31 @@ describe('File Commands', () => {
           channels: channel ? [channel] : ['C456'],
         },
       ]),
+      getFileInfo: mock(async (fileId: string) => ({
+        id: fileId,
+        name: 'test.txt',
+        title: 'test.txt',
+        mimetype: 'text/plain',
+        size: 1024,
+        url_private: 'https://files.slack.com/files-pri/T123-F123/test.txt',
+        created: 1234567890,
+        user: 'U123',
+        channels: ['C123'],
+      })),
+      downloadFile: mock(async (fileId: string) => ({
+        buffer: Buffer.from('downloaded content'),
+        file: {
+          id: fileId,
+          name: 'test.txt',
+          title: 'test.txt',
+          mimetype: 'text/plain',
+          size: 18,
+          url_private: 'https://files.slack.com/files-pri/T123-F123/test.txt',
+          created: 1234567890,
+          user: 'U123',
+          channels: ['C123'],
+        },
+      })),
     } as any
   })
 
@@ -149,6 +174,34 @@ describe('File Commands', () => {
       expect(file).toBeDefined()
       expect(file?.id).toBe(fileId)
       expect(file?.name).toBe('test.txt')
+    })
+  })
+
+  describe('file download', () => {
+    test('downloads file by ID', async () => {
+      const fileId = 'F123'
+      const result = await mockClient.downloadFile(fileId)
+
+      expect(result.file.id).toBe(fileId)
+      expect(result.file.name).toBe('test.txt')
+      expect(result.buffer.toString()).toBe('downloaded content')
+    })
+
+    test('returns file metadata with download path', async () => {
+      const outputPath = '/tmp/downloaded-test.txt'
+      const result = await mockClient.downloadFile('F123')
+      const output = {
+        id: result.file.id,
+        name: result.file.name,
+        mimetype: result.file.mimetype,
+        size: result.file.size,
+        path: outputPath,
+      }
+
+      expect(output.id).toBe('F123')
+      expect(output.name).toBe('test.txt')
+      expect(output.path).toBe(outputPath)
+      expect(output.size).toBeGreaterThan(0)
     })
   })
 

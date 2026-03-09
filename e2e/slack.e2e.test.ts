@@ -357,6 +357,44 @@ describe('Slack E2E Tests', () => {
         await Bun.$`rm -f ${testFilePath}`.quiet()
       }
     })
+
+    test('file download downloads a file', async () => {
+      const testId = generateTestId()
+      const testContent = `E2E download test ${testId}`
+      const testFilePath = `/tmp/slack-e2e-upload-${testId}.txt`
+      const downloadPath = `/tmp/slack-e2e-download-${testId}.txt`
+      await Bun.write(testFilePath, testContent)
+
+      try {
+        const credManager = new CredentialManager()
+        const workspace = await credManager.getWorkspace()
+        const webClient = new WebClient(workspace!.token, {
+          headers: { Cookie: `d=${workspace!.cookie}` },
+        })
+        const uploadResponse = await webClient.files.uploadV2({
+          channel_id: SLACK_TEST_CHANNEL_ID,
+          file: Buffer.from(testContent),
+          filename: `e2e-download-test-${testId}.txt`,
+        })
+        const uploadedFile = (uploadResponse as any).files?.[0]?.files?.[0]
+        expect(uploadedFile?.id).toBeTruthy()
+
+        await waitForRateLimit(3000)
+
+        const result = await runCLI('slack', ['file', 'download', uploadedFile.id, downloadPath])
+        expect(result.exitCode).toBe(0)
+
+        const data = parseJSON<{ id: string; name: string; path: string; size: number }>(result.stdout)
+        expect(data?.id).toBe(uploadedFile.id)
+        expect(data?.path).toBe(downloadPath)
+        expect(data?.size).toBeGreaterThan(0)
+
+        const downloadedContent = await Bun.file(downloadPath).text()
+        expect(downloadedContent).toBe(testContent)
+      } finally {
+        await Bun.$`rm -f ${testFilePath} ${downloadPath}`.quiet()
+      }
+    }, 30000)
   })
 
   describe('channel history', () => {
