@@ -65,6 +65,7 @@ Follow conventional commits:
 - `refactor(scope): description` - Code refactoring
 
 Examples:
+
 ```
 feat(slack): add message send command
 feat(discord): add server switching
