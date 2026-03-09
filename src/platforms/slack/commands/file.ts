@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readFileSync, statSync, writeFileSync } from 'node:fs'
+import { basename, join, resolve } from 'node:path'
 
 import { Command } from 'commander'
 
@@ -93,18 +93,7 @@ async function infoAction(fileId: string, options: { pretty?: boolean }): Promis
     }
 
     const client = new SlackClient(workspace.token, workspace.cookie)
-    const files = await client.listFiles()
-    const fileData = files.find((f) => f.id === fileId)
-
-    if (!fileData) {
-      console.log(
-        formatOutput(
-          { error: `File not found: ${fileId}`, hint: 'Run "file list" to see available files.' },
-          options.pretty,
-        ),
-      )
-      process.exit(1)
-    }
+    const fileData = await client.getFileInfo(fileId)
 
     const output = {
       id: fileData.id,
@@ -119,6 +108,58 @@ async function infoAction(fileId: string, options: { pretty?: boolean }): Promis
     }
 
     console.log(formatOutput(output, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
+async function downloadAction(
+  fileId: string,
+  outputPath: string | undefined,
+  options: { pretty?: boolean },
+): Promise<void> {
+  try {
+    const credManager = new CredentialManager()
+    const workspace = await credManager.getWorkspace()
+
+    if (!workspace) {
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
+      process.exit(1)
+    }
+
+    const client = new SlackClient(workspace.token, workspace.cookie)
+    const { buffer, file } = await client.downloadFile(fileId)
+
+    const safeName = basename(file.name.replace(/\\/g, '/'))
+    let destPath = outputPath ? resolve(outputPath) : resolve(safeName)
+    let isDirectory = false
+    try {
+      isDirectory = statSync(destPath).isDirectory()
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException
+      if (err.code !== 'ENOENT') {
+        throw error
+      }
+    }
+
+    if (isDirectory) {
+      destPath = join(destPath, safeName)
+    }
+
+    writeFileSync(destPath, buffer)
+
+    console.log(
+      formatOutput(
+        {
+          id: file.id,
+          name: file.name,
+          mimetype: file.mimetype,
+          size: file.size,
+          path: destPath,
+        },
+        options.pretty,
+      ),
+    )
   } catch (error) {
     handleError(error as Error)
   }
@@ -148,4 +189,12 @@ export const fileCommand = new Command('file')
       .argument('<file>', 'file ID')
       .option('--pretty', 'Pretty print JSON output')
       .action(infoAction),
+  )
+  .addCommand(
+    new Command('download')
+      .description('Download file')
+      .argument('<file>', 'file ID')
+      .argument('[output-path]', 'output file path')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(downloadAction),
   )
