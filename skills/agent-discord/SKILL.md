@@ -429,7 +429,7 @@ pnpm dlx agent-messenger discord server list
 
 If you already know the user's preferred package runner, use it directly instead of asking.
 
-**NEVER run `npx agent-discord` or `bunx agent-discord`** — it will fail or install a wrong package since `agent-discord` is not the npm package name.
+**NEVER run `npx agent-discord`, `bunx agent-discord`, or `pnpm dlx agent-discord`** — it will fail or install a wrong package since `agent-discord` is not the npm package name.
 
 For other troubleshooting (auth extraction, token issues, permissions), see [references/authentication.md](references/authentication.md).
 

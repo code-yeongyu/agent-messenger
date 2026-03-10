@@ -376,7 +376,7 @@ pnpm dlx agent-messenger teams team list
 
 If you already know the user's preferred package runner, use it directly instead of asking.
 
-**NEVER run `npx agent-teams` or `bunx agent-teams`** — it will fail or install a wrong package since `agent-teams` is not the npm package name.
+**NEVER run `npx agent-teams`, `bunx agent-teams`, or `pnpm dlx agent-teams`** — it will fail or install a wrong package since `agent-teams` is not the npm package name.
 
 For other troubleshooting (auth extraction, token expiry, permissions), see [references/authentication.md](references/authentication.md).
 

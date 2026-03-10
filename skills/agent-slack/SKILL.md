@@ -407,7 +407,7 @@ pnpm dlx agent-messenger slack message list general
 
 If you already know the user's preferred package runner, use it directly instead of asking.
 
-**NEVER run `npx agent-slack` or `bunx agent-slack`** — a separate, unrelated npm package named `agent-slack` exists on npm. It will silently install the **wrong package** with different (fewer) commands.
+**NEVER run `npx agent-slack`, `bunx agent-slack`, or `pnpm dlx agent-slack`** — a separate, unrelated npm package named `agent-slack` exists on npm. It will silently install the **wrong package** with different (fewer) commands.
 
 For other troubleshooting (auth extraction, token issues, Keychain), see [references/authentication.md](references/authentication.md).
 

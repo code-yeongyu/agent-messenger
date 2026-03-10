@@ -328,7 +328,7 @@ pnpm dlx agent-messenger slackbot message send general "Hello"
 
 If you already know the user's preferred package runner, use it directly instead of asking.
 
-**NEVER run `npx agent-slackbot` or `bunx agent-slackbot`** — it will fail or install a wrong package since `agent-slackbot` is not the npm package name.
+**NEVER run `npx agent-slackbot`, `bunx agent-slackbot`, or `pnpm dlx agent-slackbot`** — it will fail or install a wrong package since `agent-slackbot` is not the npm package name.
 
 For other troubleshooting (token issues, scopes, permissions), see [references/authentication.md](references/authentication.md).
 

@@ -387,7 +387,7 @@ pnpm dlx agent-messenger discordbot message send 1234567890123456789 "Hello"
 
 If you already know the user's preferred package runner, use it directly instead of asking.
 
-**NEVER run `npx agent-discordbot` or `bunx agent-discordbot`** -- it will fail or install a wrong package since `agent-discordbot` is not the npm package name.
+**NEVER run `npx agent-discordbot`, `bunx agent-discordbot`, or `pnpm dlx agent-discordbot`** -- it will fail or install a wrong package since `agent-discordbot` is not the npm package name.
 
 For other troubleshooting (permissions, token issues, Message Content Intent), see [references/authentication.md](references/authentication.md).
 
