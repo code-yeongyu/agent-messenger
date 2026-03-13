@@ -135,7 +135,9 @@ export class SlackClient {
     })
   }
 
-  async listDMs(): Promise<{ id: string; user: string; is_mpim: boolean }[]> {
+  async listDMs(
+    options: { excludeArchived?: boolean } = {}
+  ): Promise<{ id: string; user: string; is_mpim: boolean }[]> {
     return this.withRetry(async () => {
       const dms: { id: string; user: string; is_mpim: boolean }[] = []
       let cursor: string | undefined
@@ -145,6 +147,7 @@ export class SlackClient {
           cursor,
           limit: 200,
           types: 'im,mpim',
+          exclude_archived: options.excludeArchived ?? false,
         })
         this.checkResponse(response)
 
