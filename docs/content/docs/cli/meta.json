@@ -1,0 +1,16 @@
+{
+  "title": "CLI",
+  "pages": [
+    "slack",
+    "slackbot",
+    "discord",
+    "discordbot",
+    "teams",
+    "telegram",
+    "whatsapp",
+    "whatsappbot",
+    "kakaotalk",
+    "channeltalk",
+    "channeltalkbot"
+  ]
+}

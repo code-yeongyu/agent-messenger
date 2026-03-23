@@ -1,6 +1,8 @@
 import { Command } from 'commander'
-import { handleError } from '../../../shared/utils/error-handler'
-import { formatOutput } from '../../../shared/utils/output'
+
+import { handleError } from '@/shared/utils/error-handler'
+import { formatOutput } from '@/shared/utils/output'
+
 import { TeamsClient } from '../client'
 import { TeamsCredentialManager } from '../credential-manager'
 
@@ -9,20 +11,18 @@ export async function addAction(
   channelId: string,
   messageId: string,
   emoji: string,
-  options: { pretty?: boolean }
+  options: { pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
-    const config = await credManager.loadConfig()
+    const cred = await credManager.getTokenWithExpiry()
 
-    if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+    if (!cred) {
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
-    const client = new TeamsClient(config.token, config.token_expires_at)
+    const client = new TeamsClient(cred.token, cred.tokenExpiresAt)
     await client.addReaction(teamId, channelId, messageId, emoji)
 
     console.log(
@@ -34,8 +34,8 @@ export async function addAction(
           message_id: messageId,
           emoji,
         },
-        options.pretty
-      )
+        options.pretty,
+      ),
     )
   } catch (error) {
     handleError(error as Error)
@@ -47,20 +47,18 @@ export async function removeAction(
   channelId: string,
   messageId: string,
   emoji: string,
-  options: { pretty?: boolean }
+  options: { pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
-    const config = await credManager.loadConfig()
+    const cred = await credManager.getTokenWithExpiry()
 
-    if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+    if (!cred) {
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
-    const client = new TeamsClient(config.token, config.token_expires_at)
+    const client = new TeamsClient(cred.token, cred.tokenExpiresAt)
     await client.removeReaction(teamId, channelId, messageId, emoji)
 
     console.log(
@@ -72,8 +70,8 @@ export async function removeAction(
           message_id: messageId,
           emoji,
         },
-        options.pretty
-      )
+        options.pretty,
+      ),
     )
   } catch (error) {
     handleError(error as Error)
@@ -90,7 +88,7 @@ export const reactionCommand = new Command('reaction')
       .argument('<message-id>', 'Message ID')
       .argument('<emoji>', 'Emoji name')
       .option('--pretty', 'Pretty print JSON output')
-      .action(addAction)
+      .action(addAction),
   )
   .addCommand(
     new Command('remove')
@@ -100,5 +98,5 @@ export const reactionCommand = new Command('reaction')
       .argument('<message-id>', 'Message ID')
       .argument('<emoji>', 'Emoji name')
       .option('--pretty', 'Pretty print JSON output')
-      .action(removeAction)
+      .action(removeAction),
   )

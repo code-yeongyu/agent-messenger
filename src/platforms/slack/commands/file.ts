@@ -1,31 +1,30 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readFileSync, statSync, writeFileSync } from 'node:fs'
+import { basename, join, resolve } from 'node:path'
+
 import { Command } from 'commander'
-import { handleError } from '../../../shared/utils/error-handler'
-import { formatOutput } from '../../../shared/utils/output'
+
+import { handleError } from '@/shared/utils/error-handler'
+import { formatOutput } from '@/shared/utils/output'
+
 import { SlackClient } from '../client'
 import { CredentialManager } from '../credential-manager'
 
 async function uploadAction(
   channel: string,
   path: string,
-  options: { filename?: string; pretty?: boolean }
+  options: { filename?: string; pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
     const client = new SlackClient(workspace.token, workspace.cookie)
+    channel = await client.resolveChannel(channel)
 
     const filePath = resolve(path)
     const fileBuffer = readFileSync(filePath)
@@ -57,17 +56,13 @@ async function listAction(options: { channel?: string; pretty?: boolean }): Prom
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
     const client = new SlackClient(workspace.token, workspace.cookie)
-    const files = await client.listFiles(options.channel)
+    const channel = options.channel ? await client.resolveChannel(options.channel) : undefined
+    const files = await client.listFiles(channel)
 
     const output = files.map((file) => ({
       id: file.id,
@@ -93,23 +88,12 @@ async function infoAction(fileId: string, options: { pretty?: boolean }): Promis
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
     const client = new SlackClient(workspace.token, workspace.cookie)
-    const files = await client.listFiles()
-    const fileData = files.find((f) => f.id === fileId)
-
-    if (!fileData) {
-      console.log(formatOutput({ error: `File not found: ${fileId}` }, options.pretty))
-      process.exit(1)
-    }
+    const fileData = await client.getFileInfo(fileId)
 
     const output = {
       id: fileData.id,
@@ -129,25 +113,114 @@ async function infoAction(fileId: string, options: { pretty?: boolean }): Promis
   }
 }
 
+async function downloadAction(
+  fileId: string,
+  outputPath: string | undefined,
+  options: { pretty?: boolean },
+): Promise<void> {
+  try {
+    const credManager = new CredentialManager()
+    const workspace = await credManager.getWorkspace()
+
+    if (!workspace) {
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
+      process.exit(1)
+    }
+
+    const client = new SlackClient(workspace.token, workspace.cookie)
+    const { buffer, file } = await client.downloadFile(fileId)
+
+    const safeName = basename(file.name.replace(/\\/g, '/'))
+    let destPath = outputPath ? resolve(outputPath) : resolve(safeName)
+    let isDirectory = false
+    try {
+      isDirectory = statSync(destPath).isDirectory()
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException
+      if (err.code !== 'ENOENT') {
+        throw error
+      }
+    }
+
+    if (isDirectory) {
+      destPath = join(destPath, safeName)
+    }
+
+    writeFileSync(destPath, buffer)
+
+    console.log(
+      formatOutput(
+        {
+          id: file.id,
+          name: file.name,
+          mimetype: file.mimetype,
+          size: file.size,
+          path: destPath,
+        },
+        options.pretty,
+      ),
+    )
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
+async function deleteFileAction(fileId: string, options: { pretty?: boolean }): Promise<void> {
+  try {
+    const credManager = new CredentialManager()
+    const workspace = await credManager.getWorkspace()
+
+    if (!workspace) {
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
+      process.exit(1)
+    }
+
+    const client = new SlackClient(workspace.token, workspace.cookie)
+    await client.deleteFile(fileId)
+
+    console.log(formatOutput({ success: true, file_id: fileId }, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
 export const fileCommand = new Command('file')
-  .description('file commands')
+  .description('File commands')
   .addCommand(
     new Command('upload')
-      .description('upload file to channel')
+      .description('Upload file to channel')
       .argument('<channel>', 'channel ID or name')
       .argument('<path>', 'file path')
       .option('--filename <name>', 'override filename')
-      .action(uploadAction)
+      .option('--pretty', 'Pretty print JSON output')
+      .action(uploadAction),
   )
   .addCommand(
     new Command('list')
-      .description('list files in workspace')
+      .description('List files in workspace')
       .option('--channel <id>', 'filter by channel')
-      .action(listAction)
+      .option('--pretty', 'Pretty print JSON output')
+      .action(listAction),
   )
   .addCommand(
     new Command('info')
-      .description('show file details')
+      .description('Show file details')
       .argument('<file>', 'file ID')
-      .action(infoAction)
+      .option('--pretty', 'Pretty print JSON output')
+      .action(infoAction),
+  )
+  .addCommand(
+    new Command('download')
+      .description('Download file')
+      .argument('<file>', 'file ID')
+      .argument('[output-path]', 'output file path')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(downloadAction),
+  )
+  .addCommand(
+    new Command('delete')
+      .description('Delete a file')
+      .argument('<file>', 'file ID')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(deleteFileAction),
   )

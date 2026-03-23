@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
+
 import type { TeamsChannel, TeamsFile, TeamsMessage, TeamsTeam, TeamsUser } from './types'
 import { TeamsError } from './types'
 
@@ -84,14 +85,9 @@ export class TeamsClient {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
-  private async request<T>(
-    method: string,
-    path: string,
-    body?: unknown,
-    baseUrl: string = MSG_API_BASE
-  ): Promise<T> {
+  private async request<T>(method: string, path: string, body?: unknown, baseUrl: string = MSG_API_BASE): Promise<T> {
     if (this.isTokenExpired()) {
-      throw new TeamsError('Token has expired', 'token_expired')
+      throw new TeamsError('Token has expired. Run "auth extract" to refresh.', 'token_expired')
     }
 
     const url = `${baseUrl}${path}`
@@ -140,7 +136,7 @@ export class TeamsClient {
         } | null
         throw new TeamsError(
           errorBody?.message ?? `HTTP ${response.status}`,
-          errorBody?.code?.toString() ?? `http_${response.status}`
+          errorBody?.code?.toString() ?? `http_${response.status}`,
         )
       }
 
@@ -154,13 +150,9 @@ export class TeamsClient {
     throw new TeamsError('Request failed after retries', 'max_retries')
   }
 
-  private async requestFormData<T>(
-    path: string,
-    formData: FormData,
-    baseUrl: string = MSG_API_BASE
-  ): Promise<T> {
+  private async requestFormData<T>(path: string, formData: FormData, baseUrl: string = MSG_API_BASE): Promise<T> {
     if (this.isTokenExpired()) {
-      throw new TeamsError('Token has expired', 'token_expired')
+      throw new TeamsError('Token has expired. Run "auth extract" to refresh.', 'token_expired')
     }
 
     const url = `${baseUrl}${path}`
@@ -185,7 +177,7 @@ export class TeamsClient {
       } | null
       throw new TeamsError(
         errorBody?.message ?? `HTTP ${response.status}`,
-        errorBody?.code?.toString() ?? `http_${response.status}`
+        errorBody?.code?.toString() ?? `http_${response.status}`,
       )
     }
 
@@ -242,12 +234,7 @@ export class TeamsClient {
   }
 
   async listChannels(teamId: string): Promise<TeamsChannel[]> {
-    return this.request<TeamsChannel[]>(
-      'GET',
-      `/csa/api/v1/teams/${teamId}/channels`,
-      undefined,
-      CSA_API_BASE
-    )
+    return this.request<TeamsChannel[]>('GET', `/csa/api/v1/teams/${teamId}/channels`, undefined, CSA_API_BASE)
   }
 
   async getChannel(teamId: string, channelId: string): Promise<TeamsChannel> {
@@ -255,7 +242,7 @@ export class TeamsClient {
       'GET',
       `/csa/api/v1/teams/${teamId}/channels/${channelId}`,
       undefined,
-      CSA_API_BASE
+      CSA_API_BASE,
     )
   }
 
@@ -264,20 +251,16 @@ export class TeamsClient {
       'POST',
       `/csa/emea/api/v2/teams/${teamId}/channels/${channelId}/messages`,
       { content },
-      CSA_API_BASE
+      CSA_API_BASE,
     )
   }
 
-  async getMessages(
-    teamId: string,
-    channelId: string,
-    limit: number = 50
-  ): Promise<TeamsMessage[]> {
+  async getMessages(teamId: string, channelId: string, limit: number = 50): Promise<TeamsMessage[]> {
     return this.request<TeamsMessage[]>(
       'GET',
       `/csa/emea/api/v2/teams/${teamId}/channels/${channelId}/messages?limit=${limit}`,
       undefined,
-      CSA_API_BASE
+      CSA_API_BASE,
     )
   }
 
@@ -286,7 +269,7 @@ export class TeamsClient {
       'GET',
       `/csa/emea/api/v2/teams/${teamId}/channels/${channelId}/messages/${messageId}`,
       undefined,
-      CSA_API_BASE
+      CSA_API_BASE,
     )
   }
 
@@ -295,45 +278,30 @@ export class TeamsClient {
       'DELETE',
       `/csa/emea/api/v2/teams/${teamId}/channels/${channelId}/messages/${messageId}`,
       undefined,
-      CSA_API_BASE
+      CSA_API_BASE,
     )
   }
 
-  async addReaction(
-    teamId: string,
-    channelId: string,
-    messageId: string,
-    emoji: string
-  ): Promise<void> {
+  async addReaction(teamId: string, channelId: string, messageId: string, emoji: string): Promise<void> {
     return this.request<void>(
       'POST',
       `/csa/emea/api/v2/teams/${teamId}/channels/${channelId}/messages/${messageId}/reactions`,
       { emoji },
-      CSA_API_BASE
+      CSA_API_BASE,
     )
   }
 
-  async removeReaction(
-    teamId: string,
-    channelId: string,
-    messageId: string,
-    emoji: string
-  ): Promise<void> {
+  async removeReaction(teamId: string, channelId: string, messageId: string, emoji: string): Promise<void> {
     return this.request<void>(
       'DELETE',
       `/csa/emea/api/v2/teams/${teamId}/channels/${channelId}/messages/${messageId}/reactions/${emoji}`,
       undefined,
-      CSA_API_BASE
+      CSA_API_BASE,
     )
   }
 
   async listUsers(teamId: string): Promise<TeamsUser[]> {
-    return this.request<TeamsUser[]>(
-      'GET',
-      `/csa/api/v1/teams/${teamId}/members`,
-      undefined,
-      CSA_API_BASE
-    )
+    return this.request<TeamsUser[]>('GET', `/csa/api/v1/teams/${teamId}/members`, undefined, CSA_API_BASE)
   }
 
   async getUser(userId: string): Promise<TeamsUser> {
@@ -350,7 +318,7 @@ export class TeamsClient {
     return this.requestFormData<TeamsFile>(
       `/csa/emea/api/v2/teams/${teamId}/channels/${channelId}/files`,
       formData,
-      CSA_API_BASE
+      CSA_API_BASE,
     )
   }
 
@@ -359,7 +327,7 @@ export class TeamsClient {
       'GET',
       `/csa/emea/api/v2/teams/${teamId}/channels/${channelId}/files`,
       undefined,
-      CSA_API_BASE
+      CSA_API_BASE,
     )
   }
 }

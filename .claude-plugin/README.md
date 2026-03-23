@@ -1,6 +1,6 @@
 # Agent Messenger - Claude Code Plugin
 
-Messaging platform interaction skills for AI agents and Claude Code. Supports Slack workspaces and Discord servers.
+Messaging platform interaction skills for AI agents and Claude Code. Supports Slack, Discord, Microsoft Teams, Telegram, WhatsApp, KakaoTalk, and Channel Talk (beta).
 
 ## Installation
 
@@ -27,8 +27,15 @@ Enables AI agents to interact with messaging platforms through CLI interfaces:
 - **Send messages** to channels and threads
 - **Read channels** and message history
 - **Manage reactions** (add/remove/list)
-- **Upload files** to channels
+- **Upload & download files**
 - **Search messages** across workspace
+- **Channel management** (create, archive, set topic/purpose, invite, join/leave)
+- **Pins & bookmarks** — pin messages and manage channel bookmarks
+- **Scheduled messages** — schedule, list, and cancel
+- **Reminders** — create, list, complete, and delete
+- **User profiles** — lookup, set status, view profiles
+- **Custom emoji** — list workspace emoji
+- **Activity feed, drafts, saved items, unread tracking**
 - **Multi-workspace support** with easy switching
 
 ### Discord (`agent-discord`)
@@ -36,13 +43,80 @@ Enables AI agents to interact with messaging platforms through CLI interfaces:
 - **Read channels** and message history
 - **Manage reactions** (add/remove/list)
 - **Upload files** to channels
+- **Search messages** across server
 - **Multi-guild support** with easy switching
+
+### Teams (`agent-teams`)
+- **Send messages** to channels
+- **Read channels** and message history
+- **Manage reactions** (add/remove)
+- **Upload files** to channels
+- **Workspace snapshots** for quick overview
+- **Multi-team support** with easy switching
+
+### Slack Bot (`agent-slackbot`)
+- **Send messages** using bot tokens (xoxb-)
+- **Read channels** and message history
+- **Manage reactions** (add/remove)
+- **Multi-bot management** with easy switching
+- Designed for **server-side and CI/CD** use cases
+
+### Discord Bot (`agent-discordbot`)
+- **Send messages** using bot tokens
+- **Read channels** and message history
+- **Manage reactions** (add/remove)
+- **Upload files** to channels
+- **Multi-bot management** with easy switching
+- Designed for **server-side and CI/CD** use cases
+
+### Telegram (`agent-telegram`)
+- **Send messages** to chats and users
+- **Read chats** and message history
+- **Search chats** by name or username
+- **Multi-account support** with easy switching
+- **Auto-provisions** API credentials via my.telegram.org
+
+### WhatsApp (`agent-whatsapp`)
+- **Send messages** to chats and groups
+- **Read chats** and message history
+- **Search chats** by name across conversations
+- **Manage reactions** (add/remove)
+- **Pairing code auth** — scan-free authentication
+- **Multi-account support** with easy switching
+
+### WhatsApp Bot (`agent-whatsappbot`)
+- **Send messages** using Cloud API credentials
+- **Template messaging** for outbound notifications
+- Designed for **server-side and CI/CD** use cases
+
+### KakaoTalk (`agent-kakaotalk`)
+- **Send messages** to chat rooms (1:1, group, open chat)
+- **Read chats** and message history
+- **Sub-device login** — registers as tablet, desktop app stays running
+- **Credential extraction** from desktop app (macOS/Windows)
+- **LOCO protocol** — native binary messaging protocol
+
+### Channel Talk (`agent-channeltalk`) — Beta
+- **Send messages** to groups, user chats, and direct chats
+- **Read chats** and message history
+- **List groups**, managers, and bots
+- **Workspace snapshots** for quick overview
+- **Multi-workspace support** with easy switching
+- **Zero-config** — auto-extracts cookies from desktop app
+
+### Channel Talk Bot (`agent-channeltalkbot`) — Beta
+- **Send messages** using API credentials (Access Key + Secret)
+- **Read chats** and message history
+- **Close and delete** user chats
+- **Create and manage** bots
+- **Group @name references** for easy targeting
+- Designed for **server-side and CI/CD** use cases
 
 ## Key Features
 
 ### Zero-Config Authentication
 
-Automatically extracts credentials from desktop apps - no manual token copying needed:
+Credentials are automatically extracted from your desktop apps on first command — no manual auth step needed. You can also extract manually:
 
 ```bash
 # Slack
@@ -50,6 +124,15 @@ agent-slack auth extract
 
 # Discord
 agent-discord auth extract
+
+# Teams
+agent-teams auth extract
+
+# For KakaoTalk — login as sub-device (desktop stays running)
+agent-kakaotalk auth login
+
+# Channel Talk (auto-extracted from desktop app)
+agent-channeltalk auth extract
 ```
 
 ### AI-Friendly References (Slack)
@@ -66,7 +149,8 @@ All commands output JSON by default for easy AI consumption. Use `--pretty` for 
 
 ## Requirements
 
-- Slack desktop app and/or Discord desktop app installed and logged in
+- Desktop app installed and logged in for the platform(s) you want to use (Slack, Discord, Teams, KakaoTalk, and/or Channel Talk)
+- For Telegram: TDLib is bundled; API credentials are auto-provisioned on first login
 - Node.js 18+ or Bun runtime
 
 ## Quick Start
@@ -74,30 +158,34 @@ All commands output JSON by default for easy AI consumption. Use `--pretty` for 
 ### Slack
 
 ```bash
-# 1. Extract credentials from Slack desktop app
-agent-slack auth extract
-
-# 2. Get workspace snapshot with refs
+# Get workspace snapshot with refs
 agent-slack snapshot
 
-# 3. Send a message
+# Send a message
 agent-slack message send general "Hello from AI agent!"
 
-# 4. Use refs for AI-friendly interaction
+# Use refs for AI-friendly interaction
 agent-slack message send @c1 "Message to first channel"
 ```
 
 ### Discord
 
 ```bash
-# 1. Extract credentials from Discord desktop app
-agent-discord auth extract
-
-# 2. Get guild snapshot
+# Get guild snapshot
 agent-discord snapshot
 
-# 3. Send a message (use channel ID)
+# Send a message (use channel ID)
 agent-discord message send <channel-id> "Hello from AI agent!"
+```
+
+### Teams
+
+```bash
+# Get team snapshot
+agent-teams snapshot
+
+# Send a message
+agent-teams message send <team-id> <channel-id> "Hello from AI agent!"
 ```
 
 ## Example Usage
@@ -141,4 +229,13 @@ agent-discord file upload <channel-id> ./report.pdf
 
 - [GitHub Repository](https://github.com/devxoul/agent-messenger)
 - [Slack Skill Documentation](https://github.com/devxoul/agent-messenger/blob/main/skills/agent-slack/SKILL.md)
+- [Slack Bot Skill Documentation](https://github.com/devxoul/agent-messenger/blob/main/skills/agent-slackbot/SKILL.md)
 - [Discord Skill Documentation](https://github.com/devxoul/agent-messenger/blob/main/skills/agent-discord/SKILL.md)
+- [Discord Bot Skill Documentation](https://github.com/devxoul/agent-messenger/blob/main/skills/agent-discordbot/SKILL.md)
+- [Teams Skill Documentation](https://github.com/devxoul/agent-messenger/blob/main/skills/agent-teams/SKILL.md)
+- [Telegram Skill Documentation](https://github.com/devxoul/agent-messenger/blob/main/skills/agent-telegram/SKILL.md)
+- [WhatsApp Skill Documentation](https://github.com/devxoul/agent-messenger/blob/main/skills/agent-whatsapp/SKILL.md)
+- [WhatsApp Bot Skill Documentation](https://github.com/devxoul/agent-messenger/blob/main/skills/agent-whatsappbot/SKILL.md)
+- [KakaoTalk Skill Documentation](https://github.com/devxoul/agent-messenger/blob/main/skills/agent-kakaotalk/SKILL.md)
+- [Channel Talk Skill Documentation](https://github.com/devxoul/agent-messenger/blob/main/skills/agent-channeltalk/SKILL.md)
+- [Channel Talk Bot Skill Documentation](https://github.com/devxoul/agent-messenger/blob/main/skills/agent-channeltalkbot/SKILL.md)

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test'
+
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
 import { addAction, listAction, removeAction } from './reaction'
@@ -12,9 +13,7 @@ beforeEach(() => {
   // Spy on DiscordClient.prototype methods
   clientAddReactionSpy = spyOn(DiscordClient.prototype, 'addReaction').mockResolvedValue(undefined)
 
-  clientRemoveReactionSpy = spyOn(DiscordClient.prototype, 'removeReaction').mockResolvedValue(
-    undefined
-  )
+  clientRemoveReactionSpy = spyOn(DiscordClient.prototype, 'removeReaction').mockResolvedValue(undefined)
 
   clientGetMessageSpy = spyOn(DiscordClient.prototype, 'getMessage').mockResolvedValue({
     id: 'msg123',

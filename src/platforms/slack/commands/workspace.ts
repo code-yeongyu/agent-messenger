@@ -1,6 +1,8 @@
 import { Command } from 'commander'
-import { handleError } from '../../../shared/utils/error-handler'
-import { formatOutput } from '../../../shared/utils/output'
+
+import { handleError } from '@/shared/utils/error-handler'
+import { formatOutput } from '@/shared/utils/output'
+
 import { CredentialManager } from '../credential-manager'
 
 async function listAction(options: { pretty?: boolean }): Promise<void> {
@@ -27,7 +29,12 @@ async function switchAction(id: string, options: { pretty?: boolean }): Promise<
     const config = await credManager.load()
 
     if (!config.workspaces[id]) {
-      console.log(formatOutput({ error: `Workspace not found: ${id}` }, options.pretty))
+      console.log(
+        formatOutput(
+          { error: `Workspace not found: ${id}`, hint: 'Run "workspace list" to see available workspaces.' },
+          options.pretty,
+        ),
+      )
       process.exit(1)
     }
 
@@ -44,12 +51,7 @@ async function currentAction(options: { pretty?: boolean }): Promise<void> {
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -70,7 +72,12 @@ async function removeAction(id: string, options: { pretty?: boolean }): Promise<
     const config = await credManager.load()
 
     if (!config.workspaces[id]) {
-      console.log(formatOutput({ error: `Workspace not found: ${id}` }, options.pretty))
+      console.log(
+        formatOutput(
+          { error: `Workspace not found: ${id}`, hint: 'Run "workspace list" to see available workspaces.' },
+          options.pretty,
+        ),
+      )
       process.exit(1)
     }
 
@@ -87,25 +94,25 @@ export const workspaceCommand = new Command('workspace')
     new Command('list')
       .description('List all workspaces')
       .option('--pretty', 'Pretty print JSON output')
-      .action(listAction)
+      .action(listAction),
   )
   .addCommand(
     new Command('switch')
       .description('Switch to workspace')
       .argument('<id>', 'Workspace ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(switchAction)
+      .action(switchAction),
   )
   .addCommand(
     new Command('current')
       .description('Show current workspace')
       .option('--pretty', 'Pretty print JSON output')
-      .action(currentAction)
+      .action(currentAction),
   )
   .addCommand(
     new Command('remove')
       .description('Remove workspace')
       .argument('<id>', 'Workspace ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(removeAction)
+      .action(removeAction),
   )

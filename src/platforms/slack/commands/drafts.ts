@@ -1,25 +1,18 @@
 import { Command } from 'commander'
-import { handleError } from '../../../shared/utils/error-handler'
-import { formatOutput } from '../../../shared/utils/output'
+
+import { handleError } from '@/shared/utils/error-handler'
+import { formatOutput } from '@/shared/utils/output'
+
 import { SlackClient } from '../client'
 import { CredentialManager } from '../credential-manager'
 
-async function listAction(options: {
-  limit?: number
-  cursor?: string
-  pretty?: boolean
-}): Promise<void> {
+async function listAction(options: { limit?: number; cursor?: string; pretty?: boolean }): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -58,5 +51,5 @@ export const draftsCommand = new Command('drafts').description('Drafts commands'
         cursor: options.cursor,
         pretty: options.pretty,
       })
-    })
+    }),
 )

@@ -279,7 +279,7 @@ export const DiscordConfigSchema = z.object({
     z.object({
       server_id: z.string(),
       server_name: z.string(),
-    })
+    }),
   ),
 })
 

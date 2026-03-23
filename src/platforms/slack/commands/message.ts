@@ -1,30 +1,28 @@
 import { Command } from 'commander'
-import { handleError } from '../../../shared/utils/error-handler'
-import { formatOutput } from '../../../shared/utils/output'
+
+import { handleError } from '@/shared/utils/error-handler'
+import { formatOutput } from '@/shared/utils/output'
+
 import { SlackClient } from '../client'
 import { CredentialManager } from '../credential-manager'
 import type { SlackMessage } from '../types'
 
 async function sendAction(
-  channel: string,
+  channelInput: string,
   text: string,
-  options: { thread?: string; pretty?: boolean }
+  options: { thread?: string; pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
     const client = new SlackClient(workspace.token, workspace.cookie)
+    const channel = await client.resolveChannel(channelInput)
     const message = await client.sendMessage(channel, text, options.thread)
 
     const output = {
@@ -42,24 +40,20 @@ async function sendAction(
 }
 
 async function listAction(
-  channel: string,
-  options: { limit?: number; thread?: string; pretty?: boolean }
+  channelInput: string,
+  options: { limit?: number; thread?: string; pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
     const client = new SlackClient(workspace.token, workspace.cookie)
+    const channel = await client.resolveChannel(channelInput)
     const limit = options.limit || 20
     const messages = await client.getMessages(channel, limit)
 
@@ -72,6 +66,8 @@ async function listAction(
       thread_ts: msg.thread_ts,
       reply_count: msg.reply_count,
       edited: msg.edited,
+      reactions: msg.reactions,
+      files: msg.files,
     }))
 
     console.log(formatOutput(output, options.pretty))
@@ -80,26 +76,18 @@ async function listAction(
   }
 }
 
-async function getAction(
-  channel: string,
-  ts: string,
-  options: { pretty?: boolean }
-): Promise<void> {
+async function getAction(channelInput: string, ts: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
     const client = new SlackClient(workspace.token, workspace.cookie)
+    const channel = await client.resolveChannel(channelInput)
     const message = await client.getMessage(channel, ts)
 
     if (!message) {
@@ -116,6 +104,8 @@ async function getAction(
       thread_ts: message.thread_ts,
       reply_count: message.reply_count,
       edited: message.edited,
+      reactions: message.reactions,
+      files: message.files,
     }
 
     console.log(formatOutput(output, options.pretty))
@@ -125,26 +115,22 @@ async function getAction(
 }
 
 async function updateAction(
-  channel: string,
+  channelInput: string,
   ts: string,
   text: string,
-  options: { pretty?: boolean }
+  options: { pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
     const client = new SlackClient(workspace.token, workspace.cookie)
+    const channel = await client.resolveChannel(channelInput)
     const message = await client.updateMessage(channel, ts, text)
 
     const output = {
@@ -161,21 +147,16 @@ async function updateAction(
 }
 
 async function deleteAction(
-  channel: string,
+  channelInput: string,
   ts: string,
-  options: { force?: boolean; pretty?: boolean }
+  options: { force?: boolean; pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -185,6 +166,7 @@ async function deleteAction(
     }
 
     const client = new SlackClient(workspace.token, workspace.cookie)
+    const channel = await client.resolveChannel(channelInput)
     await client.deleteMessage(channel, ts)
 
     console.log(formatOutput({ deleted: ts }, options.pretty))
@@ -195,19 +177,14 @@ async function deleteAction(
 
 async function searchAction(
   query: string,
-  options: { sort?: string; sortDir?: string; limit?: number; pretty?: boolean }
+  options: { sort?: string; sortDir?: string; limit?: number; pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -235,25 +212,21 @@ async function searchAction(
 }
 
 async function repliesAction(
-  channel: string,
+  channelInput: string,
   threadTs: string,
-  options: { limit?: number; oldest?: string; latest?: string; cursor?: string; pretty?: boolean }
+  options: { limit?: number; oldest?: string; latest?: string; cursor?: string; pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
     const client = new SlackClient(workspace.token, workspace.cookie)
+    const channel = await client.resolveChannel(channelInput)
     const result = await client.getThreadReplies(channel, threadTs, {
       limit: options.limit,
       oldest: options.oldest,
@@ -270,9 +243,131 @@ async function repliesAction(
       thread_ts: msg.thread_ts,
       reply_count: msg.reply_count,
       edited: msg.edited,
+      reactions: msg.reactions,
+      files: msg.files,
     }))
 
     console.log(formatOutput(output, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
+async function scheduleAction(
+  channelInput: string,
+  text: string,
+  postAt: string,
+  options: { thread?: string; pretty?: boolean },
+): Promise<void> {
+  try {
+    const credManager = new CredentialManager()
+    const workspace = await credManager.getWorkspace()
+
+    if (!workspace) {
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
+      process.exit(1)
+    }
+
+    const postAtTimestamp = Number(postAt)
+    if (!Number.isInteger(postAtTimestamp) || postAtTimestamp <= 0) {
+      console.log(formatOutput({ error: 'Invalid post-at value. Use a Unix timestamp in seconds (e.g. 1700000000).' }, options.pretty))
+      process.exit(1)
+    }
+
+    const client = new SlackClient(workspace.token, workspace.cookie)
+    const channel = await client.resolveChannel(channelInput)
+    const scheduled = await client.scheduleMessage(channel, text, postAtTimestamp, options.thread)
+
+    console.log(formatOutput(scheduled, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
+async function scheduledListAction(options: { channel?: string; pretty?: boolean }): Promise<void> {
+  try {
+    const credManager = new CredentialManager()
+    const workspace = await credManager.getWorkspace()
+
+    if (!workspace) {
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
+      process.exit(1)
+    }
+
+    const client = new SlackClient(workspace.token, workspace.cookie)
+    const channel = options.channel ? await client.resolveChannel(options.channel) : undefined
+    const messages = await client.listScheduledMessages(channel)
+
+    console.log(formatOutput(messages, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
+async function scheduledDeleteAction(
+  channelInput: string,
+  scheduledMessageId: string,
+  options: { pretty?: boolean },
+): Promise<void> {
+  try {
+    const credManager = new CredentialManager()
+    const workspace = await credManager.getWorkspace()
+
+    if (!workspace) {
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
+      process.exit(1)
+    }
+
+    const client = new SlackClient(workspace.token, workspace.cookie)
+    const channel = await client.resolveChannel(channelInput)
+    await client.deleteScheduledMessage(channel, scheduledMessageId)
+
+    console.log(formatOutput({ success: true, channel, scheduled_message_id: scheduledMessageId }, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
+async function ephemeralAction(
+  channelInput: string,
+  user: string,
+  text: string,
+  options: { pretty?: boolean },
+): Promise<void> {
+  try {
+    const credManager = new CredentialManager()
+    const workspace = await credManager.getWorkspace()
+
+    if (!workspace) {
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
+      process.exit(1)
+    }
+
+    const client = new SlackClient(workspace.token, workspace.cookie)
+    const channel = await client.resolveChannel(channelInput)
+    const messageTs = await client.postEphemeral(channel, user, text)
+
+    console.log(formatOutput({ message_ts: messageTs, channel, user }, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
+async function permalinkAction(channelInput: string, ts: string, options: { pretty?: boolean }): Promise<void> {
+  try {
+    const credManager = new CredentialManager()
+    const workspace = await credManager.getWorkspace()
+
+    if (!workspace) {
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
+      process.exit(1)
+    }
+
+    const client = new SlackClient(workspace.token, workspace.cookie)
+    const channel = await client.resolveChannel(channelInput)
+    const permalink = await client.getPermalink(channel, ts)
+
+    console.log(formatOutput({ channel, ts, permalink }, options.pretty))
   } catch (error) {
     handleError(error as Error)
   }
@@ -287,7 +382,7 @@ export const messageCommand = new Command('message')
       .argument('<text>', 'Message text')
       .option('--thread <ts>', 'Thread timestamp for replies')
       .option('--pretty', 'Pretty print JSON output')
-      .action(sendAction)
+      .action(sendAction),
   )
   .addCommand(
     new Command('list')
@@ -302,7 +397,7 @@ export const messageCommand = new Command('message')
           thread: options.thread,
           pretty: options.pretty,
         })
-      })
+      }),
   )
   .addCommand(
     new Command('get')
@@ -310,7 +405,7 @@ export const messageCommand = new Command('message')
       .argument('<channel>', 'Channel ID or name')
       .argument('<ts>', 'Message timestamp')
       .option('--pretty', 'Pretty print JSON output')
-      .action(getAction)
+      .action(getAction),
   )
   .addCommand(
     new Command('update')
@@ -319,7 +414,7 @@ export const messageCommand = new Command('message')
       .argument('<ts>', 'Message timestamp')
       .argument('<text>', 'New message text')
       .option('--pretty', 'Pretty print JSON output')
-      .action(updateAction)
+      .action(updateAction),
   )
   .addCommand(
     new Command('delete')
@@ -328,7 +423,7 @@ export const messageCommand = new Command('message')
       .argument('<ts>', 'Message timestamp')
       .option('--force', 'Skip confirmation')
       .option('--pretty', 'Pretty print JSON output')
-      .action(deleteAction)
+      .action(deleteAction),
   )
   .addCommand(
     new Command('search')
@@ -345,7 +440,7 @@ export const messageCommand = new Command('message')
           limit: parseInt(options.limit, 10),
           pretty: options.pretty,
         })
-      })
+      }),
   )
   .addCommand(
     new Command('replies')
@@ -365,5 +460,51 @@ export const messageCommand = new Command('message')
           cursor: options.cursor,
           pretty: options.pretty,
         })
-      })
+      }),
+  )
+  .addCommand(
+    new Command('schedule')
+      .description('Schedule a message to be sent later')
+      .argument('<channel>', 'Channel ID or name')
+      .argument('<text>', 'Message text')
+      .argument('<post-at>', 'Unix timestamp for when to send')
+      .option('--thread <ts>', 'Thread timestamp for replies')
+      .option('--pretty', 'Pretty print JSON output')
+      .action((channel: string, text: string, postAt: string, options: any) => {
+        scheduleAction(channel, text, postAt, { thread: options.thread, pretty: options.pretty })
+      }),
+  )
+  .addCommand(
+    new Command('scheduled-list')
+      .description('List scheduled messages')
+      .option('--channel <channel>', 'Filter by channel')
+      .option('--pretty', 'Pretty print JSON output')
+      .action((options: any) => {
+        scheduledListAction({ channel: options.channel, pretty: options.pretty })
+      }),
+  )
+  .addCommand(
+    new Command('scheduled-delete')
+      .description('Delete a scheduled message')
+      .argument('<channel>', 'Channel ID or name')
+      .argument('<scheduled-message-id>', 'Scheduled message ID')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(scheduledDeleteAction),
+  )
+  .addCommand(
+    new Command('ephemeral')
+      .description('Post an ephemeral message visible only to a specific user')
+      .argument('<channel>', 'Channel ID or name')
+      .argument('<user>', 'User ID to show message to')
+      .argument('<text>', 'Message text')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(ephemeralAction),
+  )
+  .addCommand(
+    new Command('permalink')
+      .description('Get a permanent link to a message')
+      .argument('<channel>', 'Channel ID or name')
+      .argument('<ts>', 'Message timestamp')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(permalinkAction),
   )

@@ -1,5 +1,7 @@
 import { describe, expect, mock, test } from 'bun:test'
+
 import { Command } from 'commander'
+
 import { activityCommand } from '@/platforms/slack/commands/activity'
 
 describe('activity command', () => {
@@ -47,9 +49,7 @@ describe('activity command', () => {
         },
       ]
 
-      const mockGetActivityFeed = mock((_options?: { limit?: number }) =>
-        Promise.resolve(mockActivityItems)
-      )
+      const mockGetActivityFeed = mock((_options?: { limit?: number }) => Promise.resolve(mockActivityItems))
       const result = await mockGetActivityFeed({ limit: 10 })
 
       expect(mockGetActivityFeed).toHaveBeenCalledWith({ limit: 10 })
@@ -69,9 +69,7 @@ describe('activity command', () => {
         },
       ]
 
-      const mockGetActivityFeed = mock((_options?: { mode?: string }) =>
-        Promise.resolve(mockActivityItems)
-      )
+      const mockGetActivityFeed = mock((_options?: { mode?: string }) => Promise.resolve(mockActivityItems))
       const result = await mockGetActivityFeed({ mode: 'priority_unreads_v1' })
 
       expect(mockGetActivityFeed).toHaveBeenCalledWith({ mode: 'priority_unreads_v1' })
@@ -91,9 +89,7 @@ describe('activity command', () => {
         },
       ]
 
-      const mockGetActivityFeed = mock((_options?: { types?: string }) =>
-        Promise.resolve(mockActivityItems)
-      )
+      const mockGetActivityFeed = mock((_options?: { types?: string }) => Promise.resolve(mockActivityItems))
       const result = await mockGetActivityFeed({ types: 'thread_reply,at_user' })
 
       expect(mockGetActivityFeed).toHaveBeenCalledWith({ types: 'thread_reply,at_user' })

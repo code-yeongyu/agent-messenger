@@ -1,6 +1,8 @@
 import { Command } from 'commander'
-import { handleError } from '../../../shared/utils/error-handler'
-import { formatOutput } from '../../../shared/utils/output'
+
+import { handleError } from '@/shared/utils/error-handler'
+import { formatOutput } from '@/shared/utils/output'
+
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
 
@@ -10,9 +12,7 @@ async function getAction(userId: string, options: { pretty?: boolean }): Promise
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -29,19 +29,13 @@ async function getAction(userId: string, options: { pretty?: boolean }): Promise
   }
 }
 
-async function setAction(
-  userId: string,
-  note: string,
-  options: { pretty?: boolean }
-): Promise<void> {
+async function setAction(userId: string, note: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -61,7 +55,7 @@ export const noteCommand = new Command('note')
       .description('Get note for a user')
       .argument('<user-id>', 'User ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(getAction)
+      .action(getAction),
   )
   .addCommand(
     new Command('set')
@@ -69,5 +63,5 @@ export const noteCommand = new Command('note')
       .argument('<user-id>', 'User ID')
       .argument('<note>', 'Note content')
       .option('--pretty', 'Pretty print JSON output')
-      .action(setAction)
+      .action(setAction),
   )

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test'
+
 import { SlackClient } from '@/platforms/slack/client'
 import { snapshotCommand } from '@/platforms/slack/commands/snapshot'
 import { CredentialManager } from '@/platforms/slack/credential-manager'
@@ -132,9 +133,7 @@ beforeEach(() => {
     team: 'Test Workspace',
   })
 
-  clientListChannelsSpy = spyOn(SlackClient.prototype, 'listChannels').mockResolvedValue(
-    mockChannels
-  )
+  clientListChannelsSpy = spyOn(SlackClient.prototype, 'listChannels').mockResolvedValue(mockChannels)
   clientListUsersSpy = spyOn(SlackClient.prototype, 'listUsers').mockResolvedValue(mockUsers)
   clientGetMessagesSpy = spyOn(SlackClient.prototype, 'getMessages').mockResolvedValue(mockMessages)
 })

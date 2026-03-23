@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
+
 import { CredentialManager } from '@/platforms/slack/credential-manager'
 import type { WorkspaceCredentials } from '@/platforms/slack/types'
 
@@ -9,7 +10,7 @@ const testDirs: string[] = []
 function setup(): CredentialManager {
   const testConfigDir = join(
     import.meta.dir,
-    `.test-workspace-config-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `.test-workspace-config-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   )
   testDirs.push(testConfigDir)
   return new CredentialManager(testConfigDir)

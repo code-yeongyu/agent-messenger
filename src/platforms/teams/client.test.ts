@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { unlinkSync } from 'node:fs'
+
 import { TeamsClient } from './client'
 import { TeamsError } from './types'
 
@@ -15,10 +16,7 @@ describe('TeamsClient', () => {
     fetchCalls = []
     fetchResponses = []
     fetchIndex = 0
-    ;(globalThis as any).fetch = async (
-      url: string | URL | Request,
-      options?: RequestInit
-    ): Promise<Response> => {
+    ;(globalThis as any).fetch = async (url: string | URL | Request, options?: RequestInit): Promise<Response> => {
       fetchCalls.push({ url: url.toString(), options })
       const response = fetchResponses[fetchIndex]
       fetchIndex++
@@ -51,7 +49,7 @@ describe('TeamsClient', () => {
       new Response(body === null ? null : JSON.stringify(body), {
         status,
         headers: defaultHeaders,
-      })
+      }),
     )
   }
 
@@ -110,9 +108,7 @@ describe('TeamsClient', () => {
       expect(user.id).toBe('ME')
       expect(user.displayName).toBe('Test User')
       expect(fetchCalls.length).toBe(1)
-      expect(fetchCalls[0].url).toBe(
-        'https://emea.ng.msg.teams.microsoft.com/v1/users/ME/properties'
-      )
+      expect(fetchCalls[0].url).toBe('https://emea.ng.msg.teams.microsoft.com/v1/users/ME/properties')
       expect(fetchCalls[0].options?.headers).toMatchObject({
         'X-Skypetoken': 'test-token',
       })
@@ -165,9 +161,7 @@ describe('TeamsClient', () => {
       expect(teams[0].name).toBe('Team One')
       expect(teams[1].id).toBe('222')
       expect(teams[1].name).toBe('Team Two')
-      expect(fetchCalls[0].url).toBe(
-        'https://emea.ng.msg.teams.microsoft.com/v1/users/ME/conversations'
-      )
+      expect(fetchCalls[0].url).toBe('https://emea.ng.msg.teams.microsoft.com/v1/users/ME/conversations')
     })
   })
 
@@ -196,9 +190,7 @@ describe('TeamsClient', () => {
 
       expect(channels).toHaveLength(2)
       expect(channels[0].name).toBe('General')
-      expect(fetchCalls[0].url).toBe(
-        'https://teams.microsoft.com/api/csa/api/v1/teams/111/channels'
-      )
+      expect(fetchCalls[0].url).toBe('https://teams.microsoft.com/api/csa/api/v1/teams/111/channels')
     })
   })
 
@@ -211,9 +203,7 @@ describe('TeamsClient', () => {
 
       expect(channel.id).toBe('ch1')
       expect(channel.name).toBe('General')
-      expect(fetchCalls[0].url).toBe(
-        'https://teams.microsoft.com/api/csa/api/v1/teams/111/channels/ch1'
-      )
+      expect(fetchCalls[0].url).toBe('https://teams.microsoft.com/api/csa/api/v1/teams/111/channels/ch1')
     })
   })
 
@@ -231,9 +221,7 @@ describe('TeamsClient', () => {
       const message = await client.sendMessage('111', 'ch1', 'Hello world')
 
       expect(message.content).toBe('Hello world')
-      expect(fetchCalls[0].url).toBe(
-        'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages'
-      )
+      expect(fetchCalls[0].url).toBe('https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages')
       expect(fetchCalls[0].options?.method).toBe('POST')
       expect(fetchCalls[0].options?.body).toBe(JSON.stringify({ content: 'Hello world' }))
     })
@@ -257,7 +245,7 @@ describe('TeamsClient', () => {
       expect(messages).toHaveLength(1)
       expect(messages[0].content).toBe('Message 1')
       expect(fetchCalls[0].url).toBe(
-        'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages?limit=50'
+        'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages?limit=50',
       )
     })
 
@@ -268,7 +256,7 @@ describe('TeamsClient', () => {
       await client.getMessages('111', 'ch1')
 
       expect(fetchCalls[0].url).toBe(
-        'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages?limit=50'
+        'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages?limit=50',
       )
     })
   })
@@ -288,7 +276,7 @@ describe('TeamsClient', () => {
 
       expect(message.id).toBe('msg1')
       expect(fetchCalls[0].url).toBe(
-        'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages/msg1'
+        'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages/msg1',
       )
     })
   })
@@ -301,7 +289,7 @@ describe('TeamsClient', () => {
       await client.deleteMessage('111', 'ch1', 'msg1')
 
       expect(fetchCalls[0].url).toBe(
-        'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages/msg1'
+        'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages/msg1',
       )
       expect(fetchCalls[0].options?.method).toBe('DELETE')
     })
@@ -315,7 +303,7 @@ describe('TeamsClient', () => {
       await client.addReaction('111', 'ch1', 'msg1', 'like')
 
       expect(fetchCalls[0].url).toBe(
-        'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages/msg1/reactions'
+        'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages/msg1/reactions',
       )
       expect(fetchCalls[0].options?.method).toBe('POST')
       expect(fetchCalls[0].options?.body).toBe(JSON.stringify({ emoji: 'like' }))
@@ -330,7 +318,7 @@ describe('TeamsClient', () => {
       await client.removeReaction('111', 'ch1', 'msg1', 'like')
 
       expect(fetchCalls[0].url).toBe(
-        'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages/msg1/reactions/like'
+        'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages/msg1/reactions/like',
       )
       expect(fetchCalls[0].options?.method).toBe('DELETE')
     })
@@ -381,9 +369,7 @@ describe('TeamsClient', () => {
       const file = await client.uploadFile('111', 'ch1', tempFile)
 
       expect(file.name).toBe('test-teams-upload.txt')
-      expect(fetchCalls[0].url).toBe(
-        'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/files'
-      )
+      expect(fetchCalls[0].url).toBe('https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/files')
       expect(fetchCalls[0].options?.method).toBe('POST')
     })
   })
@@ -400,9 +386,7 @@ describe('TeamsClient', () => {
 
       expect(files).toHaveLength(2)
       expect(files[0].name).toBe('doc.pdf')
-      expect(fetchCalls[0].url).toBe(
-        'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/files'
-      )
+      expect(fetchCalls[0].url).toBe('https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/files')
     })
   })
 

@@ -1,6 +1,8 @@
 import { Command } from 'commander'
-import { handleError } from '../../../shared/utils/error-handler'
-import { formatOutput } from '../../../shared/utils/output'
+
+import { handleError } from '@/shared/utils/error-handler'
+import { formatOutput } from '@/shared/utils/output'
+
 import { SlackClient } from '../client'
 import { CredentialManager } from '../credential-manager'
 
@@ -10,12 +12,7 @@ export async function countsAction(options: { pretty?: boolean }): Promise<void>
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -39,26 +36,18 @@ export async function countsAction(options: { pretty?: boolean }): Promise<void>
   }
 }
 
-export async function threadsAction(
-  channel: string,
-  threadTs: string,
-  options: { pretty?: boolean }
-): Promise<void> {
+export async function threadsAction(channel: string, threadTs: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
     const client = new SlackClient(workspace.token, workspace.cookie)
+    channel = await client.resolveChannel(channel)
     const threadView = await client.getThreadView(channel, threadTs)
 
     const output = {
@@ -75,26 +64,18 @@ export async function threadsAction(
   }
 }
 
-export async function markAction(
-  channel: string,
-  ts: string,
-  options: { pretty?: boolean }
-): Promise<void> {
+export async function markAction(channel: string, ts: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
     const client = new SlackClient(workspace.token, workspace.cookie)
+    channel = await client.resolveChannel(channel)
     await client.markRead(channel, ts)
 
     console.log(formatOutput({ marked_read: true, channel, ts }, options.pretty))
@@ -109,7 +90,7 @@ export const unreadCommand = new Command('unread')
     new Command('counts')
       .description('Get unread counts for all channels')
       .option('--pretty', 'Pretty print JSON output')
-      .action(countsAction)
+      .action(countsAction),
   )
   .addCommand(
     new Command('threads')
@@ -117,7 +98,7 @@ export const unreadCommand = new Command('unread')
       .argument('<channel>', 'Channel ID or name')
       .argument('<thread_ts>', 'Thread timestamp')
       .option('--pretty', 'Pretty print JSON output')
-      .action(threadsAction)
+      .action(threadsAction),
   )
   .addCommand(
     new Command('mark')
@@ -125,5 +106,5 @@ export const unreadCommand = new Command('unread')
       .argument('<channel>', 'Channel ID or name')
       .argument('<ts>', 'Message timestamp to mark as read')
       .option('--pretty', 'Pretty print JSON output')
-      .action(markAction)
+      .action(markAction),
   )

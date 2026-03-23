@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test'
+
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
 import type { DiscordDMChannel } from '../types'
@@ -37,9 +38,7 @@ const mockChannels: DiscordDMChannel[] = [
 ]
 
 beforeEach(() => {
-  clientListDMChannelsSpy = spyOn(DiscordClient.prototype, 'listDMChannels').mockResolvedValue(
-    mockChannels
-  )
+  clientListDMChannelsSpy = spyOn(DiscordClient.prototype, 'listDMChannels').mockResolvedValue(mockChannels)
 
   clientCreateDMSpy = spyOn(DiscordClient.prototype, 'createDM').mockResolvedValue({
     id: '999',

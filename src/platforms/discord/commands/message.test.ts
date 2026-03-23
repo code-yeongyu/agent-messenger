@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test'
+
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
 import { ackAction, deleteAction, getAction, listAction, searchAction, sendAction } from './message'
@@ -46,9 +47,7 @@ beforeEach(() => {
     timestamp: '2025-01-29T10:00:00Z',
   })
 
-  clientDeleteMessageSpy = spyOn(DiscordClient.prototype, 'deleteMessage').mockResolvedValue(
-    undefined
-  )
+  clientDeleteMessageSpy = spyOn(DiscordClient.prototype, 'deleteMessage').mockResolvedValue(undefined)
 
   clientAckMessageSpy = spyOn(DiscordClient.prototype, 'ackMessage').mockResolvedValue(undefined)
 

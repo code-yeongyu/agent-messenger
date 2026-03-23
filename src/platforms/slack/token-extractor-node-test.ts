@@ -1,7 +1,9 @@
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+
 import Database from 'better-sqlite3'
+
 import { TokenExtractor } from './token-extractor'
 
 const tempDir = mkdtempSync(join(tmpdir(), 'token-extractor-test-'))
@@ -22,7 +24,7 @@ try {
     )
   `)
   db.prepare(
-    "INSERT INTO cookies (name, value, host_key, last_access_utc) VALUES ('d', 'xoxd-test-cookie', '.slack.com', 1000)"
+    "INSERT INTO cookies (name, value, host_key, last_access_utc) VALUES ('d', 'xoxd-test-cookie', '.slack.com', 1000)",
   ).run()
   db.close()
 

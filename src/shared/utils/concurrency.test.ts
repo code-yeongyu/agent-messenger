@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+
 import { parallelMap } from './concurrency'
 
 describe('parallelMap', () => {
@@ -16,7 +17,7 @@ describe('parallelMap', () => {
         await new Promise((r) => setTimeout(r, delay))
         return delay
       },
-      3
+      3,
     )
     expect(results).toEqual([100, 50, 10])
   })
@@ -34,7 +35,7 @@ describe('parallelMap', () => {
         await new Promise((r) => setTimeout(r, 10))
         concurrent--
       },
-      2
+      2,
     )
 
     expect(maxConcurrent).toBe(2)

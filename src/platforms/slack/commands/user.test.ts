@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+
 import { SlackClient } from '@/platforms/slack/client'
 import { userCommand } from '@/platforms/slack/commands/user'
 import type { SlackUser } from '@/platforms/slack/types'
@@ -50,10 +51,7 @@ describe('User Commands', () => {
       } as unknown as SlackClient
 
       // When: Calling list with all users
-      const result = await (userCommand as any).commands[0].action(
-        { includeBots: false },
-        userCommand
-      )
+      const result = await (userCommand as any).commands[0].action({ includeBots: false }, userCommand)
 
       // Then: Should return users
       expect(result).toBeDefined()

@@ -1,6 +1,8 @@
 import { Command } from 'commander'
-import { handleError } from '../../../shared/utils/error-handler'
-import { formatOutput } from '../../../shared/utils/output'
+
+import { handleError } from '@/shared/utils/error-handler'
+import { formatOutput } from '@/shared/utils/output'
+
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
 import type { DiscordDMChannel } from '../types'
@@ -11,9 +13,7 @@ export async function listAction(options: { pretty?: boolean }): Promise<void> {
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -43,9 +43,7 @@ export async function createAction(userId: string, options: { pretty?: boolean }
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -74,12 +72,12 @@ export const dmCommand = new Command('dm')
     new Command('list')
       .description('List DM channels')
       .option('--pretty', 'Pretty print JSON output')
-      .action(listAction)
+      .action(listAction),
   )
   .addCommand(
     new Command('create')
       .description('Create a DM channel')
       .argument('<user-id>', 'User ID to create DM with')
       .option('--pretty', 'Pretty print JSON output')
-      .action(createAction)
+      .action(createAction),
   )

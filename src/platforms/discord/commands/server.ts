@@ -1,6 +1,8 @@
 import { Command } from 'commander'
-import { handleError } from '../../../shared/utils/error-handler'
-import { formatOutput } from '../../../shared/utils/output'
+
+import { handleError } from '@/shared/utils/error-handler'
+import { formatOutput } from '@/shared/utils/output'
+
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
 
@@ -28,9 +30,7 @@ export async function infoAction(serverId: string, options: { pretty?: boolean }
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -56,7 +56,12 @@ export async function switchAction(serverId: string, options: { pretty?: boolean
     const config = await credManager.load()
 
     if (!config.servers[serverId]) {
-      console.log(formatOutput({ error: `Server not found: ${serverId}` }, options.pretty))
+      console.log(
+        formatOutput(
+          { error: `Server not found: ${serverId}`, hint: 'Run "server list" to see available servers.' },
+          options.pretty,
+        ),
+      )
       process.exit(1)
     }
 
@@ -73,9 +78,7 @@ export async function currentAction(options: { pretty?: boolean }): Promise<void
     const config = await credManager.load()
 
     if (!config.current_server) {
-      console.log(
-        formatOutput({ error: 'No current server set. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'No current server set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -83,7 +86,13 @@ export async function currentAction(options: { pretty?: boolean }): Promise<void
 
     if (!server) {
       console.log(
-        formatOutput({ error: 'Current server not found in configuration.' }, options.pretty)
+        formatOutput(
+          {
+            error: 'Current server not found in configuration.',
+            hint: 'Run "auth extract" to refresh, or "server switch <server-id>".',
+          },
+          options.pretty,
+        ),
       )
       process.exit(1)
     }
@@ -105,25 +114,25 @@ export const serverCommand = new Command('server')
     new Command('list')
       .description('List all servers')
       .option('--pretty', 'Pretty print JSON output')
-      .action(listAction)
+      .action(listAction),
   )
   .addCommand(
     new Command('info')
       .description('Get server info')
       .argument('<server-id>', 'Server ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(infoAction)
+      .action(infoAction),
   )
   .addCommand(
     new Command('switch')
       .description('Switch to server')
       .argument('<server-id>', 'Server ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(switchAction)
+      .action(switchAction),
   )
   .addCommand(
     new Command('current')
       .description('Show current server')
       .option('--pretty', 'Pretty print JSON output')
-      .action(currentAction)
+      .action(currentAction),
   )

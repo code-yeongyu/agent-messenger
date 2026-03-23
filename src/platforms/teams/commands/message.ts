@@ -1,6 +1,8 @@
 import { Command } from 'commander'
-import { handleError } from '../../../shared/utils/error-handler'
-import { formatOutput } from '../../../shared/utils/output'
+
+import { handleError } from '@/shared/utils/error-handler'
+import { formatOutput } from '@/shared/utils/output'
+
 import { TeamsClient } from '../client'
 import { TeamsCredentialManager } from '../credential-manager'
 import type { TeamsMessage } from '../types'
@@ -9,20 +11,18 @@ export async function sendAction(
   teamId: string,
   channelId: string,
   content: string,
-  options: { pretty?: boolean }
+  options: { pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
-    const config = await credManager.loadConfig()
+    const cred = await credManager.getTokenWithExpiry()
 
-    if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+    if (!cred) {
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
-    const client = new TeamsClient(config.token, config.token_expires_at)
+    const client = new TeamsClient(cred.token, cred.tokenExpiresAt)
     const message = await client.sendMessage(teamId, channelId, content)
 
     const output = {
@@ -41,20 +41,18 @@ export async function sendAction(
 export async function listAction(
   teamId: string,
   channelId: string,
-  options: { limit?: number; pretty?: boolean }
+  options: { limit?: number; pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
-    const config = await credManager.loadConfig()
+    const cred = await credManager.getTokenWithExpiry()
 
-    if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+    if (!cred) {
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
-    const client = new TeamsClient(config.token, config.token_expires_at)
+    const client = new TeamsClient(cred.token, cred.tokenExpiresAt)
     const limit = options.limit || 50
     const messages = await client.getMessages(teamId, channelId, limit)
 
@@ -75,20 +73,18 @@ export async function getAction(
   teamId: string,
   channelId: string,
   messageId: string,
-  options: { pretty?: boolean }
+  options: { pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
-    const config = await credManager.loadConfig()
+    const cred = await credManager.getTokenWithExpiry()
 
-    if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+    if (!cred) {
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
-    const client = new TeamsClient(config.token, config.token_expires_at)
+    const client = new TeamsClient(cred.token, cred.tokenExpiresAt)
     const message = await client.getMessage(teamId, channelId, messageId)
 
     if (!message) {
@@ -113,27 +109,23 @@ export async function deleteAction(
   teamId: string,
   channelId: string,
   messageId: string,
-  options: { force?: boolean; pretty?: boolean }
+  options: { force?: boolean; pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
-    const config = await credManager.loadConfig()
+    const cred = await credManager.getTokenWithExpiry()
 
-    if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+    if (!cred) {
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
     if (!options.force) {
-      console.log(
-        formatOutput({ warning: 'Use --force to confirm deletion', messageId }, options.pretty)
-      )
+      console.log(formatOutput({ warning: 'Use --force to confirm deletion', messageId }, options.pretty))
       process.exit(0)
     }
 
-    const client = new TeamsClient(config.token, config.token_expires_at)
+    const client = new TeamsClient(cred.token, cred.tokenExpiresAt)
     await client.deleteMessage(teamId, channelId, messageId)
 
     console.log(formatOutput({ deleted: messageId }, options.pretty))
@@ -151,7 +143,7 @@ export const messageCommand = new Command('message')
       .argument('<channel-id>', 'Channel ID')
       .argument('<content>', 'Message content')
       .option('--pretty', 'Pretty print JSON output')
-      .action(sendAction)
+      .action(sendAction),
   )
   .addCommand(
     new Command('list')
@@ -165,7 +157,7 @@ export const messageCommand = new Command('message')
           limit: parseInt(options.limit, 10),
           pretty: options.pretty,
         })
-      })
+      }),
   )
   .addCommand(
     new Command('get')
@@ -174,7 +166,7 @@ export const messageCommand = new Command('message')
       .argument('<channel-id>', 'Channel ID')
       .argument('<message-id>', 'Message ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(getAction)
+      .action(getAction),
   )
   .addCommand(
     new Command('delete')
@@ -184,5 +176,5 @@ export const messageCommand = new Command('message')
       .argument('<message-id>', 'Message ID')
       .option('--force', 'Skip confirmation')
       .option('--pretty', 'Pretty print JSON output')
-      .action(deleteAction)
+      .action(deleteAction),
   )

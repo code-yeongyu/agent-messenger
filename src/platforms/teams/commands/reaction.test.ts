@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test'
+
 import { TeamsClient } from '../client'
 import { TeamsCredentialManager } from '../credential-manager'
 import { addAction, removeAction } from './reaction'
@@ -9,16 +10,17 @@ let credManagerLoadConfigSpy: ReturnType<typeof spyOn>
 
 beforeEach(() => {
   clientAddReactionSpy = spyOn(TeamsClient.prototype, 'addReaction').mockResolvedValue(undefined)
-  clientRemoveReactionSpy = spyOn(TeamsClient.prototype, 'removeReaction').mockResolvedValue(
-    undefined
-  )
-  credManagerLoadConfigSpy = spyOn(
-    TeamsCredentialManager.prototype,
-    'loadConfig'
-  ).mockResolvedValue({
-    token: 'test-token',
-    current_team: null,
-    teams: {},
+  clientRemoveReactionSpy = spyOn(TeamsClient.prototype, 'removeReaction').mockResolvedValue(undefined)
+  credManagerLoadConfigSpy = spyOn(TeamsCredentialManager.prototype, 'loadConfig').mockResolvedValue({
+    current_account: 'work',
+    accounts: {
+      work: {
+        token: 'test-token',
+        account_type: 'work' as const,
+        current_team: null,
+        teams: {},
+      },
+    },
   })
 })
 

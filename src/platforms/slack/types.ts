@@ -36,6 +36,8 @@ export interface SlackMessage {
     user: string
     ts: string
   }
+  reactions?: SlackReaction[]
+  files?: SlackFile[]
 }
 
 export interface SlackUser {
@@ -123,6 +125,12 @@ export interface SlackActivityItem {
   created: number
 }
 
+export interface SlackDM {
+  id: string
+  user: string
+  is_mpim: boolean
+}
+
 export interface SlackDraft {
   id: string
   channel_id: string
@@ -140,6 +148,147 @@ export interface SlackChannelSection {
   channel_ids: string[]
   date_created: number
   date_updated: number
+}
+
+export interface SlackPin {
+  channel: string
+  message: SlackMessage
+  date_created: number
+  created_by: string
+}
+
+export interface SlackBookmark {
+  id: string
+  channel_id: string
+  title: string
+  link: string
+  emoji?: string
+  icon_url?: string
+  type: string
+  date_created: number
+  date_updated: number
+  created_by: string
+}
+
+export interface SlackScheduledMessage {
+  id: string
+  channel_id: string
+  post_at: number
+  date_created: number
+  text: string
+}
+
+export interface SlackReminder {
+  id: string
+  creator: string
+  text: string
+  user: string
+  recurring: boolean
+  time: number
+  complete_ts: number
+}
+
+export interface SlackUserProfile {
+  title?: string
+  phone?: string
+  skype?: string
+  real_name?: string
+  real_name_normalized?: string
+  display_name?: string
+  display_name_normalized?: string
+  status_text?: string
+  status_emoji?: string
+  status_expiration?: number
+  email?: string
+  first_name?: string
+  last_name?: string
+  image_24?: string
+  image_32?: string
+  image_48?: string
+  image_72?: string
+  image_192?: string
+  image_512?: string
+}
+
+// RTM event types
+
+export interface SlackRTMMessageEvent {
+  type: 'message'
+  subtype?: string
+  channel: string
+  user?: string
+  text?: string
+  ts: string
+  thread_ts?: string
+  edited?: { user: string; ts: string }
+  hidden?: boolean
+}
+
+export interface SlackRTMReactionEvent {
+  type: 'reaction_added' | 'reaction_removed'
+  user: string
+  reaction: string
+  item: { type: string; channel: string; ts: string }
+  item_user?: string
+  event_ts: string
+}
+
+export interface SlackRTMMemberEvent {
+  type: 'member_joined_channel' | 'member_left_channel'
+  user: string
+  channel: string
+  channel_type?: string
+  event_ts?: string
+}
+
+export interface SlackRTMChannelEvent {
+  type: 'channel_created' | 'channel_deleted' | 'channel_rename' | 'channel_archive' | 'channel_unarchive'
+  channel: { id: string; name?: string } | string
+}
+
+export interface SlackRTMPresenceEvent {
+  type: 'presence_change'
+  user: string
+  presence: 'active' | 'away'
+}
+
+export interface SlackRTMUserTypingEvent {
+  type: 'user_typing'
+  channel: string
+  user: string
+}
+
+export interface SlackRTMGenericEvent {
+  type: string
+  [key: string]: unknown
+}
+
+export type SlackRTMEvent =
+  | SlackRTMMessageEvent
+  | SlackRTMReactionEvent
+  | SlackRTMMemberEvent
+  | SlackRTMChannelEvent
+  | SlackRTMPresenceEvent
+  | SlackRTMUserTypingEvent
+  | SlackRTMGenericEvent
+
+export interface SlackListenerEventMap {
+  message: [event: SlackRTMMessageEvent]
+  reaction_added: [event: SlackRTMReactionEvent]
+  reaction_removed: [event: SlackRTMReactionEvent]
+  member_joined_channel: [event: SlackRTMMemberEvent]
+  member_left_channel: [event: SlackRTMMemberEvent]
+  presence_change: [event: SlackRTMPresenceEvent]
+  user_typing: [event: SlackRTMUserTypingEvent]
+  channel_created: [event: SlackRTMChannelEvent]
+  channel_deleted: [event: SlackRTMChannelEvent]
+  channel_rename: [event: SlackRTMChannelEvent]
+  channel_archive: [event: SlackRTMChannelEvent]
+  channel_unarchive: [event: SlackRTMChannelEvent]
+  slack_event: [event: SlackRTMGenericEvent]
+  connected: [info: { self: { id: string }; team: { id: string } }]
+  disconnected: []
+  error: [error: Error]
 }
 
 export interface WorkspaceCredentials {
@@ -177,7 +326,22 @@ export const SlackChannelSchema = z.object({
     })
     .optional(),
 })
-
+export const SlackReactionSchema = z.object({
+  name: z.string(),
+  count: z.number(),
+  users: z.array(z.string()),
+})
+export const SlackFileSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  title: z.string(),
+  mimetype: z.string(),
+  size: z.number(),
+  url_private: z.string(),
+  created: z.number(),
+  user: z.string(),
+  channels: z.array(z.string()).optional(),
+})
 export const SlackMessageSchema = z.object({
   ts: z.string(),
   text: z.string(),
@@ -191,7 +355,7 @@ export const SlackMessageSchema = z.object({
       z.object({
         user: z.string(),
         ts: z.string(),
-      })
+      }),
     )
     .optional(),
   edited: z
@@ -200,8 +364,9 @@ export const SlackMessageSchema = z.object({
       ts: z.string(),
     })
     .optional(),
+  reactions: z.array(SlackReactionSchema).optional(),
+  files: z.array(SlackFileSchema).optional(),
 })
-
 export const SlackUserSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -218,24 +383,6 @@ export const SlackUserSchema = z.object({
       status_text: z.string().optional(),
     })
     .optional(),
-})
-
-export const SlackReactionSchema = z.object({
-  name: z.string(),
-  count: z.number(),
-  users: z.array(z.string()),
-})
-
-export const SlackFileSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  title: z.string(),
-  mimetype: z.string(),
-  size: z.number(),
-  url_private: z.string(),
-  created: z.number(),
-  user: z.string(),
-  channels: z.array(z.string()).optional(),
 })
 
 export const WorkspaceCredentialsSchema = z.object({

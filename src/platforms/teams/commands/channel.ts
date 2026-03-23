@@ -1,22 +1,22 @@
 import { Command } from 'commander'
-import { handleError } from '../../../shared/utils/error-handler'
-import { formatOutput } from '../../../shared/utils/output'
+
+import { handleError } from '@/shared/utils/error-handler'
+import { formatOutput } from '@/shared/utils/output'
+
 import { TeamsClient } from '../client'
 import { TeamsCredentialManager } from '../credential-manager'
 
 export async function listAction(teamId: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
-    const config = await credManager.loadConfig()
+    const cred = await credManager.getTokenWithExpiry()
 
-    if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+    if (!cred) {
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
-    const client = new TeamsClient(config.token, config.token_expires_at)
+    const client = new TeamsClient(cred.token, cred.tokenExpiresAt)
     const channels = await client.listChannels(teamId)
 
     const output = channels.map((ch) => ({
@@ -32,23 +32,17 @@ export async function listAction(teamId: string, options: { pretty?: boolean }):
   }
 }
 
-export async function infoAction(
-  teamId: string,
-  channelId: string,
-  options: { pretty?: boolean }
-): Promise<void> {
+export async function infoAction(teamId: string, channelId: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
-    const config = await credManager.loadConfig()
+    const cred = await credManager.getTokenWithExpiry()
 
-    if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+    if (!cred) {
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
-    const client = new TeamsClient(config.token, config.token_expires_at)
+    const client = new TeamsClient(cred.token, cred.tokenExpiresAt)
     const channel = await client.getChannel(teamId, channelId)
 
     const output = {
@@ -67,20 +61,18 @@ export async function infoAction(
 export async function historyAction(
   teamId: string,
   channelId: string,
-  options: { limit?: number; pretty?: boolean }
+  options: { limit?: number; pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
-    const config = await credManager.loadConfig()
+    const cred = await credManager.getTokenWithExpiry()
 
-    if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+    if (!cred) {
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
-    const client = new TeamsClient(config.token, config.token_expires_at)
+    const client = new TeamsClient(cred.token, cred.tokenExpiresAt)
     const messages = await client.getMessages(teamId, channelId, options.limit || 50)
 
     const output = messages.map((msg) => ({
@@ -103,7 +95,7 @@ export const channelCommand = new Command('channel')
       .description('List channels in a team')
       .argument('<team-id>', 'Team ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(listAction)
+      .action(listAction),
   )
   .addCommand(
     new Command('info')
@@ -111,7 +103,7 @@ export const channelCommand = new Command('channel')
       .argument('<team-id>', 'Team ID')
       .argument('<channel-id>', 'Channel ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(infoAction)
+      .action(infoAction),
   )
   .addCommand(
     new Command('history')
@@ -125,5 +117,5 @@ export const channelCommand = new Command('channel')
           limit: parseInt(options.limit, 10),
           pretty: options.pretty,
         })
-      })
+      }),
   )

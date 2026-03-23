@@ -1,7 +1,9 @@
 import { Command } from 'commander'
-import { parallelMap } from '../../../shared/utils/concurrency'
-import { handleError } from '../../../shared/utils/error-handler'
-import { formatOutput } from '../../../shared/utils/output'
+
+import { parallelMap } from '@/shared/utils/concurrency'
+import { handleError } from '@/shared/utils/error-handler'
+import { formatOutput } from '@/shared/utils/output'
+
 import { TeamsClient } from '../client'
 import { TeamsCredentialManager } from '../credential-manager'
 import type { TeamsChannel } from '../types'
@@ -15,27 +17,23 @@ export async function snapshotAction(options: {
 }): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
-    const config = await credManager.loadConfig()
+    const cred = await credManager.getTokenWithExpiry()
 
-    if (!config?.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+    if (!cred) {
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
-    const teamId = options.teamId || config.current_team
+    const currentTeam = await credManager.getCurrentTeam()
+    const teamId = options.teamId || currentTeam?.team_id
     if (!teamId) {
       console.log(
-        formatOutput(
-          { error: 'No current team set. Run "team switch" first or use --team-id.' },
-          options.pretty
-        )
+        formatOutput({ error: 'No current team set. Run "team switch" first or use --team-id.' }, options.pretty),
       )
       process.exit(1)
     }
 
-    const client = new TeamsClient(config.token, config.token_expires_at)
+    const client = new TeamsClient(cred.token, cred.tokenExpiresAt)
     const messageLimit = options.limit || 20
 
     const snapshot: Record<string, unknown> = {}
@@ -66,7 +64,7 @@ export async function snapshotAction(options: {
               channel_name: channel.name,
             }))
           },
-          5
+          5,
         )
 
         snapshot.recent_messages = channelMessages.flat().map((msg) => ({
@@ -96,8 +94,7 @@ export async function snapshotAction(options: {
   }
 }
 
-export const snapshotCommand = new Command()
-  .name('snapshot')
+export const snapshotCommand = new Command('snapshot')
   .description('Get comprehensive team state for AI agents')
   .option('--channels-only', 'Include only channels (exclude messages and members)')
   .option('--users-only', 'Include only members (exclude channels and messages)')

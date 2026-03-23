@@ -1,7 +1,10 @@
 import { resolve } from 'node:path'
+
 import { Command } from 'commander'
-import { handleError } from '../../../shared/utils/error-handler'
-import { formatOutput } from '../../../shared/utils/output'
+
+import { handleError } from '@/shared/utils/error-handler'
+import { formatOutput } from '@/shared/utils/output'
+
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
 import type { DiscordFile } from '../types'
@@ -9,16 +12,14 @@ import type { DiscordFile } from '../types'
 export async function uploadAction(
   channelId: string,
   path: string,
-  options: { filename?: string; pretty?: boolean }
+  options: { filename?: string; pretty?: boolean },
 ): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -47,9 +48,7 @@ export async function listAction(channelId: string, options: { pretty?: boolean 
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -70,19 +69,13 @@ export async function listAction(channelId: string, options: { pretty?: boolean 
   }
 }
 
-export async function infoAction(
-  channelId: string,
-  fileId: string,
-  options: { pretty?: boolean }
-): Promise<void> {
+export async function infoAction(channelId: string, fileId: string, options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
     const config = await credManager.load()
 
     if (!config.token) {
-      console.log(
-        formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty)
-      )
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -110,25 +103,28 @@ export async function infoAction(
 }
 
 export const fileCommand = new Command('file')
-  .description('file commands')
+  .description('File commands')
   .addCommand(
     new Command('upload')
-      .description('upload file to channel')
-      .argument('<channel>', 'channel ID')
+      .description('Upload file to channel')
+      .argument('<channel-id>', 'Channel ID')
       .argument('<path>', 'file path')
       .option('--filename <name>', 'override filename')
-      .action(uploadAction)
+      .option('--pretty', 'Pretty print JSON output')
+      .action(uploadAction),
   )
   .addCommand(
     new Command('list')
-      .description('list files in channel')
-      .argument('<channel>', 'channel ID')
-      .action(listAction)
+      .description('List files in channel')
+      .argument('<channel-id>', 'Channel ID')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(listAction),
   )
   .addCommand(
     new Command('info')
-      .description('show file details')
-      .argument('<channel>', 'channel ID')
-      .argument('<file>', 'file ID')
-      .action(infoAction)
+      .description('Show file details')
+      .argument('<channel-id>', 'Channel ID')
+      .argument('<file-id>', 'File ID')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(infoAction),
   )

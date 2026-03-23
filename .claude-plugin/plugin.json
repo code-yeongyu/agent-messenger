@@ -1,17 +1,41 @@
 {
   "name": "agent-messenger",
-  "version": "1.2.0",
-  "description": "Messaging platform interaction skills for AI agents. Interact with Slack workspaces and Discord servers - send messages, read channels, manage reactions, upload files, and more through simple CLI interfaces.",
+  "version": "1.15.0",
+  "description": "Messaging platform interaction skills for AI agents. Interact with Slack, Discord, Microsoft Teams, Telegram, WhatsApp, KakaoTalk, and Channel Talk - send messages, read channels, manage reactions, upload files, and more through simple CLI interfaces.",
   "author": {
     "name": "devxoul",
     "url": "https://github.com/devxoul"
   },
   "license": "MIT",
-  "keywords": ["slack", "discord", "messaging", "workspace", "guild", "ai-agent", "cli", "communication", "productivity"],
+  "keywords": [
+    "slack",
+    "discord",
+    "teams",
+    "telegram",
+    "whatsapp",
+    "kakaotalk",
+    "channel-talk",
+    "messaging",
+    "workspace",
+    "guild",
+    "ai-agent",
+    "cli",
+    "communication",
+    "productivity"
+  ],
   "homepage": "https://github.com/devxoul/agent-messenger",
   "repository": "https://github.com/devxoul/agent-messenger",
   "skills": [
     "./skills/agent-slack",
-    "./skills/agent-discord"
+    "./skills/agent-slackbot",
+    "./skills/agent-discord",
+    "./skills/agent-discordbot",
+    "./skills/agent-teams",
+    "./skills/agent-telegram",
+    "./skills/agent-whatsapp",
+    "./skills/agent-whatsappbot",
+    "./skills/agent-kakaotalk",
+    "./skills/agent-channeltalk",
+    "./skills/agent-channeltalkbot"
   ]
 }

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test'
+
 import { TeamsClient } from '../client'
 import { TeamsCredentialManager } from '../credential-manager'
 
@@ -22,7 +23,7 @@ beforeEach(() => {
         return { id: 'ch-2', team_id: teamId, name: 'Announcements', type: 'standard' }
       }
       throw new Error('Channel not found')
-    }
+    },
   )
 
   clientGetMessagesSpy = spyOn(TeamsClient.prototype, 'getMessages').mockResolvedValue([
@@ -42,14 +43,17 @@ beforeEach(() => {
     },
   ])
 
-  credManagerLoadConfigSpy = spyOn(
-    TeamsCredentialManager.prototype,
-    'loadConfig'
-  ).mockResolvedValue({
-    token: 'test-token',
-    current_team: 'team-1',
-    teams: {
-      'team-1': { team_id: 'team-1', team_name: 'Team One' },
+  credManagerLoadConfigSpy = spyOn(TeamsCredentialManager.prototype, 'loadConfig').mockResolvedValue({
+    current_account: 'work',
+    accounts: {
+      work: {
+        token: 'test-token',
+        account_type: 'work' as const,
+        current_team: 'team-1',
+        teams: {
+          'team-1': { team_id: 'team-1', team_name: 'Team One' },
+        },
+      },
     },
   })
 })

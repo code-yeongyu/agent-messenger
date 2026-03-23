@@ -1,7 +1,9 @@
 import { Command } from 'commander'
-import { parallelMap } from '../../../shared/utils/concurrency'
-import { handleError } from '../../../shared/utils/error-handler'
-import { formatOutput } from '../../../shared/utils/output'
+
+import { parallelMap } from '@/shared/utils/concurrency'
+import { handleError } from '@/shared/utils/error-handler'
+import { formatOutput } from '@/shared/utils/output'
+
 import { SlackClient } from '../client'
 import { CredentialManager } from '../credential-manager'
 import type { SlackChannel } from '../types'
@@ -17,12 +19,7 @@ async function snapshotAction(options: {
     const workspace = await credManager.getWorkspace()
 
     if (!workspace) {
-      console.log(
-        formatOutput(
-          { error: 'No current workspace set. Run "auth extract" first.' },
-          options.pretty
-        )
-      )
+      console.log(formatOutput({ error: 'No current workspace set. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
     }
 
@@ -64,7 +61,7 @@ async function snapshotAction(options: {
               channel_name: channel.name,
             }))
           },
-          5
+          5,
         )
 
         snapshot.recent_messages = channelMessages.flat().map((msg) => ({
@@ -98,8 +95,7 @@ async function snapshotAction(options: {
   }
 }
 
-export const snapshotCommand = new Command()
-  .name('snapshot')
+export const snapshotCommand = new Command('snapshot')
   .description('Get comprehensive workspace state for AI agents')
   .option('--channels-only', 'Include only channels (exclude messages and users)')
   .option('--users-only', 'Include only users (exclude channels and messages)')

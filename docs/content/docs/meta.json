@@ -2,7 +2,9 @@
   "pages": [
     "index",
     "quick-start",
-    "integrations",
-    "agent-skills"
+    "agent-skills",
+    "---",
+    "cli",
+    "sdk"
   ]
 }
