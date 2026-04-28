@@ -1,6 +1,17 @@
 import { Binary, Long } from 'bson'
 
 import type { KakaoDeviceType } from '../types'
+
+const MAX_SAFE_INT_LONG = Long.fromNumber(Number.MAX_SAFE_INTEGER)
+
+function longToJsonNumber(value: Long): number {
+  if (value.greaterThan(MAX_SAFE_INT_LONG)) {
+    throw new Error(
+      `KakaoTalk reply id ${value.toString()} exceeds Number.MAX_SAFE_INTEGER and cannot be serialized losslessly into the LOCO extra JSON.`,
+    )
+  }
+  return value.toNumber()
+}
 import {
   BOOKING_HOST,
   BOOKING_PORT,
@@ -136,11 +147,11 @@ export class LocoSession {
       attach_only: false,
       attach_type: parent.srcType ?? 1,
       mentions: [],
-      src_logId: parent.srcLogId,
+      src_logId: longToJsonNumber(parent.srcLogId),
       src_mentions: [],
       src_message: parent.srcMessage ?? '',
       src_type: parent.srcType ?? 1,
-      src_userId: parent.srcUserId,
+      src_userId: longToJsonNumber(parent.srcUserId),
     }
     return this.connection.sendPacket('WRITE', {
       chatId,
