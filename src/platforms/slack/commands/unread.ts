@@ -1,5 +1,7 @@
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
+import { resolveSlackChannelTarget } from '@/policy/platform-mappers/slack'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
@@ -18,11 +20,18 @@ export async function countsAction(options: { pretty?: boolean }): Promise<void>
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     const counts = await client.getUnreadCounts()
+    const engine = await getPolicyEngine()
+    const visibleChannels = engine.filterTargets('slack', 'read', counts.channels, (channel) => ({
+      kind: 'channel',
+      id: channel.id,
+    }))
+    const totalUnread = visibleChannels.reduce((total, channel) => total + channel.unread_count, 0)
+    const totalMentions = visibleChannels.reduce((total, channel) => total + channel.mention_count, 0)
 
     const output = {
-      total_unread: counts.total_unread,
-      total_mentions: counts.total_mentions,
-      channels: counts.channels.map((ch) => ({
+      total_unread: totalUnread,
+      total_mentions: totalMentions,
+      channels: visibleChannels.map((ch) => ({
         id: ch.id,
         name: ch.name,
         unread_count: ch.unread_count,
@@ -48,6 +57,12 @@ export async function threadsAction(channel: string, threadTs: string, options: 
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    const target = await resolveSlackChannelTarget(client, engine, channel, 'read')
+    if (engine.isDenied('slack', 'read', target)) {
+      console.log(formatOutput(null, options.pretty))
+      return
+    }
     const threadView = await client.getThreadView(channel, threadTs)
 
     const output = {
@@ -76,6 +91,8 @@ export async function markAction(channel: string, ts: string, options: { pretty?
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'read', await resolveSlackChannelTarget(client, engine, channel, 'read'))
     await client.markRead(channel, ts)
 
     console.log(formatOutput({ marked_read: true, channel, ts }, options.pretty))

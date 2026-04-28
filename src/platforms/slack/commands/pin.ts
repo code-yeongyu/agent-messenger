@@ -1,5 +1,7 @@
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
+import { resolveSlackChannelTarget } from '@/policy/platform-mappers/slack'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
@@ -18,6 +20,8 @@ async function addAction(channel: string, ts: string, options: { pretty?: boolea
 
     const client = await new SlackClient().login({ token: ws.token, cookie: ws.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'write', await resolveSlackChannelTarget(client, engine, channel, 'write'))
     await client.pinMessage(channel, ts)
 
     console.log(formatOutput({ success: true, channel, ts }, options.pretty))
@@ -38,6 +42,8 @@ async function removeAction(channel: string, ts: string, options: { pretty?: boo
 
     const client = await new SlackClient().login({ token: ws.token, cookie: ws.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'write', await resolveSlackChannelTarget(client, engine, channel, 'write'))
     await client.unpinMessage(channel, ts)
 
     console.log(formatOutput({ success: true, channel, ts }, options.pretty))
@@ -58,6 +64,8 @@ async function listAction(channel: string, options: { pretty?: boolean }): Promi
 
     const client = await new SlackClient().login({ token: ws.token, cookie: ws.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'read', await resolveSlackChannelTarget(client, engine, channel, 'read'))
     const pins = await client.listPins(channel)
 
     console.log(formatOutput(pins, options.pretty))

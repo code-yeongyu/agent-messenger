@@ -1,5 +1,7 @@
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
+import { resolveSlackChannelTarget, slackChannelToTarget } from '@/policy/platform-mappers/slack'
 import { parallelMap } from '@/shared/utils/concurrency'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
@@ -21,7 +23,9 @@ async function listAction(options: { type?: string; includeArchived?: boolean; p
 
     if (options.type === 'dm') {
       const dms = await client.listDMs({ includeArchived: options.includeArchived })
-      const dmOutput = dms.map((dm) => ({
+      const engine = await getPolicyEngine()
+      const visibleDMs = engine.filterTargets('slack', 'read', dms, slackChannelToTarget)
+      const dmOutput = visibleDMs.map((dm) => ({
         id: dm.id,
         user: dm.user,
         is_mpim: dm.is_mpim,
@@ -41,6 +45,9 @@ async function listAction(options: { type?: string; includeArchived?: boolean; p
     } else if (options.type === 'private') {
       channels = channels.filter((c) => c.is_private)
     }
+
+    const engine = await getPolicyEngine()
+    channels = engine.filterTargets('slack', 'read', channels, slackChannelToTarget)
 
     const output = channels.map((ch) => ({
       id: ch.id,
@@ -70,6 +77,9 @@ async function infoAction(channel: string, options: { pretty?: boolean }): Promi
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    const target = await resolveSlackChannelTarget(client, engine, channel, 'read')
+    engine.assertAllowed('slack', 'read', target)
     const ch = await client.getChannel(channel)
 
     const output = {
@@ -101,6 +111,8 @@ async function historyAction(channel: string, options: { limit?: number; pretty?
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'read', await resolveSlackChannelTarget(client, engine, channel, 'read'))
     const messages = await client.getMessages(channel, options.limit || 20)
 
     const output = messages.map((msg) => ({
@@ -130,6 +142,10 @@ async function openAction(users: string, options: { pretty?: boolean }): Promise
     }
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
+    const engine = await getPolicyEngine()
+    for (const userId of users.split(',').map((userId) => userId.trim()).filter(Boolean)) {
+      engine.assertAllowed('slack', 'write', { kind: 'user', id: userId })
+    }
     const result = await client.openConversation(users)
 
     console.log(formatOutput(result, options.pretty))
@@ -150,6 +166,8 @@ async function usersAction(channel: string, options: { includeBots?: boolean; pr
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'read', await resolveSlackChannelTarget(client, engine, channel, 'read'))
     const memberIds = await client.listChannelMembers(channel)
 
     const users = await parallelMap(memberIds, (id) => client.getUser(id), 5)
@@ -216,6 +234,8 @@ async function archiveAction(channel: string, options: { pretty?: boolean }): Pr
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'write', await resolveSlackChannelTarget(client, engine, channel, 'write'))
     await client.archiveChannel(channel)
 
     console.log(formatOutput({ success: true, channel }, options.pretty))
@@ -236,6 +256,8 @@ async function setTopicAction(channel: string, topic: string, options: { pretty?
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'write', await resolveSlackChannelTarget(client, engine, channel, 'write'))
     const result = await client.setChannelTopic(channel, topic)
 
     console.log(formatOutput({ channel, topic: result.topic }, options.pretty))
@@ -256,6 +278,8 @@ async function setPurposeAction(channel: string, purpose: string, options: { pre
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'write', await resolveSlackChannelTarget(client, engine, channel, 'write'))
     const result = await client.setChannelPurpose(channel, purpose)
 
     console.log(formatOutput({ channel, purpose: result.purpose }, options.pretty))
@@ -276,6 +300,8 @@ async function inviteAction(channel: string, users: string, options: { pretty?: 
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'write', await resolveSlackChannelTarget(client, engine, channel, 'write'))
     const ch = await client.inviteToChannel(channel, users)
 
     console.log(
@@ -305,6 +331,8 @@ async function joinAction(channel: string, options: { pretty?: boolean }): Promi
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'write', await resolveSlackChannelTarget(client, engine, channel, 'write'))
     const ch = await client.joinChannel(channel)
 
     console.log(
@@ -334,6 +362,8 @@ async function leaveAction(channel: string, options: { pretty?: boolean }): Prom
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'write', await resolveSlackChannelTarget(client, engine, channel, 'write'))
     await client.leaveChannel(channel)
 
     console.log(formatOutput({ success: true, channel }, options.pretty))

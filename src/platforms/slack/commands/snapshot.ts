@@ -1,5 +1,7 @@
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
+import { slackChannelToTarget } from '@/policy/platform-mappers/slack'
 import { parallelMap } from '@/shared/utils/concurrency'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
@@ -7,6 +9,8 @@ import { formatOutput } from '@/shared/utils/output'
 import { SlackClient } from '../client'
 import { CredentialManager } from '../credential-manager'
 import type { SlackChannel } from '../types'
+
+type LoadedPolicyEngine = Awaited<ReturnType<typeof getPolicyEngine>>
 
 async function snapshotAction(options: {
   channelsOnly?: boolean
@@ -27,6 +31,7 @@ async function snapshotAction(options: {
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
 
     const auth = await client.testAuth()
+    const engine = await getPolicyEngine()
 
     const snapshot: Record<string, any> = {
       workspace: {
@@ -37,9 +42,9 @@ async function snapshotAction(options: {
 
     const isFull = options.full || options.channelsOnly || options.usersOnly
     if (isFull) {
-      await buildFullSnapshot(client, snapshot, options)
+      await buildFullSnapshot(client, engine, snapshot, options)
     } else {
-      await buildBriefSnapshot(client, snapshot, options)
+      await buildBriefSnapshot(client, engine, snapshot, options)
     }
 
     console.log(formatOutput(snapshot, options.pretty))
@@ -50,12 +55,18 @@ async function snapshotAction(options: {
 
 async function buildBriefSnapshot(
   client: SlackClient,
+  engine: LoadedPolicyEngine,
   snapshot: Record<string, any>,
   options: { channelsOnly?: boolean; usersOnly?: boolean },
 ): Promise<void> {
   if (!options.usersOnly) {
     const channels = await client.listChannels()
-    const active = channels.filter((ch) => !ch.is_archived)
+    const active = engine.filterTargets(
+      'slack',
+      'read',
+      channels.filter((ch) => !ch.is_archived),
+      slackChannelToTarget,
+    )
     snapshot.channels = active.map((ch) => ({ id: ch.id, name: ch.name }))
   }
 
@@ -65,13 +76,14 @@ async function buildBriefSnapshot(
 
 async function buildFullSnapshot(
   client: SlackClient,
+  engine: LoadedPolicyEngine,
   snapshot: Record<string, any>,
   options: { channelsOnly?: boolean; usersOnly?: boolean; limit?: number },
 ): Promise<void> {
   const messageLimit = options.limit || 20
 
   if (!options.usersOnly) {
-    const channels = await client.listChannels()
+    const channels = engine.filterTargets('slack', 'read', await client.listChannels(), slackChannelToTarget)
 
     snapshot.channels = channels.map((ch) => ({
       id: ch.id,

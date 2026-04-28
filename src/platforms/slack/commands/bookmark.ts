@@ -1,5 +1,7 @@
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
+import { resolveSlackChannelTarget } from '@/policy/platform-mappers/slack'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
@@ -23,6 +25,8 @@ async function addAction(
 
     const client = await new SlackClient().login({ token: ws.token, cookie: ws.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'write', await resolveSlackChannelTarget(client, engine, channel, 'write'))
     const bookmark = await client.addBookmark(channel, title, link, {
       emoji: options.emoji,
       type: options.type,
@@ -55,6 +59,8 @@ async function editAction(
 
     const client = await new SlackClient().login({ token: ws.token, cookie: ws.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'write', await resolveSlackChannelTarget(client, engine, channel, 'write'))
     const bookmark = await client.editBookmark(channel, bookmarkId, {
       title: options.title,
       link: options.link,
@@ -79,6 +85,8 @@ async function removeAction(channel: string, bookmarkId: string, options: { pret
 
     const client = await new SlackClient().login({ token: ws.token, cookie: ws.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'write', await resolveSlackChannelTarget(client, engine, channel, 'write'))
     await client.removeBookmark(channel, bookmarkId)
 
     console.log(formatOutput({ success: true, channel, bookmark_id: bookmarkId }, options.pretty))
@@ -99,6 +107,8 @@ async function listAction(channel: string, options: { pretty?: boolean }): Promi
 
     const client = await new SlackClient().login({ token: ws.token, cookie: ws.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'read', await resolveSlackChannelTarget(client, engine, channel, 'read'))
     const bookmarks = await client.listBookmarks(channel)
 
     console.log(formatOutput(bookmarks, options.pretty))

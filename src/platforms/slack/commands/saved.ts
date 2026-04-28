@@ -1,10 +1,45 @@
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
+import { resolveSlackChannelTarget } from '@/policy/platform-mappers/slack'
+import type { PolicyTarget } from '@/policy/types'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
 import { SlackClient } from '../client'
 import { CredentialManager } from '../credential-manager'
+import type { SlackSavedItem } from '../types'
+
+type LoadedPolicyEngine = Awaited<ReturnType<typeof getPolicyEngine>>
+
+async function filterSavedItemsByReadPolicy(
+  client: SlackClient,
+  engine: LoadedPolicyEngine,
+  items: SlackSavedItem[],
+): Promise<SlackSavedItem[]> {
+  const targetByChannel = new Map<string, PolicyTarget>()
+  const visibleItems: SlackSavedItem[] = []
+
+  for (const item of items) {
+    const channel = item.channel.id
+    if (!channel) {
+      visibleItems.push(item)
+      continue
+    }
+
+    let target = targetByChannel.get(channel)
+    if (!target) {
+      target = await resolveSlackChannelTarget(client, engine, channel, 'read')
+      targetByChannel.set(channel, target)
+    }
+
+    if (!engine.isDenied('slack', 'read', target)) {
+      visibleItems.push(item)
+    }
+  }
+
+  return visibleItems
+}
 
 async function listAction(options: { limit?: number; cursor?: string; pretty?: boolean }): Promise<void> {
   try {
@@ -18,8 +53,9 @@ async function listAction(options: { limit?: number; cursor?: string; pretty?: b
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     const result = await client.getSavedItems(options.cursor)
+    const engine = await getPolicyEngine()
 
-    let items = result.items
+    let items = await filterSavedItemsByReadPolicy(client, engine, result.items)
 
     if (options.limit) {
       items = items.slice(0, options.limit)

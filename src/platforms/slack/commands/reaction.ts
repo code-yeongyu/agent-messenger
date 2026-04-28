@@ -1,5 +1,7 @@
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
+import { resolveSlackChannelTarget } from '@/policy/platform-mappers/slack'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
@@ -18,6 +20,8 @@ async function addAction(channel: string, ts: string, emoji: string, options: { 
 
     const client = await new SlackClient().login({ token: ws.token, cookie: ws.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'write', await resolveSlackChannelTarget(client, engine, channel, 'write'))
     await client.addReaction(channel, ts, emoji)
 
     console.log(
@@ -48,6 +52,8 @@ async function removeAction(channel: string, ts: string, emoji: string, options:
 
     const client = await new SlackClient().login({ token: ws.token, cookie: ws.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'write', await resolveSlackChannelTarget(client, engine, channel, 'write'))
     await client.removeReaction(channel, ts, emoji)
 
     console.log(
@@ -78,6 +84,8 @@ async function listAction(channel: string, ts: string, options: { pretty?: boole
 
     const client = await new SlackClient().login({ token: ws.token, cookie: ws.cookie })
     channel = await client.resolveChannel(channel)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'read', await resolveSlackChannelTarget(client, engine, channel, 'read'))
     const message = await client.getMessage(channel, ts)
 
     if (!message) {

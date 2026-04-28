@@ -1,5 +1,7 @@
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
+import { resolveSlackChannelTarget } from '@/policy/platform-mappers/slack'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
@@ -23,6 +25,8 @@ async function sendAction(
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     const channel = await client.resolveChannel(channelInput)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'write', await resolveSlackChannelTarget(client, engine, channel, 'write'))
     const message = await client.sendMessage(channel, text, options.thread)
 
     const output = {
@@ -54,6 +58,8 @@ async function listAction(
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     const channel = await client.resolveChannel(channelInput)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'read', await resolveSlackChannelTarget(client, engine, channel, 'read'))
     const limit = options.limit || 20
     const messages = await client.getMessages(channel, limit)
 
@@ -88,6 +94,8 @@ async function getAction(channelInput: string, ts: string, options: { pretty?: b
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     const channel = await client.resolveChannel(channelInput)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'read', await resolveSlackChannelTarget(client, engine, channel, 'read'))
     const message = await client.getMessage(channel, ts)
 
     if (!message) {
@@ -131,6 +139,8 @@ async function updateAction(
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     const channel = await client.resolveChannel(channelInput)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'write', await resolveSlackChannelTarget(client, engine, channel, 'write'))
     const message = await client.updateMessage(channel, ts, text)
 
     const output = {
@@ -167,6 +177,8 @@ async function deleteAction(
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     const channel = await client.resolveChannel(channelInput)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'write', await resolveSlackChannelTarget(client, engine, channel, 'write'))
     await client.deleteMessage(channel, ts)
 
     console.log(formatOutput({ deleted: ts }, options.pretty))
@@ -194,8 +206,13 @@ async function searchAction(
       sortDir: options.sortDir as 'asc' | 'desc',
       count: options.limit || 20,
     })
+    const engine = await getPolicyEngine()
+    const visibleResults = engine.filterTargets('slack', 'read', results, (result) => ({
+      kind: 'channel',
+      id: result.channel.id,
+    }))
 
-    const output = results.map((result) => ({
+    const output = visibleResults.map((result) => ({
       ts: result.ts,
       text: result.text,
       user: result.user,
@@ -227,6 +244,8 @@ async function repliesAction(
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     const channel = await client.resolveChannel(channelInput)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'read', await resolveSlackChannelTarget(client, engine, channel, 'read'))
     const result = await client.getThreadReplies(channel, threadTs, {
       limit: options.limit,
       oldest: options.oldest,
@@ -281,6 +300,8 @@ async function scheduleAction(
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     const channel = await client.resolveChannel(channelInput)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'write', await resolveSlackChannelTarget(client, engine, channel, 'write'))
     const scheduled = await client.scheduleMessage(channel, text, postAtTimestamp, options.thread)
 
     console.log(formatOutput(scheduled, options.pretty))
@@ -301,9 +322,21 @@ async function scheduledListAction(options: { channel?: string; pretty?: boolean
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     const channel = options.channel ? await client.resolveChannel(options.channel) : undefined
+    const engine = await getPolicyEngine()
+    if (channel !== undefined) {
+      const channelTarget = await resolveSlackChannelTarget(client, engine, channel, 'read')
+      if (engine.isDenied('slack', 'read', channelTarget)) {
+        console.log(formatOutput([], options.pretty))
+        return
+      }
+    }
     const messages = await client.listScheduledMessages(channel)
+    const visibleMessages = engine.filterTargets('slack', 'read', messages, (message) => ({
+      kind: 'channel',
+      id: message.channel_id,
+    }))
 
-    console.log(formatOutput(messages, options.pretty))
+    console.log(formatOutput(visibleMessages, options.pretty))
   } catch (error) {
     handleError(error as Error)
   }
@@ -325,6 +358,8 @@ async function scheduledDeleteAction(
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     const channel = await client.resolveChannel(channelInput)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'write', await resolveSlackChannelTarget(client, engine, channel, 'write'))
     await client.deleteScheduledMessage(channel, scheduledMessageId)
 
     console.log(formatOutput({ success: true, channel, scheduled_message_id: scheduledMessageId }, options.pretty))
@@ -350,6 +385,8 @@ async function ephemeralAction(
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     const channel = await client.resolveChannel(channelInput)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'write', await resolveSlackChannelTarget(client, engine, channel, 'write'))
     const messageTs = await client.postEphemeral(channel, user, text)
 
     console.log(formatOutput({ message_ts: messageTs, channel, user }, options.pretty))
@@ -370,6 +407,8 @@ async function permalinkAction(channelInput: string, ts: string, options: { pret
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     const channel = await client.resolveChannel(channelInput)
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('slack', 'read', await resolveSlackChannelTarget(client, engine, channel, 'read'))
     const permalink = await client.getPermalink(channel, ts)
 
     console.log(formatOutput({ channel, ts, permalink }, options.pretty))
