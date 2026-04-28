@@ -285,16 +285,9 @@ export class TelegramTdlibClient {
     return this.sendTextInternal(reference, text, null)
   }
 
-  async replyToMessage(
-    reference: string,
-    replyToMessageId: number,
-    text: string,
-  ): Promise<TelegramMessageSummary> {
+  async replyToMessage(reference: string, replyToMessageId: number, text: string): Promise<TelegramMessageSummary> {
     if (!Number.isSafeInteger(replyToMessageId)) {
-      throw new TelegramError(
-        `Invalid reply target message id: ${replyToMessageId}`,
-        'invalid_message_id',
-      )
+      throw new TelegramError(`Invalid reply target message id: ${replyToMessageId}`, 'invalid_message_id')
     }
 
     return this.sendTextInternal(reference, text, replyToMessageId)

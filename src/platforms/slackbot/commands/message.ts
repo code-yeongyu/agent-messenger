@@ -5,12 +5,7 @@ import { formatOutput } from '@/shared/utils/output'
 
 import { type BotOption, getClient } from './shared'
 
-async function replyAction(
-  channelInput: string,
-  threadTs: string,
-  text: string,
-  options: BotOption,
-): Promise<void> {
+async function replyAction(channelInput: string, threadTs: string, text: string, options: BotOption): Promise<void> {
   return sendAction(channelInput, text, { ...options, thread: threadTs })
 }
 

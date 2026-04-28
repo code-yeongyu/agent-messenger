@@ -60,15 +60,14 @@ const mockEditMessage = mock((_channelId: string, _messageId: string, content: s
 
 const mockDeleteMessage = mock((_channelId: string, _messageId: string) => Promise.resolve())
 
-const mockReplyToMessage = mock(
-  (_channelId: string, _messageId: string, content: string) =>
-    Promise.resolve({
-      id: 'msgreply1',
-      channel_id: 'ch1',
-      content,
-      author: { id: 'bot1', username: 'testbot' },
-      timestamp: '2025-01-01T00:10:00.000Z',
-    }),
+const mockReplyToMessage = mock((_channelId: string, _messageId: string, content: string) =>
+  Promise.resolve({
+    id: 'msgreply1',
+    channel_id: 'ch1',
+    content,
+    author: { id: 'bot1', username: 'testbot' },
+    timestamp: '2025-01-01T00:10:00.000Z',
+  }),
 )
 
 const mockResolveChannel = mock((_guildId: string, channel: string) => {

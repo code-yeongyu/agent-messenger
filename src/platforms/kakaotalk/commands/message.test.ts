@@ -119,11 +119,15 @@ describe('message commands', () => {
       )
 
       // Then: replyToMessage receives the parent metadata so the LOCO extra payload can be built
-      expect(mockReplyToMessage).toHaveBeenCalledWith('chat-123', {
-        srcLogId: '12345',
-        srcUserId: 'sender-99',
-        srcMessage: 'Original message',
-      }, 'Sounds good')
+      expect(mockReplyToMessage).toHaveBeenCalledWith(
+        'chat-123',
+        {
+          srcLogId: '12345',
+          srcUserId: 'sender-99',
+          srcMessage: 'Original message',
+        },
+        'Sounds good',
+      )
 
       const output = JSON.parse(consoleLogSpy.mock.calls[0][0])
       expect(output.log_id).toBe('3')
