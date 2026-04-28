@@ -288,6 +288,10 @@ agent-instagram message list <thread-id> --limit 10 --account <id>
 agent-instagram message send <thread-id> <text>
 agent-instagram message send <thread-id> "Hello!" --account <id>
 
+# Reply to a specific DM item with an inline quote bubble
+agent-instagram message reply <thread-id> <item-id> <text>
+agent-instagram message reply 340282-thread-id 28000000000-item-id "Sounds good"
+
 # Send a text message to a user by @username
 agent-instagram message send-to <username> <text>
 agent-instagram message send-to @alice "Hello!"

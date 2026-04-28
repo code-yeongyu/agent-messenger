@@ -8,6 +8,7 @@ const mockSendMessage = mock(() => Promise.resolve({ id: 'msg-2', text: 'Sent' }
 const mockSendMessageToUser = mock(() => Promise.resolve({ id: 'msg-3', text: 'Sent to user' }))
 const mockSearchMessages = mock(() => Promise.resolve([{ id: 'msg-4', text: 'Found' }]))
 const mockSearchUsers = mock(() => Promise.resolve([{ pk: '999', username: 'targetuser' }]))
+const mockReplyToMessage = mock(() => Promise.resolve({ id: 'msg-reply', text: 'Reply' }))
 
 const mockClient = {
   getMessages: mockGetMessages,
@@ -15,6 +16,7 @@ const mockClient = {
   sendMessageToUser: mockSendMessageToUser,
   searchMessages: mockSearchMessages,
   searchUsers: mockSearchUsers,
+  replyToMessage: mockReplyToMessage,
 }
 
 mock.module('./shared', () => ({
@@ -48,12 +50,14 @@ describe('message commands', () => {
     mockSendMessageToUser.mockReset()
     mockSearchMessages.mockReset()
     mockSearchUsers.mockReset()
+    mockReplyToMessage.mockReset()
 
     mockGetMessages.mockImplementation(() => Promise.resolve([{ id: 'msg-1', text: 'Hello' }]))
     mockSendMessage.mockImplementation(() => Promise.resolve({ id: 'msg-2', text: 'Sent' }))
     mockSendMessageToUser.mockImplementation(() => Promise.resolve({ id: 'msg-3', text: 'Sent to user' }))
     mockSearchMessages.mockImplementation(() => Promise.resolve([{ id: 'msg-4', text: 'Found' }]))
     mockSearchUsers.mockImplementation(() => Promise.resolve([{ pk: '999', username: 'targetuser' }]))
+    mockReplyToMessage.mockImplementation(() => Promise.resolve({ id: 'msg-reply', text: 'Reply' }))
 
     consoleLogSpy = mock((..._args: unknown[]) => {})
     console.log = consoleLogSpy
@@ -98,6 +102,19 @@ describe('message commands', () => {
       expect(mockSendMessage).toHaveBeenCalledWith('thread-123', 'Hello world')
       const output = JSON.parse(consoleLogSpy.mock.calls[0][0])
       expect(output).toEqual({ id: 'msg-2', text: 'Sent' })
+    })
+  })
+
+  describe('reply', () => {
+    it('replies to a DM item by id', async () => {
+      await expect(
+        messageCommand.parseAsync(['reply', 'thread-123', 'item-42', 'Reply text'], { from: 'user' }),
+      ).rejects.toThrow('process.exit called')
+
+      expect(processExitSpy).toHaveBeenCalledWith(0)
+      expect(mockReplyToMessage).toHaveBeenCalledWith('thread-123', 'item-42', 'Reply text')
+      const output = JSON.parse(consoleLogSpy.mock.calls[0][0])
+      expect(output).toEqual({ id: 'msg-reply', text: 'Reply' })
     })
   })
 

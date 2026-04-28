@@ -33,6 +33,21 @@ async function sendAction(
   }
 }
 
+async function replyAction(
+  threadId: string,
+  itemId: string,
+  text: string,
+  options: { account?: string; pretty?: boolean },
+): Promise<void> {
+  try {
+    const message = await withInstagramClient(options, (client) => client.replyToMessage(threadId, itemId, text))
+    console.log(formatOutput(message, options.pretty))
+    process.exit(0)
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
 async function sendToAction(
   username: string,
   text: string,
@@ -103,6 +118,16 @@ export const messageCommand = new Command('message')
       .option('--account <id>', 'Use a specific Instagram account')
       .option('--pretty', 'Pretty print JSON output')
       .action(sendAction),
+  )
+  .addCommand(
+    new Command('reply')
+      .description('Reply to a specific message in a DM thread (Instagram quote bubble)')
+      .argument('<thread-id>', 'Thread ID')
+      .argument('<item-id>', 'ID of the DM item being replied to')
+      .argument('<text>', 'Reply text')
+      .option('--account <id>', 'Use a specific Instagram account')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(replyAction),
   )
   .addCommand(
     new Command('send-to')

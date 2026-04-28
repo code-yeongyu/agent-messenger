@@ -382,6 +382,43 @@ export class InstagramClient {
     return this.mapMessage(sentItem, threadId)
   }
 
+  async replyToMessage(threadId: string, replyToItemId: string, text: string): Promise<InstagramMessageSummary> {
+    this.ensureSession()
+
+    const clientContext = randomUUID()
+    const { data } = await this.request('POST', '/direct_v2/threads/broadcast/text/', {
+      thread_ids: `[${threadId}]`,
+      text,
+      action: 'send_item',
+      client_context: clientContext,
+      replied_to_action_source: 'swipe',
+      replied_to_item_id: replyToItemId,
+      replied_to_client_context: clientContext,
+    })
+
+    if (data['status'] !== 'ok') {
+      throw new InstagramError('Failed to send reply', 'reply_failed')
+    }
+
+    const payload = data['payload'] as Record<string, unknown> | undefined
+    const items = (payload?.['items'] ?? []) as Array<Record<string, unknown>>
+    const sentItem = items[0]
+
+    if (!sentItem) {
+      return {
+        id: '',
+        thread_id: threadId,
+        from: this.userId ?? '',
+        timestamp: new Date().toISOString(),
+        is_outgoing: true,
+        type: 'text',
+        text,
+      }
+    }
+
+    return this.mapMessage(sentItem, threadId)
+  }
+
   setSessionPath(path: string): void {
     this.sessionPath = path
   }
