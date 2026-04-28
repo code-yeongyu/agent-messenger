@@ -1,5 +1,7 @@
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
+import { discordChannelToTarget } from '@/policy/platform-mappers/discord'
 import { parallelMap } from '@/shared/utils/concurrency'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
@@ -24,8 +26,9 @@ export async function snapshotAction(options: {
       process.exit(1)
     }
 
-    const client = await new DiscordClient().login({ token: config.token as string })
-    const serverId = config.current_server as string
+    const client = await new DiscordClient().login({ token: config.token })
+    const serverId = config.current_server
+    const engine = await getPolicyEngine()
 
     const snapshot: Record<string, any> = {}
 
@@ -40,7 +43,7 @@ export async function snapshotAction(options: {
       const messageLimit = options.limit || 20
 
       if (!options.usersOnly) {
-        const channels = await client.listChannels(serverId)
+        const channels = engine.filterTargets('discord', 'read', await client.listChannels(serverId), discordChannelToTarget)
 
         snapshot.channels = channels.map((ch) => ({
           id: ch.id,
@@ -87,7 +90,7 @@ export async function snapshotAction(options: {
       }
     } else {
       if (!options.usersOnly) {
-        const channels = await client.listChannels(serverId)
+        const channels = engine.filterTargets('discord', 'read', await client.listChannels(serverId), discordChannelToTarget)
         const textChannels = channels.filter((ch: DiscordChannel) => ch.type === 0 || ch.type === 5)
         snapshot.channels = textChannels.map((ch) => ({ id: ch.id, name: ch.name }))
       }

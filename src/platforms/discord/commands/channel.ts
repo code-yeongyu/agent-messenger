@@ -1,5 +1,7 @@
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
+import { discordChannelToTarget, resolveDiscordChannelTarget } from '@/policy/platform-mappers/discord'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
@@ -19,13 +21,19 @@ export async function listAction(options: { pretty?: boolean }): Promise<void> {
     const client = await new DiscordClient().login({ token: config.token })
     const channels = await client.listChannels(config.current_server)
 
-    const textChannels = channels.filter((ch) => ch.type === 0)
+    const engine = await getPolicyEngine()
+    const textChannels = engine.filterTargets(
+      'discord',
+      'read',
+      channels.filter((ch) => ch.type === 0),
+      discordChannelToTarget,
+    )
 
     const output = textChannels.map((ch) => ({
       id: ch.id,
       name: ch.name,
       type: ch.type,
-      parent_id: (ch as any).parent_id || null,
+      parent_id: ch.parent_id || null,
       topic: ch.topic || null,
     }))
 
@@ -46,6 +54,8 @@ export async function infoAction(channelId: string, options: { pretty?: boolean 
     }
 
     const client = await new DiscordClient().login({ token: config.token })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('discord', 'read', await resolveDiscordChannelTarget(client, engine, channelId, 'read'))
     const channel = await client.getChannel(channelId)
 
     const output = {
@@ -54,7 +64,7 @@ export async function infoAction(channelId: string, options: { pretty?: boolean 
       type: channel.type,
       server_id: channel.guild_id,
       topic: channel.topic || null,
-      parent_id: (channel as any).parent_id || null,
+      parent_id: channel.parent_id || null,
     }
 
     console.log(formatOutput(output, options.pretty))
@@ -74,6 +84,8 @@ export async function historyAction(channelId: string, options: { limit?: number
     }
 
     const client = await new DiscordClient().login({ token: config.token })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('discord', 'read', await resolveDiscordChannelTarget(client, engine, channelId, 'read'))
     const messages = await client.getMessages(channelId, options.limit || 50)
 
     const output = messages.map((msg) => ({

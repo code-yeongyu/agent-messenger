@@ -1,10 +1,15 @@
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
+import { resolveDiscordChannelTarget } from '@/policy/platform-mappers/discord'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
+import type { DiscordMessage, DiscordReaction } from '../types'
+
+type DiscordMessageWithReactions = DiscordMessage & { reactions?: DiscordReaction[] }
 
 export async function addAction(
   channelId: string,
@@ -22,6 +27,8 @@ export async function addAction(
     }
 
     const client = await new DiscordClient().login({ token: config.token })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('discord', 'write', await resolveDiscordChannelTarget(client, engine, channelId, 'write'))
     await client.addReaction(channelId, messageId, emoji)
 
     console.log(
@@ -56,6 +63,8 @@ export async function removeAction(
     }
 
     const client = await new DiscordClient().login({ token: config.token })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('discord', 'write', await resolveDiscordChannelTarget(client, engine, channelId, 'write'))
     await client.removeReaction(channelId, messageId, emoji)
 
     console.log(
@@ -85,6 +94,8 @@ export async function listAction(channelId: string, messageId: string, options: 
     }
 
     const client = await new DiscordClient().login({ token: config.token })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('discord', 'read', await resolveDiscordChannelTarget(client, engine, channelId, 'read'))
     const message = await client.getMessage(channelId, messageId)
 
     if (!message) {
@@ -101,7 +112,7 @@ export async function listAction(channelId: string, messageId: string, options: 
       process.exit(1)
     }
 
-    const reactions = (message as any).reactions || []
+    const reactions = (message as DiscordMessageWithReactions).reactions || []
 
     console.log(
       formatOutput(

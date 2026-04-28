@@ -2,6 +2,8 @@ import { resolve } from 'node:path'
 
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
+import { resolveDiscordChannelTarget } from '@/policy/platform-mappers/discord'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
@@ -24,6 +26,8 @@ export async function uploadAction(
     }
 
     const client = await new DiscordClient().login({ token: config.token })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('discord', 'write', await resolveDiscordChannelTarget(client, engine, channelId, 'write'))
 
     const filePath = resolve(path)
     const file = await client.uploadFile(channelId, filePath)
@@ -53,6 +57,12 @@ export async function listAction(channelId: string, options: { pretty?: boolean 
     }
 
     const client = await new DiscordClient().login({ token: config.token })
+    const engine = await getPolicyEngine()
+    const channelTarget = await resolveDiscordChannelTarget(client, engine, channelId, 'read')
+    if (engine.isDenied('discord', 'read', channelTarget)) {
+      console.log(formatOutput([], options.pretty))
+      return
+    }
     const files = await client.listFiles(channelId)
 
     const output = files.map((file: DiscordFile) => ({
@@ -80,6 +90,8 @@ export async function infoAction(channelId: string, fileId: string, options: { p
     }
 
     const client = await new DiscordClient().login({ token: config.token })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('discord', 'read', await resolveDiscordChannelTarget(client, engine, channelId, 'read'))
     const files = await client.listFiles(channelId)
     const fileData = files.find((f) => f.id === fileId)
 

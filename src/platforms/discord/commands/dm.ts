@@ -1,5 +1,7 @@
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
+import { discordChannelToTarget } from '@/policy/platform-mappers/discord'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
@@ -19,8 +21,10 @@ export async function listAction(options: { pretty?: boolean }): Promise<void> {
 
     const client = await new DiscordClient().login({ token: config.token })
     const channels = await client.listDMChannels()
+    const engine = await getPolicyEngine()
+    const visibleChannels = engine.filterTargets('discord', 'read', channels, discordChannelToTarget)
 
-    const output = channels.map((channel: DiscordDMChannel) => ({
+    const output = visibleChannels.map((channel: DiscordDMChannel) => ({
       id: channel.id,
       type: channel.type === 1 ? 'DM' : 'Group DM',
       name: channel.name || null,
@@ -48,6 +52,8 @@ export async function createAction(userId: string, options: { pretty?: boolean }
     }
 
     const client = await new DiscordClient().login({ token: config.token })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('discord', 'write', { kind: 'user', id: userId })
     const channel = await client.createDM(userId)
 
     const output = {

@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
@@ -21,8 +22,13 @@ export async function listAction(options: { limit?: number; guild?: string; pret
       limit: options.limit,
       guildId: options.guild,
     })
+    const engine = await getPolicyEngine()
+    const visibleMentions = engine.filterTargets('discord', 'read', mentions, (mention) => ({
+      kind: 'channel',
+      id: mention.channel_id,
+    }))
 
-    const output = mentions.map((mention) => ({
+    const output = visibleMentions.map((mention) => ({
       id: mention.id,
       channel_id: mention.channel_id,
       author: mention.author.username,

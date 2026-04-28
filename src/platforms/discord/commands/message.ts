@@ -1,5 +1,7 @@
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
+import { resolveDiscordChannelTarget } from '@/policy/platform-mappers/discord'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
@@ -18,6 +20,8 @@ export async function sendAction(channelId: string, content: string, options: { 
     }
 
     const client = await new DiscordClient().login({ token: config.token })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('discord', 'write', await resolveDiscordChannelTarget(client, engine, channelId, 'write'))
     const message = await client.sendMessage(channelId, content)
 
     const output = {
@@ -44,6 +48,8 @@ export async function listAction(channelId: string, options: { limit?: number; p
     }
 
     const client = await new DiscordClient().login({ token: config.token })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('discord', 'read', await resolveDiscordChannelTarget(client, engine, channelId, 'read'))
     const limit = options.limit || 50
     const messages = await client.getMessages(channelId, limit)
 
@@ -72,6 +78,8 @@ export async function getAction(channelId: string, messageId: string, options: {
     }
 
     const client = await new DiscordClient().login({ token: config.token })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('discord', 'read', await resolveDiscordChannelTarget(client, engine, channelId, 'read'))
     const message = await client.getMessage(channelId, messageId)
 
     if (!message) {
@@ -113,6 +121,8 @@ export async function deleteAction(
     }
 
     const client = await new DiscordClient().login({ token: config.token })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('discord', 'write', await resolveDiscordChannelTarget(client, engine, channelId, 'write'))
     await client.deleteMessage(channelId, messageId)
 
     console.log(formatOutput({ deleted: messageId }, options.pretty))
@@ -132,6 +142,8 @@ export async function ackAction(channelId: string, messageId: string, options: {
     }
 
     const client = await new DiscordClient().login({ token: config.token })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('discord', 'read', await resolveDiscordChannelTarget(client, engine, channelId, 'read'))
     await client.ackMessage(channelId, messageId)
 
     console.log(formatOutput({ acknowledged: messageId }, options.pretty))
@@ -184,11 +196,16 @@ export async function searchAction(
     if (options.limit !== undefined) searchOptions.limit = options.limit
     if (options.offset !== undefined) searchOptions.offset = options.offset
 
-    const { results, total } = await client.searchMessages(config.current_server, query, searchOptions)
+    const { results } = await client.searchMessages(config.current_server, query, searchOptions)
+    const engine = await getPolicyEngine()
+    const visibleResults = engine.filterTargets('discord', 'read', results, (result) => ({
+      kind: 'channel',
+      id: result.channel_id,
+    }))
 
     const output = {
-      total_results: total,
-      results: results.map((msg) => ({
+      total_results: visibleResults.length,
+      results: visibleResults.map((msg) => ({
         id: msg.id,
         content: msg.content,
         author_id: msg.author.id,

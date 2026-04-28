@@ -1,5 +1,7 @@
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
+import { resolveDiscordChannelTarget } from '@/policy/platform-mappers/discord'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
@@ -21,6 +23,8 @@ export async function createAction(
     }
 
     const client = await new DiscordClient().login({ token: config.token })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('discord', 'write', await resolveDiscordChannelTarget(client, engine, channelId, 'write'))
     const threadOptions: { auto_archive_duration?: number } = {}
 
     if (options.autoArchiveDuration) {
@@ -53,6 +57,10 @@ export async function archiveAction(threadId: string, options: { pretty?: boolea
     }
 
     const client = await new DiscordClient().login({ token: config.token })
+    const engine = await getPolicyEngine()
+    const existingThread = await client.getChannel(threadId)
+    const parentChannelId = existingThread.parent_id || existingThread.id
+    engine.assertAllowed('discord', 'write', await resolveDiscordChannelTarget(client, engine, parentChannelId, 'write'))
     const thread = await client.archiveThread(threadId)
 
     const output = {
