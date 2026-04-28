@@ -110,6 +110,31 @@ export async function editAction(
   }
 }
 
+export async function replyAction(
+  spaceId: string,
+  parentId: string,
+  text: string,
+  options: { markdown?: boolean; pretty?: boolean },
+): Promise<void> {
+  try {
+    const client = await new WebexClient().login()
+    const message = await client.replyToMessage(spaceId, parentId, text, { markdown: options.markdown })
+
+    const output = {
+      id: message.id,
+      roomId: message.roomId,
+      parentId,
+      text: message.text,
+      personEmail: message.personEmail,
+      created: message.created,
+    }
+
+    console.log(formatOutput(output, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
 export async function dmAction(
   email: string,
   text: string,
@@ -143,6 +168,16 @@ export const messageCommand = new Command('message')
       .option('--markdown', 'Send as markdown')
       .option('--pretty', 'Pretty print JSON output')
       .action(sendAction),
+  )
+  .addCommand(
+    new Command('reply')
+      .description('Reply to a message in a space (threaded reply)')
+      .argument('<space-id>', 'Space/Room ID')
+      .argument('<parent-id>', 'ID of the parent message being replied to')
+      .argument('<text>', 'Reply text')
+      .option('--markdown', 'Send as markdown')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(replyAction),
   )
   .addCommand(
     new Command('dm')

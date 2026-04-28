@@ -221,6 +221,11 @@ agent-webex message send <space-id> "Hello world"
 # Send a markdown message
 agent-webex message send <space-id> "**Bold** and _italic_" --markdown
 
+# Reply to a message in a space (threaded reply via parentId)
+agent-webex message reply <space-id> <parent-id> <text>
+agent-webex message reply <space-id> <parent-id> "Sounds good"
+agent-webex message reply <space-id> <parent-id> "**bold** reply" --markdown
+
 # List messages in a space
 agent-webex message list <space-id>
 agent-webex message list <space-id> --limit 50

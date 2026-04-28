@@ -206,6 +206,20 @@ export class WebexClient {
     return this.request<WebexMessage>('POST', '/messages', body)
   }
 
+  async replyToMessage(
+    roomId: string,
+    parentId: string,
+    text: string,
+    options?: { markdown?: boolean },
+  ): Promise<WebexMessage> {
+    if (this.useInternalAPI) {
+      return this.sendMessageInternal(roomId, text, { ...options, parentId })
+    }
+    const body: Record<string, string> = options?.markdown ? { roomId, markdown: text } : { roomId, text }
+    body.parentId = parentId
+    return this.request<WebexMessage>('POST', '/messages', body)
+  }
+
   private get useInternalAPI(): boolean {
     return this.tokenType === 'extracted' && this.deviceUrl !== null
   }
@@ -310,7 +324,7 @@ export class WebexClient {
   private async sendMessageInternal(
     roomId: string,
     text: string,
-    options?: { markdown?: boolean },
+    options?: { markdown?: boolean; parentId?: string },
   ): Promise<WebexMessage> {
     const convUuid = this.decodeConvUuid(roomId)
     const { object, encryptionKeyUrl } = await this.buildEncryptedObject(convUuid, text, options)
@@ -324,6 +338,10 @@ export class WebexClient {
 
     if (encryptionKeyUrl) {
       activity['encryptionKeyUrl'] = encryptionKeyUrl
+    }
+
+    if (options?.parentId) {
+      activity['parent'] = { id: options.parentId, type: 'reply' }
     }
 
     const result = await this.internalRequest<InternalActivity>('/activities', {
