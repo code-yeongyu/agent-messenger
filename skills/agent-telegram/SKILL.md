@@ -117,6 +117,12 @@ agent-telegram chat get @durov
 # List recent messages
 agent-telegram message list @durov --limit 10
 
+# Send a text message to a chat
+agent-telegram message send @durov "Hello from agent-telegram"
+
+# Reply to a specific message in a chat (the second argument is the parent message id)
+agent-telegram message reply @durov 12345 "Sounds good"
+
 # Logout
 agent-telegram auth logout
 ```

@@ -30,6 +30,29 @@ async function sendAction(
   }
 }
 
+async function replyAction(
+  reference: string,
+  messageIdInput: string,
+  text: string,
+  options: { account?: string; pretty?: boolean },
+): Promise<void> {
+  try {
+    const replyToMessageId = Number(messageIdInput)
+    if (!Number.isSafeInteger(replyToMessageId)) {
+      console.log(formatOutput({ error: `Invalid message id: ${messageIdInput}` }, options.pretty))
+      process.exit(1)
+      return
+    }
+
+    const message = await withTelegramClient(options, async (client) =>
+      client.replyToMessage(reference, replyToMessageId, text),
+    )
+    console.log(formatOutput(message, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
 export const messageCommand = new Command('message')
   .description('Telegram message commands')
   .addCommand(
@@ -49,4 +72,14 @@ export const messageCommand = new Command('message')
       .option('--account <id>', 'Use a specific Telegram account')
       .option('--pretty', 'Pretty print JSON output')
       .action(sendAction),
+  )
+  .addCommand(
+    new Command('reply')
+      .description('Reply to a message in a chat')
+      .argument('<chat>', 'Chat ID, @username, or title')
+      .argument('<message-id>', 'ID of the message being replied to')
+      .argument('<text>', 'Reply text')
+      .option('--account <id>', 'Use a specific Telegram account')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(replyAction),
   )

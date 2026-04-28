@@ -282,14 +282,46 @@ export class TelegramTdlibClient {
   }
 
   async sendMessage(reference: string, text: string): Promise<TelegramMessageSummary> {
+    return this.sendTextInternal(reference, text, null)
+  }
+
+  async replyToMessage(
+    reference: string,
+    replyToMessageId: number,
+    text: string,
+  ): Promise<TelegramMessageSummary> {
+    if (!Number.isSafeInteger(replyToMessageId)) {
+      throw new TelegramError(
+        `Invalid reply target message id: ${replyToMessageId}`,
+        'invalid_message_id',
+      )
+    }
+
+    return this.sendTextInternal(reference, text, replyToMessageId)
+  }
+
+  private async sendTextInternal(
+    reference: string,
+    text: string,
+    replyToMessageId: number | null,
+  ): Promise<TelegramMessageSummary> {
     await this.ensureReady()
     const chat = await this.resolveChat(reference)
+
+    const replyTo =
+      replyToMessageId === null
+        ? null
+        : {
+            '@type': 'inputMessageReplyToMessage',
+            message_id: replyToMessageId,
+            chat_id: chat.id,
+          }
 
     const message = (await this.call({
       '@type': 'sendMessage',
       chat_id: chat.id,
       topic_id: null,
-      reply_to: null,
+      reply_to: replyTo,
       options: null,
       reply_markup: null,
       input_message_content: {

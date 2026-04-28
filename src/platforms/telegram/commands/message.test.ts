@@ -9,9 +9,14 @@ const mockListMessages = mock(() =>
 
 const mockSendMessage = mock(() => Promise.resolve({ id: 3, text: 'Sent message', sender_id: 'user-1', date: 3000 }))
 
+const mockReplyToMessage = mock(() =>
+  Promise.resolve({ id: 4, text: 'Reply message', sender_id: 'user-1', date: 4000 }),
+)
+
 const mockClient = {
   listMessages: mockListMessages,
   sendMessage: mockSendMessage,
+  replyToMessage: mockReplyToMessage,
 }
 
 mock.module('./shared', () => ({
@@ -35,6 +40,10 @@ describe('message commands', () => {
     mockSendMessage.mockReset()
     mockSendMessage.mockImplementation(() =>
       Promise.resolve({ id: 3, text: 'Sent message', sender_id: 'user-1', date: 3000 }),
+    )
+    mockReplyToMessage.mockReset()
+    mockReplyToMessage.mockImplementation(() =>
+      Promise.resolve({ id: 4, text: 'Reply message', sender_id: 'user-1', date: 4000 }),
     )
     consoleSpy = spyOn(console, 'log').mockImplementation(() => {})
     processExitSpy = spyOn(process, 'exit').mockImplementation((() => {}) as (code?: number) => never)
@@ -84,6 +93,40 @@ describe('message commands', () => {
       const parsed = JSON.parse(output)
       expect(parsed).toBeObject()
       expect(parsed.id).toBe(3)
+    })
+  })
+
+  describe('reply subcommand', () => {
+    it('calls replyToMessage with chat reference, parent message id, and text', async () => {
+      // Given: A chat reference, a parent message id, and reply text
+      // When: Invoking the reply subcommand
+      await messageCommand.parseAsync(['reply', 'chat-123', '42', 'Sounds good'], { from: 'user' })
+
+      // Then: replyToMessage should be called with the parsed numeric id
+      expect(mockReplyToMessage).toHaveBeenCalledWith('chat-123', 42, 'Sounds good')
+    })
+
+    it('outputs the reply message as JSON', async () => {
+      // Given: A chat reference and parent message id
+      // When: Invoking the reply subcommand
+      await messageCommand.parseAsync(['reply', 'chat-123', '42', 'Sounds good'], { from: 'user' })
+
+      // Then: The new message should be printed as JSON
+      expect(consoleSpy).toHaveBeenCalled()
+      const output = consoleSpy.mock.calls[0][0] as string
+      const parsed = JSON.parse(output)
+      expect(parsed).toBeObject()
+      expect(parsed.id).toBe(4)
+    })
+
+    it('rejects non-integer message ids', async () => {
+      // Given: An invalid (non-integer) parent message id
+      // When: Invoking the reply subcommand
+      await messageCommand.parseAsync(['reply', 'chat-123', 'abc', 'Sounds good'], { from: 'user' })
+
+      // Then: replyToMessage should not be called and process.exit(1) is invoked
+      expect(mockReplyToMessage).not.toHaveBeenCalled()
+      expect(processExitSpy).toHaveBeenCalledWith(1)
     })
   })
 })
