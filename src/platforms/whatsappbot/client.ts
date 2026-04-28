@@ -54,6 +54,21 @@ export class WhatsAppBotClient {
     })
   }
 
+  async replyToTextMessage(
+    to: string,
+    replyToMessageId: string,
+    text: string,
+    previewUrl?: boolean,
+  ): Promise<WhatsAppBotMessageResponse> {
+    return this.request<WhatsAppBotMessageResponse>('POST', `/${this.phoneNumberId!}/messages`, {
+      messaging_product: 'whatsapp',
+      to,
+      context: { message_id: replyToMessageId },
+      type: 'text',
+      text: { body: text, preview_url: previewUrl ?? false },
+    })
+  }
+
   async sendTemplateMessage(
     to: string,
     templateName: string,

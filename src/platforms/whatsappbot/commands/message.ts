@@ -77,6 +77,21 @@ export async function sendImageAction(to: string, imageUrl: string, options: Mes
   }
 }
 
+export async function replyAction(
+  to: string,
+  messageId: string,
+  text: string,
+  options: MessageOptions,
+): Promise<MessageResult> {
+  try {
+    const client = await getClient(options)
+    const response = await client.replyToTextMessage(to, messageId, text)
+    return response
+  } catch (error) {
+    return { error: (error as Error).message }
+  }
+}
+
 export async function sendDocumentAction(
   to: string,
   documentUrl: string,
@@ -107,6 +122,18 @@ export const messageCommand = new Command('message')
       .option('--pretty', 'Pretty print JSON output')
       .action(async (to: string, text: string, opts: MessageOptions) => {
         cliOutput(await sendAction(to, text, opts), opts.pretty)
+      }),
+  )
+  .addCommand(
+    new Command('reply')
+      .description('Reply to a specific message (Cloud API context)')
+      .argument('<to>', 'Recipient phone number')
+      .argument('<message-id>', 'wamid of the parent message')
+      .argument('<text>', 'Reply text')
+      .option('--account <id>', 'Account ID')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(async (to: string, messageId: string, text: string, opts: MessageOptions) => {
+        cliOutput(await replyAction(to, messageId, text, opts), opts.pretty)
       }),
   )
   .addCommand(

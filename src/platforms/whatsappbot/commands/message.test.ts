@@ -40,19 +40,35 @@ const mockSendDocumentMessage = mock(() =>
   }),
 )
 
+const mockReplyToTextMessage = mock(() =>
+  Promise.resolve({
+    messaging_product: 'whatsapp',
+    contacts: [{ input: '+1234567890', wa_id: '1234567890' }],
+    messages: [{ id: 'wamid.reply123' }],
+  }),
+)
+
 const mockClient = {
   sendTextMessage: mockSendTextMessage,
   sendTemplateMessage: mockSendTemplateMessage,
   sendReaction: mockSendReaction,
   sendImageMessage: mockSendImageMessage,
   sendDocumentMessage: mockSendDocumentMessage,
+  replyToTextMessage: mockReplyToTextMessage,
 }
 
 mock.module('./shared', () => ({
   getClient: async () => mockClient,
 }))
 
-import { sendAction, sendDocumentAction, sendImageAction, sendReactionAction, sendTemplateAction } from './message'
+import {
+  replyAction,
+  sendAction,
+  sendDocumentAction,
+  sendImageAction,
+  sendReactionAction,
+  sendTemplateAction,
+} from './message'
 
 describe('message commands', () => {
   beforeEach(() => {
@@ -61,6 +77,7 @@ describe('message commands', () => {
     mockSendReaction.mockClear()
     mockSendImageMessage.mockClear()
     mockSendDocumentMessage.mockClear()
+    mockReplyToTextMessage.mockClear()
   })
 
   describe('sendAction', () => {
@@ -203,6 +220,24 @@ describe('message commands', () => {
       const result = await sendDocumentAction('+1234567890', 'https://example.com/doc.pdf', {})
 
       expect(result.error).toBe('Upload failed')
+    })
+  })
+
+  describe('replyAction', () => {
+    it('replies to a message and forwards parent wamid to client', async () => {
+      const result = await replyAction('+1234567890', 'wamid.parent123', 'Sounds good', {})
+
+      expect(result.messaging_product).toBe('whatsapp')
+      expect(result.messages?.[0].id).toBe('wamid.reply123')
+      expect(mockReplyToTextMessage).toHaveBeenCalledWith('+1234567890', 'wamid.parent123', 'Sounds good')
+    })
+
+    it('returns error when client throws', async () => {
+      mockReplyToTextMessage.mockImplementationOnce(() => Promise.reject(new Error('Parent message expired')))
+
+      const result = await replyAction('+1234567890', 'wamid.bad', 'hi', {})
+
+      expect(result.error).toBe('Parent message expired')
     })
   })
 })

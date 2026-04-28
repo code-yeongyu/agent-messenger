@@ -185,6 +185,10 @@ agent-whatsappbot whoami --account <account-id>
 agent-whatsappbot message send <to> <text>
 agent-whatsappbot message send 15551234567 "Your order has shipped!"
 
+# Reply to a specific message (Cloud API context)
+agent-whatsappbot message reply <to> <message-id> <text>
+agent-whatsappbot message reply 15551234567 wamid.abc123 "Thanks for confirming"
+
 # Send a template message
 agent-whatsappbot message send-template <to> <template-name>
 agent-whatsappbot message send-template 15551234567 order_confirmation --language en_US --components '[{"type":"body","parameters":[{"type":"text","text":"Alice"},{"type":"text","text":"ORD-9876"}]}]'
