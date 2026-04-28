@@ -36,7 +36,7 @@ npm consumers run compiled JS via Node.js. The `prepublishOnly` script runs the 
 ## Commands
 
 ```bash
-bun install     # Install dependencies
+bun install     # Install dependencies (also run `cd docs && bun install` once for format:check)
 bun link        # Link CLI globally for local testing
 bun test        # Run unit tests
 bun test:e2e    # Run e2e tests
@@ -45,6 +45,8 @@ bun lint        # Lint with oxlint
 bun lint:fix    # Lint with oxlint (autofix)
 bun format      # Format with oxfmt
 ```
+
+`docs/` is a separate sub-project with its own `node_modules`. `bun run format:check` resolves Tailwind classes through `docs/src/app/globals.css`, which transitively imports `fumadocs-ui` — so the docs install must have run at least once or the format check will fail with `Can't resolve 'fumadocs-ui/...'`.
 
 ## Access Control Module
 
