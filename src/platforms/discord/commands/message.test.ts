@@ -2,9 +2,10 @@ import { afterEach, beforeEach, expect, mock, spyOn, it } from 'bun:test'
 
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
-import { ackAction, deleteAction, getAction, listAction, searchAction, sendAction } from './message'
+import { ackAction, deleteAction, getAction, listAction, replyAction, searchAction, sendAction } from './message'
 
 let clientSendMessageSpy: ReturnType<typeof spyOn>
+let clientReplyToMessageSpy: ReturnType<typeof spyOn>
 let clientGetMessagesSpy: ReturnType<typeof spyOn>
 let clientGetMessageSpy: ReturnType<typeof spyOn>
 let clientDeleteMessageSpy: ReturnType<typeof spyOn>
@@ -51,6 +52,14 @@ beforeEach(() => {
 
   clientAckMessageSpy = spyOn(DiscordClient.prototype, 'ackMessage').mockResolvedValue(undefined)
 
+  clientReplyToMessageSpy = spyOn(DiscordClient.prototype, 'replyToMessage').mockResolvedValue({
+    id: 'msg_reply_999',
+    channel_id: 'ch_456',
+    author: { id: 'user_789', username: 'testuser' },
+    content: 'Reply text',
+    timestamp: '2025-01-29T10:05:00Z',
+  })
+
   clientSearchMessagesSpy = spyOn(DiscordClient.prototype, 'searchMessages').mockResolvedValue({
     results: [
       {
@@ -85,6 +94,7 @@ beforeEach(() => {
 
 afterEach(() => {
   clientSendMessageSpy?.mockRestore()
+  clientReplyToMessageSpy?.mockRestore()
   clientGetMessagesSpy?.mockRestore()
   clientGetMessageSpy?.mockRestore()
   clientDeleteMessageSpy?.mockRestore()
@@ -172,6 +182,18 @@ it('search: includes total_results in output', async () => {
   const output = consoleSpy.mock.calls[0][0]
   expect(output).toContain('total_results')
   expect(output).toContain('2')
+})
+
+it('reply: returns new message and forwards parent id to client', async () => {
+  const consoleSpy = mock((_msg: string) => {})
+  console.log = consoleSpy
+
+  await replyAction('ch_456', 'msg_123', 'Reply text', { pretty: false })
+
+  expect(clientReplyToMessageSpy).toHaveBeenCalledWith('ch_456', 'msg_123', 'Reply text')
+  expect(consoleSpy).toHaveBeenCalled()
+  const output = consoleSpy.mock.calls[0][0]
+  expect(output).toContain('msg_reply_999')
 })
 
 it('search: passes options to client', async () => {

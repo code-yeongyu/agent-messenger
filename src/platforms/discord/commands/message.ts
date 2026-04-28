@@ -37,6 +37,40 @@ export async function sendAction(channelId: string, content: string, options: { 
   }
 }
 
+export async function replyAction(
+  channelId: string,
+  messageId: string,
+  content: string,
+  options: { pretty?: boolean },
+): Promise<void> {
+  try {
+    const credManager = new DiscordCredentialManager()
+    const config = await credManager.load()
+
+    if (!config.token) {
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
+      process.exit(1)
+    }
+
+    const client = await new DiscordClient().login({ token: config.token })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('discord', 'write', await resolveDiscordChannelTarget(client, engine, channelId, 'write'))
+    const message = await client.replyToMessage(channelId, messageId, content)
+
+    const output = {
+      id: message.id,
+      content: message.content,
+      author: message.author.username,
+      timestamp: message.timestamp,
+      reply_to: messageId,
+    }
+
+    console.log(formatOutput(output, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
 export async function listAction(channelId: string, options: { limit?: number; pretty?: boolean }): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
@@ -230,6 +264,15 @@ export const messageCommand = new Command('message')
       .argument('<content>', 'Message content')
       .option('--pretty', 'Pretty print JSON output')
       .action(sendAction),
+  )
+  .addCommand(
+    new Command('reply')
+      .description('Reply to a message in a channel')
+      .argument('<channel-id>', 'Channel ID')
+      .argument('<message-id>', 'ID of the message being replied to')
+      .argument('<content>', 'Reply content')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(replyAction),
   )
   .addCommand(
     new Command('list')

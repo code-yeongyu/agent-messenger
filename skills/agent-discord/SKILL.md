@@ -162,6 +162,10 @@ Output includes the authenticated user's identity information.
 agent-discord message send <channel-id> <content>
 agent-discord message send 1234567890123456789 "Hello world"
 
+# Reply to a message (inline reply via Discord's message_reference)
+agent-discord message reply <channel-id> <message-id> <content>
+agent-discord message reply 1234567890123456789 9876543210987654321 "Sounds good"
+
 # List messages
 agent-discord message list <channel-id>
 agent-discord message list 1234567890123456789 --limit 50
