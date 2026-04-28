@@ -388,4 +388,75 @@ describe('InstagramClient', () => {
       expect(body['client_context']).toBeTruthy()
     })
   })
+
+  describe('replyToMessage', () => {
+    it('uses the parent message client_context for replied_to_client_context', async () => {
+      // Given: a thread whose parent item carries client_context "parent-ctx-99"
+      fetchResponses.push(
+        jsonResponse({
+          status: 'ok',
+          thread: {
+            thread_id: 'thread-5',
+            items: [
+              {
+                item_id: 'item-42',
+                user_id: '5678',
+                timestamp: 1_700_000_000_000_000,
+                item_type: 'text',
+                text: 'parent',
+                client_context: 'parent-ctx-99',
+              },
+            ],
+          },
+        }),
+      )
+      fetchResponses.push(jsonResponse({ status: 'ok', payload: { items: [] } }))
+
+      const client = await loadedClient()
+
+      // When: replying to "item-42"
+      await client.replyToMessage('thread-5', 'item-42', 'reply text')
+
+      // Then: the broadcast POST sets replied_to_client_context to the PARENT's value, not a fresh UUID
+      const post = urlParamsBody(1)
+      expect(post['replied_to_client_context']).toBe('parent-ctx-99')
+      expect(post['replied_to_item_id']).toBe('item-42')
+      expect(post['replied_to_action_source']).toBe('swipe')
+      expect(post['text']).toBe('reply text')
+      expect(post['client_context']).not.toBe('parent-ctx-99')
+      expect(post['client_context']).toBeTruthy()
+    })
+
+    it('throws InstagramError when the parent item is missing from recent thread history', async () => {
+      // Given: a thread that does NOT contain the requested parent item
+      fetchResponses.push(jsonResponse({ status: 'ok', thread: { thread_id: 'thread-1', items: [] } }))
+
+      const client = await loadedClient()
+
+      // When + Then: replying to a missing parent surfaces parent_not_found
+      const err = await client.replyToMessage('thread-1', 'missing-item', 'hi').catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(InstagramError)
+      expect((err as InstagramError).code).toBe('parent_not_found')
+    })
+
+    it('throws InstagramError when the parent item has no client_context', async () => {
+      // Given: a thread whose parent item lacks client_context (e.g. a system action log)
+      fetchResponses.push(
+        jsonResponse({
+          status: 'ok',
+          thread: {
+            thread_id: 'thread-1',
+            items: [{ item_id: 'sys-1', user_id: '0', timestamp: 1_700_000_000_000_000, item_type: 'action_log' }],
+          },
+        }),
+      )
+
+      const client = await loadedClient()
+
+      // When + Then: replying without a usable client_context is rejected explicitly
+      const err = await client.replyToMessage('thread-1', 'sys-1', 'hi').catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(InstagramError)
+      expect((err as InstagramError).code).toBe('parent_no_client_context')
+    })
+  })
 })

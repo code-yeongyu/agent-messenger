@@ -385,15 +385,33 @@ export class InstagramClient {
   async replyToMessage(threadId: string, replyToItemId: string, text: string): Promise<InstagramMessageSummary> {
     this.ensureSession()
 
-    const clientContext = randomUUID()
+    // Instagram threads each outgoing message by its `client_context` UUID. To attach
+    // the reply quote bubble to the right parent, the server expects the PARENT's
+    // client_context — not a freshly generated one. Fetch the recent thread history
+    // and pull the parent item's client_context (matches instagrapi's reply flow).
+    const recent = await this.getMessages(threadId, 100)
+    const parent = recent.find((m) => m.id === replyToItemId)
+    if (!parent) {
+      throw new InstagramError(
+        `Message ${replyToItemId} not found in the most recent 100 items of thread ${threadId}. Reply requires the parent to be present in recent thread history.`,
+        'parent_not_found',
+      )
+    }
+    if (!parent.client_context) {
+      throw new InstagramError(
+        `Message ${replyToItemId} has no client_context (likely a system or unsupported message type) and cannot be replied to.`,
+        'parent_no_client_context',
+      )
+    }
+
     const { data } = await this.request('POST', '/direct_v2/threads/broadcast/text/', {
       thread_ids: `[${threadId}]`,
       text,
       action: 'send_item',
-      client_context: clientContext,
+      client_context: randomUUID(),
       replied_to_action_source: 'swipe',
       replied_to_item_id: replyToItemId,
-      replied_to_client_context: clientContext,
+      replied_to_client_context: parent.client_context,
     })
 
     if (data['status'] !== 'ok') {
@@ -695,6 +713,7 @@ export class InstagramClient {
     const itemId = String(item['item_id'] ?? '')
     const userId = String(item['user_id'] ?? '')
     const timestamp = item['timestamp'] as number | undefined
+    const clientContext = item['client_context']
 
     return {
       id: itemId,
@@ -705,6 +724,7 @@ export class InstagramClient {
       type: getMessageType(item),
       text: extractMessageText(item),
       media_url: extractMediaUrl(item),
+      client_context: typeof clientContext === 'string' ? clientContext : undefined,
     }
   }
 }

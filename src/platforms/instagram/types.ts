@@ -58,6 +58,7 @@ export interface InstagramMessageSummary {
   type: string
   text?: string
   media_url?: string
+  client_context?: string
 }
 
 export interface InstagramSessionState {
