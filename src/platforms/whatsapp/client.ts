@@ -125,7 +125,11 @@ export class WhatsAppClient {
     if (!existsSync(this.storePath!)) return
     try {
       const raw = await readFile(this.storePath!, 'utf-8')
-      const data = JSON.parse(raw) as { chats?: Record<string, Chat>; contacts?: Record<string, Contact> }
+      const data = JSON.parse(raw) as {
+        chats?: Record<string, Chat>
+        contacts?: Record<string, Contact>
+        messages?: Record<string, WAMessage[]>
+      }
       if (data.chats) {
         for (const [id, chat] of Object.entries(data.chats)) {
           this.chats.set(id, chat)
@@ -134,6 +138,11 @@ export class WhatsAppClient {
       if (data.contacts) {
         for (const [id, contact] of Object.entries(data.contacts)) {
           this.contacts.set(id, contact)
+        }
+      }
+      if (data.messages) {
+        for (const [id, messages] of Object.entries(data.messages)) {
+          this.messages.set(id, messages)
         }
       }
     } catch {
@@ -146,6 +155,7 @@ export class WhatsAppClient {
     const data = {
       chats: Object.fromEntries(this.chats),
       contacts: Object.fromEntries(this.contacts),
+      messages: Object.fromEntries(this.messages),
     }
     await writeFile(this.storePath!, JSON.stringify(data), { mode: 0o600 })
   }
