@@ -389,6 +389,22 @@ Error messages never include the target identifier (intentional info-leak preven
 
 - `channel` — Teams channels (DM modeling is out of scope; only channels can be targeted)
 
+### Public-only mode
+
+Teams v1 normalizes every channel to `channelType: 'channel'` — there is no separate DM type yet, and no public/private split inside teams. A `channelTypes: ['channel']` deny rule would block every Teams operation. To restrict the agent's Teams scope today, list specific `channelIds` to deny:
+
+```json
+{
+  "teams": {
+    "read":  { "deny": { "channelIds": ["19:abc...@thread.tacv2", "19:def...@thread.tacv2"] } },
+    "write": { "deny": { "channelIds": ["19:abc...@thread.tacv2", "19:def...@thread.tacv2"] } }
+  }
+}
+```
+
+- If a `channelIds` deny rule is deployed, those teams/channels are off-limits. Don't try to find an alternate channel in the same team for the same content — that would defeat the operator's intent.
+- When Teams DM modeling lands in a future release, a true `channelTypes: ['dm']` rule will become available.
+
 **Operator CLI:**
 
 ```bash

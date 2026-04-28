@@ -590,6 +590,22 @@ Error messages never include the target identifier (intentional info-leak preven
 
 DMs and group DMs can be blocked as a type without knowing individual IDs.
 
+### Public-only mode
+
+Operators can lock the agent to public channels only with this policy.
+
+```json
+{
+  "slack": {
+    "read":  { "deny": { "channelTypes": ["dm", "mpim", "private"] } },
+    "write": { "deny": { "channelTypes": ["dm", "mpim", "private"] } }
+  }
+}
+```
+
+- If you see this configuration deployed (via `agent-messenger policy show`), assume DMs, group DMs, and private channels are off-limits in BOTH directions. Don't try to send a DM as a workaround when a public-channel write fails for unrelated reasons.
+- List, history, search, info, send, react, file upload, etc. all enforce the same rule consistently — there is no `--include-dm` escape hatch.
+
 **Operator CLI:**
 
 ```bash

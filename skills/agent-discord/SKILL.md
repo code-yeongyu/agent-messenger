@@ -445,6 +445,22 @@ Error messages never include the target identifier (intentional info-leak preven
 - `mpim` — group DMs
 - `channel` — all guild text channels (public/private distinction is not modeled in v1)
 
+### Public-only mode
+
+Operators can block the agent from any DM by deploying this policy.
+
+```json
+{
+  "discord": {
+    "read":  { "deny": { "channelTypes": ["dm", "mpim"] } },
+    "write": { "deny": { "channelTypes": ["dm", "mpim"] } }
+  }
+}
+```
+
+- If you see this deployed, do not call `dm create` or `dm list` — they will return empty / fail with `policy: write denied`. Don't escalate by trying alternate user IDs.
+- Guild text channels remain available — Discord v1 normalizes them all to `channel`, so this policy does NOT separate public from private guild channels via permission overwrites.
+
 **Operator CLI:**
 
 ```bash

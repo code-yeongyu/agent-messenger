@@ -274,9 +274,32 @@ Each platform key supports `read` and `write` rules. Both accept a `deny` object
 | Discord | `dm`, `mpim`, `channel` |
 | Teams | `channel` |
 
+### Recipe: public-only agent
+
+If you want the agent to only see and post in public channels — never personal DMs, group DMs, or private channels — deny every non-public channel type for both `read` and `write`.
+
+```json
+{
+  "slack": {
+    "read":  { "deny": { "channelTypes": ["dm", "mpim", "private"] } },
+    "write": { "deny": { "channelTypes": ["dm", "mpim", "private"] } }
+  },
+  "discord": {
+    "read":  { "deny": { "channelTypes": ["dm", "mpim"] } },
+    "write": { "deny": { "channelTypes": ["dm", "mpim"] } }
+  }
+}
+```
+
+**Slack** — list, info, history, message send/update/delete, reactions, files, pins, bookmarks, and `message search` all honor this rule. Public channels remain fully usable.
+
+**Discord** — blocks 1:1 DMs and group DMs. Guild text channels remain accessible because Discord v1 normalizes all guild channels to `channel`. Note: this does NOT separate public/private guild channels (Discord uses permission overwrites — out of scope for v1).
+
+**Teams** — not included on purpose. Teams currently models only `channel` (no DM type) in v1, so a `channelTypes` deny rule for Teams would block everything or nothing. If you need a tighter Teams scope, list specific `channelIds` you want blocked instead.
+
 Semantics:
 
-- `list` operations filter denied items out of the output entirely
+- `list` operations filter denied items out of the output entirely. `message search` is also filtered when `channelTypes` rules apply
 - Single-target reads (`info`, `history`, `get`, `search`) exit 1 with `{"error":"policy: read denied"}`
 - Writes (`send`, `update`, `delete`, `react`, etc.) exit 1 with `{"error":"policy: write denied"}`
 - Error messages never include target identifiers to avoid information leakage
