@@ -629,6 +629,33 @@ export class WhatsAppClient {
     return summarizeMessage(result)
   }
 
+  async replyToMessage(jid: string, replyToMessageId: string, text: string): Promise<WhatsAppMessageSummary> {
+    if (!this.sock) throw new WhatsAppError('Not connected', 'not_connected')
+
+    const resolvedJid = resolveJid(jid)
+    await this.waitForPendingNotifications()
+
+    const cached = (this.messages.get(resolvedJid) ?? []).find((m) => m.key.id === replyToMessageId)
+    if (!cached) {
+      throw new WhatsAppError(
+        `Message ${replyToMessageId} not found in local cache for ${resolvedJid}. Run "message list" first to populate the cache.`,
+        'message_not_found',
+      )
+    }
+
+    const result = await this.sock.sendMessage(resolvedJid, { text }, { quoted: cached })
+    if (!result) {
+      throw new WhatsAppError('Failed to send reply', 'send_failed')
+    }
+
+    if (!this.chats.has(resolvedJid)) {
+      const contact = this.contacts.get(resolvedJid)
+      this.chats.set(resolvedJid, { id: resolvedJid, name: contact?.name ?? resolvedJid } as Chat)
+    }
+
+    return summarizeMessage(result)
+  }
+
   async getProfile(): Promise<{ id: string; name: string | null; phone_number: string | null }> {
     this.ensureAuth()
     if (!this.sock) {

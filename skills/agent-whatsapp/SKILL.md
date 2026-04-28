@@ -251,6 +251,11 @@ agent-whatsapp message send +1234567890 "Hello!"
 agent-whatsapp message send 123456789-123345@g.us "Hello team!"
 agent-whatsapp message send +1234567890 "Hello!" --account <id>
 
+# Reply to a specific message (Baileys "quoted" — quote bubble appears in chat).
+# Run `message list` first so the local message cache is populated.
+agent-whatsapp message reply <chat> <message-id> <text>
+agent-whatsapp message reply +1234567890 ABC123DEF456 "Got it"
+
 # React to a message
 agent-whatsapp message react <chat> <message-id> <emoji>
 agent-whatsapp message react +1234567890 ABC123DEF456 "👍"

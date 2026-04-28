@@ -29,6 +29,21 @@ async function sendAction(chat: string, text: string, options: { account?: strin
   }
 }
 
+async function replyAction(
+  chat: string,
+  messageId: string,
+  text: string,
+  options: { account?: string; pretty?: boolean },
+): Promise<void> {
+  try {
+    const message = await withWhatsAppClient(options, (client) => client.replyToMessage(chat, messageId, text))
+    console.log(formatOutput(message, options.pretty))
+    process.exit(0)
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
 async function reactAction(
   chat: string,
   messageId: string,
@@ -63,6 +78,16 @@ export const messageCommand = new Command('message')
       .option('--account <id>', 'Use a specific WhatsApp account')
       .option('--pretty', 'Pretty print JSON output')
       .action(sendAction),
+  )
+  .addCommand(
+    new Command('reply')
+      .description('Reply to a specific message in a chat (Baileys quoted)')
+      .argument('<chat>', 'Chat JID or phone number')
+      .argument('<message-id>', 'ID of the message being replied to')
+      .argument('<text>', 'Reply text')
+      .option('--account <id>', 'Use a specific WhatsApp account')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(replyAction),
   )
   .addCommand(
     new Command('react')
