@@ -33,6 +33,9 @@ const mockWebClient: any = {
   auth: {
     test: mock((): Promise<any> => Promise.resolve({ ok: true, user_id: 'U123', team_id: 'T123' })),
   },
+  search: {
+    messages: mock(() => Promise.resolve({ ok: true, messages: { matches: [] } })),
+  },
 }
 
 function resetMocks() {
@@ -1044,6 +1047,54 @@ describe('SlackClient', () => {
       } finally {
         globalThis.fetch = originalFetch
       }
+    })
+  })
+
+  describe('searchMessages', () => {
+    beforeEach(() => resetMocks())
+
+    it('preserves channel type flags from search results', async () => {
+      // given
+      mockWebClient.search.messages.mockResolvedValue({
+        ok: true,
+        messages: {
+          matches: [
+            {
+              ts: '123.456',
+              text: 'Private search result',
+              user: 'U123',
+              username: 'yeongyu',
+              channel: {
+                id: 'G123PRIVATE',
+                name: 'secret',
+                is_private: true,
+                is_im: false,
+                is_mpim: false,
+                is_channel: false,
+                is_group: true,
+              },
+              permalink: 'https://workspace.slack.com/archives/G123PRIVATE/p123456',
+            },
+          ],
+        },
+      })
+      const client = await new SlackClient().login({ token: 'xoxc-token', cookie: 'xoxd-cookie' })
+      Object.defineProperty(client, 'client', { value: mockWebClient })
+
+      // when
+      const results = await client.searchMessages('secret')
+
+      // then
+      expect(results).toHaveLength(1)
+      expect(results[0]?.channel).toEqual({
+        id: 'G123PRIVATE',
+        name: 'secret',
+        is_private: true,
+        is_im: false,
+        is_mpim: false,
+        is_channel: false,
+        is_group: true,
+      })
     })
   })
 

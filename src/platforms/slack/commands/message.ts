@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 
 import { getPolicyEngine } from '@/policy/engine'
-import { resolveSlackChannelTarget } from '@/policy/platform-mappers/slack'
+import { resolveSlackChannelTarget, slackSearchResultToTarget } from '@/policy/platform-mappers/slack'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
@@ -207,10 +207,7 @@ async function searchAction(
       count: options.limit || 20,
     })
     const engine = await getPolicyEngine()
-    const visibleResults = engine.filterTargets('slack', 'read', results, (result) => ({
-      kind: 'channel',
-      id: result.channel.id,
-    }))
+    const visibleResults = engine.filterTargets('slack', 'read', results, slackSearchResultToTarget)
 
     const output = visibleResults.map((result) => ({
       ts: result.ts,

@@ -456,6 +456,11 @@ export class SlackClient {
         channel: {
           id: match.channel?.id || '',
           name: match.channel?.name || '',
+          ...(match.channel?.is_private !== undefined && { is_private: match.channel.is_private }),
+          ...(match.channel?.is_im !== undefined && { is_im: match.channel.is_im }),
+          ...(match.channel?.is_mpim !== undefined && { is_mpim: match.channel.is_mpim }),
+          ...(match.channel?.is_channel !== undefined && { is_channel: match.channel.is_channel }),
+          ...(match.channel?.is_group !== undefined && { is_group: match.channel.is_group }),
         },
         permalink: match.permalink || '',
       }))

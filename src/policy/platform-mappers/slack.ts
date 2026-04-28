@@ -1,7 +1,7 @@
 import type { PolicyEngine } from '@/policy/engine'
-import type { Direction, PolicyTarget } from '@/policy/types'
+import type { ChannelType, Direction, PolicyTarget } from '@/policy/types'
 import type { SlackClient } from '@/platforms/slack/client'
-import type { SlackChannel, SlackDM } from '@/platforms/slack/types'
+import type { SlackChannel, SlackDM, SlackSearchResult } from '@/platforms/slack/types'
 
 export function slackChannelToTarget(channel: SlackChannel | SlackDM): PolicyTarget {
   if ('user' in channel) {
@@ -18,6 +18,36 @@ export function slackChannelToTarget(channel: SlackChannel | SlackDM): PolicyTar
     id: channel.id,
     channelType: channel.is_private ? 'private' : 'public',
   }
+}
+
+export function slackSearchResultToTarget(result: SlackSearchResult): PolicyTarget {
+  const channelType = getSlackSearchResultChannelType(result)
+
+  return {
+    kind: 'channel',
+    id: result.channel.id,
+    ...(channelType !== undefined && { channelType }),
+  }
+}
+
+function getSlackSearchResultChannelType(result: SlackSearchResult): ChannelType | undefined {
+  if (result.channel.is_im === true) {
+    return 'dm'
+  }
+
+  if (result.channel.is_mpim === true) {
+    return 'mpim'
+  }
+
+  if (result.channel.is_private === true) {
+    return 'private'
+  }
+
+  if (result.channel.is_channel === true) {
+    return 'public'
+  }
+
+  return undefined
 }
 
 export function shouldResolveChannelForPolicy(engine: PolicyEngine, direction: Direction): boolean {

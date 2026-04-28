@@ -82,6 +82,11 @@ export interface SlackSearchResult {
   channel: {
     id: string
     name: string
+    is_private?: boolean
+    is_im?: boolean
+    is_mpim?: boolean
+    is_channel?: boolean
+    is_group?: boolean
   }
   permalink: string
 }

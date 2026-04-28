@@ -1,11 +1,11 @@
 import { describe, expect, it, mock } from 'bun:test'
 
-import { PolicyEngine } from '../engine'
-import type { PolicyConfig } from '../types'
-import { SlackClient } from '../../platforms/slack/client'
-import type { SlackChannel, SlackDM } from '../../platforms/slack/types'
+import { PolicyEngine } from '@/policy/engine'
+import type { PolicyConfig } from '@/policy/types'
+import { SlackClient } from '@/platforms/slack/client'
+import type { SlackChannel, SlackDM, SlackSearchResult } from '@/platforms/slack/types'
 
-import { resolveSlackChannelTarget, slackChannelToTarget } from './slack'
+import { resolveSlackChannelTarget, slackChannelToTarget, slackSearchResultToTarget } from './slack'
 
 describe('slackChannelToTarget', () => {
   it('maps public channel to public channel target without userId', () => {
@@ -73,6 +73,81 @@ describe('slackChannelToTarget', () => {
 
     // then
     expect(target).toEqual({ kind: 'channel', id: 'G123MPIM', channelType: 'mpim', userId: 'U789' })
+  })
+})
+
+describe('slackSearchResultToTarget', () => {
+  it('maps direct message search result to dm channel target', () => {
+    // given
+    const result = searchResultFixture({ id: 'D123DIRECT', name: 'yeongyu', is_im: true })
+
+    // when
+    const target = slackSearchResultToTarget(result)
+
+    // then
+    expect(target).toEqual({ kind: 'channel', id: 'D123DIRECT', channelType: 'dm' })
+  })
+
+  it('maps multi-person direct message search result to mpim channel target', () => {
+    // given
+    const result = searchResultFixture({ id: 'G123MPIM', name: 'group-dm', is_mpim: true })
+
+    // when
+    const target = slackSearchResultToTarget(result)
+
+    // then
+    expect(target).toEqual({ kind: 'channel', id: 'G123MPIM', channelType: 'mpim' })
+  })
+
+  it('maps private channel search result to private channel target', () => {
+    // given
+    const result = searchResultFixture({
+      id: 'G123PRIVATE',
+      name: 'secret',
+      is_private: true,
+      is_im: false,
+      is_mpim: false,
+    })
+
+    // when
+    const target = slackSearchResultToTarget(result)
+
+    // then
+    expect(target).toEqual({ kind: 'channel', id: 'G123PRIVATE', channelType: 'private' })
+  })
+
+  it('maps public channel search result to public channel target', () => {
+    // given
+    const result = searchResultFixture({ id: 'C123PUBLIC', name: 'general', is_private: false, is_channel: true })
+
+    // when
+    const target = slackSearchResultToTarget(result)
+
+    // then
+    expect(target).toEqual({ kind: 'channel', id: 'C123PUBLIC', channelType: 'public' })
+  })
+
+  it('omits channelType when search result has no type flags', () => {
+    // given
+    const result = searchResultFixture({ id: 'C123UNKNOWN', name: 'unknown' })
+
+    // when
+    const target = slackSearchResultToTarget(result)
+
+    // then
+    expect(target).toEqual({ kind: 'channel', id: 'C123UNKNOWN' })
+    expect('channelType' in target).toBe(false)
+  })
+
+  it('prefers dm when direct message and private flags are both set', () => {
+    // given
+    const result = searchResultFixture({ id: 'D123DIRECT', name: 'yeongyu', is_im: true, is_private: true })
+
+    // when
+    const target = slackSearchResultToTarget(result)
+
+    // then
+    expect(target).toEqual({ kind: 'channel', id: 'D123DIRECT', channelType: 'dm' })
   })
 })
 
@@ -245,5 +320,15 @@ function directMessageChannelFixture(): SlackChannel & SlackDM {
     creator: 'U123',
     user: 'U456',
     is_mpim: false,
+  }
+}
+
+function searchResultFixture(channel: SlackSearchResult['channel']): SlackSearchResult {
+  return {
+    ts: '123.456',
+    text: 'search result',
+    user: 'U123',
+    channel,
+    permalink: `https://workspace.slack.com/archives/${channel.id}/p123456`,
   }
 }
