@@ -4,6 +4,7 @@ import { join } from 'node:path'
 
 import { Boom } from '@hapi/boom'
 import makeWASocket, {
+  BufferJSON,
   DisconnectReason,
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
@@ -125,7 +126,10 @@ export class WhatsAppClient {
     if (!existsSync(this.storePath!)) return
     try {
       const raw = await readFile(this.storePath!, 'utf-8')
-      const data = JSON.parse(raw) as {
+      // BufferJSON.reviver restores Buffer/Uint8Array fields inside WAMessage
+      // (e.g. fileEncSha256, mediaKey) — plain JSON.parse would leave them as
+      // keyed objects and Baileys would reject the quoted message on reply.
+      const data = JSON.parse(raw, BufferJSON.reviver) as {
         chats?: Record<string, Chat>
         contacts?: Record<string, Contact>
         messages?: Record<string, WAMessage[]>
@@ -157,7 +161,9 @@ export class WhatsAppClient {
       contacts: Object.fromEntries(this.contacts),
       messages: Object.fromEntries(this.messages),
     }
-    await writeFile(this.storePath!, JSON.stringify(data), { mode: 0o600 })
+    // Use BufferJSON.replacer so binary fields inside WAMessage (Buffer / Uint8Array)
+    // are encoded as { type: 'Buffer', data: '<base64>' } and survive a JSON round-trip.
+    await writeFile(this.storePath!, JSON.stringify(data, BufferJSON.replacer), { mode: 0o600 })
   }
 
   private async createSocket(): Promise<{ sock: WASocket; saveCreds: () => Promise<void> }> {
