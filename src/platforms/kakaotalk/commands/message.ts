@@ -33,6 +33,32 @@ async function sendAction(
   }
 }
 
+async function replyAction(
+  chatId: string,
+  srcLogId: string,
+  srcUserId: string,
+  text: string,
+  options: { account?: string; pretty?: boolean; parentText?: string; parentType?: string },
+): Promise<void> {
+  try {
+    const result = await withKakaoClient(options, (client) =>
+      client.replyToMessage(
+        chatId,
+        {
+          srcLogId,
+          srcUserId,
+          srcMessage: options.parentText,
+          srcType: options.parentType ? Number.parseInt(options.parentType, 10) : undefined,
+        },
+        text,
+      ),
+    )
+    console.log(formatOutput(result, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
 export const messageCommand = new Command('message')
   .description('KakaoTalk message commands')
   .addCommand(
@@ -53,4 +79,17 @@ export const messageCommand = new Command('message')
       .option('--account <id>', 'Use a specific KakaoTalk account')
       .option('--pretty', 'Pretty print JSON output')
       .action(sendAction),
+  )
+  .addCommand(
+    new Command('reply')
+      .description('Reply to a message in a chat room (LOCO type=26 with reply attachment)')
+      .argument('<chat-id>', 'Chat room ID')
+      .argument('<src-log-id>', 'log_id of the parent message')
+      .argument('<src-user-id>', 'user_id of the parent message author')
+      .argument('<text>', 'Reply text')
+      .option('--parent-text <text>', 'Original message text shown in the quote bubble')
+      .option('--parent-type <code>', 'Message type code of the parent (default 1=text)')
+      .option('--account <id>', 'Use a specific KakaoTalk account')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(replyAction),
   )

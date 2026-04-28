@@ -516,6 +516,33 @@ export class KakaoTalkClient {
     })
   }
 
+  async replyToMessage(
+    chatId: string,
+    parent: { srcLogId: string; srcUserId: string; srcMessage?: string; srcType?: number },
+    text: string,
+  ): Promise<KakaoSendResult> {
+    return this.executeWithReconnect(async ({ session }) => {
+      try {
+        const response = await session.replyToMessage(parseLong(chatId), text, {
+          srcLogId: parseLong(parent.srcLogId),
+          srcUserId: parseLong(parent.srcUserId),
+          srcMessage: parent.srcMessage,
+          srcType: parent.srcType,
+        })
+
+        return {
+          success: response.statusCode === 0,
+          status_code: response.statusCode,
+          chat_id: chatId,
+          log_id: longToString(response.body.logId),
+          sent_at: response.body.sendAt as number,
+        }
+      } catch (error) {
+        throw wrapError(error, 'reply_message_failed')
+      }
+    })
+  }
+
   async getProfile(): Promise<KakaoProfile> {
     this.ensureAuth()
     try {

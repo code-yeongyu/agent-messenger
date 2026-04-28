@@ -311,6 +311,13 @@ agent-kakaotalk message list <chat-id> --pretty
 agent-kakaotalk message send <chat-id> "Hello world"
 agent-kakaotalk message send <chat-id> "Hello world" --pretty
 
+# Reply to a message (LOCO type=26 reply attachment).
+# Pull <src-log-id> and <src-user-id> from `message list` output for
+# the message you are replying to. Pass the original text via
+# --parent-text so the quote bubble preview renders correctly.
+agent-kakaotalk message reply <chat-id> <src-log-id> <src-user-id> "Sounds good"
+agent-kakaotalk message reply <chat-id> 12345 67890 "Sounds good" --parent-text "Original text"
+
 # Use a specific account
 agent-kakaotalk message list <chat-id> --account <account-id>
 agent-kakaotalk message send <chat-id> "Hello" --account <account-id>

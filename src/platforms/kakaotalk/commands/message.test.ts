@@ -12,9 +12,12 @@ const mockGetMessages = mock(() =>
 
 const mockSendMessage = mock(() => Promise.resolve({ log_id: '2', message: 'Hi there', created_at: 2000 }))
 
+const mockReplyToMessage = mock(() => Promise.resolve({ log_id: '3', message: 'Reply text', created_at: 3000 }))
+
 const mockClient = {
   getMessages: mockGetMessages,
   sendMessage: mockSendMessage,
+  replyToMessage: mockReplyToMessage,
 }
 
 mock.module('./shared', () => ({
@@ -30,6 +33,7 @@ describe('message commands', () => {
     mockWithKakaoClient.mockReset()
     mockGetMessages.mockReset()
     mockSendMessage.mockReset()
+    mockReplyToMessage.mockReset()
 
     mockWithKakaoClient.mockImplementation(async (_options: unknown, fn: (client: unknown) => Promise<unknown>) => {
       return fn(mockClient)
@@ -38,6 +42,9 @@ describe('message commands', () => {
       Promise.resolve([{ log_id: '1', message: 'Hello', sender_id: 'user-1', created_at: 1000 }]),
     )
     mockSendMessage.mockImplementation(() => Promise.resolve({ log_id: '2', message: 'Hi there', created_at: 2000 }))
+    mockReplyToMessage.mockImplementation(() =>
+      Promise.resolve({ log_id: '3', message: 'Reply text', created_at: 3000 }),
+    )
 
     consoleLogSpy = mock((..._args: unknown[]) => {})
     console.log = consoleLogSpy
@@ -94,6 +101,39 @@ describe('message commands', () => {
 
     it('passes account option to withKakaoClient', async () => {
       await messageCommand.parseAsync(['send', 'chat-123', 'Hi', '--account', 'my-account'], { from: 'user' })
+
+      expect(mockWithKakaoClient).toHaveBeenCalledWith(
+        expect.objectContaining({ account: 'my-account' }),
+        expect.any(Function),
+      )
+    })
+  })
+
+  describe('reply', () => {
+    it('replies to a message and forwards parent log id and sender id to the client', async () => {
+      // Given: a chat id, parent log id, parent sender id, and reply text
+      // When: invoking the reply subcommand
+      await messageCommand.parseAsync(
+        ['reply', 'chat-123', '12345', 'sender-99', 'Sounds good', '--parent-text', 'Original message'],
+        { from: 'user' },
+      )
+
+      // Then: replyToMessage receives the parent metadata so the LOCO extra payload can be built
+      expect(mockReplyToMessage).toHaveBeenCalledWith('chat-123', {
+        srcLogId: '12345',
+        srcUserId: 'sender-99',
+        srcMessage: 'Original message',
+      }, 'Sounds good')
+
+      const output = JSON.parse(consoleLogSpy.mock.calls[0][0])
+      expect(output.log_id).toBe('3')
+    })
+
+    it('passes account option to withKakaoClient', async () => {
+      await messageCommand.parseAsync(
+        ['reply', 'chat-123', '12345', 'sender-99', 'Sounds good', '--account', 'my-account'],
+        { from: 'user' },
+      )
 
       expect(mockWithKakaoClient).toHaveBeenCalledWith(
         expect.objectContaining({ account: 'my-account' }),

@@ -126,6 +126,31 @@ export class LocoSession {
     })
   }
 
+  async replyToMessage(
+    chatId: Long,
+    text: string,
+    parent: { srcLogId: Long; srcUserId: Long; srcMessage?: string; srcType?: number },
+  ): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    const extra = {
+      attach_only: false,
+      attach_type: parent.srcType ?? 1,
+      mentions: [],
+      src_logId: parent.srcLogId,
+      src_mentions: [],
+      src_message: parent.srcMessage ?? '',
+      src_type: parent.srcType ?? 1,
+      src_userId: parent.srcUserId,
+    }
+    return this.connection.sendPacket('WRITE', {
+      chatId,
+      msg: text,
+      type: 26,
+      noSeen: false,
+      extra: JSON.stringify(extra),
+    })
+  }
+
   async syncMessages(chatId: Long, count = 20, cursor?: Long, maxLogId?: Long): Promise<LocoPacket> {
     if (!this.connection) throw new Error('Not connected')
     return this.connection.sendPacket('SYNCMSG', {
