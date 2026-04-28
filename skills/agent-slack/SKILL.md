@@ -166,8 +166,9 @@ Output includes the authenticated user's identity information.
 agent-slack message send <channel> <text>
 agent-slack message send general "Hello world"
 
-# Send a threaded reply
+# Send a threaded reply (two equivalent forms)
 agent-slack message send general "Reply" --thread <ts>
+agent-slack message reply general <ts> "Reply"
 
 # List messages
 agent-slack message list <channel>

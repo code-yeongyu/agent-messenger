@@ -5,6 +5,15 @@ import { formatOutput } from '@/shared/utils/output'
 
 import { type BotOption, getClient } from './shared'
 
+async function replyAction(
+  channelInput: string,
+  threadTs: string,
+  text: string,
+  options: BotOption,
+): Promise<void> {
+  return sendAction(channelInput, text, { ...options, thread: threadTs })
+}
+
 async function sendAction(channelInput: string, text: string, options: BotOption & { thread?: string }): Promise<void> {
   try {
     const client = await getClient(options)
@@ -126,6 +135,16 @@ export const messageCommand = new Command('message')
       .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
       .action(sendAction),
+  )
+  .addCommand(
+    new Command('reply')
+      .description('Reply in a thread (alias for "send --thread")')
+      .argument('<channel>', 'Channel ID or name')
+      .argument('<thread-ts>', 'Parent message timestamp (ts)')
+      .argument('<text>', 'Reply text')
+      .option('--bot <id>', 'Use specific bot')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(replyAction),
   )
   .addCommand(
     new Command('list')

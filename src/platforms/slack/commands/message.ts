@@ -9,6 +9,15 @@ import { SlackClient } from '../client'
 import { CredentialManager } from '../credential-manager'
 import type { SlackMessage } from '../types'
 
+async function replyAction(
+  channelInput: string,
+  threadTs: string,
+  text: string,
+  options: { pretty?: boolean },
+): Promise<void> {
+  return sendAction(channelInput, text, { thread: threadTs, pretty: options.pretty })
+}
+
 async function sendAction(
   channelInput: string,
   text: string,
@@ -424,6 +433,15 @@ export const messageCommand = new Command('message')
       .option('--thread <ts>', 'Thread timestamp for replies')
       .option('--pretty', 'Pretty print JSON output')
       .action(sendAction),
+  )
+  .addCommand(
+    new Command('reply')
+      .description('Reply in a thread (alias for "send --thread")')
+      .argument('<channel>', 'Channel ID or name')
+      .argument('<thread-ts>', 'Parent message timestamp (ts) of the thread')
+      .argument('<text>', 'Reply text')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(replyAction),
   )
   .addCommand(
     new Command('list')

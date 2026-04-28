@@ -124,6 +124,17 @@ describe('Message Commands', () => {
       expect(result.thread_ts).toBe(threadTs)
       expect(result.text).toBe(text)
     })
+
+    it('exposes message reply subcommand as alias for send --thread', async () => {
+      // Given: The message command tree
+      const reply = (await import('./message')).messageCommand.commands.find((c) => c.name() === 'reply')
+
+      // When: Looking up the reply subcommand
+      // Then: It should exist with the documented argument shape (channel, thread-ts, text)
+      expect(reply).toBeDefined()
+      const args = reply!.registeredArguments.map((a) => a.name())
+      expect(args).toEqual(['channel', 'thread-ts', 'text'])
+    })
   })
 
   describe('message list', () => {

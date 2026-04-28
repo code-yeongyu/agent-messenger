@@ -223,4 +223,17 @@ describe('message commands', () => {
       expect(mockResolveChannel).toHaveBeenCalledWith('general')
     })
   })
+
+  describe('reply subcommand', () => {
+    it('exposes message reply as alias for send --thread', async () => {
+      // given
+      const reply = (await import('./message')).messageCommand.commands.find((c) => c.name() === 'reply')
+
+      // when
+      // then
+      expect(reply).toBeDefined()
+      const args = reply!.registeredArguments.map((a) => a.name())
+      expect(args).toEqual(['channel', 'thread-ts', 'text'])
+    })
+  })
 })

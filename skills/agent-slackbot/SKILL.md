@@ -181,8 +181,9 @@ agent-slackbot whoami --bot <bot-id>
 agent-slackbot message send <channel> <text>
 agent-slackbot message send C0ACZKTDDC0 "Hello world"
 
-# Send a threaded reply
+# Send a threaded reply (two equivalent forms)
 agent-slackbot message send C0ACZKTDDC0 "Reply" --thread <ts>
+agent-slackbot message reply C0ACZKTDDC0 <ts> "Reply"
 
 # List messages
 agent-slackbot message list <channel>
