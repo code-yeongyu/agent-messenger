@@ -190,6 +190,10 @@ agent-discordbot server info <server-id>
 agent-discordbot message send <channel-id> <content>
 agent-discordbot message send 1234567890123456789 "Hello world"
 
+# Reply to a message (inline reply via Discord's message_reference)
+agent-discordbot message reply <channel-id> <message-id> <content>
+agent-discordbot message reply 1234567890123456789 9876543210987654321 "Got it"
+
 # List messages
 agent-discordbot message list <channel-id>
 agent-discordbot message list 1234567890123456789 --limit 50

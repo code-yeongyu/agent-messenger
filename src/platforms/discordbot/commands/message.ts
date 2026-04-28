@@ -50,6 +50,30 @@ export async function sendAction(
   }
 }
 
+export async function replyAction(
+  channel: string,
+  messageId: string,
+  text: string,
+  options: BotOption,
+): Promise<MessageResult> {
+  try {
+    const client = await getClient(options)
+    const serverId = await getCurrentServer(options)
+    const channelId = await client.resolveChannel(serverId, channel)
+    const message = await client.replyToMessage(channelId, messageId, text)
+
+    return {
+      id: message.id,
+      channel_id: message.channel_id,
+      content: message.content,
+      author: message.author.username,
+      timestamp: message.timestamp,
+    }
+  } catch (error) {
+    return { error: (error as Error).message }
+  }
+}
+
 export async function listAction(channel: string, options: BotOption & { limit?: string }): Promise<MessageResult> {
   try {
     const client = await getClient(options)
@@ -183,6 +207,19 @@ export const messageCommand = new Command('message')
       .option('--pretty', 'Pretty print JSON output')
       .action(async (channel: string, text: string, opts: BotOption & { thread?: string }) => {
         cliOutput(await sendAction(channel, text, opts), opts.pretty)
+      }),
+  )
+  .addCommand(
+    new Command('reply')
+      .description('Reply to a specific message in a channel')
+      .argument('<channel>', 'Channel ID or name')
+      .argument('<message-id>', 'ID of the message being replied to')
+      .argument('<text>', 'Reply text')
+      .option('--bot <id>', 'Use specific bot')
+      .option('--server <id>', 'Server ID')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(async (channel: string, messageId: string, text: string, opts: BotOption) => {
+        cliOutput(await replyAction(channel, messageId, text, opts), opts.pretty)
       }),
   )
   .addCommand(

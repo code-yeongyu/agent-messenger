@@ -257,6 +257,16 @@ export class DiscordBotClient {
     return this.request<DiscordMessage>('POST', `/channels/${channelId}/messages`, body)
   }
 
+  async replyToMessage(channelId: string, replyToMessageId: string, content: string): Promise<DiscordMessage> {
+    return this.request<DiscordMessage>('POST', `/channels/${channelId}/messages`, {
+      content,
+      message_reference: {
+        message_id: replyToMessageId,
+        fail_if_not_exists: true,
+      },
+    })
+  }
+
   async getMessages(channelId: string, limit: number = 50): Promise<DiscordMessage[]> {
     return this.request<DiscordMessage[]>('GET', `/channels/${channelId}/messages?limit=${limit}`)
   }

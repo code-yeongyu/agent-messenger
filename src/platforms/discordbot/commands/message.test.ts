@@ -60,6 +60,17 @@ const mockEditMessage = mock((_channelId: string, _messageId: string, content: s
 
 const mockDeleteMessage = mock((_channelId: string, _messageId: string) => Promise.resolve())
 
+const mockReplyToMessage = mock(
+  (_channelId: string, _messageId: string, content: string) =>
+    Promise.resolve({
+      id: 'msgreply1',
+      channel_id: 'ch1',
+      content,
+      author: { id: 'bot1', username: 'testbot' },
+      timestamp: '2025-01-01T00:10:00.000Z',
+    }),
+)
+
 const mockResolveChannel = mock((_guildId: string, channel: string) => {
   if (/^\d+$/.test(channel)) return Promise.resolve(channel)
   if (channel === 'general') return Promise.resolve('ch1')
@@ -72,6 +83,7 @@ mock.module('../client', () => ({
       return this
     }
     sendMessage = mockSendMessage
+    replyToMessage = mockReplyToMessage
     getMessages = mockGetMessages
     getMessage = mockGetMessage
     editMessage = mockEditMessage
@@ -81,7 +93,7 @@ mock.module('../client', () => ({
 }))
 
 import { DiscordBotCredentialManager } from '../credential-manager'
-import { deleteAction, getAction, listAction, repliesAction, sendAction, updateAction } from './message'
+import { deleteAction, getAction, listAction, repliesAction, replyAction, sendAction, updateAction } from './message'
 
 describe('message commands', () => {
   let tempDir: string
@@ -105,6 +117,7 @@ describe('message commands', () => {
     await manager.setCurrentServer('guild1', 'Test Guild')
 
     mockSendMessage.mockClear()
+    mockReplyToMessage.mockClear()
     mockGetMessages.mockClear()
     mockGetMessage.mockClear()
     mockEditMessage.mockClear()
@@ -285,6 +298,33 @@ describe('message commands', () => {
       const result = await deleteAction('general', 'msg1', { _credManager: manager, force: true })
 
       expect(result.error).toContain('Forbidden')
+    })
+  })
+
+  describe('replyAction', () => {
+    it('replies to message via message_reference', async () => {
+      const result = await replyAction('general', 'parent_msg_42', 'Reply text', { _credManager: manager })
+
+      expect(result.id).toBe('msgreply1')
+      expect(result.content).toBe('Reply text')
+      expect(result.author).toBe('testbot')
+      expect(mockResolveChannel).toHaveBeenCalledWith('guild1', 'general')
+      expect(mockReplyToMessage).toHaveBeenCalledWith('ch1', 'parent_msg_42', 'Reply text')
+    })
+
+    it('resolves channel ID directly when numeric', async () => {
+      const result = await replyAction('123456', 'parent_msg_42', 'Reply text', { _credManager: manager })
+
+      expect(result.id).toBe('msgreply1')
+      expect(mockReplyToMessage).toHaveBeenCalledWith('123456', 'parent_msg_42', 'Reply text')
+    })
+
+    it('returns error on client failure', async () => {
+      mockReplyToMessage.mockImplementationOnce(() => Promise.reject(new Error('Reply failed')))
+
+      const result = await replyAction('general', 'parent_msg_42', 'hi', { _credManager: manager })
+
+      expect(result.error).toContain('Reply failed')
     })
   })
 
