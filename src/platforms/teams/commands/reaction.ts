@@ -1,5 +1,7 @@
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
+import { resolveTeamsChannelTarget } from '@/policy/platform-mappers/teams'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
@@ -20,7 +22,6 @@ export async function addAction(
     if (!cred) {
       console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
-      return
     }
 
     const client = await new TeamsClient().login({
@@ -29,6 +30,8 @@ export async function addAction(
       accountType: cred.accountType,
       region: cred.region,
     })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('teams', 'write', await resolveTeamsChannelTarget(client, engine, channelId, 'write', teamId))
     await client.addReaction(teamId, channelId, messageId, emoji)
 
     console.log(
@@ -62,7 +65,6 @@ export async function removeAction(
     if (!cred) {
       console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
       process.exit(1)
-      return
     }
 
     const client = await new TeamsClient().login({
@@ -71,6 +73,8 @@ export async function removeAction(
       accountType: cred.accountType,
       region: cred.region,
     })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('teams', 'write', await resolveTeamsChannelTarget(client, engine, channelId, 'write', teamId))
     await client.removeReaction(teamId, channelId, messageId, emoji)
 
     console.log(

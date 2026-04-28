@@ -2,6 +2,8 @@ import { resolve } from 'node:path'
 
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
+import { resolveTeamsChannelTarget } from '@/policy/platform-mappers/teams'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
@@ -30,6 +32,8 @@ export async function uploadAction(
       accountType: cred.accountType,
       region: cred.region,
     })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('teams', 'write', await resolveTeamsChannelTarget(client, engine, channelId, 'write', teamId))
     const filePath = resolve(path)
     const file = await client.uploadFile(teamId, channelId, filePath)
 
@@ -63,6 +67,12 @@ export async function listAction(teamId: string, channelId: string, options: { p
       accountType: cred.accountType,
       region: cred.region,
     })
+    const engine = await getPolicyEngine()
+    const target = await resolveTeamsChannelTarget(client, engine, channelId, 'read', teamId)
+    if (engine.isDenied('teams', 'read', target)) {
+      console.log(formatOutput([], options.pretty))
+      return
+    }
     const files = await client.listFiles(teamId, channelId)
 
     const output = files.map((file: TeamsFile) => ({
@@ -100,6 +110,8 @@ export async function infoAction(
       accountType: cred.accountType,
       region: cred.region,
     })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('teams', 'read', await resolveTeamsChannelTarget(client, engine, channelId, 'read', teamId))
     const files = await client.listFiles(teamId, channelId)
     const fileData = files.find((f) => f.id === fileId)
 

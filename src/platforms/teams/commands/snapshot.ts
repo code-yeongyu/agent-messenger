@@ -1,5 +1,7 @@
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
+import { teamsChannelToTarget } from '@/policy/platform-mappers/teams'
 import { parallelMap } from '@/shared/utils/concurrency'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
@@ -42,6 +44,7 @@ export async function snapshotAction(options: {
     })
 
     const snapshot: Record<string, unknown> = {}
+    const engine = await getPolicyEngine()
 
     const team = await client.getTeam(teamId)
     snapshot.team = {
@@ -55,7 +58,7 @@ export async function snapshotAction(options: {
       const messageLimit = options.limit || 20
 
       if (!options.usersOnly) {
-        const channels = await client.listChannels(teamId)
+        const channels = engine.filterTargets('teams', 'read', await client.listChannels(teamId), teamsChannelToTarget)
 
         snapshot.channels = channels.map((ch) => ({
           id: ch.id,
@@ -98,7 +101,7 @@ export async function snapshotAction(options: {
       }
     } else {
       if (!options.usersOnly) {
-        const channels = await client.listChannels(teamId)
+        const channels = engine.filterTargets('teams', 'read', await client.listChannels(teamId), teamsChannelToTarget)
         snapshot.channels = channels.map((ch) => ({ id: ch.id, name: ch.name }))
       }
 

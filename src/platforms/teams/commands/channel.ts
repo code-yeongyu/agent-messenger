@@ -1,5 +1,7 @@
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
+import { resolveTeamsChannelTarget, teamsChannelToTarget } from '@/policy/platform-mappers/teams'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
@@ -23,8 +25,10 @@ export async function listAction(teamId: string, options: { pretty?: boolean }):
       region: cred.region,
     })
     const channels = await client.listChannels(teamId)
+    const engine = await getPolicyEngine()
+    const visibleChannels = engine.filterTargets('teams', 'read', channels, teamsChannelToTarget)
 
-    const output = channels.map((ch) => ({
+    const output = visibleChannels.map((ch) => ({
       id: ch.id,
       name: ch.name,
       type: ch.type,
@@ -53,6 +57,8 @@ export async function infoAction(teamId: string, channelId: string, options: { p
       accountType: cred.accountType,
       region: cred.region,
     })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('teams', 'read', await resolveTeamsChannelTarget(client, engine, channelId, 'read', teamId))
     const channel = await client.getChannel(teamId, channelId)
 
     const output = {
@@ -88,6 +94,8 @@ export async function historyAction(
       accountType: cred.accountType,
       region: cred.region,
     })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('teams', 'read', await resolveTeamsChannelTarget(client, engine, channelId, 'read', teamId))
     const messages = await client.getMessages(teamId, channelId, options.limit || 50)
 
     const output = messages.map((msg) => ({

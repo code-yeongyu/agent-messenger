@@ -1,5 +1,7 @@
 import { Command } from 'commander'
 
+import { getPolicyEngine } from '@/policy/engine'
+import { resolveTeamsChannelTarget } from '@/policy/platform-mappers/teams'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
@@ -28,6 +30,8 @@ export async function sendAction(
       accountType: cred.accountType,
       region: cred.region,
     })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('teams', 'write', await resolveTeamsChannelTarget(client, engine, channelId, 'write', teamId))
     const message = await client.sendMessage(teamId, channelId, content)
 
     const output = {
@@ -63,6 +67,8 @@ export async function listAction(
       accountType: cred.accountType,
       region: cred.region,
     })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('teams', 'read', await resolveTeamsChannelTarget(client, engine, channelId, 'read', teamId))
     const limit = options.limit || 50
     const messages = await client.getMessages(teamId, channelId, limit)
 
@@ -100,6 +106,8 @@ export async function getAction(
       accountType: cred.accountType,
       region: cred.region,
     })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('teams', 'read', await resolveTeamsChannelTarget(client, engine, channelId, 'read', teamId))
     const message = await client.getMessage(teamId, channelId, messageId)
 
     if (!message) {
@@ -146,6 +154,8 @@ export async function deleteAction(
       accountType: cred.accountType,
       region: cred.region,
     })
+    const engine = await getPolicyEngine()
+    engine.assertAllowed('teams', 'write', await resolveTeamsChannelTarget(client, engine, channelId, 'write', teamId))
     await client.deleteMessage(teamId, channelId, messageId)
 
     console.log(formatOutput({ deleted: messageId }, options.pretty))
