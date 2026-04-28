@@ -290,6 +290,9 @@ agent-line message list <chat-id> --pretty
 # Send a text message
 agent-line message send <chat-id> "Hello world"
 agent-line message send <chat-id> "Hello world" --pretty
+
+# Reply to a specific message in the chat (LINE quote bubble via relatedMessageId)
+agent-line message reply <chat-id> <message-id> "Sounds good"
 ```
 
 #### Message List Output

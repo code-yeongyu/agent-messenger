@@ -8,6 +8,7 @@ import { messageCommand } from './message'
 let loginSpy: ReturnType<typeof spyOn>
 let getMessagesSpy: ReturnType<typeof spyOn>
 let sendMessageSpy: ReturnType<typeof spyOn>
+let replyToMessageSpy: ReturnType<typeof spyOn>
 let closeSpy: ReturnType<typeof spyOn>
 let consoleLogSpy: ReturnType<typeof mock>
 
@@ -42,6 +43,13 @@ beforeEach(() => {
     sent_at: '2024-01-01T11:00:00Z',
   })
 
+  replyToMessageSpy = spyOn(LineClient.prototype, 'replyToMessage').mockResolvedValue({
+    success: true,
+    chat_id: 'chat-1',
+    message_id: 'msg-reply',
+    sent_at: '2024-01-01T12:00:00Z',
+  })
+
   closeSpy = spyOn(LineClient.prototype, 'close').mockImplementation(() => {})
   consoleLogSpy = mock((..._args: unknown[]) => {})
   console.log = consoleLogSpy
@@ -51,6 +59,7 @@ afterEach(() => {
   loginSpy?.mockRestore()
   getMessagesSpy?.mockRestore()
   sendMessageSpy?.mockRestore()
+  replyToMessageSpy?.mockRestore()
   closeSpy?.mockRestore()
   console.log = originalConsoleLog
 })
@@ -101,6 +110,27 @@ it('send: sends message and outputs result', async () => {
 it('send: closes client after sending message', async () => {
   // when
   await messageCommand.parseAsync(['node', 'message', 'send', 'chat-1', 'Hello!'])
+
+  // then
+  expect(closeSpy).toHaveBeenCalledTimes(1)
+})
+
+it('reply: forwards parent message id to client and outputs result', async () => {
+  // when
+  await messageCommand.parseAsync(['node', 'message', 'reply', 'chat-1', 'msg-1', 'Reply text'])
+
+  // then
+  expect(loginSpy).toHaveBeenCalledTimes(1)
+  expect(replyToMessageSpy).toHaveBeenCalledWith('chat-1', 'msg-1', 'Reply text')
+  expect(consoleLogSpy).toHaveBeenCalledTimes(1)
+  const output = JSON.parse(consoleLogSpy.mock.calls[0][0])
+  expect(output.success).toBe(true)
+  expect(output.message_id).toBe('msg-reply')
+})
+
+it('reply: closes client after replying', async () => {
+  // when
+  await messageCommand.parseAsync(['node', 'message', 'reply', 'chat-1', 'msg-1', 'Reply text'])
 
   // then
   expect(closeSpy).toHaveBeenCalledTimes(1)

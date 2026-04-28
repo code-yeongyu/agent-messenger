@@ -331,6 +331,43 @@ export class LineClient {
     }
   }
 
+  async replyToMessage(chatId: string, replyToMessageId: string, text: string): Promise<LineSendResult> {
+    try {
+      const client = this.ensureClient()
+      let sent
+
+      try {
+        sent = await client.base.talk.sendMessage({
+          to: chatId,
+          text,
+          e2ee: true,
+          relatedMessageId: replyToMessageId,
+        })
+      } catch (e2eeError) {
+        const msg = e2eeError instanceof Error ? e2eeError.message : String(e2eeError)
+        if (msg.includes('E2EE') || msg.includes('e2ee') || msg.includes('KeyNotFound') || msg.includes('saveE2EE')) {
+          sent = await client.base.talk.sendMessage({
+            to: chatId,
+            text,
+            e2ee: false,
+            relatedMessageId: replyToMessageId,
+          })
+        } else {
+          throw e2eeError
+        }
+      }
+
+      return {
+        success: true,
+        chat_id: chatId,
+        message_id: String(sent.id),
+        sent_at: new Date(Number(sent.createdTime)).toISOString(),
+      }
+    } catch (error) {
+      throw wrapError(error, 'reply_message_failed')
+    }
+  }
+
   close(): void {
     this.client = null
   }

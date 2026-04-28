@@ -32,6 +32,24 @@ async function sendAction(chatId: string, text: string, options: { pretty?: bool
   }
 }
 
+async function replyAction(
+  chatId: string,
+  messageId: string,
+  text: string,
+  options: { pretty?: boolean },
+): Promise<void> {
+  let client: LineClient | undefined
+  try {
+    client = await new LineClient().login()
+    const result = await client.replyToMessage(chatId, messageId, text)
+    console.log(formatOutput(result, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  } finally {
+    client?.close()
+  }
+}
+
 export const messageCommand = new Command('message')
   .description('LINE message commands')
   .addCommand(
@@ -49,4 +67,13 @@ export const messageCommand = new Command('message')
       .argument('<text>', 'Message text')
       .option('--pretty', 'Pretty print JSON output')
       .action(sendAction),
+  )
+  .addCommand(
+    new Command('reply')
+      .description('Reply to a specific message in a chat room (LINE relatedMessageId)')
+      .argument('<chat-id>', 'Chat room MID')
+      .argument('<message-id>', 'ID of the message being replied to')
+      .argument('<text>', 'Reply text')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(replyAction),
   )
