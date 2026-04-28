@@ -92,6 +92,54 @@ describe('resolveSlackChannelTarget', () => {
     expect(getChannel).not.toHaveBeenCalled()
   })
 
+  it('fetches channel when D-prefix channel has userId rules', async () => {
+    // given
+    const policyConfig = {
+      slack: {
+        write: {
+          deny: {
+            userIds: ['U456'],
+          },
+        },
+      },
+    } satisfies PolicyConfig
+    const engine = new PolicyEngine(policyConfig)
+    const client = new SlackClient()
+    const getChannel = mock(async (_channelId: string): Promise<SlackChannel> => directMessageChannelFixture())
+    client.getChannel = getChannel
+
+    // when
+    const target = await resolveSlackChannelTarget(client, engine, 'D123DIRECT', 'write')
+
+    // then
+    expect(getChannel).toHaveBeenCalledWith('D123DIRECT')
+    expect(target).toEqual({ kind: 'channel', id: 'D123DIRECT', channelType: 'dm', userId: 'U456' })
+  })
+
+  it('returns dm target without fetching channel when D-prefix channel only has channelType rules', async () => {
+    // given
+    const policyConfig = {
+      slack: {
+        read: {
+          deny: {
+            channelTypes: ['dm'],
+          },
+        },
+      },
+    } satisfies PolicyConfig
+    const engine = new PolicyEngine(policyConfig)
+    const client = new SlackClient()
+    const getChannel = mock(async (_channelId: string): Promise<SlackChannel> => directMessageChannelFixture())
+    client.getChannel = getChannel
+
+    // when
+    const target = await resolveSlackChannelTarget(client, engine, 'D123DIRECT', 'read')
+
+    // then
+    expect(target).toEqual({ kind: 'channel', id: 'D123DIRECT', channelType: 'dm' })
+    expect(getChannel).not.toHaveBeenCalled()
+  })
+
   it('returns id-only target without fetching channel when engine has no channelType rules', async () => {
     // given
     const policyConfig = {
@@ -184,5 +232,18 @@ function privateChannelFixture(): SlackChannel {
     is_archived: false,
     created: 1700000000,
     creator: 'U123',
+  }
+}
+
+function directMessageChannelFixture(): SlackChannel & SlackDM {
+  return {
+    id: 'D123DIRECT',
+    name: 'direct-message',
+    is_private: true,
+    is_archived: false,
+    created: 1700000000,
+    creator: 'U123',
+    user: 'U456',
+    is_mpim: false,
   }
 }

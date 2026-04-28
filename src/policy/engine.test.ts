@@ -42,6 +42,151 @@ describe('PolicyEngine', () => {
     expect(writeDenials).toEqual([false, false, false])
   })
 
+  it('returns false from hasRule for all kinds with empty config', () => {
+    // given
+    const engine = new PolicyEngine({})
+    const ruleKinds = ['channelTypes', 'channelIds', 'userIds'] as const
+
+    // when
+    const hasRules = ruleKinds.map((ruleKind) => engine.hasRule('slack', 'read', ruleKind))
+
+    // then
+    expect(hasRules).toEqual([false, false, false])
+  })
+
+  it('returns true from hasRule only for channelTypes rule', () => {
+    // given
+    const policyConfig = {
+      slack: {
+        read: {
+          deny: {
+            channelTypes: ['dm'],
+          },
+        },
+      },
+    } satisfies PolicyConfig
+    const engine = new PolicyEngine(policyConfig)
+
+    // when
+    const hasChannelTypeRule = engine.hasRule('slack', 'read', 'channelTypes')
+    const hasChannelIdRule = engine.hasRule('slack', 'read', 'channelIds')
+    const hasUserIdRule = engine.hasRule('slack', 'read', 'userIds')
+
+    // then
+    expect(hasChannelTypeRule).toBe(true)
+    expect(hasChannelIdRule).toBe(false)
+    expect(hasUserIdRule).toBe(false)
+  })
+
+  it('returns true from hasRule only for userIds rule', () => {
+    // given
+    const policyConfig = {
+      slack: {
+        write: {
+          deny: {
+            userIds: ['U1'],
+          },
+        },
+      },
+    } satisfies PolicyConfig
+    const engine = new PolicyEngine(policyConfig)
+
+    // when
+    const hasChannelTypeRule = engine.hasRule('slack', 'write', 'channelTypes')
+    const hasChannelIdRule = engine.hasRule('slack', 'write', 'channelIds')
+    const hasUserIdRule = engine.hasRule('slack', 'write', 'userIds')
+
+    // then
+    expect(hasChannelTypeRule).toBe(false)
+    expect(hasChannelIdRule).toBe(false)
+    expect(hasUserIdRule).toBe(true)
+  })
+
+  it('returns true from hasRule only for channelIds rule', () => {
+    // given
+    const policyConfig = {
+      discord: {
+        read: {
+          deny: {
+            channelIds: ['C1'],
+          },
+        },
+      },
+    } satisfies PolicyConfig
+    const engine = new PolicyEngine(policyConfig)
+
+    // when
+    const hasChannelTypeRule = engine.hasRule('discord', 'read', 'channelTypes')
+    const hasChannelIdRule = engine.hasRule('discord', 'read', 'channelIds')
+    const hasUserIdRule = engine.hasRule('discord', 'read', 'userIds')
+
+    // then
+    expect(hasChannelTypeRule).toBe(false)
+    expect(hasChannelIdRule).toBe(true)
+    expect(hasUserIdRule).toBe(false)
+  })
+
+  it('returns false from hasRule for empty arrays', () => {
+    // given
+    const policyConfig = {
+      teams: {
+        write: {
+          deny: {
+            channelTypes: [],
+            channelIds: [],
+            userIds: [],
+          },
+        },
+      },
+    } satisfies PolicyConfig
+    const engine = new PolicyEngine(policyConfig)
+
+    // when
+    const hasChannelTypeRule = engine.hasRule('teams', 'write', 'channelTypes')
+    const hasChannelIdRule = engine.hasRule('teams', 'write', 'channelIds')
+    const hasUserIdRule = engine.hasRule('teams', 'write', 'userIds')
+
+    // then
+    expect(hasChannelTypeRule).toBe(false)
+    expect(hasChannelIdRule).toBe(false)
+    expect(hasUserIdRule).toBe(false)
+  })
+
+  it('keeps hasRule independent by platform and direction', () => {
+    // given
+    const policyConfig = {
+      slack: {
+        read: {
+          deny: {
+            userIds: ['U1'],
+          },
+        },
+      },
+      discord: {
+        write: {
+          deny: {
+            channelTypes: ['dm'],
+          },
+        },
+      },
+    } satisfies PolicyConfig
+    const engine = new PolicyEngine(policyConfig)
+
+    // when
+    const hasSlackReadUserIdRule = engine.hasRule('slack', 'read', 'userIds')
+    const hasSlackWriteUserIdRule = engine.hasRule('slack', 'write', 'userIds')
+    const hasDiscordReadChannelTypeRule = engine.hasRule('discord', 'read', 'channelTypes')
+    const hasDiscordWriteChannelTypeRule = engine.hasRule('discord', 'write', 'channelTypes')
+    const hasTeamsReadUserIdRule = engine.hasRule('teams', 'read', 'userIds')
+
+    // then
+    expect(hasSlackReadUserIdRule).toBe(true)
+    expect(hasSlackWriteUserIdRule).toBe(false)
+    expect(hasDiscordReadChannelTypeRule).toBe(false)
+    expect(hasDiscordWriteChannelTypeRule).toBe(true)
+    expect(hasTeamsReadUserIdRule).toBe(false)
+  })
+
   it('denies matching channel types', () => {
     // given
     const policyConfig = {

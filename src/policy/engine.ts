@@ -27,6 +27,11 @@ export class PolicyEngine {
     return deniedChannelType || deniedChannelId || deniedUserId
   }
 
+  hasRule(platform: Platform, direction: Direction, kind: 'channelTypes' | 'channelIds' | 'userIds'): boolean {
+    const rules = this.policyConfig[platform]?.[direction]?.deny?.[kind]
+    return rules !== undefined && rules.length > 0
+  }
+
   assertAllowed(platform: Platform, direction: Direction, target: PolicyTarget): void {
     if (this.isDenied(platform, direction, target)) {
       throw new PolicyDeniedError(direction)

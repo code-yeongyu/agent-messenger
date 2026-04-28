@@ -1,9 +1,7 @@
 import type { PolicyEngine } from '@/policy/engine'
-import type { ChannelType, Direction, PolicyTarget } from '@/policy/types'
+import type { Direction, PolicyTarget } from '@/policy/types'
 import type { SlackClient } from '@/platforms/slack/client'
 import type { SlackChannel, SlackDM } from '@/platforms/slack/types'
-
-const CHANNEL_TYPES = ['dm', 'mpim', 'private', 'public', 'channel'] satisfies ChannelType[]
 
 export function slackChannelToTarget(channel: SlackChannel | SlackDM): PolicyTarget {
   if ('user' in channel) {
@@ -23,9 +21,7 @@ export function slackChannelToTarget(channel: SlackChannel | SlackDM): PolicyTar
 }
 
 export function shouldResolveChannelForPolicy(engine: PolicyEngine, direction: Direction): boolean {
-  return CHANNEL_TYPES.some((channelType) =>
-    engine.isDenied('slack', direction, { kind: 'channel', id: '', channelType }),
-  )
+  return engine.hasRule('slack', direction, 'channelTypes') || engine.hasRule('slack', direction, 'userIds')
 }
 
 export async function resolveSlackChannelTarget(
@@ -34,7 +30,8 @@ export async function resolveSlackChannelTarget(
   channelId: string,
   direction: Direction,
 ): Promise<PolicyTarget> {
-  if (channelId.startsWith('D')) {
+  // D-prefix shortcut only safe when no userId rules apply — otherwise we'd miss DM-to-denied-user blocks.
+  if (channelId.startsWith('D') && !engine.hasRule('slack', direction, 'userIds')) {
     return { kind: 'channel', id: channelId, channelType: 'dm' }
   }
 
