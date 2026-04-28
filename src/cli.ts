@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { Command } from 'commander'
 
 import pkg from '../package.json' with { type: 'json' }
+import { policyCommand } from './commands/policy'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -75,6 +76,8 @@ program.command('webex', 'Interact with Cisco Webex', {
 program.command('tui', 'Launch unified messenger TUI', {
   executableFile: join(__dirname, 'tui', `cli${ext}`),
 })
+
+program.addCommand(policyCommand)
 
 program.parse(process.argv)
 
