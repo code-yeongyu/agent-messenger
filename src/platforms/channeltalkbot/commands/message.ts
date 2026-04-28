@@ -65,6 +65,42 @@ export async function sendAction(target: string, text: string, options: MessageO
   }
 }
 
+export async function replyAction(
+  target: string,
+  rootMessageId: string,
+  text: string,
+  options: MessageOptions,
+): Promise<MessageResult> {
+  try {
+    const targetType = options.type || detectTargetType(target)
+    if (targetType !== 'group') {
+      return {
+        error:
+          'Reply is not supported for userchat targets — Channel Talk userchats have no thread API. Replies are only available inside groups.',
+      }
+    }
+
+    const client = await getClient(options)
+    const botName = await getDefaultBotName(options)
+    const blocks = wrapTextInBlocks(text)
+
+    const resolved = await client.resolveGroup(target)
+    const message = await client.replyToGroupMessage(resolved.id, rootMessageId, blocks, botName)
+
+    return {
+      id: message.id,
+      chat_id: message.chatId,
+      chat_type: message.chatType,
+      person_type: message.personType,
+      person_id: message.personId,
+      created_at: message.createdAt,
+      plain_text: message.plainText,
+    }
+  } catch (error) {
+    return { error: (error as Error).message }
+  }
+}
+
 export async function listAction(target: string, options: MessageOptions): Promise<MessageResult> {
   try {
     const client = await getClient(options)
@@ -158,6 +194,20 @@ export const messageCommand = new Command('message')
       .option('--pretty', 'Pretty print JSON output')
       .action(async (target: string, text: string, opts: MessageOptions) => {
         cliOutput(await sendAction(target, text, opts), opts.pretty)
+      }),
+  )
+  .addCommand(
+    new Command('reply')
+      .description('Reply in a group thread (Channel Talk Open API thread endpoint)')
+      .argument('<group>', 'Group ID or @name')
+      .argument('<root-message-id>', 'Root message ID of the thread to reply in')
+      .argument('<text>', 'Reply text')
+      .option('--bot <name>', 'Bot name for sending')
+      .option('--type <type>', 'Target type — must be "group" (auto-detected if omitted)')
+      .option('--workspace <id>', 'Workspace ID')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(async (target: string, rootMessageId: string, text: string, opts: MessageOptions) => {
+        cliOutput(await replyAction(target, rootMessageId, text, opts), opts.pretty)
       }),
   )
   .addCommand(

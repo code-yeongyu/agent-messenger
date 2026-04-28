@@ -28,6 +28,19 @@ const mockSendGroupMessage = mock(() =>
   }),
 )
 
+const mockReplyToGroupMessage = mock(() =>
+  Promise.resolve({
+    id: 'msg-reply',
+    chatId: 'grp1',
+    chatType: 'group',
+    personType: 'bot' as const,
+    personId: 'bot1',
+    createdAt: 1234567899,
+    plainText: 'Reply text',
+    rootMessageId: 'root-msg-1',
+  }),
+)
+
 const mockGetUserChatMessages = mock(() =>
   Promise.resolve([
     {
@@ -59,6 +72,7 @@ const mockGetGroupMessages = mock(() =>
 let capturedSendUserChatArgs: unknown[] = []
 let _capturedSendGroupArgs: unknown[] = []
 let capturedGetUserChatMsgArgs: unknown[] = []
+let capturedReplyToGroupArgs: unknown[] = []
 
 mock.module('../client', () => ({
   ChannelBotClient: class MockChannelBotClient {
@@ -69,6 +83,10 @@ mock.module('../client', () => ({
     sendGroupMessage = (...args: unknown[]) => {
       _capturedSendGroupArgs = args
       return mockSendGroupMessage()
+    }
+    replyToGroupMessage = (...args: unknown[]) => {
+      capturedReplyToGroupArgs = args
+      return mockReplyToGroupMessage()
     }
     resolveGroup = (groupIdOrName: string) => {
       const id = groupIdOrName.startsWith('@') ? 'grp1' : groupIdOrName
@@ -89,7 +107,7 @@ mock.module('./shared', () => ({
 }))
 
 import { ChannelBotCredentialManager } from '../credential-manager'
-import { getAction, listAction, sendAction } from './message'
+import { getAction, listAction, replyAction, sendAction } from './message'
 
 describe('message commands', () => {
   let tempDir: string
@@ -100,10 +118,12 @@ describe('message commands', () => {
     capturedSendUserChatArgs = []
     _capturedSendGroupArgs = []
     capturedGetUserChatMsgArgs = []
+    capturedReplyToGroupArgs = []
     mockSendUserChatMessage.mockClear()
     mockSendGroupMessage.mockClear()
     mockGetUserChatMessages.mockClear()
     mockGetGroupMessages.mockClear()
+    mockReplyToGroupMessage.mockClear()
   })
 
   afterEach(() => {
@@ -177,6 +197,40 @@ describe('message commands', () => {
 
       expect(capturedGetUserChatMsgArgs[0]).toBe('chat1')
       expect(capturedGetUserChatMsgArgs[1]).toMatchObject({ limit: 10, sortOrder: 'asc', since: 'cursor123' })
+    })
+  })
+
+  describe('replyAction', () => {
+    it('replies in a group thread by root message id (explicit --type group)', async () => {
+      const manager = new ChannelBotCredentialManager(tempDir)
+      const result = await replyAction('grp1', 'root-msg-1', 'Reply text', {
+        type: 'group',
+        _credManager: manager,
+      })
+
+      expect(result.error).toBeUndefined()
+      expect(result.id).toBe('msg-reply')
+      expect(capturedReplyToGroupArgs[0]).toBe('grp1')
+      expect(capturedReplyToGroupArgs[1]).toBe('root-msg-1')
+      expect(capturedReplyToGroupArgs[2]).toEqual([{ type: 'text', value: 'Reply text' }])
+    })
+
+    it('resolves @group-name to group id before replying', async () => {
+      const manager = new ChannelBotCredentialManager(tempDir)
+      await replyAction('@team', 'root-msg-1', 'Reply text', { _credManager: manager })
+
+      expect(capturedReplyToGroupArgs[0]).toBe('grp1')
+    })
+
+    it('rejects userchat targets (Channel Talk userchats have no thread API)', async () => {
+      const manager = new ChannelBotCredentialManager(tempDir)
+      const result = await replyAction('userchat-id', 'root-msg-1', 'Reply text', {
+        type: 'userchat',
+        _credManager: manager,
+      })
+
+      expect(result.error).toBeDefined()
+      expect(result.error).toContain('not supported')
     })
   })
 

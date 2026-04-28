@@ -156,6 +156,20 @@ export class ChannelBotClient {
     )
   }
 
+  async replyToGroupMessage(
+    groupId: string,
+    rootMessageId: string,
+    blocks: MessageBlock[],
+    botName?: string,
+  ): Promise<ChannelBotMessage> {
+    return this.request<ChannelBotMessage>(
+      'POST',
+      this.buildPath(`/groups/${groupId}/threads/${rootMessageId}/messages`, botName ? { botName } : undefined),
+      { blocks },
+      'message',
+    )
+  }
+
   async getGroupFileUrl(groupId: string, key: string): Promise<ChannelBotFileUrlResponse> {
     return this.request<ChannelBotFileUrlResponse>('GET', this.buildPath(`/groups/${groupId}/messages/file`, { key }))
   }

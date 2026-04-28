@@ -201,6 +201,10 @@ agent-channeltalkbot message send <target> <text>
 agent-channeltalkbot message send abc123-chat-id "Hello!"
 agent-channeltalkbot message send @support "Team update"
 
+# Reply in a group thread (group only — userchats have no thread API)
+agent-channeltalkbot message reply <group> <root-message-id> <text>
+agent-channeltalkbot message reply @support root-msg-id "Sounds good"
+
 # List messages from a UserChat or Group
 agent-channeltalkbot message list <target>
 agent-channeltalkbot message list abc123-chat-id --limit 50
