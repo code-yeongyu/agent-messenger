@@ -43,7 +43,12 @@ export async function snapshotAction(options: {
       const messageLimit = options.limit || 20
 
       if (!options.usersOnly) {
-        const channels = engine.filterTargets('discord', 'read', await client.listChannels(serverId), discordChannelToTarget)
+        const channels = engine.filterTargets(
+          'discord',
+          'read',
+          await client.listChannels(serverId),
+          discordChannelToTarget,
+        )
 
         snapshot.channels = channels.map((ch) => ({
           id: ch.id,
@@ -90,7 +95,12 @@ export async function snapshotAction(options: {
       }
     } else {
       if (!options.usersOnly) {
-        const channels = engine.filterTargets('discord', 'read', await client.listChannels(serverId), discordChannelToTarget)
+        const channels = engine.filterTargets(
+          'discord',
+          'read',
+          await client.listChannels(serverId),
+          discordChannelToTarget,
+        )
         const textChannels = channels.filter((ch: DiscordChannel) => ch.type === 0 || ch.type === 5)
         snapshot.channels = textChannels.map((ch) => ({ id: ch.id, name: ch.name }))
       }

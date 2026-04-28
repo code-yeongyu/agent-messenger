@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import {
-  ChannelTypeSchema,
-  PolicyConfigSchema,
-  PolicyRulesSchema,
-} from './types'
+import { ChannelTypeSchema, PolicyConfigSchema, PolicyRulesSchema } from './types'
 import type { ChannelType, PolicyConfig } from './types'
 
 describe('PolicyConfigSchema', () => {

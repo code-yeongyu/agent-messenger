@@ -1,7 +1,7 @@
-import type { PolicyEngine } from '@/policy/engine'
-import type { Direction, PolicyTarget } from '@/policy/types'
 import type { DiscordClient } from '@/platforms/discord/client'
 import type { DiscordChannel, DiscordDMChannel } from '@/platforms/discord/types'
+import type { PolicyEngine } from '@/policy/engine'
+import type { Direction, PolicyTarget } from '@/policy/types'
 
 export function discordChannelToTarget(channel: DiscordChannel | DiscordDMChannel): PolicyTarget {
   if ('recipients' in channel) {

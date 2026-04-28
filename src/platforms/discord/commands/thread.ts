@@ -60,7 +60,11 @@ export async function archiveAction(threadId: string, options: { pretty?: boolea
     const engine = await getPolicyEngine()
     const existingThread = await client.getChannel(threadId)
     const parentChannelId = existingThread.parent_id || existingThread.id
-    engine.assertAllowed('discord', 'write', await resolveDiscordChannelTarget(client, engine, parentChannelId, 'write'))
+    engine.assertAllowed(
+      'discord',
+      'write',
+      await resolveDiscordChannelTarget(client, engine, parentChannelId, 'write'),
+    )
     const thread = await client.archiveThread(threadId)
 
     const output = {

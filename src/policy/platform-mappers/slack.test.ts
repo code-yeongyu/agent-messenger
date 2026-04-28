@@ -1,9 +1,9 @@
 import { describe, expect, it, mock } from 'bun:test'
 
-import { PolicyEngine } from '@/policy/engine'
-import type { PolicyConfig } from '@/policy/types'
 import { SlackClient } from '@/platforms/slack/client'
 import type { SlackChannel, SlackDM, SlackSearchResult } from '@/platforms/slack/types'
+import { PolicyEngine } from '@/policy/engine'
+import type { PolicyConfig } from '@/policy/types'
 
 import { resolveSlackChannelTarget, slackChannelToTarget, slackSearchResultToTarget } from './slack'
 

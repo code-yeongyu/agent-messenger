@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { PolicyDeniedError } from './errors'
 import { PolicyEngine, getPolicyEngine, resetPolicyEngine } from './engine'
+import { PolicyDeniedError } from './errors'
 import type { ChannelType, PolicyConfig, PolicyTarget } from './types'
 
 describe('PolicyEngine', () => {

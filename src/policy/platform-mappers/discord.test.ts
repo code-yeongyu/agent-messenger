@@ -1,10 +1,9 @@
 import { describe, expect, it, mock } from 'bun:test'
 
-import { PolicyEngine } from '../engine'
-import type { PolicyConfig } from '../types'
 import { DiscordClient } from '../../platforms/discord/client'
 import type { DiscordChannel, DiscordDMChannel } from '../../platforms/discord/types'
-
+import { PolicyEngine } from '../engine'
+import type { PolicyConfig } from '../types'
 import { discordChannelToTarget, resolveDiscordChannelTarget, shouldResolveChannelForPolicy } from './discord'
 
 describe('discordChannelToTarget', () => {
@@ -165,8 +164,8 @@ describe('resolveDiscordChannelTarget', () => {
     } satisfies PolicyConfig
     const engine = new PolicyEngine(policyConfig)
     const client = new DiscordClient()
-    const getChannel = mock(async (_channelId: string): Promise<DiscordChannel> =>
-      guildChannelFixture({ id: '123TEXT', type: 0 }),
+    const getChannel = mock(
+      async (_channelId: string): Promise<DiscordChannel> => guildChannelFixture({ id: '123TEXT', type: 0 }),
     )
     client.getChannel = getChannel
 

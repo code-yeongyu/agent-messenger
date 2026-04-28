@@ -1,10 +1,9 @@
 import { describe, expect, it, mock } from 'bun:test'
 
-import { PolicyEngine } from '../engine'
-import type { PolicyConfig } from '../types'
 import { TeamsClient } from '../../platforms/teams/client'
 import type { TeamsChannel } from '../../platforms/teams/types'
-
+import { PolicyEngine } from '../engine'
+import type { PolicyConfig } from '../types'
 import { resolveTeamsChannelTarget, shouldResolveChannelForPolicy, teamsChannelToTarget } from './teams'
 
 describe('teamsChannelToTarget', () => {

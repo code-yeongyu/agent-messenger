@@ -143,7 +143,10 @@ async function openAction(users: string, options: { pretty?: boolean }): Promise
 
     const client = await new SlackClient().login({ token: workspace.token, cookie: workspace.cookie })
     const engine = await getPolicyEngine()
-    for (const userId of users.split(',').map((userId) => userId.trim()).filter(Boolean)) {
+    for (const userId of users
+      .split(',')
+      .map((userId) => userId.trim())
+      .filter(Boolean)) {
       engine.assertAllowed('slack', 'write', { kind: 'user', id: userId })
     }
     const result = await client.openConversation(users)

@@ -1,7 +1,7 @@
-import type { PolicyEngine } from '@/policy/engine'
-import type { Direction, PolicyTarget } from '@/policy/types'
 import type { TeamsClient } from '@/platforms/teams/client'
 import type { TeamsChannel } from '@/platforms/teams/types'
+import type { PolicyEngine } from '@/policy/engine'
+import type { Direction, PolicyTarget } from '@/policy/types'
 
 // Teams currently models only TeamsChannel. Every Teams channel therefore normalizes to
 // channelType: 'channel'; Teams DMs are out of scope for access-control v1.

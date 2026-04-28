@@ -1,7 +1,7 @@
-import type { PolicyEngine } from '@/policy/engine'
-import type { ChannelType, Direction, PolicyTarget } from '@/policy/types'
 import type { SlackClient } from '@/platforms/slack/client'
 import type { SlackChannel, SlackDM, SlackSearchResult } from '@/platforms/slack/types'
+import type { PolicyEngine } from '@/policy/engine'
+import type { ChannelType, Direction, PolicyTarget } from '@/policy/types'
 
 export function slackChannelToTarget(channel: SlackChannel | SlackDM): PolicyTarget {
   if ('user' in channel) {
