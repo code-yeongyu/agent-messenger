@@ -46,6 +46,25 @@ bun lint:fix    # Lint with oxlint (autofix)
 bun format      # Format with oxfmt
 ```
 
+## Access Control Module
+
+Foundation lives at `src/policy/`:
+
+- `types.ts` — Zod schemas for `PolicyConfig`, `PolicyRules`, `PolicyTarget`
+- `errors.ts` — `PolicyDeniedError` (vague message, never includes target ids)
+- `loader.ts` — `loadPolicy(path?)` (env override `AGENT_MESSENGER_POLICY_FILE`, fail-closed on schema/parse error)
+- `engine.ts` — `PolicyEngine` (`isDenied` / `assertAllowed` / `filterTargets` / `hasRule`), plus `getPolicyEngine()` cached singleton and `resetPolicyEngine()` for tests
+
+Per-platform mappers at `src/policy/platform-mappers/{slack,discord,teams}.ts` each export:
+
+- `<platform>ChannelToTarget(channel)` — pure mapping
+- `shouldResolveChannelForPolicy(engine, direction)` — uses `engine.hasRule`
+- `resolve<Platform>ChannelTarget(client, engine, channelId, direction[, teamId])` — resolve-then-map (skips API call when no relevant rules apply)
+
+Adding a guard to a new command: import `getPolicyEngine` and the platform's `resolve<Platform>ChannelTarget`; for writes call `engine.assertAllowed(...)` BEFORE the client mutation; for list ops call `engine.filterTargets(...)`. The existing `handleError` pipeline turns `PolicyDeniedError` into the masked stderr JSON automatically.
+
+Adding a new platform mapper: implement the same 3 exports, mirror Slack as the reference. The engine itself stays platform-agnostic.
+
 ## Release
 
 Use the **Release** GitHub Actions workflow (`workflow_dispatch`). It typechecks, lints, tests, bumps version in `package.json` / `.claude-plugin/plugin.json` / `README.md` / `skills/*/SKILL.md`, commits, tags, publishes to npm, and creates a GitHub Release. Tags have no `v` prefix.

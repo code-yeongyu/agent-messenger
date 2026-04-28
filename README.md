@@ -21,6 +21,7 @@ One CLI for Slack, Discord, Teams, Webex, Telegram, WhatsApp, LINE, Instagram, K
 - [Quick Start](#quick-start)
 - [SDK](#sdk)
 - [TUI (Experimental)](#tui-experimental)
+- [Access Control](#access-control)
 - [Supported Platforms](#supported-platforms)
 - [Platform Guides](#platform-guides)
 - [Use Cases](#use-cases)
@@ -244,6 +245,57 @@ Key features:
 - **Interactive auth** — Authenticate platforms that aren't set up yet, right in the TUI
 
 See the [TUI docs](https://agent-messenger.dev/docs/tui) for keybindings, architecture, and more.
+
+## Access Control
+
+When agents act with your full credentials, you may want to keep certain channels — personal DMs, private channels, sensitive users — completely off-limits. A deny-list policy file lets you block reads and writes by channel type, channel ID, or user ID without changing any code.
+
+Drop a `policy.json` at `~/.config/agent-messenger/policy.json` (override via `AGENT_MESSENGER_POLICY_FILE`):
+
+```json
+{
+  "slack": {
+    "read":  { "deny": { "channelTypes": ["dm", "mpim"] } },
+    "write": { "deny": { "channelTypes": ["dm", "mpim", "private"] } }
+  },
+  "discord": {
+    "write": { "deny": { "userIds": ["123456789012345678"] } }
+  }
+}
+```
+
+Each platform key supports `read` and `write` rules. Both accept a `deny` object with optional `channelTypes`, `channelIds`, and `userIds`. v1 is deny-only — there is no allow-list mode.
+
+`channelTypes` values per platform:
+
+| Platform | Types |
+| --- | --- |
+| Slack | `dm`, `mpim`, `private`, `public` |
+| Discord | `dm`, `mpim`, `channel` |
+| Teams | `channel` |
+
+Semantics:
+
+- `list` operations filter denied items out of the output entirely
+- Single-target reads (`info`, `history`, `get`, `search`) exit 1 with `{"error":"policy: read denied"}`
+- Writes (`send`, `update`, `delete`, `react`, etc.) exit 1 with `{"error":"policy: write denied"}`
+- Error messages never include target identifiers to avoid information leakage
+- No policy file means no restrictions — zero behavior change
+- A corrupt policy file fails closed with `{"error":"policy: invalid configuration"}`
+
+Manage the policy from the CLI:
+
+```bash
+agent-messenger policy show [--pretty]          # print effective config
+agent-messenger policy validate [--file <path>]  # lint a policy file
+agent-messenger policy edit                      # open $EDITOR on the policy file
+```
+
+`edit` creates an empty `{}` file at mode `0o600` if one doesn't exist.
+
+Out of scope for v1: allow-list mode, content or regex pattern matching, hot-reload, Discord guild public/private split via permission overwrites, Teams DM modeling, audit log of denials, an override flag, and the other 11 platforms (LINE, Telegram, WhatsApp, etc.).
+
+See [AGENTS.md](AGENTS.md#access-control-module) for the contributor view.
 
 ## Supported Platforms
 
