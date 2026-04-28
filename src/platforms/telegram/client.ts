@@ -307,7 +307,6 @@ export class TelegramTdlibClient {
         : {
             '@type': 'inputMessageReplyToMessage',
             message_id: replyToMessageId,
-            chat_id: chat.id,
           }
 
     const message = (await this.call({
