@@ -558,6 +558,50 @@ Common errors:
 
 Credentials stored in `~/.config/agent-messenger/slack-credentials.json` (0600 permissions). See [references/authentication.md](references/authentication.md) for format and security details.
 
+## Access Control
+
+Operators can deploy a deny-list policy file that blocks reads and writes by channel type, channel ID, or user ID. The CLI enforces this transparently.
+
+If you hit a policy block, you will see one of these errors (exit code 1):
+
+```json
+{"error":"policy: read denied"}
+```
+
+```json
+{"error":"policy: write denied"}
+```
+
+Error messages never include the target identifier (intentional info-leak prevention).
+
+**Rules you must follow:**
+
+- On `policy: read denied` — do NOT retry, do NOT try a different command. The channel or user is off-limits for reads. Report to the operator that the target is restricted.
+- On `policy: write denied` — do NOT retry, do NOT try via DM, do NOT escalate. The destination is forbidden for writes.
+- List operations (`channel list`, `dm list`, `message search`, `snapshot`, etc.) silently filter denied items out. You will never see those entries — do not assume the workspace is empty.
+- Threads inherit the parent channel's policy.
+
+**Slack channel types:**
+
+- `dm` — direct messages (D-prefix IDs)
+- `mpim` — group DMs
+- `private` — private channels
+- `public` — public channels
+
+DMs and group DMs can be blocked as a type without knowing individual IDs.
+
+**Operator CLI:**
+
+```bash
+agent-messenger policy show [--pretty]
+agent-messenger policy validate [--file <path>]
+agent-messenger policy edit
+```
+
+File location: `~/.config/agent-messenger/policy.json` (override via `AGENT_MESSENGER_POLICY_FILE`).
+
+See [README.md#access-control](../../README.md#access-control) for the full policy schema.
+
 ## SDK: Real-Time Events
 
 `SlackListener` connects to Slack's RTM WebSocket for instant event streaming. No polling — events arrive in real time.
