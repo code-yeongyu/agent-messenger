@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+// Run `agent-telegrambot auth set <token>` first so login() can pick up stored creds.
 import { TelegramBotClient } from '../src/platforms/telegrambot/client'
 import { TelegramBotListener } from '../src/platforms/telegrambot/listener'
 

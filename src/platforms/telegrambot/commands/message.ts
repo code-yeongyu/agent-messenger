@@ -73,7 +73,7 @@ export async function updateAction(
       parse_mode: options.parseMode,
     })
     if (result === true) {
-      return { message: { message_id: Number(messageId), chat_id: 0, text, date: 0 } }
+      return { error: 'editMessageText returned true; expected a Message object for chat-message edits.' }
     }
     return { message: formatMessage(result) }
   } catch (error) {
