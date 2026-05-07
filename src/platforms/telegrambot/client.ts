@@ -42,6 +42,22 @@ export interface GetUpdatesOptions {
   allowed_updates?: string[]
 }
 
+export interface EditMessageTextChat {
+  chat_id: number | string
+  message_id: number
+  inline_message_id?: never
+}
+
+export interface EditMessageTextInline {
+  inline_message_id: string
+  chat_id?: never
+  message_id?: never
+}
+
+export type EditMessageTextTarget = EditMessageTextChat | EditMessageTextInline
+
+export type BotReactionType = { type: 'emoji'; emoji: string }
+
 export type ChatId = number | string
 
 export class TelegramBotClient {
@@ -80,6 +96,12 @@ export class TelegramBotClient {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
+  private isAbort(signal: AbortSignal | undefined, error: unknown): boolean {
+    if (signal?.aborted) return true
+    const name = (error as { name?: string } | null)?.name
+    return name === 'AbortError'
+  }
+
   private throwApiError(method: string, body: ApiResponse<unknown>): never {
     const code = body.error_code
     const description = body.description ?? `HTTP error from ${method}`
@@ -101,15 +123,44 @@ export class TelegramBotClient {
     throw new TelegramBotError(description, code !== undefined ? `http_${code}` : 'http_error')
   }
 
+  private async parseJsonOrRetry<T>(
+    response: Response,
+    method: string,
+    attempt: number,
+  ): Promise<{ body: ApiResponse<T> } | { retry: true }> {
+    try {
+      const body = (await response.json()) as ApiResponse<T>
+      return { body }
+    } catch {
+      // 5xx responses sometimes return HTML/empty bodies; allow retry instead of failing fast.
+      if (response.status >= 500 && attempt < MAX_RETRIES) {
+        return { retry: true }
+      }
+      throw new TelegramBotError(`Invalid JSON response from ${method} (HTTP ${response.status})`, 'invalid_response')
+    }
+  }
+
   private async call<T>(method: string, params?: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
+    return this.requestJson<T>(method, { method: 'POST', body: params }, signal)
+  }
+
+  private async requestJson<T>(
+    method: string,
+    request: { method: 'POST' | 'GET'; body?: Record<string, unknown> },
+    signal?: AbortSignal,
+  ): Promise<T> {
     const url = this.buildUrl(method)
     let lastError: Error | undefined
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      if (signal?.aborted) {
+        throw Object.assign(new Error('Aborted'), { name: 'AbortError' })
+      }
+
       const init: RequestInit = {
-        method: 'POST',
+        method: request.method,
         headers: { 'Content-Type': 'application/json' },
-        body: params ? JSON.stringify(params) : undefined,
+        body: request.body ? JSON.stringify(request.body) : undefined,
         signal,
       }
 
@@ -117,8 +168,8 @@ export class TelegramBotClient {
       try {
         response = await fetch(url, init)
       } catch (error) {
-        if ((error as Error).name === 'AbortError') {
-          throw error
+        if (this.isAbort(signal, error)) {
+          throw error instanceof Error ? error : Object.assign(new Error('Aborted'), { name: 'AbortError' })
         }
         lastError = error instanceof Error ? error : new Error(String(error))
         if (attempt < MAX_RETRIES) {
@@ -128,12 +179,12 @@ export class TelegramBotClient {
         throw new TelegramBotError(`Network error: ${lastError.message}`, 'network_error')
       }
 
-      let body: ApiResponse<T>
-      try {
-        body = (await response.json()) as ApiResponse<T>
-      } catch {
-        throw new TelegramBotError(`Invalid JSON response from ${method} (HTTP ${response.status})`, 'invalid_response')
+      const parsed = await this.parseJsonOrRetry<T>(response, method, attempt)
+      if ('retry' in parsed) {
+        await this.sleep(BASE_BACKOFF_MS * 2 ** attempt)
+        continue
       }
+      const { body } = parsed
 
       if (response.status === 429 || body.error_code === 429) {
         const retryAfter = body.parameters?.retry_after ?? 1
@@ -162,15 +213,22 @@ export class TelegramBotClient {
     throw lastError ?? new TelegramBotError('Request failed after retries', 'max_retries')
   }
 
-  private async callMultipart<T>(method: string, formData: FormData): Promise<T> {
+  private async callMultipart<T>(method: string, formData: FormData, signal?: AbortSignal): Promise<T> {
     const url = this.buildUrl(method)
     let lastError: Error | undefined
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      if (signal?.aborted) {
+        throw Object.assign(new Error('Aborted'), { name: 'AbortError' })
+      }
+
       let response: Response
       try {
-        response = await fetch(url, { method: 'POST', body: formData })
+        response = await fetch(url, { method: 'POST', body: formData, signal })
       } catch (error) {
+        if (this.isAbort(signal, error)) {
+          throw error instanceof Error ? error : Object.assign(new Error('Aborted'), { name: 'AbortError' })
+        }
         lastError = error instanceof Error ? error : new Error(String(error))
         if (attempt < MAX_RETRIES) {
           await this.sleep(BASE_BACKOFF_MS * 2 ** attempt)
@@ -179,7 +237,12 @@ export class TelegramBotClient {
         throw new TelegramBotError(`Network error: ${lastError.message}`, 'network_error')
       }
 
-      const body = (await response.json().catch(() => ({}))) as ApiResponse<T>
+      const parsed = await this.parseJsonOrRetry<T>(response, method, attempt)
+      if ('retry' in parsed) {
+        await this.sleep(BASE_BACKOFF_MS * 2 ** attempt)
+        continue
+      }
+      const { body } = parsed
 
       if (response.status === 429 || body.error_code === 429) {
         const retryAfter = body.parameters?.retry_after ?? 1
@@ -239,7 +302,7 @@ export class TelegramBotClient {
   async sendDocument(
     chatId: ChatId,
     filePath: string,
-    options?: { caption?: string; parse_mode?: SendMessageOptions['parse_mode'] },
+    options?: { caption?: string; parse_mode?: SendMessageOptions['parse_mode']; signal?: AbortSignal },
   ): Promise<TelegramMessage> {
     const fileBuffer = await readFile(filePath)
     const filename = filePath.split('/').pop() || 'file'
@@ -250,7 +313,7 @@ export class TelegramBotClient {
     if (options?.caption !== undefined) formData.append('caption', options.caption)
     if (options?.parse_mode !== undefined) formData.append('parse_mode', options.parse_mode)
 
-    return this.callMultipart<TelegramMessage>('sendDocument', formData)
+    return this.callMultipart<TelegramMessage>('sendDocument', formData, options?.signal)
   }
 
   async forwardMessage(
@@ -268,17 +331,11 @@ export class TelegramBotClient {
   }
 
   async editMessageText(
-    chatId: ChatId,
-    messageId: number,
+    target: EditMessageTextTarget,
     text: string,
     options?: SendMessageOptions,
-  ): Promise<TelegramMessage> {
-    return this.call<TelegramMessage>('editMessageText', {
-      chat_id: chatId,
-      message_id: messageId,
-      text,
-      ...options,
-    })
+  ): Promise<TelegramMessage | true> {
+    return this.call<TelegramMessage | true>('editMessageText', { ...target, text, ...options })
   }
 
   async deleteMessage(chatId: ChatId, messageId: number): Promise<boolean> {
@@ -286,6 +343,20 @@ export class TelegramBotClient {
   }
 
   async setMessageReaction(
+    chatId: ChatId,
+    messageId: number,
+    reaction: BotReactionType[],
+    options?: { is_big?: boolean },
+  ): Promise<boolean> {
+    return this.call<boolean>('setMessageReaction', {
+      chat_id: chatId,
+      message_id: messageId,
+      reaction,
+      ...options,
+    })
+  }
+
+  async setMessageReactionRaw(
     chatId: ChatId,
     messageId: number,
     reaction: TelegramReactionType[],
@@ -324,8 +395,10 @@ export class TelegramBotClient {
   }
 
   formatChat(chat: TelegramChat): { id: number; type: string; name: string } {
-    const name =
-      chat.title ?? [chat.first_name, chat.last_name].filter(Boolean).join(' ') ?? chat.username ?? String(chat.id)
-    return { id: chat.id, type: chat.type, name }
+    if (chat.title) return { id: chat.id, type: chat.type, name: chat.title }
+    const fullName = [chat.first_name, chat.last_name].filter(Boolean).join(' ')
+    if (fullName) return { id: chat.id, type: chat.type, name: fullName }
+    if (chat.username) return { id: chat.id, type: chat.type, name: chat.username }
+    return { id: chat.id, type: chat.type, name: String(chat.id) }
   }
 }

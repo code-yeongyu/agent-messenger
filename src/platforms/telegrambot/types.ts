@@ -185,28 +185,32 @@ export const TelegramBotCredentialsSchema = z.object({
   bot_name: z.string(),
 })
 
-export const TelegramBotUserSchema = z.object({
-  id: z.number(),
-  is_bot: z.boolean(),
-  first_name: z.string(),
-  last_name: z.string().optional(),
-  username: z.string().optional(),
-  language_code: z.string().optional(),
-  is_premium: z.boolean().optional(),
-  can_join_groups: z.boolean().optional(),
-  can_read_all_group_messages: z.boolean().optional(),
-  supports_inline_queries: z.boolean().optional(),
-})
+export const TelegramBotUserSchema = z
+  .object({
+    id: z.number(),
+    is_bot: z.boolean(),
+    first_name: z.string(),
+    last_name: z.string().optional(),
+    username: z.string().optional(),
+    language_code: z.string().optional(),
+    is_premium: z.boolean().optional(),
+    can_join_groups: z.boolean().optional(),
+    can_read_all_group_messages: z.boolean().optional(),
+    supports_inline_queries: z.boolean().optional(),
+  })
+  .passthrough()
 
-export const TelegramChatSchema = z.object({
-  id: z.number(),
-  type: z.enum(['private', 'group', 'supergroup', 'channel']),
-  title: z.string().optional(),
-  username: z.string().optional(),
-  first_name: z.string().optional(),
-  last_name: z.string().optional(),
-  is_forum: z.boolean().optional(),
-})
+export const TelegramChatSchema = z
+  .object({
+    id: z.number(),
+    type: z.enum(['private', 'group', 'supergroup', 'channel']),
+    title: z.string().optional(),
+    username: z.string().optional(),
+    first_name: z.string().optional(),
+    last_name: z.string().optional(),
+    is_forum: z.boolean().optional(),
+  })
+  .passthrough()
 
 export const TelegramMessageEntitySchema = z.object({
   type: z.string(),
@@ -235,23 +239,25 @@ export const TelegramDocumentSchema = z.object({
   file_size: z.number().optional(),
 })
 
-export const TelegramMessageSchema = z.object({
-  message_id: z.number(),
-  message_thread_id: z.number().optional(),
-  date: z.number(),
-  chat: TelegramChatSchema,
-  from: TelegramBotUserSchema.optional(),
-  sender_chat: TelegramChatSchema.optional(),
-  text: z.string().optional(),
-  caption: z.string().optional(),
-  entities: z.array(TelegramMessageEntitySchema).optional(),
-  caption_entities: z.array(TelegramMessageEntitySchema).optional(),
-  reply_to_message: z.lazy(() => TelegramMessageSchema).optional(),
-  edit_date: z.number().optional(),
-  photo: z.array(TelegramPhotoSizeSchema).optional(),
-  document: TelegramDocumentSchema.optional(),
-  is_topic_message: z.boolean().optional(),
-}) as z.ZodType<TelegramMessage>
+export const TelegramMessageSchema = z
+  .object({
+    message_id: z.number(),
+    message_thread_id: z.number().optional(),
+    date: z.number(),
+    chat: TelegramChatSchema,
+    from: TelegramBotUserSchema.optional(),
+    sender_chat: TelegramChatSchema.optional(),
+    text: z.string().optional(),
+    caption: z.string().optional(),
+    entities: z.array(TelegramMessageEntitySchema).optional(),
+    caption_entities: z.array(TelegramMessageEntitySchema).optional(),
+    reply_to_message: z.lazy(() => TelegramMessageSchema).optional(),
+    edit_date: z.number().optional(),
+    photo: z.array(TelegramPhotoSizeSchema).optional(),
+    document: TelegramDocumentSchema.optional(),
+    is_topic_message: z.boolean().optional(),
+  })
+  .passthrough() as z.ZodType<TelegramMessage>
 
 export interface TelegramBotListenerOptions {
   timeoutSeconds?: number

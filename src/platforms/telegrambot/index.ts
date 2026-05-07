@@ -1,5 +1,13 @@
 export { TelegramBotClient } from './client'
-export type { ChatId, GetUpdatesOptions, SendMessageOptions } from './client'
+export type {
+  BotReactionType,
+  ChatId,
+  EditMessageTextChat,
+  EditMessageTextInline,
+  EditMessageTextTarget,
+  GetUpdatesOptions,
+  SendMessageOptions,
+} from './client'
 export { TelegramBotCredentialManager } from './credential-manager'
 export { TelegramBotListener } from './listener'
 export type {

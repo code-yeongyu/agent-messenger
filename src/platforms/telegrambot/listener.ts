@@ -6,6 +6,7 @@ import { TelegramBotError } from './types'
 
 const DEFAULT_TIMEOUT_SECONDS = 30
 const DEFAULT_LIMIT = 100
+const FETCH_TIMEOUT_GRACE_MS = 10_000
 const RECONNECT_BASE_DELAY = 1_000
 const RECONNECT_MAX_DELAY = 30_000
 const FATAL_ERROR_CODES = new Set(['unauthorized', 'conflict'])
@@ -99,31 +100,35 @@ export class TelegramBotListener {
     let firstPoll = true
 
     while (this.isCurrent(generation)) {
-      this.abortController = new AbortController()
+      const pollController = new AbortController()
+      this.abortController = pollController
+
+      // Server-side getUpdates uses `timeout` (seconds); add grace so the HTTP fetch can't hang
+      // past the long-poll deadline if the underlying socket stalls.
+      const fetchTimeout = setTimeout(
+        () => pollController.abort(),
+        (this.timeoutSeconds + FETCH_TIMEOUT_GRACE_MS / 1000) * 1000,
+      )
+
+      let updates: TelegramUpdate[]
       try {
-        const updates = await this.client.getUpdates(
+        updates = await this.client.getUpdates(
           {
             offset: this.offset,
             limit: this.limit,
             timeout: this.timeoutSeconds,
             allowed_updates: firstPoll ? this.allowedUpdates : undefined,
           },
-          this.abortController.signal,
+          pollController.signal,
         )
         firstPoll = false
         this.reconnectAttempts = 0
-
-        if (!this.isCurrent(generation)) return
-
-        for (const update of updates) {
-          if (!this.isCurrent(generation)) return
-          this.dispatch(update)
-          this.offset = update.update_id + 1
-        }
       } catch (error) {
-        if ((error as Error).name === 'AbortError' || !this.isCurrent(generation)) {
+        clearTimeout(fetchTimeout)
+        if (pollController.signal.aborted && !this.isCurrent(generation)) {
           return
         }
+        if (!this.isCurrent(generation)) return
 
         if (error instanceof TelegramBotError && FATAL_ERROR_CODES.has(error.code)) {
           this.emitter.emit('error', error)
@@ -133,20 +138,44 @@ export class TelegramBotListener {
 
         this.emitter.emit('disconnected')
         await this.backoff(generation)
+        continue
+      }
+      clearTimeout(fetchTimeout)
+
+      if (!this.isCurrent(generation)) return
+
+      for (const update of updates) {
+        if (!this.isCurrent(generation)) return
+        // Advance offset BEFORE dispatching so a thrown user handler doesn't cause redelivery.
+        this.offset = update.update_id + 1
+        this.dispatch(update)
       }
     }
   }
 
   private dispatch(update: TelegramUpdate): void {
-    if (update.message) this.emitter.emit('message', update.message)
-    if (update.edited_message) this.emitter.emit('edited_message', update.edited_message)
-    if (update.channel_post) this.emitter.emit('channel_post', update.channel_post)
-    if (update.edited_channel_post) this.emitter.emit('edited_channel_post', update.edited_channel_post)
-    if (update.callback_query) this.emitter.emit('callback_query', update.callback_query)
-    if (update.inline_query) this.emitter.emit('inline_query', update.inline_query)
-    if (update.my_chat_member) this.emitter.emit('my_chat_member', update.my_chat_member)
-    if (update.chat_member) this.emitter.emit('chat_member', update.chat_member)
-    this.emitter.emit('telegram_update', update)
+    if (update.message) this.safeEmit('message', update.message)
+    if (update.edited_message) this.safeEmit('edited_message', update.edited_message)
+    if (update.channel_post) this.safeEmit('channel_post', update.channel_post)
+    if (update.edited_channel_post) this.safeEmit('edited_channel_post', update.edited_channel_post)
+    if (update.callback_query) this.safeEmit('callback_query', update.callback_query)
+    if (update.inline_query) this.safeEmit('inline_query', update.inline_query)
+    if (update.my_chat_member) this.safeEmit('my_chat_member', update.my_chat_member)
+    if (update.chat_member) this.safeEmit('chat_member', update.chat_member)
+    this.safeEmit('telegram_update', update)
+  }
+
+  private safeEmit<K extends EventKey>(event: K, ...args: TelegramBotListenerEventMap[K]): void {
+    try {
+      this.emitter.emit(event, ...args)
+    } catch (handlerError) {
+      const err = handlerError instanceof Error ? handlerError : new Error(String(handlerError))
+      try {
+        this.emitter.emit('error', err)
+      } catch {
+        // Swallow secondary errors from error handlers to keep the poll loop alive.
+      }
+    }
   }
 
   private async backoff(generation: number): Promise<void> {
