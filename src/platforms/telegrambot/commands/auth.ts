@@ -5,11 +5,13 @@ import { formatOutput } from '@/shared/utils/output'
 
 import { TelegramBotClient } from '../client'
 import { TelegramBotCredentialManager } from '../credential-manager'
+import type { ClientFactory } from './shared'
 
 interface ActionOptions {
   pretty?: boolean
   bot?: string
   _credManager?: TelegramBotCredentialManager
+  _clientFactory?: ClientFactory
 }
 
 interface ActionResult {
@@ -28,7 +30,8 @@ interface ActionResult {
 
 export async function setAction(token: string, options: ActionOptions): Promise<ActionResult> {
   try {
-    const client = await new TelegramBotClient().login({ token })
+    const client = options._clientFactory ? options._clientFactory() : new TelegramBotClient()
+    await client.login({ token })
     const me = await client.getMe()
 
     if (!me.is_bot) {
@@ -85,7 +88,8 @@ export async function statusAction(options: ActionOptions): Promise<ActionResult
     let username: string | undefined
 
     try {
-      const client = await new TelegramBotClient().login({ token: creds.token })
+      const client = options._clientFactory ? options._clientFactory() : new TelegramBotClient()
+      await client.login({ token: creds.token })
       const me = await client.getMe()
       valid = me.is_bot === true
       botName = me.username ?? me.first_name

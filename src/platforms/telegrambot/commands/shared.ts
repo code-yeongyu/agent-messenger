@@ -3,10 +3,13 @@ import { formatOutput } from '@/shared/utils/output'
 import { TelegramBotClient } from '../client'
 import { TelegramBotCredentialManager } from '../credential-manager'
 
+export type ClientFactory = () => TelegramBotClient
+
 export interface BotOption {
   bot?: string
   pretty?: boolean
   _credManager?: TelegramBotCredentialManager
+  _clientFactory?: ClientFactory
 }
 
 export async function getClient(options: BotOption): Promise<TelegramBotClient> {
@@ -18,7 +21,8 @@ export async function getClient(options: BotOption): Promise<TelegramBotClient> 
     process.exit(1)
   }
 
-  return new TelegramBotClient().login({ token: creds.token })
+  const client = options._clientFactory ? options._clientFactory() : new TelegramBotClient()
+  return client.login({ token: creds.token })
 }
 
 export function parseChatId(chat: string): number | string {
