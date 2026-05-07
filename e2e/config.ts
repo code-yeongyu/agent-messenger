@@ -242,6 +242,30 @@ export async function validateTelegramEnvironment(): Promise<boolean> {
   return true
 }
 
+// Telegram Bot Test Environment
+export const TELEGRAMBOT_TEST_CHAT_ID = process.env.E2E_TELEGRAMBOT_CHAT_ID || ''
+
+export async function validateTelegramBotEnvironment(): Promise<boolean> {
+  if (!TELEGRAMBOT_TEST_CHAT_ID) {
+    console.warn('Skipping Telegram Bot E2E: set E2E_TELEGRAMBOT_CHAT_ID to run against a dedicated test chat.')
+    return false
+  }
+
+  const { runCLI, parseJSON } = await import('./helpers')
+
+  const result = await runCLI('telegrambot', ['auth', 'status'])
+  if (result.exitCode !== 0) {
+    throw new Error('Telegram Bot authentication failed. Run: agent-telegrambot auth set <token>')
+  }
+
+  const data = parseJSON<{ valid: boolean }>(result.stdout)
+  if (!data?.valid) {
+    throw new Error('Telegram Bot credentials invalid or expired. Run: agent-telegrambot auth set <token>')
+  }
+
+  return true
+}
+
 // WhatsApp Test Environment
 export const WHATSAPP_TEST_CHAT_ID = process.env.E2E_WHATSAPP_CHAT_ID || ''
 
