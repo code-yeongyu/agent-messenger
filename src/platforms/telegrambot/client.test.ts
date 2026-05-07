@@ -230,4 +230,225 @@ describe('TelegramBotClient', () => {
       expect(await client.resolveChatId('channel')).toBe('@channel')
     })
   })
+
+  describe('formatChat', () => {
+    const client = new TelegramBotClient()
+
+    it('uses title when present', () => {
+      expect(client.formatChat({ id: 1, type: 'supergroup', title: 'Eng' })).toEqual({
+        id: 1,
+        type: 'supergroup',
+        name: 'Eng',
+      })
+    })
+
+    it('uses first_name + last_name when title missing', () => {
+      expect(client.formatChat({ id: 1, type: 'private', first_name: 'Ada', last_name: 'Lovelace' })).toEqual({
+        id: 1,
+        type: 'private',
+        name: 'Ada Lovelace',
+      })
+    })
+
+    it('falls back to username when name parts are empty', () => {
+      expect(client.formatChat({ id: 1, type: 'private', username: 'ada' })).toEqual({
+        id: 1,
+        type: 'private',
+        name: 'ada',
+      })
+    })
+
+    it('falls back to id when nothing is set', () => {
+      expect(client.formatChat({ id: 42, type: 'private' })).toEqual({ id: 42, type: 'private', name: '42' })
+    })
+  })
+
+  describe('getChat / getChatMember / getChatMemberCount', () => {
+    it('getChat sends chat_id', async () => {
+      mockOk({ id: -100123, type: 'supergroup', title: 'Eng', description: 'ENG team' })
+      const client = await new TelegramBotClient().login({ token: 'TOKEN' })
+      const chat = await client.getChat(-100123)
+
+      expect(chat.id).toBe(-100123)
+      const body = JSON.parse(fetchCalls[0].options?.body as string)
+      expect(body.chat_id).toBe(-100123)
+    })
+
+    it('getChatMember sends chat_id and user_id', async () => {
+      mockOk({ user: { id: 1, is_bot: false, first_name: 'A' }, status: 'member' })
+      const client = await new TelegramBotClient().login({ token: 'TOKEN' })
+      await client.getChatMember(-100123, 42)
+
+      const body = JSON.parse(fetchCalls[0].options?.body as string)
+      expect(body.chat_id).toBe(-100123)
+      expect(body.user_id).toBe(42)
+    })
+
+    it('getChatMemberCount returns number', async () => {
+      mockOk(7)
+      const client = await new TelegramBotClient().login({ token: 'TOKEN' })
+      const count = await client.getChatMemberCount(-100123)
+      expect(count).toBe(7)
+    })
+  })
+
+  describe('forwardMessage', () => {
+    it('sends chat_id, from_chat_id, message_id', async () => {
+      mockOk({
+        message_id: 99,
+        date: 1,
+        chat: { id: 200, type: 'supergroup', title: 'Dst' },
+        text: 'forwarded',
+      })
+
+      const client = await new TelegramBotClient().login({ token: 'TOKEN' })
+      const msg = await client.forwardMessage(200, 100, 42)
+
+      expect(msg.message_id).toBe(99)
+      const body = JSON.parse(fetchCalls[0].options?.body as string)
+      expect(body.chat_id).toBe(200)
+      expect(body.from_chat_id).toBe(100)
+      expect(body.message_id).toBe(42)
+    })
+  })
+
+  describe('editMessageText', () => {
+    it('accepts chat-message target', async () => {
+      mockOk({
+        message_id: 42,
+        date: 1,
+        chat: { id: 1, type: 'private', first_name: 'A' },
+        text: 'edited',
+      })
+
+      const client = await new TelegramBotClient().login({ token: 'TOKEN' })
+      const result = await client.editMessageText({ chat_id: 1, message_id: 42 }, 'edited')
+
+      expect(typeof result === 'object' && result !== null && 'message_id' in result).toBe(true)
+      const body = JSON.parse(fetchCalls[0].options?.body as string)
+      expect(body.chat_id).toBe(1)
+      expect(body.message_id).toBe(42)
+      expect(body.text).toBe('edited')
+    })
+
+    it('accepts inline-message target', async () => {
+      mockOk(true)
+
+      const client = await new TelegramBotClient().login({ token: 'TOKEN' })
+      const result = await client.editMessageText({ inline_message_id: 'inline123' }, 'edited')
+
+      expect(result).toBe(true)
+      const body = JSON.parse(fetchCalls[0].options?.body as string)
+      expect(body.inline_message_id).toBe('inline123')
+      expect(body.chat_id).toBeUndefined()
+    })
+  })
+
+  describe('sendDocument (multipart)', () => {
+    it('uploads file with multipart/form-data and forwards optional caption', async () => {
+      const fs = await import('node:fs/promises')
+      const os = await import('node:os')
+      const path = await import('node:path')
+      const tmp = path.join(os.tmpdir(), `tgbot-doc-test-${Date.now()}.txt`)
+      await fs.writeFile(tmp, 'hello')
+
+      try {
+        mockOk({
+          message_id: 1,
+          date: 1,
+          chat: { id: 1, type: 'private', first_name: 'A' },
+          document: { file_id: 'F1', file_unique_id: 'U1', file_name: tmp.split('/').pop() },
+        })
+
+        const client = await new TelegramBotClient().login({ token: 'TOKEN' })
+        const msg = await client.sendDocument(1, tmp, { caption: 'hi' })
+
+        expect(msg.message_id).toBe(1)
+        const body = fetchCalls[0].options?.body
+        expect(body).toBeInstanceOf(FormData)
+        const fd = body as unknown as FormData
+        expect(fd.get('chat_id')).toBe('1')
+        expect(fd.get('caption')).toBe('hi')
+        expect(fd.get('document')).toBeInstanceOf(Blob)
+      } finally {
+        await fs.unlink(tmp).catch(() => undefined)
+      }
+    })
+  })
+
+  describe('setWebhook / deleteWebhook', () => {
+    it('deleteWebhook with drop_pending_updates', async () => {
+      mockOk(true)
+      const client = await new TelegramBotClient().login({ token: 'TOKEN' })
+      const ok = await client.deleteWebhook({ drop_pending_updates: true })
+
+      expect(ok).toBe(true)
+      const body = JSON.parse(fetchCalls[0].options?.body as string)
+      expect(body.drop_pending_updates).toBe(true)
+    })
+
+    it('setWebhook with url', async () => {
+      mockOk(true)
+      const client = await new TelegramBotClient().login({ token: 'TOKEN' })
+      await client.setWebhook('https://example.com/hook', { secret_token: 's3cret' })
+
+      const body = JSON.parse(fetchCalls[0].options?.body as string)
+      expect(body.url).toBe('https://example.com/hook')
+      expect(body.secret_token).toBe('s3cret')
+    })
+  })
+
+  describe('abort', () => {
+    it('throws AbortError when signal is already aborted', async () => {
+      const client = await new TelegramBotClient().login({ token: 'TOKEN' })
+      const ac = new AbortController()
+      ac.abort()
+      try {
+        await client.getUpdates(undefined, ac.signal)
+        expect(false).toBe(true)
+      } catch (e) {
+        expect((e as Error).name).toBe('AbortError')
+      }
+    })
+
+    it('treats signal.aborted as authoritative even if fetch throws non-AbortError', async () => {
+      ;(globalThis as Record<string, unknown>).fetch = async (
+        _url: string | URL | Request,
+        init?: RequestInit,
+      ): Promise<Response> => {
+        const signal = init?.signal as AbortSignal | undefined
+        if (signal?.aborted) {
+          throw new Error('connection reset')
+        }
+        return new Response(JSON.stringify({ ok: true, result: [] }), { status: 200 })
+      }
+
+      const client = await new TelegramBotClient().login({ token: 'TOKEN' })
+      const ac = new AbortController()
+      ac.abort()
+      try {
+        await client.getUpdates(undefined, ac.signal)
+        expect(false).toBe(true)
+      } catch (e) {
+        expect((e as Error).name).toBe('AbortError')
+      }
+    })
+  })
+
+  describe('5xx retry', () => {
+    it('retries 502 with non-JSON body before failing', async () => {
+      fetchResponses.push(
+        new Response('<html>502 Bad Gateway</html>', {
+          status: 502,
+          headers: { 'Content-Type': 'text/html' },
+        }),
+      )
+      mockOk({ id: 1, is_bot: true, first_name: 'X' })
+
+      const client = await new TelegramBotClient().login({ token: 'TOKEN' })
+      const me = await client.getMe()
+      expect(me.id).toBe(1)
+      expect(fetchCalls).toHaveLength(2)
+    })
+  })
 })

@@ -1,29 +1,38 @@
-import { afterEach, beforeEach, describe, expect, mock, it } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { existsSync, rmSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const mockGetMe = mock(() =>
-  Promise.resolve({
+import type { TelegramBotClient } from '../client'
+import { TelegramBotCredentialManager } from '../credential-manager'
+import type { TelegramBotUser } from '../types'
+import { clearAction, listAction, removeAction, setAction, statusAction, useAction } from './auth'
+
+interface MockOptions {
+  user?: TelegramBotUser
+  loginError?: Error
+  getMeError?: Error
+}
+
+function createMockClient(options: MockOptions = {}): TelegramBotClient {
+  const user = options.user ?? {
     id: 123456,
     is_bot: true,
     first_name: 'Test',
     username: 'testbot',
-  }),
-)
-
-mock.module('../client', () => ({
-  TelegramBotClient: class MockTelegramBotClient {
-    async login(_credentials?: unknown): Promise<this> {
-      return this
-    }
-    getMe = mockGetMe
-  },
-}))
-
-import { TelegramBotCredentialManager } from '../credential-manager'
-import { clearAction, listAction, removeAction, setAction, statusAction, useAction } from './auth'
+  }
+  return {
+    async login(): Promise<TelegramBotClient> {
+      if (options.loginError) throw options.loginError
+      return this as unknown as TelegramBotClient
+    },
+    async getMe(): Promise<TelegramBotUser> {
+      if (options.getMeError) throw options.getMeError
+      return user
+    },
+  } as unknown as TelegramBotClient
+}
 
 describe('auth commands', () => {
   let tempDir: string
@@ -34,7 +43,6 @@ describe('auth commands', () => {
     await mkdir(tempDir, { recursive: true })
     originalEnv = { ...process.env }
     delete process.env.E2E_TELEGRAMBOT_TOKEN
-    mockGetMe.mockClear()
   })
 
   afterEach(() => {
@@ -48,7 +56,10 @@ describe('auth commands', () => {
     it('validates and stores bot token using username as bot_id', async () => {
       const manager = new TelegramBotCredentialManager(tempDir)
 
-      const result = await setAction('123:abc', { _credManager: manager })
+      const result = await setAction('123:abc', {
+        _credManager: manager,
+        _clientFactory: () => createMockClient(),
+      })
 
       expect(result.success).toBe(true)
       expect(result.bot_id).toBe('testbot')
@@ -62,48 +73,52 @@ describe('auth commands', () => {
     it('uses --bot flag as bot_id', async () => {
       const manager = new TelegramBotCredentialManager(tempDir)
 
-      const result = await setAction('123:abc', { bot: 'deploy', _credManager: manager })
+      const result = await setAction('123:abc', {
+        bot: 'deploy',
+        _credManager: manager,
+        _clientFactory: () => createMockClient(),
+      })
 
       expect(result.bot_id).toBe('deploy')
       expect(await manager.getCredentials('deploy')).not.toBeNull()
     })
 
     it('falls back to numeric id when username missing', async () => {
-      mockGetMe.mockImplementationOnce(() =>
-        Promise.resolve({
-          id: 123456,
-          is_bot: true,
-          first_name: 'NoUsername',
-        }),
-      )
-
       const manager = new TelegramBotCredentialManager(tempDir)
-      const result = await setAction('123:abc', { _credManager: manager })
+      const result = await setAction('123:abc', {
+        _credManager: manager,
+        _clientFactory: () =>
+          createMockClient({
+            user: { id: 123456, is_bot: true, first_name: 'NoUsername' },
+          }),
+      })
 
       expect(result.bot_id).toBe('123456')
     })
 
     it('rejects non-bot tokens (is_bot: false)', async () => {
-      mockGetMe.mockImplementationOnce(() =>
-        Promise.resolve({
-          id: 123456,
-          is_bot: false,
-          first_name: 'User',
-        }),
-      )
-
       const manager = new TelegramBotCredentialManager(tempDir)
-      const result = await setAction('user-token', { _credManager: manager })
+      const result = await setAction('user-token', {
+        _credManager: manager,
+        _clientFactory: () =>
+          createMockClient({
+            user: { id: 123456, is_bot: false, first_name: 'User' },
+          }),
+      })
 
       expect(result.error).toBeDefined()
       expect(result.error).toContain('not')
     })
 
     it('handles client errors', async () => {
-      mockGetMe.mockImplementationOnce(() => Promise.reject(new Error('Unauthorized: invalid token')))
-
       const manager = new TelegramBotCredentialManager(tempDir)
-      const result = await setAction('bad', { _credManager: manager })
+      const result = await setAction('bad', {
+        _credManager: manager,
+        _clientFactory: () =>
+          createMockClient({
+            getMeError: new Error('Unauthorized: invalid token'),
+          }),
+      })
 
       expect(result.error).toContain('Unauthorized')
     })
@@ -134,19 +149,26 @@ describe('auth commands', () => {
       const manager = new TelegramBotCredentialManager(tempDir)
       await manager.setCredentials({ token: '123:abc', bot_id: 'mybot', bot_name: 'My Bot' })
 
-      const result = await statusAction({ _credManager: manager })
+      const result = await statusAction({
+        _credManager: manager,
+        _clientFactory: () => createMockClient(),
+      })
 
       expect(result.valid).toBe(true)
       expect(result.bot_id).toBe('mybot')
     })
 
     it('returns invalid when getMe fails', async () => {
-      mockGetMe.mockImplementationOnce(() => Promise.reject(new Error('401')))
-
       const manager = new TelegramBotCredentialManager(tempDir)
       await manager.setCredentials({ token: 'bad', bot_id: 'mybot', bot_name: 'My Bot' })
 
-      const result = await statusAction({ _credManager: manager })
+      const result = await statusAction({
+        _credManager: manager,
+        _clientFactory: () =>
+          createMockClient({
+            getMeError: new Error('401'),
+          }),
+      })
       expect(result.valid).toBe(false)
     })
   })

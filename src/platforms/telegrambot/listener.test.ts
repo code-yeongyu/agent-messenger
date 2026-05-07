@@ -73,21 +73,23 @@ describe('TelegramBotListener', () => {
     expect(connectedUser!.username).toBe('testbot')
   })
 
-  it('deletes webhook before polling', async () => {
-    let deleteWebhookCalled = false
-    const client = makeFakeClient({
-      deleteWebhook: async () => {
-        deleteWebhookCalled = true
+  it('deletes webhook before polling and forwards dropPendingUpdates', async () => {
+    let deleteWebhookCalls: Array<{ drop_pending_updates?: boolean } | undefined> = []
+    const client = {
+      deleteWebhook: async (opts?: { drop_pending_updates?: boolean }) => {
+        deleteWebhookCalls.push(opts)
         return true
       },
-      getUpdates: (_options, signal) => pendingWithAbort(signal),
-    })
+      getMe: async () => ME,
+      getUpdates: (_options: unknown, signal?: AbortSignal) => pendingWithAbort(signal),
+    } as unknown as TelegramBotClient
 
     listener = new TelegramBotListener(client, { dropPendingUpdates: true })
     await listener.start()
     await flush()
 
-    expect(deleteWebhookCalled).toBe(true)
+    expect(deleteWebhookCalls).toHaveLength(1)
+    expect(deleteWebhookCalls[0]).toEqual({ drop_pending_updates: true })
   })
 
   it('dispatches message updates', async () => {
@@ -238,32 +240,37 @@ describe('TelegramBotListener', () => {
     expect(disconnectedCount).toBeGreaterThanOrEqual(1)
   })
 
-  it('stop() prevents further polling', async () => {
-    let pollCount = 0
+  it('stop() aborts in-flight getUpdates and halts polling', async () => {
+    let pollStarts = 0
+    let aborted = false
+
     const client = makeFakeClient({
       getUpdates: (_options, signal) => {
-        pollCount++
-        if (pollCount === 1) {
-          return Promise.resolve([
-            { update_id: 1, callback_query: { id: 'q', from: ME, chat_instance: 'ci', data: 'click' } },
-          ])
-        }
-        return pendingWithAbort(signal)
+        pollStarts++
+        return new Promise<never>((_resolve, reject) => {
+          signal?.addEventListener(
+            'abort',
+            () => {
+              aborted = true
+              reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }))
+            },
+            { once: true },
+          )
+        })
       },
     })
 
     listener = new TelegramBotListener(client)
-    listener.on('telegram_update', () => {
-      count++
-    })
-
-    listener = new TelegramBotListener(client)
     await listener.start()
-    await flush(5)
+    await flush()
+
+    expect(pollStarts).toBe(1)
+
     listener.stop()
-    const beforeStop = pollCount
-    await flush(50)
-    expect(pollCount - beforeStop).toBeLessThanOrEqual(1)
+    await flush(20)
+
+    expect(aborted).toBe(true)
+    expect(pollStarts).toBe(1)
   })
 
   it('on/off/once chain returns this', () => {
@@ -273,5 +280,118 @@ describe('TelegramBotListener', () => {
     expect(listener.on('message', fn)).toBe(listener)
     expect(listener.off('message', fn)).toBe(listener)
     expect(listener.once('message', fn)).toBe(listener)
+  })
+
+  it('emits chat_member and my_chat_member as distinct events', async () => {
+    const myChatMemberEvents: unknown[] = []
+    const chatMemberEvents: unknown[] = []
+    let pollCount = 0
+
+    const memberPayload = {
+      chat: { id: 1, type: 'private' as const, first_name: 'A' },
+      from: ME,
+      date: 1,
+      old_chat_member: { user: ME, status: 'member' as const },
+      new_chat_member: { user: ME, status: 'administrator' as const },
+    }
+
+    const client = makeFakeClient({
+      getUpdates: (_options, signal) => {
+        pollCount++
+        if (pollCount === 1) {
+          return Promise.resolve([
+            { update_id: 1, my_chat_member: memberPayload },
+            { update_id: 2, chat_member: memberPayload },
+          ])
+        }
+        return pendingWithAbort(signal)
+      },
+    })
+
+    listener = new TelegramBotListener(client)
+    listener.on('my_chat_member', (e) => myChatMemberEvents.push(e))
+    listener.on('chat_member', (e) => chatMemberEvents.push(e))
+
+    await listener.start()
+    await flush(20)
+
+    expect(myChatMemberEvents).toHaveLength(1)
+    expect(chatMemberEvents).toHaveLength(1)
+  })
+
+  it('user handler exception does not stop polling and surfaces via error event', async () => {
+    let messageCount = 0
+    let errorCount = 0
+    let pollCount = 0
+
+    const client = makeFakeClient({
+      getUpdates: (_options, signal) => {
+        pollCount++
+        if (pollCount === 1) {
+          return Promise.resolve([
+            {
+              update_id: 1,
+              message: {
+                message_id: 1,
+                date: 1,
+                chat: { id: 1, type: 'private' as const, first_name: 'A' },
+                text: 'first',
+              },
+            },
+            {
+              update_id: 2,
+              message: {
+                message_id: 2,
+                date: 2,
+                chat: { id: 1, type: 'private' as const, first_name: 'A' },
+                text: 'second',
+              },
+            },
+          ])
+        }
+        return pendingWithAbort(signal)
+      },
+    })
+
+    listener = new TelegramBotListener(client)
+    listener.on('message', (msg) => {
+      messageCount++
+      if (msg.text === 'first') {
+        throw new Error('handler boom')
+      }
+    })
+    listener.on('error', () => {
+      errorCount++
+    })
+
+    await listener.start()
+    await flush(20)
+
+    expect(messageCount).toBe(2)
+    expect(errorCount).toBeGreaterThanOrEqual(1)
+  })
+
+  it('aborts in-flight getUpdates if it exceeds timeout + grace', async () => {
+    let aborted = false
+    const client = makeFakeClient({
+      getUpdates: (_options, signal) =>
+        new Promise<never>((_resolve, reject) => {
+          signal?.addEventListener(
+            'abort',
+            () => {
+              aborted = true
+              reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }))
+            },
+            { once: true },
+          )
+        }),
+    })
+
+    listener = new TelegramBotListener(client, { timeoutSeconds: 0 })
+    await listener.start()
+    await flush(50)
+
+    listener.stop()
+    expect(aborted).toBe(true)
   })
 })
