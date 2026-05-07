@@ -9,6 +9,7 @@ const cliFiles = [
   'dist/src/platforms/channeltalk/cli.js',
   'dist/src/platforms/channeltalkbot/cli.js',
   'dist/src/platforms/telegram/cli.js',
+  'dist/src/platforms/telegrambot/cli.js',
 ]
 
 for (const file of cliFiles) {

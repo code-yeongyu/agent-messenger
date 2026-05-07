@@ -40,6 +40,10 @@ program.command('telegram', 'Interact with Telegram via TDLib', {
   executableFile: join(__dirname, 'platforms', 'telegram', `cli${ext}`),
 })
 
+program.command('telegrambot', 'Interact with Telegram using bot tokens', {
+  executableFile: join(__dirname, 'platforms', 'telegrambot', `cli${ext}`),
+})
+
 program.command('whatsapp', 'Interact with WhatsApp via linked device', {
   executableFile: join(__dirname, 'platforms', 'whatsapp', `cli${ext}`),
 })
