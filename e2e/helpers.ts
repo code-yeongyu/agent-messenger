@@ -15,6 +15,7 @@ export async function runCLI(platform: string, args: string[]): Promise<CLIResul
     channeltalk: 'agent-channeltalk',
     webex: 'agent-webex',
     telegram: 'agent-telegram',
+    telegrambot: 'agent-telegrambot',
     whatsapp: 'agent-whatsapp',
     whatsappbot: 'agent-whatsappbot',
     line: 'agent-line',

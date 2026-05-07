@@ -1,6 +1,6 @@
 # Agent Messenger - Claude Code Plugin
 
-Messaging platform interaction skills for AI agents and Claude Code. Supports Slack, Discord, Microsoft Teams, Telegram, WhatsApp, LINE, Instagram, KakaoTalk, and Channel Talk (beta).
+Messaging platform interaction skills for AI agents and Claude Code. Supports Slack, Discord, Microsoft Teams, Telegram, Telegram Bot, WhatsApp, LINE, Instagram, KakaoTalk, and Channel Talk (beta).
 
 ## Installation
 
@@ -75,6 +75,16 @@ Enables AI agents to interact with messaging platforms through CLI interfaces:
 - **Search chats** by name or username
 - **Multi-account support** with easy switching
 - **Auto-provisions** API credentials via my.telegram.org
+
+### Telegram Bot (`agent-telegrambot`)
+- **Send messages** to chats, groups, and channels using bot tokens
+- **Edit, delete, and forward** messages
+- **Upload documents** to chats
+- **Set reactions** on messages
+- **Read chat info** and member status
+- **Real-time updates** via long-polling listener (SDK only)
+- **Multi-bot management** with easy switching
+- Designed for **server-side and CI/CD** use cases
 
 ### WhatsApp (`agent-whatsapp`)
 - **Send messages** to chats and groups

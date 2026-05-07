@@ -1,7 +1,7 @@
 {
   "name": "agent-messenger",
   "version": "2.12.0",
-  "description": "Multi-platform messaging CLI for AI agents (Slack, Discord, Teams, Webex, Telegram, WhatsApp, LINE, Instagram, KakaoTalk, Channel Talk)",
+  "description": "Multi-platform messaging CLI for AI agents (Slack, Discord, Teams, Webex, Telegram, Telegram Bot, WhatsApp, LINE, Instagram, KakaoTalk, Channel Talk)",
   "repository": {
     "type": "git",
     "url": "https://github.com/agent-messenger/agent-messenger"
@@ -19,6 +19,7 @@
     "agent-slackbot": "./src/platforms/slackbot/cli.ts",
     "agent-teams": "./src/platforms/teams/cli.ts",
     "agent-telegram": "./src/platforms/telegram/cli.ts",
+    "agent-telegrambot": "./src/platforms/telegrambot/cli.ts",
     "agent-webex": "./src/platforms/webex/cli.ts",
     "agent-wechatbot": "./src/platforms/wechatbot/cli.ts",
     "agent-whatsapp": "./src/platforms/whatsapp/cli.ts",
@@ -71,6 +72,9 @@
       ],
       "channeltalkbot": [
         "./src/platforms/channeltalkbot/index.ts"
+      ],
+      "telegrambot": [
+        "./src/platforms/telegrambot/index.ts"
       ]
     }
   },
@@ -135,6 +139,10 @@
     "./channeltalkbot": {
       "types": "./src/platforms/channeltalkbot/index.ts",
       "default": "./src/platforms/channeltalkbot/index.ts"
+    },
+    "./telegrambot": {
+      "types": "./src/platforms/telegrambot/index.ts",
+      "default": "./src/platforms/telegrambot/index.ts"
     }
   },
   "scripts": {

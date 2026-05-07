@@ -1,0 +1,213 @@
+---
+title: Telegram Bot
+description: TypeScript SDK reference for Telegram Bot — client, real-time long-polling listener, credential management, and types.
+---
+
+## Installation
+
+```bash
+npm install agent-messenger
+```
+
+```typescript
+import {
+  TelegramBotClient,
+  TelegramBotCredentialManager,
+  TelegramBotError,
+  TelegramBotListener,
+} from 'agent-messenger/telegrambot'
+```
+
+## TelegramBotClient
+
+The main client wrapping Telegram's HTTP [Bot API](https://core.telegram.org/bots/api). Includes automatic 429 (rate-limit) handling using `retry_after`, network retries with exponential backoff, and structured errors via `TelegramBotError`.
+
+```typescript
+const client = await new TelegramBotClient().login({ token: 'YOUR_BOT_TOKEN' })
+```
+
+Or use stored credentials — read from `~/.config/agent-messenger/telegrambot-credentials.json` (managed by `agent-telegrambot auth set`):
+
+```typescript
+const client = await new TelegramBotClient().login()
+```
+
+### Authentication
+
+```typescript
+const me = await client.getMe()
+// → TelegramBotUser { id, is_bot, first_name, username?, ... }
+```
+
+### Messages
+
+```typescript
+// Send text message
+const msg = await client.sendMessage(chatId, 'Hello', {
+  parse_mode: 'HTML',
+  reply_to_message_id: 42,
+  disable_notification: true,
+})
+
+// Edit
+await client.editMessageText(chatId, msg.message_id, 'Edited text')
+
+// Delete
+await client.deleteMessage(chatId, msg.message_id)
+
+// Forward
+await client.forwardMessage(toChatId, fromChatId, messageId)
+
+// Upload document (multipart)
+await client.sendDocument(chatId, '/path/to/file.pdf', { caption: 'Report' })
+```
+
+### Chats
+
+```typescript
+// Full chat info (title, description, member count, etc.)
+const chat = await client.getChat(chatId)
+
+// Single member's status
+const member = await client.getChatMember(chatId, userId)
+
+// Member count for groups, supergroups, channels
+const count = await client.getChatMemberCount(chatId)
+```
+
+### Reactions
+
+```typescript
+// Set a reaction (Telegram replaces previous bot reaction)
+await client.setMessageReaction(chatId, messageId, [{ type: 'emoji', emoji: '👍' }])
+
+// Clear all bot reactions
+await client.setMessageReaction(chatId, messageId, [])
+```
+
+### Updates (Manual Polling)
+
+If you don't need the listener abstraction, you can call `getUpdates` directly:
+
+```typescript
+const updates = await client.getUpdates({
+  offset: 0,
+  limit: 100,
+  timeout: 30,
+  allowed_updates: ['message', 'callback_query'],
+})
+```
+
+## TelegramBotListener
+
+A long-polling listener for real-time updates. Telegram Bot API does not support WebSockets — long-polling is the canonical streaming mode used by frameworks like grammy and telegraf. No public HTTPS endpoint required.
+
+```typescript
+import { TelegramBotClient, TelegramBotListener } from 'agent-messenger/telegrambot'
+
+const client = await new TelegramBotClient().login({ token: 'YOUR_BOT_TOKEN' })
+const listener = new TelegramBotListener(client, {
+  timeoutSeconds: 30,
+  limit: 100,
+  allowedUpdates: ['message', 'callback_query'],
+  dropPendingUpdates: false,
+})
+
+listener.on('connected', ({ user }) => {
+  console.log(`Connected as @${user.username}`)
+})
+
+listener.on('message', (message) => {
+  console.log(`${message.chat.id}: ${message.text}`)
+})
+
+listener.on('callback_query', (query) => {
+  console.log(`Button clicked: ${query.data}`)
+})
+
+listener.on('disconnected', () => {
+  console.log('Disconnected, will retry…')
+})
+
+listener.on('error', (error) => {
+  console.error('Fatal error:', error)
+})
+
+await listener.start()
+```
+
+### Lifecycle
+
+- `start()` — Removes any active webhook (mutex with polling), calls `getMe` to confirm auth, then enters the polling loop.
+- `stop()` — Aborts the in-flight `getUpdates` request and stops the loop. Safe to call multiple times.
+
+### Events
+
+| Event                 | Payload                       | Notes                                                                   |
+| --------------------- | ----------------------------- | ----------------------------------------------------------------------- |
+| `connected`           | `{ user: TelegramBotUser }`   | Once after `start()` succeeds                                           |
+| `disconnected`        | `[]`                          | After a recoverable error; listener will retry with exponential backoff |
+| `error`               | `[Error]`                     | Fatal error (Unauthorized 401, Conflict 409). Listener stops.           |
+| `message`             | `[TelegramMessage]`           | New text/media messages in private chats and groups                     |
+| `edited_message`      | `[TelegramMessage]`           | Message edited                                                          |
+| `channel_post`        | `[TelegramMessage]`           | New post in a channel where the bot is admin                            |
+| `edited_channel_post` | `[TelegramMessage]`           | Channel post edited                                                     |
+| `callback_query`      | `[TelegramCallbackQuery]`     | Inline keyboard button pressed                                          |
+| `inline_query`        | `[TelegramInlineQuery]`       | Inline-mode query (`@yourbot ...`)                                      |
+| `my_chat_member`      | `[TelegramChatMemberUpdated]` | Bot's own membership status changed                                     |
+| `chat_member`         | `[TelegramChatMemberUpdated]` | Other member's status changed (requires opt-in)                         |
+| `telegram_update`     | `[TelegramUpdate]`            | Catch-all — every raw update                                            |
+
+### Reconnection
+
+On recoverable errors (network failure, 5xx, transient API errors), the listener emits `disconnected` and retries with exponential backoff capped at 30 seconds. On `Unauthorized` (401) or `Conflict` (409 — another polling instance is running), it emits `error` and stops; restart your process after fixing the cause.
+
+## TelegramBotCredentialManager
+
+```typescript
+const manager = new TelegramBotCredentialManager()
+
+// Store credentials
+await manager.setCredentials({ token, bot_id, bot_name })
+
+// Retrieve current
+const creds = await manager.getCredentials()
+
+// Multi-bot support
+const all = await manager.listAll()
+await manager.setCurrent('deploy')
+await manager.removeBot('alert')
+await manager.clearCredentials()
+```
+
+Credentials are stored under `~/.config/agent-messenger/telegrambot-credentials.json` with `0600` file permissions. Override the directory with the `AGENT_MESSENGER_CONFIG_DIR` environment variable, or pass `new TelegramBotCredentialManager(customDir)`.
+
+## Error Handling
+
+All client methods throw `TelegramBotError` with a `code` property:
+
+| Code                | Meaning                                         |
+| ------------------- | ----------------------------------------------- |
+| `missing_token`     | Empty token passed to `login`                   |
+| `not_authenticated` | Used a method before `.login()`                 |
+| `no_credentials`    | No stored credentials and none provided         |
+| `unauthorized`      | 401 — invalid token                             |
+| `conflict`          | 409 — another polling instance running          |
+| `forbidden`         | 403 — bot kicked or user hasn't started the bot |
+| `bad_request`       | 400 — usually invalid chat ID or message ID     |
+| `not_found`         | 404                                             |
+| `rate_limited`      | 429 (after retries exhausted)                   |
+| `network_error`     | Fetch failed after retries                      |
+| `invalid_response`  | Telegram returned non-JSON                      |
+
+```typescript
+import { TelegramBotError } from 'agent-messenger/telegrambot'
+
+try {
+  await client.sendMessage(chatId, 'Hello')
+} catch (error) {
+  if (error instanceof TelegramBotError && error.code === 'forbidden') {
+    console.log('User has not started the bot yet')
+  }
+}
+```

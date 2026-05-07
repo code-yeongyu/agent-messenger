@@ -1,0 +1,331 @@
+import { readFile } from 'node:fs/promises'
+
+import type {
+  TelegramBotUser,
+  TelegramChat,
+  TelegramChatFullInfo,
+  TelegramChatMember,
+  TelegramMessage,
+  TelegramReactionType,
+  TelegramUpdate,
+} from './types'
+import { TelegramBotError } from './types'
+
+const BASE_URL = 'https://api.telegram.org'
+const MAX_RETRIES = 3
+const BASE_BACKOFF_MS = 100
+
+interface ApiResponse<T> {
+  ok: boolean
+  result?: T
+  description?: string
+  error_code?: number
+  parameters?: {
+    retry_after?: number
+    migrate_to_chat_id?: number
+  }
+}
+
+export interface SendMessageOptions {
+  parse_mode?: 'HTML' | 'Markdown' | 'MarkdownV2'
+  disable_web_page_preview?: boolean
+  disable_notification?: boolean
+  protect_content?: boolean
+  reply_to_message_id?: number
+  message_thread_id?: number
+}
+
+export interface GetUpdatesOptions {
+  offset?: number
+  limit?: number
+  timeout?: number
+  allowed_updates?: string[]
+}
+
+export type ChatId = number | string
+
+export class TelegramBotClient {
+  private token: string | null = null
+
+  async login(credentials?: { token: string }): Promise<this> {
+    if (credentials) {
+      if (!credentials.token) {
+        throw new TelegramBotError('Token is required', 'missing_token')
+      }
+      this.token = credentials.token
+      return this
+    }
+
+    const { TelegramBotCredentialManager } = await import('./credential-manager')
+    const credManager = new TelegramBotCredentialManager()
+    const creds = await credManager.getCredentials()
+    if (!creds?.token) {
+      throw new TelegramBotError('No Telegram bot credentials found. Run "auth set <token>" first.', 'no_credentials')
+    }
+    return this.login({ token: creds.token })
+  }
+
+  private ensureAuth(): string {
+    if (!this.token) {
+      throw new TelegramBotError('Not authenticated. Call .login() first.', 'not_authenticated')
+    }
+    return this.token
+  }
+
+  private buildUrl(method: string): string {
+    return `${BASE_URL}/bot${this.ensureAuth()}/${method}`
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+
+  private throwApiError(method: string, body: ApiResponse<unknown>): never {
+    const code = body.error_code
+    const description = body.description ?? `HTTP error from ${method}`
+    if (code === 401) {
+      throw new TelegramBotError(`Unauthorized: ${description}`, 'unauthorized')
+    }
+    if (code === 409) {
+      throw new TelegramBotError(`Conflict: ${description}`, 'conflict')
+    }
+    if (code === 403) {
+      throw new TelegramBotError(`Forbidden: ${description}`, 'forbidden')
+    }
+    if (code === 400) {
+      throw new TelegramBotError(`Bad Request: ${description}`, 'bad_request')
+    }
+    if (code === 404) {
+      throw new TelegramBotError(`Not Found: ${description}`, 'not_found')
+    }
+    throw new TelegramBotError(description, code !== undefined ? `http_${code}` : 'http_error')
+  }
+
+  private async call<T>(method: string, params?: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
+    const url = this.buildUrl(method)
+    let lastError: Error | undefined
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      const init: RequestInit = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: params ? JSON.stringify(params) : undefined,
+        signal,
+      }
+
+      let response: Response
+      try {
+        response = await fetch(url, init)
+      } catch (error) {
+        if ((error as Error).name === 'AbortError') {
+          throw error
+        }
+        lastError = error instanceof Error ? error : new Error(String(error))
+        if (attempt < MAX_RETRIES) {
+          await this.sleep(BASE_BACKOFF_MS * 2 ** attempt)
+          continue
+        }
+        throw new TelegramBotError(`Network error: ${lastError.message}`, 'network_error')
+      }
+
+      let body: ApiResponse<T>
+      try {
+        body = (await response.json()) as ApiResponse<T>
+      } catch {
+        throw new TelegramBotError(`Invalid JSON response from ${method} (HTTP ${response.status})`, 'invalid_response')
+      }
+
+      if (response.status === 429 || body.error_code === 429) {
+        const retryAfter = body.parameters?.retry_after ?? 1
+        if (attempt < MAX_RETRIES) {
+          await this.sleep(retryAfter * 1000)
+          continue
+        }
+        throw new TelegramBotError(body.description ?? 'Rate limited', 'rate_limited')
+      }
+
+      if (response.status >= 500 && attempt < MAX_RETRIES) {
+        await this.sleep(BASE_BACKOFF_MS * 2 ** attempt)
+        continue
+      }
+
+      if (!body.ok) {
+        this.throwApiError(method, body)
+      }
+
+      if (body.result === undefined) {
+        return undefined as T
+      }
+      return body.result
+    }
+
+    throw lastError ?? new TelegramBotError('Request failed after retries', 'max_retries')
+  }
+
+  private async callMultipart<T>(method: string, formData: FormData): Promise<T> {
+    const url = this.buildUrl(method)
+    let lastError: Error | undefined
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      let response: Response
+      try {
+        response = await fetch(url, { method: 'POST', body: formData })
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error))
+        if (attempt < MAX_RETRIES) {
+          await this.sleep(BASE_BACKOFF_MS * 2 ** attempt)
+          continue
+        }
+        throw new TelegramBotError(`Network error: ${lastError.message}`, 'network_error')
+      }
+
+      const body = (await response.json().catch(() => ({}))) as ApiResponse<T>
+
+      if (response.status === 429 || body.error_code === 429) {
+        const retryAfter = body.parameters?.retry_after ?? 1
+        if (attempt < MAX_RETRIES) {
+          await this.sleep(retryAfter * 1000)
+          continue
+        }
+        throw new TelegramBotError(body.description ?? 'Rate limited', 'rate_limited')
+      }
+
+      if (response.status >= 500 && attempt < MAX_RETRIES) {
+        await this.sleep(BASE_BACKOFF_MS * 2 ** attempt)
+        continue
+      }
+
+      if (!body.ok) {
+        this.throwApiError(method, body)
+      }
+
+      if (body.result === undefined) {
+        return undefined as T
+      }
+      return body.result
+    }
+
+    throw lastError ?? new TelegramBotError('Request failed after retries', 'max_retries')
+  }
+
+  async getMe(): Promise<TelegramBotUser> {
+    return this.call<TelegramBotUser>('getMe')
+  }
+
+  async getChat(chatId: ChatId): Promise<TelegramChatFullInfo> {
+    return this.call<TelegramChatFullInfo>('getChat', { chat_id: chatId })
+  }
+
+  async getChatMember(chatId: ChatId, userId: number): Promise<TelegramChatMember> {
+    return this.call<TelegramChatMember>('getChatMember', { chat_id: chatId, user_id: userId })
+  }
+
+  async getChatMemberCount(chatId: ChatId): Promise<number> {
+    return this.call<number>('getChatMemberCount', { chat_id: chatId })
+  }
+
+  async sendMessage(chatId: ChatId, text: string, options?: SendMessageOptions): Promise<TelegramMessage> {
+    return this.call<TelegramMessage>('sendMessage', { chat_id: chatId, text, ...options })
+  }
+
+  async sendPhoto(
+    chatId: ChatId,
+    photo: string,
+    options?: { caption?: string; parse_mode?: SendMessageOptions['parse_mode'] },
+  ): Promise<TelegramMessage> {
+    return this.call<TelegramMessage>('sendPhoto', { chat_id: chatId, photo, ...options })
+  }
+
+  async sendDocument(
+    chatId: ChatId,
+    filePath: string,
+    options?: { caption?: string; parse_mode?: SendMessageOptions['parse_mode'] },
+  ): Promise<TelegramMessage> {
+    const fileBuffer = await readFile(filePath)
+    const filename = filePath.split('/').pop() || 'file'
+
+    const formData = new FormData()
+    formData.append('chat_id', String(chatId))
+    formData.append('document', new Blob([new Uint8Array(fileBuffer)]), filename)
+    if (options?.caption !== undefined) formData.append('caption', options.caption)
+    if (options?.parse_mode !== undefined) formData.append('parse_mode', options.parse_mode)
+
+    return this.callMultipart<TelegramMessage>('sendDocument', formData)
+  }
+
+  async forwardMessage(
+    chatId: ChatId,
+    fromChatId: ChatId,
+    messageId: number,
+    options?: { disable_notification?: boolean; protect_content?: boolean; message_thread_id?: number },
+  ): Promise<TelegramMessage> {
+    return this.call<TelegramMessage>('forwardMessage', {
+      chat_id: chatId,
+      from_chat_id: fromChatId,
+      message_id: messageId,
+      ...options,
+    })
+  }
+
+  async editMessageText(
+    chatId: ChatId,
+    messageId: number,
+    text: string,
+    options?: SendMessageOptions,
+  ): Promise<TelegramMessage> {
+    return this.call<TelegramMessage>('editMessageText', {
+      chat_id: chatId,
+      message_id: messageId,
+      text,
+      ...options,
+    })
+  }
+
+  async deleteMessage(chatId: ChatId, messageId: number): Promise<boolean> {
+    return this.call<boolean>('deleteMessage', { chat_id: chatId, message_id: messageId })
+  }
+
+  async setMessageReaction(
+    chatId: ChatId,
+    messageId: number,
+    reaction: TelegramReactionType[],
+    options?: { is_big?: boolean },
+  ): Promise<boolean> {
+    return this.call<boolean>('setMessageReaction', {
+      chat_id: chatId,
+      message_id: messageId,
+      reaction,
+      ...options,
+    })
+  }
+
+  async getUpdates(options?: GetUpdatesOptions, signal?: AbortSignal): Promise<TelegramUpdate[]> {
+    const params: Record<string, unknown> = {}
+    if (options?.offset !== undefined) params.offset = options.offset
+    if (options?.limit !== undefined) params.limit = options.limit
+    if (options?.timeout !== undefined) params.timeout = options.timeout
+    if (options?.allowed_updates !== undefined) params.allowed_updates = options.allowed_updates
+    return this.call<TelegramUpdate[]>('getUpdates', params, signal)
+  }
+
+  async deleteWebhook(options?: { drop_pending_updates?: boolean }): Promise<boolean> {
+    return this.call<boolean>('deleteWebhook', options)
+  }
+
+  async setWebhook(url: string, options?: Record<string, unknown>): Promise<boolean> {
+    return this.call<boolean>('setWebhook', { url, ...options })
+  }
+
+  async resolveChatId(chat: ChatId): Promise<ChatId> {
+    if (typeof chat === 'number') return chat
+    if (/^-?\d+$/.test(chat)) return Number(chat)
+    if (chat.startsWith('@')) return chat
+    return `@${chat}`
+  }
+
+  formatChat(chat: TelegramChat): { id: number; type: string; name: string } {
+    const name =
+      chat.title ?? [chat.first_name, chat.last_name].filter(Boolean).join(' ') ?? chat.username ?? String(chat.id)
+    return { id: chat.id, type: chat.type, name }
+  }
+}
