@@ -436,7 +436,7 @@ describe('TelegramBotClient', () => {
   })
 
   describe('5xx retry', () => {
-    it('retries 502 with non-JSON body before failing', async () => {
+    it('retries 502 with non-JSON body and succeeds on next attempt', async () => {
       fetchResponses.push(
         new Response('<html>502 Bad Gateway</html>', {
           status: 502,

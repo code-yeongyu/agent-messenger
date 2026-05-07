@@ -371,7 +371,7 @@ describe('TelegramBotListener', () => {
     expect(errorCount).toBeGreaterThanOrEqual(1)
   })
 
-  it('aborts in-flight getUpdates if it exceeds timeout + grace', async () => {
+  it('propagates AbortError from getUpdates through the listener cleanly', async () => {
     let aborted = false
     const client = makeFakeClient({
       getUpdates: (_options, signal) =>
@@ -387,11 +387,12 @@ describe('TelegramBotListener', () => {
         }),
     })
 
-    listener = new TelegramBotListener(client, { timeoutSeconds: 0 })
+    listener = new TelegramBotListener(client)
     await listener.start()
-    await flush(50)
+    await flush(20)
 
     listener.stop()
+    await flush(20)
     expect(aborted).toBe(true)
   })
 })

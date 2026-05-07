@@ -122,6 +122,20 @@ describe('auth commands', () => {
 
       expect(result.error).toContain('Unauthorized')
     })
+
+    it('returns error when login itself fails', async () => {
+      const manager = new TelegramBotCredentialManager(tempDir)
+      const result = await setAction('bad', {
+        _credManager: manager,
+        _clientFactory: () =>
+          createMockClient({
+            loginError: new Error('Token is required'),
+          }),
+      })
+
+      expect(result.error).toBe('Token is required')
+      expect(await manager.getCredentials()).toBeNull()
+    })
   })
 
   describe('clearAction', () => {
