@@ -56,7 +56,7 @@ Registers the CLI as a sub-device (tablet slot by default). Your desktop app kee
 agent-kakaotalk auth login
 ```
 
-In interactive mode, this prompts for email and password. The CLI first tries to extract cached credentials from the desktop app so you may not need to type anything.
+In interactive mode, this prompts for email and password. On macOS and Windows, the CLI first tries to extract cached credentials from the desktop app so you may not need to type anything. On Linux there is no desktop app, so always pass credentials explicitly via `--email` and `--password` (or `--password-file`).
 
 For AI agents (non-interactive), provide credentials via flags:
 
@@ -488,8 +488,7 @@ See the [KakaoTalk SDK documentation](https://agent-messenger.dev/docs/sdk/kakao
 
 ## Limitations
 
-- macOS and Windows only (desktop app needed for auto-extracting email/password during login)
-- No Linux support (KakaoTalk desktop not available on Linux)
+- Auto-extraction of email/password from the desktop app is **macOS and Windows only** (KakaoTalk desktop is not available on Linux). Linux users must pass `--email` and `--password` (or `--password-file`) explicitly — the LOCO protocol, login flow, and all messaging features work on Linux.
 - No file upload or download
 - No channel/chat room creation or management
 - No friend list management
@@ -526,7 +525,15 @@ pnpm dlx --package agent-messenger agent-kakaotalk chat list --pretty
 
 ### Password prompt on fresh install
 
-On fresh installs, the desktop app (macOS or Windows) may hash or omit the password from its cache, so the CLI cannot extract it automatically. The CLI will prompt for the password once to register the device — via a native dialog on macOS (AppKit) and Windows (PowerShell WinForms), or via a TTY prompt if a terminal is available. After registration, the password is never needed again.
+On fresh installs, the desktop app (macOS or Windows) may hash or omit the password from its cache, so the CLI cannot extract it automatically. The CLI will prompt for the password once to register the device — via a native dialog on macOS (AppKit), Windows (PowerShell WinForms), or Linux (`zenity` / `kdialog`), or via a TTY prompt if a terminal is available. After registration, the password is never needed again.
+
+On Linux there is no desktop app to extract from, so always provide credentials explicitly:
+
+```bash
+agent-kakaotalk auth login --email user@example.com --password-file /tmp/.kakao-pw
+```
+
+`--password-file` reads the file then immediately deletes it, so the password never appears in shell history or process listings.
 
 When the CLI returns `{"next_action": "run_interactive", ...}`, use a tmux session to let the user type their password securely. See "Handling `run_interactive`" above for the exact steps.
 
