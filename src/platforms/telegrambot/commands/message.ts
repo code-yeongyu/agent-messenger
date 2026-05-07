@@ -69,10 +69,13 @@ export async function updateAction(
 ): Promise<MessageResult> {
   try {
     const client = await getClient(options)
-    const message = await client.editMessageText(parseChatId(chat), Number(messageId), text, {
+    const result = await client.editMessageText({ chat_id: parseChatId(chat), message_id: Number(messageId) }, text, {
       parse_mode: options.parseMode,
     })
-    return { message: formatMessage(message) }
+    if (result === true) {
+      return { message: { message_id: Number(messageId), chat_id: 0, text, date: 0 } }
+    }
+    return { message: formatMessage(result) }
   } catch (error) {
     return { error: (error as Error).message }
   }

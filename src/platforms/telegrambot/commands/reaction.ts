@@ -2,7 +2,7 @@ import { Command } from 'commander'
 
 import { cliOutput } from '@/shared/utils/cli-output'
 
-import type { TelegramReactionType } from '../types'
+import type { BotReactionType } from '../client'
 import type { BotOption } from './shared'
 import { getClient, parseChatId } from './shared'
 
@@ -22,7 +22,7 @@ export async function setAction(
 ): Promise<ReactionResult> {
   try {
     const client = await getClient(options)
-    const reaction: TelegramReactionType[] = [{ type: 'emoji', emoji }]
+    const reaction: BotReactionType[] = [{ type: 'emoji', emoji }]
     await client.setMessageReaction(parseChatId(chat), Number(messageId), reaction, {
       is_big: options.big,
     })

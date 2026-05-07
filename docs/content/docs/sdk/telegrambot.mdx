@@ -49,8 +49,11 @@ const msg = await client.sendMessage(chatId, 'Hello', {
   disable_notification: true,
 })
 
-// Edit
-await client.editMessageText(chatId, msg.message_id, 'Edited text')
+// Edit a chat message
+await client.editMessageText({ chat_id: chatId, message_id: msg.message_id }, 'Edited text')
+
+// Edit an inline-mode message (returned by inline query results)
+await client.editMessageText({ inline_message_id: 'abc123' }, 'Edited text')
 
 // Delete
 await client.deleteMessage(chatId, msg.message_id)
