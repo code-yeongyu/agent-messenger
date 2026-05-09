@@ -55,6 +55,8 @@ agent-kakaotalk message send "$TARGET_CHAT" "Hey Alice!"
 
 **When to use**: First time interacting with a chat, or when the user references a chat by name.
 
+> Note: `display_name` joins the chat's member nicknames. For the user-set room title (matching the KakaoTalk app), see [Pattern 9](#pattern-9-resolve-canonical-room-titles).
+
 ## Pattern 3: Monitor Chat for New Messages
 
 **Use case**: Watch a chat room and respond to new messages
@@ -221,7 +223,53 @@ echo "$UNREAD" | jq -r '.[] | "  \(.display_name // "Unknown") — \(.unread_cou
 
 **When to use**: Morning catch-up, checking for urgent messages, triage.
 
-## Pattern 9: Error Handling and Retry
+## Pattern 9: Resolve Canonical Room Titles
+
+**Use case**: Show user-set room names (matching the official KakaoTalk app) instead of comma-joined member nicknames
+
+By default, `chat list` returns `display_name` built from the chat's "display members" (a comma-joined nickname list — e.g. `"Alice, Bob, Charlie"`). The `--resolve-titles` flag fetches each chat's user-set title via the LOCO `CHATINFO` command and surfaces it in a separate `title` field.
+
+For open chats (`OM` / `OD`) without a user-set title, the CLI additionally consults the OpenLink record via `INFOLINK` and uses the link name as a fallback. This matches what KakaoTalk shows for open-chat rooms in the app sidebar.
+
+```bash
+#!/bin/bash
+
+# Without --resolve-titles: title is null, display_name is member nicknames
+agent-kakaotalk chat list | jq '.[0] | {chat_id, display_name, title}'
+# {
+#   "chat_id": "9876543210",
+#   "display_name": "Alice, Bob, Charlie",
+#   "title": null
+# }
+
+# With --resolve-titles: title is the user-set room name
+agent-kakaotalk chat list --resolve-titles | jq '.[0] | {chat_id, display_name, title}'
+# {
+#   "chat_id": "9876543210",
+#   "display_name": "Alice, Bob, Charlie",
+#   "title": "Project Standup"
+# }
+
+# Render the best available name (title preferred, display_name fallback)
+agent-kakaotalk chat list --resolve-titles \
+  | jq -r '.[] | "\(.chat_id): \(.title // .display_name // "Untitled")"'
+```
+
+**When to use**: User-facing chat pickers, room-name displays in summaries, anywhere you want output that matches what the user sees in the KakaoTalk app.
+
+**Cost**: One extra LOCO call per chat (CHATINFO). Open chats without a user-set title pay one additional call (INFOLINK). For large account snapshots this multiplies quickly — leave the flag off for hot paths.
+
+**SDK equivalent**:
+
+```typescript
+// Resolve titles for the whole list
+const chats = await client.getChats({ resolveTitles: true })
+
+// Single-chat lookup (returns null on error or missing title)
+const title = await client.getChatTitle('9876543210')
+```
+
+## Pattern 10: Error Handling and Retry
 
 **Use case**: Robust message sending with retries
 
