@@ -329,6 +329,29 @@ function nullableNumber(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null
 }
 
+function isNonZeroLong(v: unknown): boolean {
+  if (typeof v === 'number') return v !== 0
+  if (v && typeof v === 'object' && 'low' in v && 'high' in v) {
+    const { low, high } = v as { low: number; high: number }
+    return low !== 0 || high !== 0
+  }
+  return v !== undefined && v !== null
+}
+
+// Reject synthetic LocoConnection close packets ({ statusCode: -1, body.error: 'connection closed' })
+// and explicit body-level failures. Required for any SDK method whose response body has no
+// caller-visible error channel (e.g. GETMEM/MEMBER return `[]` for both empty rooms and dead
+// sockets). Throwing here lets executeWithReconnect detect session death and reconnect.
+function assertLocoOk(response: LocoPacket, command: string): void {
+  if (response.statusCode !== 0) {
+    throw new Error(`${command} failed: statusCode=${response.statusCode}`)
+  }
+  const bodyStatus = response.body.status
+  if (typeof bodyStatus === 'number' && bodyStatus !== 0) {
+    throw new Error(`${command} failed: body.status=${bodyStatus}`)
+  }
+}
+
 function formatMember(member: Record<string, unknown>): KakaoMember {
   return {
     user_id: longToString(member.userId),
@@ -338,9 +361,9 @@ function formatMember(member: Record<string, unknown>): KakaoMember {
     original_profile_image_url: nullableString(member.originalProfileImageUrl ?? member.opi),
     status_message: nullableString(member.statusMessage),
     country_iso: nullableString(member.countryIso),
-    user_type: typeof member.type === 'number' ? member.type : 0,
+    user_type: nullableNumber(member.type),
     open_token: nullableNumber(member.opt),
-    open_profile_link_id: member.pli !== undefined && member.pli !== null ? longToString(member.pli) : null,
+    open_profile_link_id: isNonZeroLong(member.pli) ? longToString(member.pli) : null,
     open_permission: nullableNumber(member.mt),
   }
 }
@@ -775,6 +798,7 @@ export class KakaoTalkClient {
     return this.executeWithReconnect(async ({ session }) => {
       try {
         const response = await session.getAllMembers(parseLong(chatId))
+        assertLocoOk(response, 'GETMEM')
         const members = (response.body.members ?? []) as Array<Record<string, unknown>>
         return members.map(formatMember)
       } catch (error) {
@@ -788,6 +812,7 @@ export class KakaoTalkClient {
       try {
         const memberIds = userIds.map((id) => parseLong(id))
         const response = await session.getMembersByIds(parseLong(chatId), memberIds)
+        assertLocoOk(response, 'MEMBER')
         const members = (response.body.members ?? []) as Array<Record<string, unknown>>
         return members.map(formatMember)
       } catch (error) {

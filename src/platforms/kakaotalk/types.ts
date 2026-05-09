@@ -101,7 +101,7 @@ export interface KakaoMember {
   original_profile_image_url: string | null
   status_message: string | null
   country_iso: string | null
-  user_type: number
+  user_type: number | null
   open_token: number | null
   open_profile_link_id: string | null
   open_permission: number | null
@@ -149,7 +149,7 @@ export const KakaoMemberSchema = z.object({
   original_profile_image_url: z.string().nullable(),
   status_message: z.string().nullable(),
   country_iso: z.string().nullable(),
-  user_type: z.number(),
+  user_type: z.number().nullable(),
   open_token: z.number().nullable(),
   open_profile_link_id: z.string().nullable(),
   open_permission: z.number().nullable(),
