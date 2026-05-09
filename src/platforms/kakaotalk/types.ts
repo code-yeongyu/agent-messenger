@@ -73,6 +73,7 @@ export interface KakaoChat {
   chat_id: string
   type: number
   display_name: string | null
+  title: string | null
   active_members: number
   unread_count: number
   last_message: {
@@ -102,6 +103,7 @@ export const KakaoChatSchema = z.object({
   chat_id: z.string(),
   type: z.number(),
   display_name: z.string().nullable(),
+  title: z.string().nullable(),
   active_members: z.number(),
   unread_count: z.number(),
   last_message: z

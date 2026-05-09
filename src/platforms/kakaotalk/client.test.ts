@@ -7,6 +7,7 @@ const mockLogin = mock(() => Promise.resolve({}))
 const mockGetChatList = mock(() => Promise.resolve({}))
 const mockGetChatLogs = mock(() => Promise.resolve({}))
 const mockGetChatInfo = mock(() => Promise.resolve({}))
+const mockGetChannelInfo = mock(() => Promise.resolve({}))
 const mockSyncMessages = mock(() => Promise.resolve({}))
 const mockSendMessage = mock(() => Promise.resolve({}))
 const mockClose = mock(() => {})
@@ -19,6 +20,7 @@ mock.module('./protocol/session', () => ({
     getChatList = mockGetChatList
     getChatLogs = mockGetChatLogs
     getChatInfo = mockGetChatInfo
+    getChannelInfo = mockGetChannelInfo
     syncMessages = mockSyncMessages
     sendMessage = mockSendMessage
     close = mockClose
@@ -36,6 +38,7 @@ function resetAllMocks() {
   mockGetChatList.mockReset()
   mockGetChatLogs.mockReset()
   mockGetChatInfo.mockReset()
+  mockGetChannelInfo.mockReset()
   mockSyncMessages.mockReset()
   mockSendMessage.mockReset()
   mockClose.mockReset()
@@ -123,6 +126,7 @@ describe('KakaoTalkClient', () => {
 
       expect(chats).toHaveLength(2)
       expect(chats[0].display_name).toBe('Alice, Bob')
+      expect(chats[0].title).toBeNull()
       expect(chats[0].active_members).toBe(2)
       expect(chats[0].unread_count).toBe(3)
       expect(chats[0].last_message).toEqual({
@@ -131,7 +135,92 @@ describe('KakaoTalkClient', () => {
         sent_at: 1700000000,
       })
       expect(chats[1].display_name).toBe('Charlie')
+      expect(chats[1].title).toBeNull()
       expect(chats[1].last_message).toBeNull()
+
+      client.close()
+    })
+
+    it('does not call CHATINFO when resolveTitles is not set (default behavior preserved)', async () => {
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      await client.getChats()
+
+      expect(mockGetChannelInfo).not.toHaveBeenCalled()
+
+      client.close()
+    })
+
+    it('resolves user-set titles via CHATINFO when resolveTitles=true', async () => {
+      mockGetChannelInfo.mockResolvedValueOnce({
+        body: {
+          chatInfo: {
+            chatMetas: [
+              { type: 1, content: '{"notice":"hello"}', revision: makeLong(1), updatedAt: 0 },
+              { type: 3, content: 'Renamed Chat', revision: makeLong(2), updatedAt: 0 },
+            ],
+          },
+        },
+      })
+      mockGetChannelInfo.mockResolvedValueOnce({
+        body: {
+          chatInfo: {
+            chatMetas: [],
+          },
+        },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const chats = await client.getChats({ resolveTitles: true })
+
+      expect(mockGetChannelInfo).toHaveBeenCalledTimes(2)
+      expect(chats[0].title).toBe('Renamed Chat')
+      expect(chats[0].display_name).toBe('Alice, Bob')
+      expect(chats[1].title).toBeNull()
+      expect(chats[1].display_name).toBe('Charlie')
+
+      client.close()
+    })
+
+    it('returns null title when chatInfo or chatMetas is missing', async () => {
+      mockGetChannelInfo.mockResolvedValue({ body: {} })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const chats = await client.getChats({ resolveTitles: true })
+
+      for (const chat of chats) {
+        expect(chat.title).toBeNull()
+      }
+
+      client.close()
+    })
+
+    it('swallows CHATINFO failures and returns null title (does not poison list)', async () => {
+      mockGetChannelInfo.mockRejectedValueOnce(new Error('CHATINFO timed out'))
+      mockGetChannelInfo.mockResolvedValueOnce({
+        body: { chatInfo: { chatMetas: [{ type: 3, content: 'OK Title' }] } },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const chats = await client.getChats({ resolveTitles: true })
+
+      expect(chats).toHaveLength(2)
+      expect(chats[0].title).toBeNull()
+      expect(chats[1].title).toBe('OK Title')
+
+      client.close()
+    })
+
+    it('ignores empty-string title content and returns null', async () => {
+      mockGetChannelInfo.mockResolvedValue({
+        body: { chatInfo: { chatMetas: [{ type: 3, content: '' }] } },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const chats = await client.getChats({ resolveTitles: true })
+
+      for (const chat of chats) {
+        expect(chat.title).toBeNull()
+      }
 
       client.close()
     })
@@ -303,6 +392,31 @@ describe('KakaoTalkClient', () => {
       } catch (e) {
         expect((e as KakaoTalkError).code).toBe('login_failed')
       }
+
+      client.close()
+    })
+
+    it('exposes getChatTitle() for single-chat title resolution', async () => {
+      mockGetChannelInfo.mockResolvedValueOnce({
+        body: { chatInfo: { chatMetas: [{ type: 3, content: 'Direct Lookup' }] } },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const title = await client.getChatTitle('100')
+
+      expect(title).toBe('Direct Lookup')
+      expect(mockGetChannelInfo).toHaveBeenCalledTimes(1)
+
+      client.close()
+    })
+
+    it('getChatTitle() returns null on CHATINFO failure', async () => {
+      mockGetChannelInfo.mockRejectedValueOnce(new Error('Network error'))
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const title = await client.getChatTitle('100')
+
+      expect(title).toBeNull()
 
       client.close()
     })

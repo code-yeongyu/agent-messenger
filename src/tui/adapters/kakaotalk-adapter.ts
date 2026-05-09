@@ -29,7 +29,7 @@ export class KakaoTalkAdapter implements PlatformAdapter {
     const chats = await client.getChats()
     return chats.map((chat) => ({
       id: chat.chat_id,
-      name: chat.display_name || `Chat ${chat.chat_id}`,
+      name: chat.title || chat.display_name || `Chat ${chat.chat_id}`,
     }))
   }
 

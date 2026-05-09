@@ -149,6 +149,17 @@ export class LocoSession {
     return this.connection.sendPacket('CHATONROOM', { chatId })
   }
 
+  /**
+   * Fetch detailed channel info (CHATINFO). Unlike CHATONROOM, this returns
+   * a `chatInfo` sub-document containing `chatMetas` (room title, notice, etc.)
+   * and `displayMembers` (user_id ↔ nickname pairs). Used to resolve the
+   * canonical user-set room title.
+   */
+  async getChannelInfo(chatId: Long): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    return this.connection.sendPacket('CHATINFO', { chatId })
+  }
+
   async getChatList(lastTokenId?: Long, lastChatId?: Long): Promise<LocoPacket> {
     if (!this.connection) throw new Error('Not connected')
     return this.connection.sendPacket('LCHATLIST', {
