@@ -9,6 +9,8 @@ const mockGetChatLogs = mock(() => Promise.resolve({}))
 const mockGetChatInfo = mock(() => Promise.resolve({}))
 const mockGetChannelInfo = mock(() => Promise.resolve({}))
 const mockGetOpenLinkInfo = mock(() => Promise.resolve({}))
+const mockGetAllMembers = mock(() => Promise.resolve({}))
+const mockGetMembersByIds = mock(() => Promise.resolve({}))
 const mockSyncMessages = mock(() => Promise.resolve({}))
 const mockSendMessage = mock(() => Promise.resolve({}))
 const mockClose = mock(() => {})
@@ -23,6 +25,8 @@ mock.module('./protocol/session', () => ({
     getChatInfo = mockGetChatInfo
     getChannelInfo = mockGetChannelInfo
     getOpenLinkInfo = mockGetOpenLinkInfo
+    getAllMembers = mockGetAllMembers
+    getMembersByIds = mockGetMembersByIds
     syncMessages = mockSyncMessages
     sendMessage = mockSendMessage
     close = mockClose
@@ -42,6 +46,8 @@ function resetAllMocks() {
   mockGetChatInfo.mockReset()
   mockGetChannelInfo.mockReset()
   mockGetOpenLinkInfo.mockReset()
+  mockGetAllMembers.mockReset()
+  mockGetMembersByIds.mockReset()
   mockSyncMessages.mockReset()
   mockSendMessage.mockReset()
   mockClose.mockReset()
@@ -814,6 +820,116 @@ describe('KakaoTalkClient', () => {
       } catch (e) {
         expect((e as KakaoTalkError).code).toBe('send_message_failed')
       }
+
+      client.close()
+    })
+  })
+
+  describe('getMembers / getMembersByIds', () => {
+    it('returns formatted members from GETMEM with normalized fields', async () => {
+      mockGetAllMembers.mockResolvedValueOnce({
+        body: {
+          members: [
+            {
+              userId: makeLong(42),
+              nickName: 'Alice',
+              type: 100,
+              profileImageUrl: 'https://kakao.com/p/alice.jpg',
+              fullProfileImageUrl: 'https://kakao.com/p/alice-full.jpg',
+              originalProfileImageUrl: 'https://kakao.com/p/alice-orig.jpg',
+              statusMessage: 'hi',
+              countryIso: 'KR',
+            },
+            {
+              userId: makeLong(43),
+              nickName: 'Bob',
+              type: 1000,
+              pi: 'https://kakao.com/p/bob.jpg',
+              fpi: 'https://kakao.com/p/bob-full.jpg',
+              opi: 'https://kakao.com/p/bob-orig.jpg',
+              opt: 12345,
+              pli: makeLong(99),
+              mt: 4,
+            },
+          ],
+          token: 0,
+        },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const members = await client.getMembers('100')
+
+      expect(members).toHaveLength(2)
+      expect(members[0]).toEqual({
+        user_id: '42',
+        nickname: 'Alice',
+        profile_image_url: 'https://kakao.com/p/alice.jpg',
+        full_profile_image_url: 'https://kakao.com/p/alice-full.jpg',
+        original_profile_image_url: 'https://kakao.com/p/alice-orig.jpg',
+        status_message: 'hi',
+        country_iso: 'KR',
+        user_type: 100,
+        open_token: null,
+        open_profile_link_id: null,
+        open_permission: null,
+      })
+      expect(members[1]).toEqual({
+        user_id: '43',
+        nickname: 'Bob',
+        profile_image_url: 'https://kakao.com/p/bob.jpg',
+        full_profile_image_url: 'https://kakao.com/p/bob-full.jpg',
+        original_profile_image_url: 'https://kakao.com/p/bob-orig.jpg',
+        status_message: null,
+        country_iso: null,
+        user_type: 1000,
+        open_token: 12345,
+        open_profile_link_id: '99',
+        open_permission: 4,
+      })
+
+      client.close()
+    })
+
+    it('returns empty array when GETMEM returns no members', async () => {
+      mockGetAllMembers.mockResolvedValueOnce({ body: {} })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const members = await client.getMembers('100')
+
+      expect(members).toEqual([])
+
+      client.close()
+    })
+
+    it('wraps GETMEM failures as KakaoTalkError get_members_failed', async () => {
+      mockGetAllMembers.mockRejectedValueOnce(new Error('Network error'))
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      try {
+        await client.getMembers('100')
+        expect.unreachable('should have thrown')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('get_members_failed')
+      }
+
+      client.close()
+    })
+
+    it('getMembersByIds passes parsed Long IDs to MEMBER request', async () => {
+      mockGetMembersByIds.mockResolvedValueOnce({
+        body: {
+          chatId: makeLong(100),
+          members: [{ userId: makeLong(42), nickName: 'Alice', type: 100 }],
+        },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const members = await client.getMembersByIds('100', ['42'])
+
+      expect(members).toHaveLength(1)
+      expect(members[0].nickname).toBe('Alice')
+      expect(mockGetMembersByIds).toHaveBeenCalledTimes(1)
 
       client.close()
     })

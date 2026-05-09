@@ -71,6 +71,19 @@ const newer = await client.getMessages('9876543210', { from: '123456789' })
 
 Each `KakaoMessage` carries an `author_name: string | null`. The SDK auto-populates this from the same chat-list response that already arrives at login (no extra LOCO calls). It resolves for "display members" — the small set of nicknames KakaoTalk includes in the chat list — and is `null` for everyone else.
 
+### Members
+
+```typescript
+// List all members of a chat (LOCO GETMEM)
+const members = await client.getMembers('9876543210')
+// → KakaoMember[]
+
+// Resolve a specific subset by user_id (LOCO MEMBER) — useful for >100-member rooms
+const subset = await client.getMembersByIds('9876543210', ['1234567890', '9876543210'])
+```
+
+Each `KakaoMember` includes `user_id`, `nickname`, profile image URLs, `status_message`, `country_iso`, `user_type`, and open-chat-only fields (`open_token`, `open_profile_link_id`, `open_permission`).
+
 ### Sending
 
 ```typescript
@@ -183,6 +196,7 @@ await manager.setCurrentAccount('1234567890')
 ```typescript
 import type {
   KakaoChat,
+  KakaoMember,
   KakaoMessage,
   KakaoSendResult,
   KakaoAccountCredentials,
@@ -199,6 +213,7 @@ Runtime-validated schemas are also exported for parsing API responses:
 ```typescript
 import {
   KakaoChatSchema,
+  KakaoMemberSchema,
   KakaoMessageSchema,
   KakaoSendResultSchema,
   KakaoAccountCredentialsSchema,

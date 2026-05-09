@@ -171,6 +171,28 @@ export class LocoSession {
     return this.connection.sendPacket('INFOLINK', { lis: linkIds })
   }
 
+  /**
+   * Fetch the full member list for a chat (GETMEM). Response body has shape
+   * `{ members: NormalMemberStruct[] | OpenMemberStruct[], token: number }`.
+   * Use this to resolve nicknames for users not present in the chat list's
+   * "display members" cache — necessary for groups with more than ~5 members.
+   */
+  async getAllMembers(chatId: Long): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    return this.connection.sendPacket('GETMEM', { chatId })
+  }
+
+  /**
+   * Fetch info for a specific subset of members in a chat (MEMBER). Response
+   * body has shape `{ chatId, members: NormalMemberStruct[] | OpenMemberStruct[] }`.
+   * Useful when you already have user IDs (e.g. from a CHATONROOM `mi` array
+   * for >100-member rooms) and only need to resolve a few of them.
+   */
+  async getMembersByIds(chatId: Long, memberIds: Long[]): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    return this.connection.sendPacket('MEMBER', { chatId, memberIds })
+  }
+
   async getChatList(lastTokenId?: Long, lastChatId?: Long): Promise<LocoPacket> {
     if (!this.connection) throw new Error('Not connected')
     return this.connection.sendPacket('LCHATLIST', {

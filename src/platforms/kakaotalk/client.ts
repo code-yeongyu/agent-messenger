@@ -10,7 +10,7 @@ import { warn } from '@/shared/utils/stderr'
 import { LANG, PC_OS_NAME, getLocoDeviceConfig } from './protocol/config'
 import { LocoSession } from './protocol/session'
 import type { ChatListResponse, LocoPacket, LoginListResponse, SyncState } from './protocol/types'
-import type { KakaoChat, KakaoDeviceType, KakaoMessage, KakaoProfile, KakaoSendResult } from './types'
+import type { KakaoChat, KakaoDeviceType, KakaoMember, KakaoMessage, KakaoProfile, KakaoSendResult } from './types'
 
 export type KakaoSessionEvent =
   | { type: 'connected'; userId: string }
@@ -319,6 +319,30 @@ function mergeSyncState(previous: SyncState | undefined, loginResult: LoginListR
   }
 
   return next
+}
+
+function nullableString(v: unknown): string | null {
+  return typeof v === 'string' && v.length > 0 ? v : null
+}
+
+function nullableNumber(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null
+}
+
+function formatMember(member: Record<string, unknown>): KakaoMember {
+  return {
+    user_id: longToString(member.userId),
+    nickname: typeof member.nickName === 'string' ? member.nickName : '',
+    profile_image_url: nullableString(member.profileImageUrl ?? member.pi),
+    full_profile_image_url: nullableString(member.fullProfileImageUrl ?? member.fpi),
+    original_profile_image_url: nullableString(member.originalProfileImageUrl ?? member.opi),
+    status_message: nullableString(member.statusMessage),
+    country_iso: nullableString(member.countryIso),
+    user_type: typeof member.type === 'number' ? member.type : 0,
+    open_token: nullableNumber(member.opt),
+    open_profile_link_id: member.pli !== undefined && member.pli !== null ? longToString(member.pli) : null,
+    open_permission: nullableNumber(member.mt),
+  }
 }
 
 function formatMessages(
@@ -743,6 +767,31 @@ export class KakaoTalkClient {
         return formatMessages(allMessages, count, chatId, this.nameCache)
       } catch (error) {
         throw wrapError(error, 'get_messages_failed')
+      }
+    })
+  }
+
+  async getMembers(chatId: string): Promise<KakaoMember[]> {
+    return this.executeWithReconnect(async ({ session }) => {
+      try {
+        const response = await session.getAllMembers(parseLong(chatId))
+        const members = (response.body.members ?? []) as Array<Record<string, unknown>>
+        return members.map(formatMember)
+      } catch (error) {
+        throw wrapError(error, 'get_members_failed')
+      }
+    })
+  }
+
+  async getMembersByIds(chatId: string, userIds: string[]): Promise<KakaoMember[]> {
+    return this.executeWithReconnect(async ({ session }) => {
+      try {
+        const memberIds = userIds.map((id) => parseLong(id))
+        const response = await session.getMembersByIds(parseLong(chatId), memberIds)
+        const members = (response.body.members ?? []) as Array<Record<string, unknown>>
+        return members.map(formatMember)
+      } catch (error) {
+        throw wrapError(error, 'get_members_failed')
       }
     })
   }
