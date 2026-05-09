@@ -67,6 +67,8 @@ const more = await client.getMessages('9876543210', { count: 100 })
 const newer = await client.getMessages('9876543210', { from: '123456789' })
 ```
 
+Each `KakaoMessage` carries an `author_name: string | null`. The SDK auto-populates this from the same chat-list response that already arrives at login (no extra LOCO calls). It resolves for "display members" — the small set of nicknames KakaoTalk includes in the chat list — and is `null` for everyone else.
+
 ### Sending
 
 ```typescript

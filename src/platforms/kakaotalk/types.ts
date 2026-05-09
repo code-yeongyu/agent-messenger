@@ -78,6 +78,7 @@ export interface KakaoChat {
   unread_count: number
   last_message: {
     author_id: number
+    author_name: string | null
     message: string
     sent_at: number
   } | null
@@ -87,6 +88,7 @@ export interface KakaoMessage {
   log_id: string
   type: number
   author_id: number
+  author_name: string | null
   message: string
   sent_at: number
 }
@@ -109,6 +111,7 @@ export const KakaoChatSchema = z.object({
   last_message: z
     .object({
       author_id: z.number(),
+      author_name: z.string().nullable(),
       message: z.string(),
       sent_at: z.number(),
     })
@@ -119,6 +122,7 @@ export const KakaoMessageSchema = z.object({
   log_id: z.string(),
   type: z.number(),
   author_id: z.number(),
+  author_name: z.string().nullable(),
   message: z.string(),
   sent_at: z.number(),
 })
@@ -185,6 +189,7 @@ export interface KakaoTalkPushMessageEvent {
   chat_id: string
   log_id: string
   author_id: number
+  author_name: string | null
   message: string
   message_type: number
   sent_at: number
@@ -230,6 +235,7 @@ export const KakaoTalkPushMessageEventSchema = z.object({
   chat_id: z.string(),
   log_id: z.string(),
   author_id: z.number(),
+  author_name: z.string().nullable(),
   message: z.string(),
   message_type: z.number(),
   sent_at: z.number(),

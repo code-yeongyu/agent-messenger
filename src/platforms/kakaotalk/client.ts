@@ -37,6 +37,58 @@ interface SessionState {
   loginResult: LoginListResponse
 }
 
+class MemberNameCache {
+  private byChatId = new Map<string, Map<number, string>>()
+
+  ingest(chatDatas: readonly ChatData[]): void {
+    for (const chat of chatDatas) {
+      const ids = chat.i as Array<{ low: number; high: number } | number> | undefined
+      const names = chat.k as string[] | undefined
+      if (!Array.isArray(ids) || !Array.isArray(names)) continue
+
+      const chatId = String(chat.c)
+      let map = this.byChatId.get(chatId)
+      if (!map) {
+        map = new Map()
+        this.byChatId.set(chatId, map)
+      }
+
+      const len = Math.min(ids.length, names.length)
+      for (let i = 0; i < len; i++) {
+        const numericId = toNumericUserId(ids[i])
+        if (numericId === null) continue
+        const name = names[i]
+        if (typeof name === 'string' && name.length > 0) {
+          map.set(numericId, name)
+        }
+      }
+    }
+  }
+
+  lookup(chatId: string, userId: number): string | null {
+    return this.byChatId.get(chatId)?.get(userId) ?? null
+  }
+
+  forget(chatId: string): void {
+    this.byChatId.delete(chatId)
+  }
+
+  clear(): void {
+    this.byChatId.clear()
+  }
+}
+
+function toNumericUserId(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null
+  if (v && typeof v === 'object' && 'low' in v && 'high' in v) {
+    const { low, high } = v as { low: number; high: number }
+    // chatDatas[].i entries are member user IDs. KakaoTalk user IDs fit in
+    // 53 bits — safe to flatten the BSON Long pair to a JS number for keying.
+    return (high >>> 0) * 0x100000000 + (low >>> 0)
+  }
+  return null
+}
+
 function bsonToLong(v: unknown): Long | undefined {
   if (v && typeof v === 'object' && 'high' in v && 'low' in v) {
     const { high, low } = v as { high: number; low: number }
@@ -60,13 +112,14 @@ function parseLong(s: string): Long {
   return new Long(low, high)
 }
 
-function formatChat(chat: ChatData, title: string | null = null): KakaoChat {
+function formatChat(chat: ChatData, title: string | null, nameCache: MemberNameCache): KakaoChat {
   const memberNames = (chat.k ?? []) as string[]
   const lastLog = chat.l as Record<string, unknown> | null
   const displayName = memberNames.join(', ') || null
+  const chatId = String(chat.c)
 
   return {
-    chat_id: String(chat.c),
+    chat_id: chatId,
     type: chat.t as number,
     display_name: displayName,
     title,
@@ -75,6 +128,7 @@ function formatChat(chat: ChatData, title: string | null = null): KakaoChat {
     last_message: lastLog
       ? {
           author_id: lastLog.authorId as number,
+          author_name: nameCache.lookup(chatId, lastLog.authorId as number),
           message: lastLog.message as string,
           sent_at: lastLog.sendAt as number,
         }
@@ -246,13 +300,19 @@ function mergeSyncState(previous: SyncState | undefined, loginResult: LoginListR
   return next
 }
 
-function formatMessages(logs: Array<Record<string, unknown>>, count: number): KakaoMessage[] {
+function formatMessages(
+  logs: Array<Record<string, unknown>>,
+  count: number,
+  chatId: string,
+  nameCache: MemberNameCache,
+): KakaoMessage[] {
   logs.sort((a, b) => (a.sendAt as number) - (b.sendAt as number))
 
   return logs.slice(-count).map((log) => ({
     log_id: longToString(log.logId),
     type: log.type as number,
     author_id: log.authorId as number,
+    author_name: nameCache.lookup(chatId, log.authorId as number),
     message: log.message as string,
     sent_at: log.sendAt as number,
   }))
@@ -268,6 +328,7 @@ export class KakaoTalkClient {
   private closed = false
   private pushHandlers = new Set<KakaoPushHandler>()
   private sessionEventHandlers = new Set<KakaoSessionEventHandler>()
+  private nameCache = new MemberNameCache()
 
   async login(
     credentials?: { oauthToken: string; userId: string; deviceUuid?: string; deviceType?: KakaoDeviceType },
@@ -409,6 +470,8 @@ export class KakaoTalkClient {
       const newSyncState = mergeSyncState(syncState, loginResult)
       await saveSyncState(this.deviceUuid!, newSyncState)
 
+      this.nameCache.ingest((loginResult.chatDatas ?? []) as ChatData[])
+
       return { session, loginResult }
     } catch (error) {
       session.close()
@@ -504,6 +567,7 @@ export class KakaoTalkClient {
             if (chatDatas.length === 0) break
 
             collectChats(chatDatas, allChats, seenChatIds)
+            this.nameCache.ingest(chatDatas)
             cursor = body
             pages++
           }
@@ -520,7 +584,7 @@ export class KakaoTalkClient {
           ? await Promise.all(results.map((chat) => this.fetchChatTitle(session, parseLong(String(chat.c)))))
           : null
 
-        return results.map((chat, i) => formatChat(chat, titles ? titles[i] : null))
+        return results.map((chat, i) => formatChat(chat, titles ? titles[i] : null, this.nameCache))
       } catch (error) {
         throw wrapError(error, 'get_chats_failed')
       }
@@ -577,7 +641,7 @@ export class KakaoTalkClient {
               (log) => longToString(log.chatId) === chatId,
             )
             if (batch.length === 0) {
-              return formatMessages(allMessages, count)
+              return formatMessages(allMessages, count, chatId, this.nameCache)
             }
 
             for (const log of batch) {
@@ -590,7 +654,7 @@ export class KakaoTalkClient {
 
             const maxLog = findMaxLogId(batch, 'logId')
             if (!maxLog || maxLog.equals(cur) || response.body.eof) {
-              return formatMessages(allMessages, count)
+              return formatMessages(allMessages, count, chatId, this.nameCache)
             }
 
             cur = maxLog
@@ -603,7 +667,7 @@ export class KakaoTalkClient {
 
         if (allMessages.length > 0) {
           warn(`[agent-kakaotalk] Warning: message fetch capped at ${MAX_PAGES} pages. Results may be incomplete.`)
-          return formatMessages(allMessages, count)
+          return formatMessages(allMessages, count, chatId, this.nameCache)
         }
 
         // Fetch fresh lastLogId via CHATONROOM (not the stale login-time snapshot)
@@ -640,7 +704,7 @@ export class KakaoTalkClient {
           warn(`[agent-kakaotalk] Warning: message fetch capped at ${MAX_PAGES} pages. Results may be incomplete.`)
         }
 
-        return formatMessages(allMessages, count)
+        return formatMessages(allMessages, count, chatId, this.nameCache)
       } catch (error) {
         throw wrapError(error, 'get_messages_failed')
       }
@@ -737,5 +801,10 @@ export class KakaoTalkClient {
     this.initPromise = null
     this.pushHandlers.clear()
     this.sessionEventHandlers.clear()
+    this.nameCache.clear()
+  }
+
+  lookupAuthorName(chatId: string, authorId: number): string | null {
+    return this.nameCache.lookup(chatId, authorId)
   }
 }

@@ -141,7 +141,7 @@ Output includes:
 - `title` — user-set room title (only populated with `--resolve-titles`; otherwise `null`)
 - `active_members` — number of active members
 - `unread_count` — unread message count
-- `last_message` — most recent message preview
+- `last_message` — most recent message preview, including `author_name` when the sender's nickname is known from the chat list (otherwise `null`)
 
 ### Message Commands
 
@@ -166,6 +166,7 @@ Each message includes:
 - `log_id` — unique message identifier
 - `type` — message type (1 = text, 2 = photo, etc.)
 - `author_id` — sender's user ID
+- `author_name` — sender's nickname when known from the chat list (otherwise `null`; only the room's "display members" are cached)
 - `message` — message text content
 - `sent_at` — Unix timestamp (milliseconds)
 

@@ -39,7 +39,7 @@ export class KakaoTalkAdapter implements PlatformAdapter {
     return messages.map((msg) => ({
       id: msg.log_id,
       channelId,
-      author: String(msg.author_id),
+      author: msg.author_name || String(msg.author_id),
       content: msg.message ?? '',
       timestamp: String(msg.sent_at),
     }))

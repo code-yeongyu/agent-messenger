@@ -109,11 +109,14 @@ export class KakaoTalkListener {
     switch (method) {
       case 'MSG': {
         const chatLog = body.chatLog as Record<string, unknown>
+        const chatId = longToString(body.chatId)
+        const authorId = chatLog.authorId as number
         const event: KakaoTalkPushMessageEvent = {
           type: 'MSG',
-          chat_id: longToString(body.chatId),
+          chat_id: chatId,
           log_id: longToString(chatLog.logId),
-          author_id: chatLog.authorId as number,
+          author_id: authorId,
+          author_name: this.client.lookupAuthorName?.(chatId, authorId) ?? null,
           message: chatLog.message as string,
           message_type: chatLog.type as number,
           sent_at: chatLog.sendAt as number,
