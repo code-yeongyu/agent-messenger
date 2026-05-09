@@ -1,7 +1,7 @@
 ---
 name: agent-telegram
 description: Interact with Telegram through TDLib - authenticate, inspect chats, and send messages
-version: 2.12.1
+version: 2.12.2
 allowed-tools: Bash(agent-telegram:*)
 ---
 
