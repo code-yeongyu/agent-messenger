@@ -16,6 +16,7 @@ class FakeClient {
   sessionHandlers = new Set<KakaoSessionEventHandler>()
   acquireImpl: () => Promise<void> = async () => {}
   connected = false
+  lookupAuthorName: (chatId: string, authorId: number) => string | null = () => null
 
   async acquireSession(): Promise<unknown> {
     this.acquireCalls++
@@ -141,9 +142,37 @@ describe('KakaoTalkListener', () => {
       expect(messages[0].chat_id).toBe('100')
       expect(messages[0].log_id).toBe('200')
       expect(messages[0].author_id).toBe(42)
+      expect(messages[0].author_name).toBeNull()
       expect(messages[0].message).toBe('hello world')
       expect(messages[0].message_type).toBe(1)
       expect(messages[0].sent_at).toBe(1700000000)
+    })
+
+    it('resolves author_name from client.lookupAuthorName when available', async () => {
+      const { listener: l, client } = createListener()
+      listener = l
+
+      client.lookupAuthorName = (chatId: string, authorId: number) => {
+        if (chatId === '100' && authorId === 42) return 'Alice'
+        return null
+      }
+
+      const messages: KakaoTalkPushMessageEvent[] = []
+      listener.on('message', (event) => messages.push(event))
+
+      await listener.start()
+      client.emitPush('MSG', {
+        chatId: { high: 0, low: 100 },
+        chatLog: {
+          logId: { high: 0, low: 200 },
+          authorId: 42,
+          message: 'hello',
+          type: 1,
+          sendAt: 1700000000,
+        },
+      })
+
+      expect(messages[0].author_name).toBe('Alice')
     })
   })
 

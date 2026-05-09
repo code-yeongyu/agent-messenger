@@ -46,13 +46,15 @@ function resetAllMocks() {
   mockOnPush.mockReset()
 }
 
-// LOCO protocol uses plain numbers for chat.c, but Long-like objects for logIds/cursors
+// LOCO protocol uses plain numbers for chat.c, but Long-like objects for logIds/cursors.
+// `i` and `k` are paired arrays — i[n] is the user_id, k[n] is the nickname.
 const DEFAULT_LOGIN_RESULT = {
   chatDatas: [
     {
       c: 100,
       t: 1,
       k: ['Alice', 'Bob'],
+      i: [1, 2],
       a: 2,
       n: 3,
       o: 1700000000,
@@ -63,6 +65,7 @@ const DEFAULT_LOGIN_RESULT = {
       c: 200,
       t: 2,
       k: ['Charlie'],
+      i: [3],
       a: 1,
       n: 0,
       o: 1699999000,
@@ -131,6 +134,7 @@ describe('KakaoTalkClient', () => {
       expect(chats[0].unread_count).toBe(3)
       expect(chats[0].last_message).toEqual({
         author_id: 1,
+        author_name: 'Alice',
         message: 'hi',
         sent_at: 1700000000,
       })
@@ -139,6 +143,63 @@ describe('KakaoTalkClient', () => {
       expect(chats[1].last_message).toBeNull()
 
       client.close()
+    })
+
+    it('populates last_message.author_name from paired chat.i / chat.k arrays', async () => {
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const chats = await client.getChats()
+
+      expect(chats[0].last_message?.author_name).toBe('Alice')
+    })
+
+    it('returns null author_name when authorId is not in the paired arrays', async () => {
+      const customLogin = {
+        ...DEFAULT_LOGIN_RESULT,
+        chatDatas: [
+          {
+            c: 100,
+            t: 1,
+            k: ['Alice'],
+            i: [1],
+            a: 1,
+            n: 0,
+            o: 1700000000,
+            l: { authorId: 99, message: 'from a stranger', sendAt: 1700000000 },
+            ll: makeLong(999),
+          },
+        ],
+      }
+      mockLogin.mockResolvedValue(customLogin)
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const chats = await client.getChats()
+
+      expect(chats[0].last_message?.author_id).toBe(99)
+      expect(chats[0].last_message?.author_name).toBeNull()
+    })
+
+    it('returns null author_name when chat.i is missing (no paired data)', async () => {
+      const customLogin = {
+        ...DEFAULT_LOGIN_RESULT,
+        chatDatas: [
+          {
+            c: 100,
+            t: 1,
+            k: ['Alice'],
+            a: 1,
+            n: 0,
+            o: 1700000000,
+            l: { authorId: 1, message: 'hi', sendAt: 1700000000 },
+            ll: makeLong(999),
+          },
+        ],
+      }
+      mockLogin.mockResolvedValue(customLogin)
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const chats = await client.getChats()
+
+      expect(chats[0].last_message?.author_name).toBeNull()
     })
 
     it('does not call CHATINFO when resolveTitles is not set (default behavior preserved)', async () => {
@@ -471,6 +532,7 @@ describe('KakaoTalkClient', () => {
         log_id: '10',
         type: 1,
         author_id: 42,
+        author_name: null,
         message: 'hello',
         sent_at: 1700000001,
       })
@@ -478,9 +540,35 @@ describe('KakaoTalkClient', () => {
         log_id: '11',
         type: 1,
         author_id: 43,
+        author_name: null,
         message: 'world',
         sent_at: 1700000002,
       })
+
+      client.close()
+    })
+
+    it('resolves author_name for known members from the chat list cache', async () => {
+      mockGetChatLogs.mockResolvedValueOnce({
+        body: {
+          status: 0,
+          chatLogs: [
+            { logId: makeLong(1), chatId: 100, type: 1, authorId: 1, message: 'from Alice', sendAt: 100 },
+            { logId: makeLong(2), chatId: 100, type: 1, authorId: 2, message: 'from Bob', sendAt: 200 },
+            { logId: makeLong(3), chatId: 100, type: 1, authorId: 99, message: 'from a stranger', sendAt: 300 },
+          ],
+          eof: true,
+        },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      // Trigger login so the cache is populated from DEFAULT_LOGIN_RESULT
+      await client.getChats()
+      const messages = await client.getMessages('100')
+
+      expect(messages[0].author_name).toBe('Alice')
+      expect(messages[1].author_name).toBe('Bob')
+      expect(messages[2].author_name).toBeNull()
 
       client.close()
     })
