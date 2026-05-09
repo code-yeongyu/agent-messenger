@@ -160,6 +160,17 @@ export class LocoSession {
     return this.connection.sendPacket('CHATINFO', { chatId })
   }
 
+  /**
+   * Fetch open-link info (INFOLINK) for one or more openchat links. The
+   * response body has shape `{ ols: OpenLinkStruct[] }` where each struct's
+   * `ln` field carries the open-chat link name — the canonical fallback when
+   * an open chat has no user-set TITLE meta.
+   */
+  async getOpenLinkInfo(linkIds: Long[]): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    return this.connection.sendPacket('INFOLINK', { lis: linkIds })
+  }
+
   async getChatList(lastTokenId?: Long, lastChatId?: Long): Promise<LocoPacket> {
     if (!this.connection) throw new Error('Not connected')
     return this.connection.sendPacket('LCHATLIST', {

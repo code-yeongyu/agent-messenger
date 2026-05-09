@@ -298,7 +298,7 @@ Output includes:
 - `chat_id` — numeric chat room ID
 - `type` — chat type (1:1, group, open chat)
 - `display_name` — comma-separated member names
-- `title` — user-set room title (only populated with `--resolve-titles`; otherwise `null`)
+- `title` — user-set room title (only populated with `--resolve-titles`; otherwise `null`). For open chats (`OM` / `OD`) without a user-set title, falls back to the OpenLink room name (one extra `INFOLINK` LOCO call per such chat).
 - `active_members` — number of active members
 - `unread_count` — unread message count
 - `last_message` — most recent message preview, including `author_name` when the sender's nickname is known from the chat list (otherwise `null`)

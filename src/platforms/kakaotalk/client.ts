@@ -159,6 +159,27 @@ function extractTitle(body: Record<string, unknown>): string | null {
   return typeof content === 'string' && content.length > 0 ? content : null
 }
 
+interface OpenLinkInfoResponse {
+  ols?: Array<{ ln?: unknown }>
+}
+
+function extractOpenLinkName(body: Record<string, unknown>): string | null {
+  const ols = (body as OpenLinkInfoResponse).ols
+  if (!Array.isArray(ols) || ols.length === 0) return null
+  const ln = ols[0]?.ln
+  return typeof ln === 'string' && ln.length > 0 ? ln : null
+}
+
+const OPEN_CHAT_TYPES = new Set(['OM', 'OD'])
+
+function isOpenChat(chat: ChatData): boolean {
+  return typeof chat.t === 'string' && OPEN_CHAT_TYPES.has(chat.t)
+}
+
+function getOpenLinkId(chat: ChatData): Long | null {
+  return bsonToLong(chat.li) ?? null
+}
+
 function matchesSearch(chat: ChatData, term: string): boolean {
   const names = (chat.k ?? []) as string[]
   const lower = term.toLowerCase()
@@ -581,7 +602,7 @@ export class KakaoTalkClient {
         }
 
         const titles = options?.resolveTitles
-          ? await Promise.all(results.map((chat) => this.fetchChatTitle(session, parseLong(String(chat.c)))))
+          ? await Promise.all(results.map((chat) => this.fetchChatTitle(session, parseLong(String(chat.c)), chat)))
           : null
 
         return results.map((chat, i) => formatChat(chat, titles ? titles[i] : null, this.nameCache))
@@ -603,15 +624,30 @@ export class KakaoTalkClient {
     } catch {
       return null
     }
-    return this.executeWithReconnect(async ({ session }) => {
-      return this.fetchChatTitle(session, parsed)
+    return this.executeWithReconnect(async ({ session, loginResult }) => {
+      const chat = (loginResult.chatDatas ?? []).find((c) => String(c.c) === chatId)
+      return this.fetchChatTitle(session, parsed, chat)
     })
   }
 
-  private async fetchChatTitle(session: LocoSession, chatId: Long): Promise<string | null> {
+  private async fetchChatTitle(session: LocoSession, chatId: Long, chat: ChatData | undefined): Promise<string | null> {
+    let title: string | null = null
     try {
       const response = await session.getChannelInfo(chatId)
-      return extractTitle(response.body as Record<string, unknown>)
+      title = extractTitle(response.body as Record<string, unknown>)
+    } catch {
+      title = null
+    }
+
+    if (title) return title
+    if (!chat || !isOpenChat(chat)) return null
+
+    const linkId = getOpenLinkId(chat)
+    if (!linkId) return null
+
+    try {
+      const response = await session.getOpenLinkInfo([linkId])
+      return extractOpenLinkName(response.body as Record<string, unknown>)
     } catch {
       return null
     }
