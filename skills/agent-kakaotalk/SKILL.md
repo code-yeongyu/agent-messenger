@@ -359,6 +359,7 @@ All commands output JSON by default for AI consumption:
   "chat_id": "9876543210",
   "type": 2,
   "display_name": "Alice, Bob",
+  "title": null,
   "active_members": 3,
   "unread_count": 5,
   "last_message": {
