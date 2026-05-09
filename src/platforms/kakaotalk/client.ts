@@ -9,8 +9,16 @@ import { warn } from '@/shared/utils/stderr'
 
 import { LANG, PC_OS_NAME, getLocoDeviceConfig } from './protocol/config'
 import { LocoSession } from './protocol/session'
-import type { ChatListResponse, LoginListResponse, SyncState } from './protocol/types'
+import type { ChatListResponse, LocoPacket, LoginListResponse, SyncState } from './protocol/types'
 import type { KakaoChat, KakaoDeviceType, KakaoMessage, KakaoProfile, KakaoSendResult } from './types'
+
+export type KakaoSessionEvent =
+  | { type: 'connected'; userId: string }
+  | { type: 'disconnected' }
+  | { type: 'kicked'; reason: string }
+
+export type KakaoPushHandler = (packet: LocoPacket) => void
+export type KakaoSessionEventHandler = (event: KakaoSessionEvent) => void
 
 export class KakaoTalkError extends Error {
   code: string
@@ -234,6 +242,8 @@ export class KakaoTalkClient {
   private state: SessionState | null = null
   private initPromise: Promise<SessionState> | null = null
   private closed = false
+  private pushHandlers = new Set<KakaoPushHandler>()
+  private sessionEventHandlers = new Set<KakaoSessionEventHandler>()
 
   async login(
     credentials?: { oauthToken: string; userId: string; deviceUuid?: string; deviceType?: KakaoDeviceType },
@@ -280,6 +290,7 @@ export class KakaoTalkClient {
     if (this.state) return this.state
 
     // Guard against concurrent init — reuse the in-flight promise
+    const isOwner = !this.initPromise
     if (!this.initPromise) {
       this.initPromise = this.connect()
     }
@@ -291,7 +302,11 @@ export class KakaoTalkClient {
         state.session.close()
         throw new KakaoTalkError('Client is closed', 'client_closed')
       }
+      const wasNew = this.state !== state
       this.state = state
+      if (isOwner && wasNew) {
+        this.emitSessionEvent({ type: 'connected', userId: this.userId! })
+      }
       return state
     } catch (error) {
       // Reset so next call retries cleanly; connect() already wraps in KakaoTalkError
@@ -299,6 +314,29 @@ export class KakaoTalkClient {
       this.initPromise = null
       throw error
     }
+  }
+
+  async acquireSession(): Promise<LocoSession> {
+    const state = await this.ensureSession()
+    return state.session
+  }
+
+  onPush(handler: KakaoPushHandler): () => void {
+    this.pushHandlers.add(handler)
+    return () => {
+      this.pushHandlers.delete(handler)
+    }
+  }
+
+  onSessionEvent(handler: KakaoSessionEventHandler): () => void {
+    this.sessionEventHandlers.add(handler)
+    return () => {
+      this.sessionEventHandlers.delete(handler)
+    }
+  }
+
+  isConnected(): boolean {
+    return this.state !== null && !this.closed
   }
 
   private async executeWithReconnect<T>(operation: (state: SessionState) => Promise<T>): Promise<T> {
@@ -322,6 +360,15 @@ export class KakaoTalkClient {
 
   private async connect(): Promise<SessionState> {
     const session = new LocoSession()
+    session.onPush((packet) => this.dispatchPush(session, packet))
+    session.onClose(() => {
+      if (this.state?.session === session) {
+        this.state = null
+        this.initPromise = null
+        this.emitSessionEvent({ type: 'disconnected' })
+      }
+    })
+
     try {
       const syncState = await loadSyncState(this.deviceUuid!)
       const loginResult = await session.login(
@@ -335,17 +382,36 @@ export class KakaoTalkClient {
       const newSyncState = mergeSyncState(syncState, loginResult)
       await saveSyncState(this.deviceUuid!, newSyncState)
 
-      session.onClose(() => {
-        if (this.state?.session === session) {
-          this.state = null
-          this.initPromise = null
-        }
-      })
-
       return { session, loginResult }
     } catch (error) {
       session.close()
       throw new KakaoTalkError(error instanceof Error ? error.message : String(error), 'login_failed', { cause: error })
+    }
+  }
+
+  private dispatchPush(session: LocoSession, packet: LocoPacket): void {
+    if (this.state && this.state.session !== session) return
+
+    if (packet.method === 'KICKOUT') {
+      this.emitSessionEvent({ type: 'kicked', reason: 'Session kicked — another device logged in' })
+      try {
+        session.close()
+      } catch {}
+      return
+    }
+
+    for (const handler of this.pushHandlers) {
+      try {
+        handler(packet)
+      } catch {}
+    }
+  }
+
+  private emitSessionEvent(event: KakaoSessionEvent): void {
+    for (const handler of this.sessionEventHandlers) {
+      try {
+        handler(event)
+      } catch {}
     }
   }
 
@@ -584,5 +650,7 @@ export class KakaoTalkClient {
     }
     this.state = null
     this.initPromise = null
+    this.pushHandlers.clear()
+    this.sessionEventHandlers.clear()
   }
 }

@@ -11,6 +11,7 @@ const mockSyncMessages = mock(() => Promise.resolve({}))
 const mockSendMessage = mock(() => Promise.resolve({}))
 const mockClose = mock(() => {})
 const mockOnClose = mock((_handler: () => void) => {})
+const mockOnPush = mock((_handler: (packet: unknown) => void) => {})
 
 mock.module('./protocol/session', () => ({
   LocoSession: class MockLocoSession {
@@ -22,6 +23,7 @@ mock.module('./protocol/session', () => ({
     sendMessage = mockSendMessage
     close = mockClose
     onClose = mockOnClose
+    onPush = mockOnPush
   },
 }))
 
@@ -38,6 +40,7 @@ function resetAllMocks() {
   mockSendMessage.mockReset()
   mockClose.mockReset()
   mockOnClose.mockReset()
+  mockOnPush.mockReset()
 }
 
 // LOCO protocol uses plain numbers for chat.c, but Long-like objects for logIds/cursors
