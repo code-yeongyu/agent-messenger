@@ -8,6 +8,7 @@ const mockGetChatList = mock(() => Promise.resolve({}))
 const mockGetChatLogs = mock(() => Promise.resolve({}))
 const mockGetChatInfo = mock(() => Promise.resolve({}))
 const mockGetChannelInfo = mock(() => Promise.resolve({}))
+const mockGetOpenLinkInfo = mock(() => Promise.resolve({}))
 const mockSyncMessages = mock(() => Promise.resolve({}))
 const mockSendMessage = mock(() => Promise.resolve({}))
 const mockClose = mock(() => {})
@@ -21,6 +22,7 @@ mock.module('./protocol/session', () => ({
     getChatLogs = mockGetChatLogs
     getChatInfo = mockGetChatInfo
     getChannelInfo = mockGetChannelInfo
+    getOpenLinkInfo = mockGetOpenLinkInfo
     syncMessages = mockSyncMessages
     sendMessage = mockSendMessage
     close = mockClose
@@ -39,6 +41,7 @@ function resetAllMocks() {
   mockGetChatLogs.mockReset()
   mockGetChatInfo.mockReset()
   mockGetChannelInfo.mockReset()
+  mockGetOpenLinkInfo.mockReset()
   mockSyncMessages.mockReset()
   mockSendMessage.mockReset()
   mockClose.mockReset()
@@ -489,6 +492,149 @@ describe('KakaoTalkClient', () => {
       expect(title).toBeNull()
       expect(mockGetChannelInfo).not.toHaveBeenCalled()
       expect(mockLogin).not.toHaveBeenCalled()
+
+      client.close()
+    })
+
+    it('falls back to INFOLINK link name for open chats with no TITLE meta', async () => {
+      const openChatLogin = {
+        chatDatas: [
+          {
+            c: 500,
+            t: 'OM',
+            li: makeLong(7777),
+            k: ['User1', 'User2'],
+            i: [10, 20],
+            a: 2,
+            n: 0,
+            o: 1700000000,
+            l: null,
+            ll: makeLong(1),
+          },
+        ],
+        lastTokenId: makeLong(0),
+        lastChatId: makeLong(0),
+        eof: true,
+      }
+      mockLogin.mockResolvedValue(openChatLogin)
+      mockGetChannelInfo.mockResolvedValueOnce({ body: { chatInfo: { chatMetas: [] } } })
+      mockGetOpenLinkInfo.mockResolvedValueOnce({ body: { ols: [{ ln: 'Open Group Title' }] } })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const title = await client.getChatTitle('500')
+
+      expect(title).toBe('Open Group Title')
+      expect(mockGetChannelInfo).toHaveBeenCalledTimes(1)
+      expect(mockGetOpenLinkInfo).toHaveBeenCalledTimes(1)
+
+      client.close()
+    })
+
+    it('does not call INFOLINK for non-open chats (regular MultiChat)', async () => {
+      mockGetChannelInfo.mockResolvedValueOnce({ body: { chatInfo: { chatMetas: [] } } })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const title = await client.getChatTitle('100')
+
+      expect(title).toBeNull()
+      expect(mockGetOpenLinkInfo).not.toHaveBeenCalled()
+
+      client.close()
+    })
+
+    it('does not call INFOLINK when CHATINFO already returned a TITLE meta', async () => {
+      const openChatLogin = {
+        chatDatas: [
+          {
+            c: 500,
+            t: 'OM',
+            li: makeLong(7777),
+            k: [],
+            i: [],
+            a: 1,
+            n: 0,
+            o: 1700000000,
+            l: null,
+            ll: makeLong(1),
+          },
+        ],
+        lastTokenId: makeLong(0),
+        lastChatId: makeLong(0),
+        eof: true,
+      }
+      mockLogin.mockResolvedValue(openChatLogin)
+      mockGetChannelInfo.mockResolvedValueOnce({
+        body: { chatInfo: { chatMetas: [{ type: 3, content: 'User Set Title' }] } },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const title = await client.getChatTitle('500')
+
+      expect(title).toBe('User Set Title')
+      expect(mockGetOpenLinkInfo).not.toHaveBeenCalled()
+
+      client.close()
+    })
+
+    it('returns null when INFOLINK fails for open chats', async () => {
+      const openChatLogin = {
+        chatDatas: [
+          {
+            c: 500,
+            t: 'OD',
+            li: makeLong(7777),
+            k: [],
+            i: [],
+            a: 1,
+            n: 0,
+            o: 1700000000,
+            l: null,
+            ll: makeLong(1),
+          },
+        ],
+        lastTokenId: makeLong(0),
+        lastChatId: makeLong(0),
+        eof: true,
+      }
+      mockLogin.mockResolvedValue(openChatLogin)
+      mockGetChannelInfo.mockResolvedValueOnce({ body: { chatInfo: { chatMetas: [] } } })
+      mockGetOpenLinkInfo.mockRejectedValueOnce(new Error('INFOLINK timeout'))
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const title = await client.getChatTitle('500')
+
+      expect(title).toBeNull()
+
+      client.close()
+    })
+
+    it('returns null when open chat has no link id (li missing)', async () => {
+      const openChatLogin = {
+        chatDatas: [
+          {
+            c: 500,
+            t: 'OM',
+            k: [],
+            i: [],
+            a: 1,
+            n: 0,
+            o: 1700000000,
+            l: null,
+            ll: makeLong(1),
+          },
+        ],
+        lastTokenId: makeLong(0),
+        lastChatId: makeLong(0),
+        eof: true,
+      }
+      mockLogin.mockResolvedValue(openChatLogin)
+      mockGetChannelInfo.mockResolvedValueOnce({ body: { chatInfo: { chatMetas: [] } } })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const title = await client.getChatTitle('500')
+
+      expect(title).toBeNull()
+      expect(mockGetOpenLinkInfo).not.toHaveBeenCalled()
 
       client.close()
     })
