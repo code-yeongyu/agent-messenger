@@ -925,11 +925,40 @@ describe('KakaoTalkClient', () => {
       })
 
       const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
-      const members = await client.getMembersByIds('100', ['42'])
+      const members = await client.getMembersByIds('100', ['42', '43', '99'])
 
       expect(members).toHaveLength(1)
       expect(members[0].nickname).toBe('Alice')
       expect(mockGetMembersByIds).toHaveBeenCalledTimes(1)
+
+      // Verify the actual LOCO call args, not just the call count: chatId is a
+      // Long-shaped { low, high } and memberIds is a list of Longs in the order
+      // the SDK consumer passed them. Guards against accidentally sending raw
+      // strings or losing IDs — both fail silently server-side.
+      const [chatIdArg, memberIdsArg] = mockGetMembersByIds.mock.calls[0] as [
+        { low: number; high: number },
+        Array<{ low: number; high: number }>,
+      ]
+      expect(chatIdArg).toMatchObject({ low: 100, high: 0 })
+      expect(memberIdsArg).toHaveLength(3)
+      expect(memberIdsArg[0]).toMatchObject({ low: 42, high: 0 })
+      expect(memberIdsArg[1]).toMatchObject({ low: 43, high: 0 })
+      expect(memberIdsArg[2]).toMatchObject({ low: 99, high: 0 })
+
+      client.close()
+    })
+
+    it('wraps MEMBER failures as KakaoTalkError get_members_failed', async () => {
+      mockGetMembersByIds.mockRejectedValueOnce(new Error('Network error'))
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      try {
+        await client.getMembersByIds('100', ['42'])
+        expect.unreachable('should have thrown')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('get_members_failed')
+      }
 
       client.close()
     })
