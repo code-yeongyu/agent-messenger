@@ -421,6 +421,17 @@ describe('KakaoTalkClient', () => {
       client.close()
     })
 
+    it('getChatTitle() returns null on invalid chatId without contacting LOCO', async () => {
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const title = await client.getChatTitle('not-a-number')
+
+      expect(title).toBeNull()
+      expect(mockGetChannelInfo).not.toHaveBeenCalled()
+      expect(mockLogin).not.toHaveBeenCalled()
+
+      client.close()
+    })
+
     it('wraps getChatList failure as KakaoTalkError with code get_chats_failed', async () => {
       const loginResult = { ...DEFAULT_LOGIN_RESULT, eof: false }
       mockLogin.mockResolvedValue(loginResult)

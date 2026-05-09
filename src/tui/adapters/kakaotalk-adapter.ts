@@ -26,7 +26,7 @@ export class KakaoTalkAdapter implements PlatformAdapter {
 
   async getChannels(): Promise<UnifiedChannel[]> {
     const client = this.ensureClient()
-    const chats = await client.getChats()
+    const chats = await client.getChats({ resolveTitles: true })
     return chats.map((chat) => ({
       id: chat.chat_id,
       name: chat.title || chat.display_name || `Chat ${chat.chat_id}`,

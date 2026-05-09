@@ -533,8 +533,14 @@ export class KakaoTalkClient {
    * fire-and-forget per chat — failures don't poison the whole `getChats` call.
    */
   async getChatTitle(chatId: string): Promise<string | null> {
+    let parsed: Long
+    try {
+      parsed = parseLong(chatId)
+    } catch {
+      return null
+    }
     return this.executeWithReconnect(async ({ session }) => {
-      return this.fetchChatTitle(session, parseLong(chatId))
+      return this.fetchChatTitle(session, parsed)
     })
   }
 

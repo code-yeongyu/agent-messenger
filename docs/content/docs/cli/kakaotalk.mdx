@@ -128,6 +128,9 @@ agent-kakaotalk chat list --all
 # Search for a chat by display name
 agent-kakaotalk chat list --search "Alice"
 agent-kakaotalk chat list --all --search "project"
+
+# Resolve user-set room titles (one extra LOCO call per chat — slower but matches the in-app room name)
+agent-kakaotalk chat list --resolve-titles
 ```
 
 Output includes:
@@ -135,6 +138,7 @@ Output includes:
 - `chat_id` — numeric chat room ID
 - `type` — chat type (1:1, group, open chat)
 - `display_name` — comma-separated member names
+- `title` — user-set room title (only populated with `--resolve-titles`; otherwise `null`)
 - `active_members` — number of active members
 - `unread_count` — unread message count
 - `last_message` — most recent message preview

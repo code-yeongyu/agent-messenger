@@ -44,6 +44,13 @@ const allChats = await client.getChats({ all: true })
 
 // Search chats by display name
 const results = await client.getChats({ search: 'Alice' })
+
+// Resolve user-set room titles via CHATINFO (one extra LOCO call per chat).
+// Each KakaoChat gets a `title: string | null` matching the in-app room name.
+const titled = await client.getChats({ resolveTitles: true })
+
+// Resolve a single chat's title directly (returns null on error or missing title)
+const title = await client.getChatTitle('9876543210')
 ```
 
 ### Messages
