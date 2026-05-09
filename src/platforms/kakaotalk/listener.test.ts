@@ -352,5 +352,31 @@ describe('KakaoTalkListener', () => {
       expect(client.pushHandlers.size).toBe(0)
       expect(client.sessionHandlers.size).toBe(0)
     })
+
+    it('can be restarted after a failed start()', async () => {
+      // given — a client whose first acquire fails but later succeeds
+      const client = new FakeClient()
+      let attempts = 0
+      client.acquireImpl = async () => {
+        attempts++
+        if (attempts === 1) throw new Error('login_failed')
+      }
+      const l = new KakaoTalkListener(client as unknown as KakaoTalkClient)
+      listener = l
+
+      const errors: Error[] = []
+      listener.on('error', (err) => errors.push(err))
+
+      // when — first start() fails, then we try again
+      await listener.start()
+      expect(errors.length).toBe(1)
+
+      await listener.start()
+
+      // then — second start succeeds (subscriptions re-attached, acquire was retried)
+      expect(attempts).toBe(2)
+      expect(client.pushHandlers.size).toBe(1)
+      expect(client.sessionHandlers.size).toBe(1)
+    })
   })
 })

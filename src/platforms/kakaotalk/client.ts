@@ -393,7 +393,11 @@ export class KakaoTalkClient {
   }
 
   private dispatchPush(session: LocoSession, packet: LocoPacket): void {
-    if (this.state && this.state.session !== session) return
+    // Only fan out pushes from the currently adopted session. While state is null
+    // (pre-adoption during connect, or post-invalidation during reconnect) the
+    // packet is discarded — we never want a not-yet-adopted or already-dead session
+    // to reach subscribers and look "live".
+    if (this.state?.session !== session) return
 
     if (packet.method === 'KICKOUT') {
       this.emitSessionEvent({ type: 'kicked', reason: 'Session kicked — another device logged in' })

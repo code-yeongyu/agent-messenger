@@ -363,4 +363,49 @@ describe('KakaoTalkClient + KakaoTalkListener integration (shared LOCO session)'
       MockLocoSession.prototype.login = originalLogin
     }
   })
+
+  it('drops pushes from a session that has not been adopted as the active state', async () => {
+    // given — a listener subscribed to push events, before any session is opened
+    const client = await new KakaoTalkClient().login(CREDS)
+    const listener = new KakaoTalkListener(client)
+    const messages: KakaoTalkPushMessageEvent[] = []
+    listener.on('message', (event) => messages.push(event))
+
+    // Slow down login so we can fire a push DURING the connect()/login window,
+    // when LocoSession has been constructed but this.state is still null.
+    let preAdoptionPushFired = false
+    const originalLogin = MockLocoSession.prototype.login
+    MockLocoSession.prototype.login = async function (oauthToken, userId, deviceUuid, syncState, deviceType) {
+      if (!preAdoptionPushFired) {
+        preAdoptionPushFired = true
+        this.simulatePush('MSG', {
+          chatId: { low: 1, high: 0 },
+          chatLog: { logId: { low: 1, high: 0 }, authorId: 1, message: 'too-early', type: 1, sendAt: 1 },
+        })
+      }
+      return originalLogin.call(this, oauthToken, userId, deviceUuid, syncState, deviceType)
+    }
+
+    try {
+      // when — start the listener, which triggers connect() and a pre-adoption push
+      await listener.start()
+      expect(preAdoptionPushFired).toBe(true)
+
+      // then — the pre-adoption push must NOT have leaked to subscribers
+      expect(messages.length).toBe(0)
+
+      // and — once the session is adopted, fresh pushes flow normally
+      sessions[0]!.simulatePush('MSG', {
+        chatId: { low: 1, high: 0 },
+        chatLog: { logId: { low: 2, high: 0 }, authorId: 1, message: 'fresh', type: 1, sendAt: 2 },
+      })
+      expect(messages.length).toBe(1)
+      expect(messages[0].message).toBe('fresh')
+
+      listener.stop()
+      client.close()
+    } finally {
+      MockLocoSession.prototype.login = originalLogin
+    }
+  })
 })

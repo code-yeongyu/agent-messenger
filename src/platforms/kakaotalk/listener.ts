@@ -49,6 +49,7 @@ export class KakaoTalkListener {
       }
     } catch (error) {
       this.emitter.emit('error', error instanceof Error ? error : new Error(String(error)))
+      this.running = false
       this.teardown()
     }
   }
