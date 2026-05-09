@@ -60,7 +60,7 @@ function parseLong(s: string): Long {
   return new Long(low, high)
 }
 
-function formatChat(chat: ChatData): KakaoChat {
+function formatChat(chat: ChatData, title: string | null = null): KakaoChat {
   const memberNames = (chat.k ?? []) as string[]
   const lastLog = chat.l as Record<string, unknown> | null
   const displayName = memberNames.join(', ') || null
@@ -69,6 +69,7 @@ function formatChat(chat: ChatData): KakaoChat {
     chat_id: String(chat.c),
     type: chat.t as number,
     display_name: displayName,
+    title,
     active_members: chat.a as number,
     unread_count: chat.n as number,
     last_message: lastLog
@@ -79,6 +80,29 @@ function formatChat(chat: ChatData): KakaoChat {
         }
       : null,
   }
+}
+
+const META_TYPE_TITLE = 3
+
+interface ChannelMetaEntry {
+  type?: number
+  content?: string
+}
+
+interface ChannelInfoResponse {
+  chatInfo?: {
+    chatMetas?: ChannelMetaEntry[]
+  }
+}
+
+function extractTitle(body: Record<string, unknown>): string | null {
+  const info = (body as ChannelInfoResponse).chatInfo
+  const metas = info?.chatMetas
+  if (!Array.isArray(metas)) return null
+
+  const titleMeta = metas.find((m) => m?.type === META_TYPE_TITLE)
+  const content = titleMeta?.content
+  return typeof content === 'string' && content.length > 0 ? content : null
 }
 
 function matchesSearch(chat: ChatData, term: string): boolean {
@@ -446,7 +470,7 @@ export class KakaoTalkClient {
     }
   }
 
-  async getChats(options?: { all?: boolean; search?: string }): Promise<KakaoChat[]> {
+  async getChats(options?: { all?: boolean; search?: string; resolveTitles?: boolean }): Promise<KakaoChat[]> {
     return this.executeWithReconnect(async ({ session, loginResult }) => {
       try {
         const allChats: ChatData[] = []
@@ -492,11 +516,41 @@ export class KakaoTalkClient {
           results = allChats.filter((c) => matchesSearch(c, options.search!))
         }
 
-        return results.map(formatChat)
+        const titles = options?.resolveTitles
+          ? await Promise.all(results.map((chat) => this.fetchChatTitle(session, parseLong(String(chat.c)))))
+          : null
+
+        return results.map((chat, i) => formatChat(chat, titles ? titles[i] : null))
       } catch (error) {
         throw wrapError(error, 'get_chats_failed')
       }
     })
+  }
+
+  /**
+   * Resolve the user-set room title via CHATINFO. Returns null on any error
+   * (network, malformed response, or no TITLE meta present). Designed to be
+   * fire-and-forget per chat — failures don't poison the whole `getChats` call.
+   */
+  async getChatTitle(chatId: string): Promise<string | null> {
+    let parsed: Long
+    try {
+      parsed = parseLong(chatId)
+    } catch {
+      return null
+    }
+    return this.executeWithReconnect(async ({ session }) => {
+      return this.fetchChatTitle(session, parsed)
+    })
+  }
+
+  private async fetchChatTitle(session: LocoSession, chatId: Long): Promise<string | null> {
+    try {
+      const response = await session.getChannelInfo(chatId)
+      return extractTitle(response.body as Record<string, unknown>)
+    } catch {
+      return null
+    }
   }
 
   async getMessages(chatId: string, options?: { count?: number; from?: string }): Promise<KakaoMessage[]> {

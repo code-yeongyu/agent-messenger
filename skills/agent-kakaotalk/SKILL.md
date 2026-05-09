@@ -288,12 +288,17 @@ agent-kakaotalk chat list
 agent-kakaotalk chat list --pretty
 agent-kakaotalk chat list --account <account-id>
 agent-kakaotalk chat list --account <account-id> --pretty
+
+# Resolve user-set room titles via CHATINFO (one extra LOCO call per chat;
+# slower, but matches the room name shown in the official KakaoTalk app)
+agent-kakaotalk chat list --resolve-titles
 ```
 
 Output includes:
 - `chat_id` — numeric chat room ID
 - `type` — chat type (1:1, group, open chat)
 - `display_name` — comma-separated member names
+- `title` — user-set room title (only populated with `--resolve-titles`; otherwise `null`)
 - `active_members` — number of active members
 - `unread_count` — unread message count
 - `last_message` — most recent message preview
@@ -354,6 +359,7 @@ All commands output JSON by default for AI consumption:
   "chat_id": "9876543210",
   "type": 2,
   "display_name": "Alice, Bob",
+  "title": null,
   "active_members": 3,
   "unread_count": 5,
   "last_message": {
