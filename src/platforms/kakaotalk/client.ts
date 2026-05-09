@@ -352,7 +352,10 @@ export class KakaoTalkClient {
       try {
         state.session.close()
       } catch {}
-      this.initPromise = null
+      // initPromise is intentionally NOT cleared here: a concurrent caller may already
+      // be awaiting an in-flight replacement, and starting a parallel one would send a
+      // second LOGINLIST with the same duuid — re-introducing the very self-eviction
+      // this layer prevents. Lifecycle paths (onClose / invalidateSession) own that field.
       state = await this.ensureSession()
       return operation(state)
     }
@@ -394,9 +397,23 @@ export class KakaoTalkClient {
 
     if (packet.method === 'KICKOUT') {
       this.emitSessionEvent({ type: 'kicked', reason: 'Session kicked — another device logged in' })
-      try {
-        session.close()
-      } catch {}
+      this.invalidateSession(session)
+      return
+    }
+
+    if (packet.method === 'CHANGESVR') {
+      for (const handler of this.pushHandlers) {
+        try {
+          handler(packet)
+        } catch {}
+      }
+      this.invalidateSession(session)
+      this.emitSessionEvent({ type: 'disconnected' })
+      this.ensureSession().catch(() => {
+        // ensureSession already cleared state on failure; subsequent API calls will retry
+        // and surface the error. Listeners do not receive 'connected' until a reconnect
+        // succeeds, which is the correct outcome.
+      })
       return
     }
 
@@ -405,6 +422,16 @@ export class KakaoTalkClient {
         handler(packet)
       } catch {}
     }
+  }
+
+  private invalidateSession(session: LocoSession): void {
+    if (this.state?.session === session) {
+      this.state = null
+      this.initPromise = null
+    }
+    try {
+      session.close()
+    } catch {}
   }
 
   private emitSessionEvent(event: KakaoSessionEvent): void {

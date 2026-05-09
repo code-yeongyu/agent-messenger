@@ -271,4 +271,96 @@ describe('KakaoTalkClient + KakaoTalkListener integration (shared LOCO session)'
     listener.stop()
     client.close()
   })
+
+  it('CHANGESVR triggers an active session migration', async () => {
+    // given — a listener attached to a shared session
+    const client = await new KakaoTalkClient().login(CREDS)
+    const listener = new KakaoTalkListener(client)
+
+    const disconnects: number[] = []
+    const connects: Array<{ userId: string }> = []
+    const generic: Array<{ type: string }> = []
+    listener.on('disconnected', () => disconnects.push(1))
+    listener.on('connected', (info) => connects.push(info))
+    listener.on('kakaotalk_event', (event) => generic.push(event))
+
+    await listener.start()
+    expect(sessions.length).toBe(1)
+    expect(connects.length).toBe(1)
+
+    // when — the server pushes CHANGESVR (asking us to migrate to a new gateway)
+    sessions[0]!.simulatePush('CHANGESVR', {})
+
+    // then — the client actively migrates: old session closed, new one opened
+    await new Promise((r) => setTimeout(r, 0))
+    expect(sessions.length).toBe(2)
+    expect(sessions[0]!.closed).toBe(true)
+    expect(disconnects.length).toBe(1)
+    expect(connects.length).toBe(2)
+
+    // and — the listener re-attached to the replacement session for push events
+    const messages: KakaoTalkPushMessageEvent[] = []
+    listener.on('message', (event) => messages.push(event))
+    sessions[1]!.simulatePush('MSG', {
+      chatId: { low: 100, high: 0 },
+      chatLog: { logId: { low: 7, high: 0 }, authorId: 1, message: 'after-changesvr', type: 1, sendAt: 1 },
+    })
+    expect(messages.length).toBe(1)
+
+    // and — CHANGESVR was still surfaced as a generic event for observers that care
+    expect(generic.some((e) => e.type === 'CHANGESVR')).toBe(true)
+
+    listener.stop()
+    client.close()
+  })
+
+  it('does not open duplicate LOGINLIST when concurrent calls trigger executeWithReconnect retry', async () => {
+    // given — a client+listener with a slow LOGINLIST so concurrent reconnects can collide
+    let inflight = 0
+    let peakInflight = 0
+    const originalLogin = MockLocoSession.prototype.login
+    MockLocoSession.prototype.login = async function (oauthToken, userId, deviceUuid, syncState, deviceType) {
+      inflight++
+      peakInflight = Math.max(peakInflight, inflight)
+      try {
+        await new Promise((r) => setTimeout(r, 20))
+        return await originalLogin.call(this, oauthToken, userId, deviceUuid, syncState, deviceType)
+      } finally {
+        inflight--
+      }
+    }
+
+    try {
+      const client = await new KakaoTalkClient().login(CREDS)
+      await client.sendMessage('100', 'prime')
+      expect(sessions.length).toBe(1)
+      expect(loginCalls.length).toBe(1)
+
+      // Make the live session's sendMessage drop the socket and then throw — modeling a
+      // mid-flight TCP reset where the remote-close handler nulls this.state synchronously
+      // before the operation rejection bubbles up to executeWithReconnect's catch block.
+      // This is the precise window the executeWithReconnect retry path was designed for.
+      const dead = sessions[0]!
+      dead.sendMessageImpl = async function () {
+        dead.simulateRemoteClose()
+        throw new Error('socket closed')
+      }
+
+      // when — three concurrent sendMessage calls all hit the dead session and retry
+      await Promise.all([
+        client.sendMessage('100', 'a'),
+        client.sendMessage('100', 'b'),
+        client.sendMessage('100', 'c'),
+      ])
+
+      // then — exactly ONE replacement LOGINLIST regardless of retry collisions
+      expect(peakInflight).toBe(1)
+      expect(loginCalls.length).toBe(2)
+      expect(sessions.length).toBe(2)
+
+      client.close()
+    } finally {
+      MockLocoSession.prototype.login = originalLogin
+    }
+  })
 })
