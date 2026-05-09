@@ -1060,6 +1060,62 @@ describe('KakaoTalkClient', () => {
 
       client.close()
     })
+
+    it('getMembers throws KakaoTalkError invalid_chat_id without contacting LOCO', async () => {
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      try {
+        await client.getMembers('not-a-number')
+        expect.unreachable('should have thrown')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('invalid_chat_id')
+      }
+      expect(mockGetAllMembers).not.toHaveBeenCalled()
+      expect(mockLogin).not.toHaveBeenCalled()
+
+      client.close()
+    })
+
+    it('getMembersByIds throws invalid_chat_id for bad chatId without contacting LOCO', async () => {
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      try {
+        await client.getMembersByIds('not-a-number', ['42'])
+        expect.unreachable('should have thrown')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('invalid_chat_id')
+      }
+      expect(mockGetMembersByIds).not.toHaveBeenCalled()
+      expect(mockLogin).not.toHaveBeenCalled()
+
+      client.close()
+    })
+
+    it('getMembersByIds throws invalid_user_id for bad userId without contacting LOCO', async () => {
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      try {
+        await client.getMembersByIds('100', ['42', 'bogus', '99'])
+        expect.unreachable('should have thrown')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('invalid_user_id')
+      }
+      expect(mockGetMembersByIds).not.toHaveBeenCalled()
+      expect(mockLogin).not.toHaveBeenCalled()
+
+      client.close()
+    })
+
+    it('getMembersByIds returns [] without contacting LOCO when userIds is empty', async () => {
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const result = await client.getMembersByIds('100', [])
+
+      expect(result).toEqual([])
+      expect(mockGetMembersByIds).not.toHaveBeenCalled()
+      expect(mockLogin).not.toHaveBeenCalled()
+
+      client.close()
+    })
   })
 
   describe('getProfile', () => {

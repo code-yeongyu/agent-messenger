@@ -101,9 +101,12 @@ export interface KakaoMember {
   original_profile_image_url: string | null
   status_message: string | null
   country_iso: string | null
+  /** KakaoTalk UserType: 100=FRIEND, 1000=OPEN_PROFILE, etc. `null` when the server omits the field. */
   user_type: number | null
+  /** Open-chat-only fields below; `null` for normal chats. */
   open_token: number | null
   open_profile_link_id: string | null
+  /** OpenChannelUserPerm bitfield: 1=OWNER, 2=NONE, 4=MANAGER, 8=BOT. Forward-compatible with future values. */
   open_permission: number | null
 }
 

@@ -317,7 +317,7 @@ Each member includes:
 - `nickname` — display name in this chat (open chats may differ from the user's main Kakao nickname)
 - `profile_image_url`, `full_profile_image_url`, `original_profile_image_url`
 - `status_message`, `country_iso`
-- `user_type` — KakaoTalk's user type (100 = friend, 1000 = open profile, etc.)
+- `user_type` — KakaoTalk's user type (100 = friend, 1000 = open profile, etc.); `null` when the server omits the field
 - `open_token`, `open_profile_link_id`, `open_permission` — open-chat-only fields (`null` for normal chats; `open_permission` is 1=OWNER, 2=NONE, 4=MANAGER, 8=BOT)
 
 > **SDK-only**: `KakaoTalkClient.getMembersByIds(chatId, userIds)` is available for the >100-member case where you already have specific user IDs to resolve (typically from a CHATONROOM `mi` array). It is intentionally not exposed via the CLI because acquiring those IDs requires a CHATONROOM call that is also SDK-only. Use `agent-kakaotalk member list` for the common case.

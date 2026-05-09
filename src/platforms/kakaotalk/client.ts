@@ -112,6 +112,22 @@ function parseLong(s: string): Long {
   return new Long(low, high)
 }
 
+function parseChatId(chatId: string): Long {
+  try {
+    return parseLong(chatId)
+  } catch (cause) {
+    throw new KakaoTalkError(`Invalid chatId: ${chatId}`, 'invalid_chat_id', { cause })
+  }
+}
+
+function parseUserId(userId: string): Long {
+  try {
+    return parseLong(userId)
+  } catch (cause) {
+    throw new KakaoTalkError(`Invalid userId: ${userId}`, 'invalid_user_id', { cause })
+  }
+}
+
 function formatChat(chat: ChatData, title: string | null, nameCache: MemberNameCache): KakaoChat {
   const memberNames = (chat.k ?? []) as string[]
   const lastLog = chat.l as Record<string, unknown> | null
@@ -795,9 +811,10 @@ export class KakaoTalkClient {
   }
 
   async getMembers(chatId: string): Promise<KakaoMember[]> {
+    const parsedChatId = parseChatId(chatId)
     return this.executeWithReconnect(async ({ session }) => {
       try {
-        const response = await session.getAllMembers(parseLong(chatId))
+        const response = await session.getAllMembers(parsedChatId)
         assertLocoOk(response, 'GETMEM')
         const members = (response.body.members ?? []) as Array<Record<string, unknown>>
         return members.map(formatMember)
@@ -808,10 +825,12 @@ export class KakaoTalkClient {
   }
 
   async getMembersByIds(chatId: string, userIds: string[]): Promise<KakaoMember[]> {
+    if (userIds.length === 0) return []
+    const parsedChatId = parseChatId(chatId)
+    const memberIds = userIds.map((id) => parseUserId(id))
     return this.executeWithReconnect(async ({ session }) => {
       try {
-        const memberIds = userIds.map((id) => parseLong(id))
-        const response = await session.getMembersByIds(parseLong(chatId), memberIds)
+        const response = await session.getMembersByIds(parsedChatId, memberIds)
         assertLocoOk(response, 'MEMBER')
         const members = (response.body.members ?? []) as Array<Record<string, unknown>>
         return members.map(formatMember)

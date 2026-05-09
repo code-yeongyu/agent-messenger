@@ -82,7 +82,7 @@ const members = await client.getMembers('9876543210')
 const subset = await client.getMembersByIds('9876543210', ['1234567890', '9876543210'])
 ```
 
-Each `KakaoMember` includes `user_id`, `nickname`, profile image URLs, `status_message`, `country_iso`, `user_type`, and open-chat-only fields (`open_token`, `open_profile_link_id`, `open_permission`).
+Each `KakaoMember` includes `user_id`, `nickname`, profile image URLs, `status_message`, `country_iso`, `user_type` (nullable; `null` when the server omits the field), and open-chat-only fields (`open_token`, `open_profile_link_id`, `open_permission` — the last is the OpenChannelUserPerm bitfield: `1`=OWNER, `2`=NONE, `4`=MANAGER, `8`=BOT).
 
 ### Sending
 
