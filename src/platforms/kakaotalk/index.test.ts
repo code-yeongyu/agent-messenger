@@ -1,6 +1,7 @@
 import { expect, it } from 'bun:test'
 
 import {
+  classifyKakaoChat,
   CredentialManager,
   KakaoAccountCredentialsSchema,
   KakaoCredentialManager,
@@ -71,4 +72,8 @@ it('KakaoTalkPushReadEventSchema is exported from barrel', () => {
 
 it('KakaoProfileSchema is exported from barrel', () => {
   expect(typeof KakaoProfileSchema.parse).toBe('function')
+})
+
+it('classifyKakaoChat is exported from barrel', () => {
+  expect(typeof classifyKakaoChat).toBe('function')
 })
