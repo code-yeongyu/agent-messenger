@@ -365,7 +365,6 @@ Credentials stored in `~/.config/agent-messenger/slackbot-credentials.json` (060
 - Bot can only edit/delete its own messages
 - Bot must be invited to private channels
 - No scheduled messages
-- Plain text messages only (no blocks/formatting)
 
 ## Troubleshooting
 
