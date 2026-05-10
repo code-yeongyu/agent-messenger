@@ -3,9 +3,9 @@
  * KakaoTalk LOCO wire-format capture (diagnostic only).
  *
  * Issues a small, throttled set of LOCO requests against a real account and
- * writes the BSON response bodies to /tmp for offline schema inspection. PII
- * is redacted (user IDs hashed, profile URLs scrubbed, message content elided)
- * before anything is written to disk.
+ * writes the BSON response bodies to a temp file for offline schema inspection.
+ * PII is redacted (user IDs hashed, profile URLs scrubbed, message content
+ * elided, member nicknames replaced) before anything is written to disk.
  *
  * Defaults are intentionally conservative: 3 chats max, 1500ms between LOCO
  * calls, dry-run unless `--confirm` is passed. The goal is to avoid bursting
@@ -23,6 +23,8 @@
 
 import { createHash } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import { Long } from 'bson'
 
@@ -69,7 +71,7 @@ function parseArgs(argv: string[]): Args {
       i++
     } else if (arg === '--commands' && next) {
       const requested = next.split(',').map((s) => s.trim().toUpperCase())
-      const unknown = requested.filter((c): c is Command => !SUPPORTED_COMMANDS.includes(c as Command))
+      const unknown = requested.filter((c) => !SUPPORTED_COMMANDS.includes(c as Command))
       if (unknown.length > 0) {
         throw new Error(`Unknown commands: ${unknown.join(', ')}. Supported: ${SUPPORTED_COMMANDS.join(', ')}`)
       }
@@ -106,7 +108,7 @@ Options:
   --confirm           Actually issue LOCO calls. Without this, prints the plan only.
   --help, -h          Show this help
 
-Output: /tmp/kakao-loco-capture-<timestamp>.json (PII redacted)
+Output: <tmpdir>/kakao-loco-capture-<timestamp>.json (PII redacted)
 `)
 }
 
@@ -127,6 +129,14 @@ function isLong(v: unknown): v is { low: number; high: number } {
 const URL_PATTERN = /https?:\/\/[^\s"'<>]+/gi
 const USERID_KEYS = new Set(['userId', 'authorId', 'uid', 'i', 'mid', 'mids', 'memberIds', 'memberId', 'olu', 'opt'])
 const CONTENT_KEYS = new Set(['message', 'msg', 'content', 'statusMessage', 'desc', 'description'])
+// Keys whose string values are display names / nicknames. Replaced with a
+// length-tagged placeholder so wire-shape inspection stays useful while the
+// real names never reach disk.
+const NAME_KEYS = new Set(['nickName', 'name', 'fullName', 'authorName', 'author_name', 'k', 'ln'])
+
+function redactName(value: string): string {
+  return value.length > 0 ? `<name:${value.length}chars>` : '<name>'
+}
 
 function redact(value: unknown, key?: string): unknown {
   if (value === null || value === undefined) return value
@@ -142,10 +152,18 @@ function redact(value: unknown, key?: string): unknown {
     if (key && CONTENT_KEYS.has(key)) {
       return value.length > 32 ? `<redacted:${value.length}chars>` : '<redacted>'
     }
+    if (key && NAME_KEYS.has(key)) {
+      return redactName(value)
+    }
     return value.replace(URL_PATTERN, '<url>')
   }
   if (typeof value === 'boolean') return value
   if (Array.isArray(value)) {
+    // For NAME_KEYS that hold arrays of nicknames (notably `k`), redact each
+    // element as a name regardless of its position.
+    if (key && NAME_KEYS.has(key)) {
+      return value.map((v) => (typeof v === 'string' ? redactName(v) : redact(v, key)))
+    }
     return value.map((v) => redact(v, key))
   }
   if (typeof value === 'object') {
@@ -165,6 +183,17 @@ function parseLong(s: string): Long {
   return new Long(low, high)
 }
 
+function toLong(v: unknown): Long | null {
+  if (v && typeof v === 'object' && 'low' in v && 'high' in v) {
+    const { low, high } = v as { low: number; high: number }
+    return new Long(low, high)
+  }
+  if (typeof v === 'number' && Number.isFinite(v)) {
+    return Long.fromNumber(v)
+  }
+  return null
+}
+
 interface CaptureEntry {
   command: Command
   chatId: string
@@ -173,25 +202,6 @@ interface CaptureEntry {
   body?: unknown
   error?: string
   duration_ms: number
-}
-
-interface SessionWithConnection {
-  connection: { sendPacket: (method: string, body: Record<string, unknown>) => Promise<unknown> } | null
-}
-
-async function sendRaw(
-  session: LocoSession,
-  command: string,
-  body: Record<string, unknown>,
-): Promise<{ statusCode: number; body: Record<string, unknown> }> {
-  // Diagnostic-only escape hatch: reach into the session's private connection to
-  // send commands that aren't yet exposed as typed methods (MEMBER/GETMEM/INFOLINK).
-  // This is intentional in a developer tool; production code should add typed
-  // methods to LocoSession (PRs 3 & 4 will).
-  const conn = (session as unknown as SessionWithConnection).connection
-  if (!conn) throw new Error('LocoSession has no active connection')
-  const packet = (await conn.sendPacket(command, body)) as { statusCode: number; body: Record<string, unknown> }
-  return packet
 }
 
 async function probe(
@@ -230,8 +240,12 @@ async function probe(
         break
       }
       case 'MEMBER': {
-        const memberIds = (chat.i as Array<{ low: number; high: number }> | undefined) ?? []
-        const sample = memberIds.slice(0, 3).map((m) => new Long(m.low, m.high))
+        const rawIds = (chat.i as Array<unknown> | undefined) ?? []
+        const sample: Long[] = []
+        for (const raw of rawIds.slice(0, 3)) {
+          const id = toLong(raw)
+          if (id) sample.push(id)
+        }
         if (sample.length === 0) {
           return {
             command,
@@ -241,19 +255,19 @@ async function probe(
             duration_ms: Date.now() - start,
           }
         }
-        const res = await sendRaw(session, 'MEMBER', { chatId, memberIds: sample })
+        const res = await session.getMembersByIds(chatId, sample)
         body = res.body
         statusCode = res.statusCode
         break
       }
       case 'GETMEM': {
-        const res = await sendRaw(session, 'GETMEM', { chatId })
+        const res = await session.getAllMembers(chatId)
         body = res.body
         statusCode = res.statusCode
         break
       }
       case 'INFOLINK': {
-        const linkId = chat.li
+        const linkId = toLong(chat.li)
         if (!linkId) {
           return {
             command,
@@ -263,7 +277,7 @@ async function probe(
             duration_ms: Date.now() - start,
           }
         }
-        const res = await sendRaw(session, 'INFOLINK', { lis: [linkId], ref: 'EW' })
+        const res = await session.getOpenLinkInfo([linkId])
         body = res.body
         statusCode = res.statusCode
         break
@@ -304,6 +318,10 @@ function selfCheckRedact(): void {
     },
     authorId: 1234567890,
     message: 'secret hi',
+    k: ['Alice', 'Bob', 'Charlie'],
+    ln: 'My OpenChat Room',
+    name: 'Display Name',
+    fullName: 'Real Name',
     l: { low: 999, high: 0 },
   }
   const out = redact(fixture) as Record<string, unknown>
@@ -315,8 +333,16 @@ function selfCheckRedact(): void {
   if (out.authorId === 1234567890) failures.push('authorId not hashed')
   if (display.userId === 42) failures.push('displayMembers[].userId not hashed')
   if ((display.profileImageUrl as string) !== '<url>') failures.push('profileImageUrl not scrubbed')
+  if ((display.nickName as string) === 'Alice') failures.push('displayMembers[].nickName not redacted')
   if (out.message !== '<redacted>') failures.push('message content not redacted')
   if (metas[0].content !== '<redacted>') failures.push('chatMetas content not redacted')
+  const memberNames = out.k as unknown[]
+  if (!Array.isArray(memberNames) || memberNames.some((n) => typeof n === 'string' && n === 'Alice')) {
+    failures.push('member name array (k) not redacted')
+  }
+  if (out.ln === 'My OpenChat Room') failures.push('open-link name (ln) not redacted')
+  if (out.name === 'Display Name') failures.push('display name not redacted')
+  if (out.fullName === 'Real Name') failures.push('fullName not redacted')
   if (typeof out.l !== 'object' || (out.l as Record<string, unknown>).__long !== true) {
     failures.push('non-user Long not preserved as tagged shape')
   }
@@ -336,7 +362,7 @@ async function main(): Promise<void> {
   console.log(`  delay_ms:  ${args.delayMs}`)
   console.log(`  commands:  ${args.commands.join(', ')}`)
   console.log(`  chat_id:   ${args.chatId ?? '<from login snapshot>'}`)
-  console.log(`  account:   ${args.account ?? '<current>'}`)
+  console.log(`  account:   ${args.account ? '<set>' : '<current>'}`)
   console.log(`  confirm:   ${args.confirm}`)
   console.log()
 
@@ -346,6 +372,23 @@ async function main(): Promise<void> {
   }
 
   const client = new KakaoTalkClient()
+
+  // Signal handler: `finally` does not run on SIGINT/SIGTERM, so wire explicit
+  // cleanup. Without this, Ctrl-C during a long sleep() leaks the LOCO socket
+  // and ping timer.
+  let cleaningUp = false
+  const cleanup = (signal: string) => {
+    if (cleaningUp) return
+    cleaningUp = true
+    console.error(`\nReceived ${signal}, closing LOCO session...`)
+    try {
+      client.close()
+    } catch {}
+    process.exit(130)
+  }
+  process.on('SIGINT', () => cleanup('SIGINT'))
+  process.on('SIGTERM', () => cleanup('SIGTERM'))
+
   await client.login(undefined, args.account ?? undefined)
 
   try {
@@ -403,13 +446,13 @@ async function main(): Promise<void> {
       }
     }
 
-    const outPath = `/tmp/kakao-loco-capture-${new Date().toISOString().replace(/[:.]/g, '-')}.json`
+    const outPath = join(tmpdir(), `kakao-loco-capture-${new Date().toISOString().replace(/[:.]/g, '-')}.json`)
     const payload = {
       captured_at: new Date().toISOString(),
-      args: { ...args, account: args.account ? '<redacted>' : null },
+      args: { ...args, account: args.account ? '<set>' : null, chatId: args.chatId ? '<set>' : null },
       entries,
     }
-    writeFileSync(outPath, `${JSON.stringify(payload, null, 2)}\n`)
+    writeFileSync(outPath, `${JSON.stringify(payload, null, 2)}\n`, { mode: 0o600 })
     console.log()
     console.log(`Wrote ${entries.length} entries to ${outPath}`)
   } finally {
