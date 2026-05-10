@@ -58,6 +58,17 @@ const msg = await client.postMessage('C0ACZKTDDC0', 'Hello world')
 const reply = await client.postMessage('C0ACZKTDDC0', 'Reply', { thread_ts: '1234567890.123456' })
 // → SlackMessage { ts, text, type, user?, thread_ts? }
 
+// Send a Block Kit message — `text` is used as the fallback/notification text
+await client.postMessage('C0ACZKTDDC0', 'Build finished', {
+  blocks: [{ type: 'section', text: { type: 'mrkdwn', text: '*Build finished*' } }],
+})
+
+// Other supported pass-through options (forwarded as-is to chat.postMessage):
+//   attachments?: unknown[]
+//   unfurl_links?: boolean
+//   unfurl_media?: boolean
+//   mrkdwn?: boolean
+
 // Read a channel's recent messages (default limit: 20, supports cursor pagination)
 const history = await client.getConversationHistory('C0ACZKTDDC0')
 const limited = await client.getConversationHistory('C0ACZKTDDC0', { limit: 50 })
