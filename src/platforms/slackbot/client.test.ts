@@ -243,6 +243,73 @@ describe('SlackBotClient', () => {
       expect(result.ts).toBe('1234567890.123456')
       expect(result.text).toBe('Hello')
     })
+
+    it('does not pass blocks/attachments when omitted', async () => {
+      // given
+      const client = await new SlackBotClient().login({ token: 'xoxb-test-token' })
+
+      // when
+      await client.postMessage('C123', 'Hello')
+
+      // then
+      expect(mockChat.postMessage).toHaveBeenCalledWith({
+        channel: 'C123',
+        text: 'Hello',
+        thread_ts: undefined,
+        blocks: undefined,
+        attachments: undefined,
+        unfurl_links: undefined,
+        unfurl_media: undefined,
+        mrkdwn: undefined,
+      })
+    })
+
+    it('forwards blocks to chat.postMessage', async () => {
+      // given
+      const client = await new SlackBotClient().login({ token: 'xoxb-test-token' })
+      const blocks = [
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: '*hello*' },
+        },
+      ]
+
+      // when
+      await client.postMessage('C123', 'Hello', { blocks })
+
+      // then
+      expect(mockChat.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ channel: 'C123', text: 'Hello', blocks }),
+      )
+    })
+
+    it('forwards thread_ts, attachments, and unfurl/mrkdwn flags', async () => {
+      // given
+      const client = await new SlackBotClient().login({ token: 'xoxb-test-token' })
+      const attachments = [{ text: 'attached' }]
+
+      // when
+      await client.postMessage('C123', 'Hello', {
+        thread_ts: '1234567890.000001',
+        attachments,
+        unfurl_links: false,
+        unfurl_media: false,
+        mrkdwn: true,
+      })
+
+      // then
+      expect(mockChat.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channel: 'C123',
+          text: 'Hello',
+          thread_ts: '1234567890.000001',
+          attachments,
+          unfurl_links: false,
+          unfurl_media: false,
+          mrkdwn: true,
+        }),
+      )
+    })
   })
 
   describe('getConversationHistory', () => {

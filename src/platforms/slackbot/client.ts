@@ -103,12 +103,28 @@ export class SlackBotClient {
     })
   }
 
-  async postMessage(channel: string, text: string, options?: { thread_ts?: string }): Promise<SlackMessage> {
+  async postMessage(
+    channel: string,
+    text: string,
+    options?: {
+      thread_ts?: string
+      blocks?: unknown[]
+      attachments?: unknown[]
+      unfurl_links?: boolean
+      unfurl_media?: boolean
+      mrkdwn?: boolean
+    },
+  ): Promise<SlackMessage> {
     return this.withRetry(async () => {
       const response = await this.ensureAuth().chat.postMessage({
         channel,
         text,
         thread_ts: options?.thread_ts,
+        blocks: options?.blocks as any,
+        attachments: options?.attachments as any,
+        unfurl_links: options?.unfurl_links,
+        unfurl_media: options?.unfurl_media,
+        mrkdwn: options?.mrkdwn,
       })
       this.checkResponse(response)
 
