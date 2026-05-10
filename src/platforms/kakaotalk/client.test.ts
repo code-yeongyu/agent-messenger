@@ -9,6 +9,8 @@ const mockGetChatLogs = mock(() => Promise.resolve({}))
 const mockGetChatInfo = mock(() => Promise.resolve({}))
 const mockGetChannelInfo = mock(() => Promise.resolve({}))
 const mockGetOpenLinkInfo = mock(() => Promise.resolve({}))
+const mockGetAllMembers = mock(() => Promise.resolve({}))
+const mockGetMembersByIds = mock(() => Promise.resolve({}))
 const mockSyncMessages = mock(() => Promise.resolve({}))
 const mockSendMessage = mock(() => Promise.resolve({}))
 const mockClose = mock(() => {})
@@ -23,6 +25,8 @@ mock.module('./protocol/session', () => ({
     getChatInfo = mockGetChatInfo
     getChannelInfo = mockGetChannelInfo
     getOpenLinkInfo = mockGetOpenLinkInfo
+    getAllMembers = mockGetAllMembers
+    getMembersByIds = mockGetMembersByIds
     syncMessages = mockSyncMessages
     sendMessage = mockSendMessage
     close = mockClose
@@ -42,6 +46,8 @@ function resetAllMocks() {
   mockGetChatInfo.mockReset()
   mockGetChannelInfo.mockReset()
   mockGetOpenLinkInfo.mockReset()
+  mockGetAllMembers.mockReset()
+  mockGetMembersByIds.mockReset()
   mockSyncMessages.mockReset()
   mockSendMessage.mockReset()
   mockClose.mockReset()
@@ -814,6 +820,299 @@ describe('KakaoTalkClient', () => {
       } catch (e) {
         expect((e as KakaoTalkError).code).toBe('send_message_failed')
       }
+
+      client.close()
+    })
+  })
+
+  describe('getMembers / getMembersByIds', () => {
+    it('returns formatted members from GETMEM with normalized fields', async () => {
+      mockGetAllMembers.mockResolvedValueOnce({
+        statusCode: 0,
+        body: {
+          members: [
+            {
+              userId: makeLong(42),
+              nickName: 'Alice',
+              type: 100,
+              profileImageUrl: 'https://kakao.com/p/alice.jpg',
+              fullProfileImageUrl: 'https://kakao.com/p/alice-full.jpg',
+              originalProfileImageUrl: 'https://kakao.com/p/alice-orig.jpg',
+              statusMessage: 'hi',
+              countryIso: 'KR',
+            },
+            {
+              userId: makeLong(43),
+              nickName: 'Bob',
+              type: 1000,
+              pi: 'https://kakao.com/p/bob.jpg',
+              fpi: 'https://kakao.com/p/bob-full.jpg',
+              opi: 'https://kakao.com/p/bob-orig.jpg',
+              opt: 12345,
+              pli: makeLong(99),
+              mt: 4,
+            },
+          ],
+          token: 0,
+        },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const members = await client.getMembers('100')
+
+      expect(members).toHaveLength(2)
+      expect(members[0]).toEqual({
+        user_id: '42',
+        nickname: 'Alice',
+        profile_image_url: 'https://kakao.com/p/alice.jpg',
+        full_profile_image_url: 'https://kakao.com/p/alice-full.jpg',
+        original_profile_image_url: 'https://kakao.com/p/alice-orig.jpg',
+        status_message: 'hi',
+        country_iso: 'KR',
+        user_type: 100,
+        open_token: null,
+        open_profile_link_id: null,
+        open_permission: null,
+      })
+      expect(members[1]).toEqual({
+        user_id: '43',
+        nickname: 'Bob',
+        profile_image_url: 'https://kakao.com/p/bob.jpg',
+        full_profile_image_url: 'https://kakao.com/p/bob-full.jpg',
+        original_profile_image_url: 'https://kakao.com/p/bob-orig.jpg',
+        status_message: null,
+        country_iso: null,
+        user_type: 1000,
+        open_token: 12345,
+        open_profile_link_id: '99',
+        open_permission: 4,
+      })
+
+      client.close()
+    })
+
+    it('returns empty array when GETMEM returns no members', async () => {
+      mockGetAllMembers.mockResolvedValueOnce({ statusCode: 0, body: {} })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const members = await client.getMembers('100')
+
+      expect(members).toEqual([])
+
+      client.close()
+    })
+
+    it('normalizes missing user_type to null and treats pli=0 as absent', async () => {
+      mockGetAllMembers.mockResolvedValueOnce({
+        statusCode: 0,
+        body: {
+          members: [
+            { userId: makeLong(1), nickName: 'NoType' },
+            { userId: makeLong(2), nickName: 'ZeroPli', type: 1000, pli: makeLong(0) },
+            { userId: makeLong(3), nickName: 'NumericZeroPli', type: 1000, pli: 0 },
+          ],
+        },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const members = await client.getMembers('100')
+
+      expect(members[0].user_type).toBeNull()
+      expect(members[0].open_profile_link_id).toBeNull()
+      expect(members[1].user_type).toBe(1000)
+      expect(members[1].open_profile_link_id).toBeNull()
+      expect(members[2].open_profile_link_id).toBeNull()
+
+      client.close()
+    })
+
+    it('wraps GETMEM failures as KakaoTalkError get_members_failed', async () => {
+      mockGetAllMembers.mockRejectedValueOnce(new Error('Network error'))
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      try {
+        await client.getMembers('100')
+        expect.unreachable('should have thrown')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('get_members_failed')
+      }
+
+      client.close()
+    })
+
+    it('throws on synthetic disconnect packet from GETMEM (statusCode != 0)', async () => {
+      mockGetAllMembers.mockResolvedValueOnce({
+        statusCode: -1,
+        body: { error: 'connection closed' },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      try {
+        await client.getMembers('100')
+        expect.unreachable('should have thrown')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('get_members_failed')
+      }
+
+      client.close()
+    })
+
+    it('throws on GETMEM body.status nonzero', async () => {
+      mockGetAllMembers.mockResolvedValueOnce({
+        statusCode: 0,
+        body: { status: -500 },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      try {
+        await client.getMembers('100')
+        expect.unreachable('should have thrown')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('get_members_failed')
+      }
+
+      client.close()
+    })
+
+    it('getMembersByIds passes parsed Long IDs to MEMBER request', async () => {
+      mockGetMembersByIds.mockResolvedValueOnce({
+        statusCode: 0,
+        body: {
+          chatId: makeLong(100),
+          members: [{ userId: makeLong(42), nickName: 'Alice', type: 100 }],
+        },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const members = await client.getMembersByIds('100', ['42', '43', '99'])
+
+      expect(members).toHaveLength(1)
+      expect(members[0].nickname).toBe('Alice')
+      expect(mockGetMembersByIds).toHaveBeenCalledTimes(1)
+
+      // Verify the actual LOCO call args, not just the call count: chatId is a
+      // Long-shaped { low, high } and memberIds is a list of Longs in the order
+      // the SDK consumer passed them. Guards against accidentally sending raw
+      // strings or losing IDs — both fail silently server-side.
+      const [chatIdArg, memberIdsArg] = mockGetMembersByIds.mock.calls[0] as [
+        { low: number; high: number },
+        Array<{ low: number; high: number }>,
+      ]
+      expect(chatIdArg).toMatchObject({ low: 100, high: 0 })
+      expect(memberIdsArg).toHaveLength(3)
+      expect(memberIdsArg[0]).toMatchObject({ low: 42, high: 0 })
+      expect(memberIdsArg[1]).toMatchObject({ low: 43, high: 0 })
+      expect(memberIdsArg[2]).toMatchObject({ low: 99, high: 0 })
+
+      client.close()
+    })
+
+    it('wraps MEMBER failures as KakaoTalkError get_members_failed', async () => {
+      mockGetMembersByIds.mockRejectedValueOnce(new Error('Network error'))
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      try {
+        await client.getMembersByIds('100', ['42'])
+        expect.unreachable('should have thrown')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('get_members_failed')
+      }
+
+      client.close()
+    })
+
+    it('throws on synthetic disconnect packet from MEMBER (statusCode != 0)', async () => {
+      mockGetMembersByIds.mockResolvedValueOnce({
+        statusCode: -1,
+        body: { error: 'connection closed' },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      try {
+        await client.getMembersByIds('100', ['42'])
+        expect.unreachable('should have thrown')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('get_members_failed')
+      }
+
+      client.close()
+    })
+
+    it('throws on MEMBER body.status nonzero', async () => {
+      mockGetMembersByIds.mockResolvedValueOnce({
+        statusCode: 0,
+        body: { status: -500 },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      try {
+        await client.getMembersByIds('100', ['42'])
+        expect.unreachable('should have thrown')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('get_members_failed')
+      }
+
+      client.close()
+    })
+
+    it('getMembers throws KakaoTalkError invalid_chat_id without contacting LOCO', async () => {
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      try {
+        await client.getMembers('not-a-number')
+        expect.unreachable('should have thrown')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('invalid_chat_id')
+      }
+      expect(mockGetAllMembers).not.toHaveBeenCalled()
+      expect(mockLogin).not.toHaveBeenCalled()
+
+      client.close()
+    })
+
+    it('getMembersByIds throws invalid_chat_id for bad chatId without contacting LOCO', async () => {
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      try {
+        await client.getMembersByIds('not-a-number', ['42'])
+        expect.unreachable('should have thrown')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('invalid_chat_id')
+      }
+      expect(mockGetMembersByIds).not.toHaveBeenCalled()
+      expect(mockLogin).not.toHaveBeenCalled()
+
+      client.close()
+    })
+
+    it('getMembersByIds throws invalid_user_id for bad userId without contacting LOCO', async () => {
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      try {
+        await client.getMembersByIds('100', ['42', 'bogus', '99'])
+        expect.unreachable('should have thrown')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('invalid_user_id')
+      }
+      expect(mockGetMembersByIds).not.toHaveBeenCalled()
+      expect(mockLogin).not.toHaveBeenCalled()
+
+      client.close()
+    })
+
+    it('getMembersByIds returns [] without contacting LOCO when userIds is empty', async () => {
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const result = await client.getMembersByIds('100', [])
+
+      expect(result).toEqual([])
+      expect(mockGetMembersByIds).not.toHaveBeenCalled()
+      expect(mockLogin).not.toHaveBeenCalled()
 
       client.close()
     })

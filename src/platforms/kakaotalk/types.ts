@@ -93,6 +93,23 @@ export interface KakaoMessage {
   sent_at: number
 }
 
+export interface KakaoMember {
+  user_id: string
+  nickname: string
+  profile_image_url: string | null
+  full_profile_image_url: string | null
+  original_profile_image_url: string | null
+  status_message: string | null
+  country_iso: string | null
+  /** KakaoTalk UserType: 100=FRIEND, 1000=OPEN_PROFILE, etc. `null` when the server omits the field. */
+  user_type: number | null
+  /** Open-chat-only fields below; `null` for normal chats. */
+  open_token: number | null
+  open_profile_link_id: string | null
+  /** OpenChannelUserPerm bitfield: 1=OWNER, 2=NONE, 4=MANAGER, 8=BOT. Forward-compatible with future values. */
+  open_permission: number | null
+}
+
 export interface KakaoSendResult {
   success: boolean
   status_code: number
@@ -125,6 +142,20 @@ export const KakaoMessageSchema = z.object({
   author_name: z.string().nullable(),
   message: z.string(),
   sent_at: z.number(),
+})
+
+export const KakaoMemberSchema = z.object({
+  user_id: z.string(),
+  nickname: z.string(),
+  profile_image_url: z.string().nullable(),
+  full_profile_image_url: z.string().nullable(),
+  original_profile_image_url: z.string().nullable(),
+  status_message: z.string().nullable(),
+  country_iso: z.string().nullable(),
+  user_type: z.number().nullable(),
+  open_token: z.number().nullable(),
+  open_profile_link_id: z.string().nullable(),
+  open_permission: z.number().nullable(),
 })
 
 export const KakaoSendResultSchema = z.object({

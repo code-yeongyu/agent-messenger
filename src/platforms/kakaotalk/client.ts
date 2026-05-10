@@ -10,7 +10,7 @@ import { warn } from '@/shared/utils/stderr'
 import { LANG, PC_OS_NAME, getLocoDeviceConfig } from './protocol/config'
 import { LocoSession } from './protocol/session'
 import type { ChatListResponse, LocoPacket, LoginListResponse, SyncState } from './protocol/types'
-import type { KakaoChat, KakaoDeviceType, KakaoMessage, KakaoProfile, KakaoSendResult } from './types'
+import type { KakaoChat, KakaoDeviceType, KakaoMember, KakaoMessage, KakaoProfile, KakaoSendResult } from './types'
 
 export type KakaoSessionEvent =
   | { type: 'connected'; userId: string }
@@ -110,6 +110,22 @@ function parseLong(s: string): Long {
   const low = Number(big & 0xffffffffn)
   const high = Number((big >> 32n) & 0xffffffffn)
   return new Long(low, high)
+}
+
+function parseChatId(chatId: string): Long {
+  try {
+    return parseLong(chatId)
+  } catch (cause) {
+    throw new KakaoTalkError(`Invalid chatId: ${chatId}`, 'invalid_chat_id', { cause })
+  }
+}
+
+function parseUserId(userId: string): Long {
+  try {
+    return parseLong(userId)
+  } catch (cause) {
+    throw new KakaoTalkError(`Invalid userId: ${userId}`, 'invalid_user_id', { cause })
+  }
 }
 
 function formatChat(chat: ChatData, title: string | null, nameCache: MemberNameCache): KakaoChat {
@@ -319,6 +335,53 @@ function mergeSyncState(previous: SyncState | undefined, loginResult: LoginListR
   }
 
   return next
+}
+
+function nullableString(v: unknown): string | null {
+  return typeof v === 'string' && v.length > 0 ? v : null
+}
+
+function nullableNumber(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null
+}
+
+function isNonZeroLong(v: unknown): boolean {
+  if (typeof v === 'number') return v !== 0
+  if (v && typeof v === 'object' && 'low' in v && 'high' in v) {
+    const { low, high } = v as { low: number; high: number }
+    return low !== 0 || high !== 0
+  }
+  return v !== undefined && v !== null
+}
+
+// Reject synthetic LocoConnection close packets ({ statusCode: -1, body.error: 'connection closed' })
+// and explicit body-level failures. Required for any SDK method whose response body has no
+// caller-visible error channel (e.g. GETMEM/MEMBER return `[]` for both empty rooms and dead
+// sockets). Throwing here lets executeWithReconnect detect session death and reconnect.
+function assertLocoOk(response: LocoPacket, command: string): void {
+  if (response.statusCode !== 0) {
+    throw new Error(`${command} failed: statusCode=${response.statusCode}`)
+  }
+  const bodyStatus = response.body.status
+  if (typeof bodyStatus === 'number' && bodyStatus !== 0) {
+    throw new Error(`${command} failed: body.status=${bodyStatus}`)
+  }
+}
+
+function formatMember(member: Record<string, unknown>): KakaoMember {
+  return {
+    user_id: longToString(member.userId),
+    nickname: typeof member.nickName === 'string' ? member.nickName : '',
+    profile_image_url: nullableString(member.profileImageUrl ?? member.pi),
+    full_profile_image_url: nullableString(member.fullProfileImageUrl ?? member.fpi),
+    original_profile_image_url: nullableString(member.originalProfileImageUrl ?? member.opi),
+    status_message: nullableString(member.statusMessage),
+    country_iso: nullableString(member.countryIso),
+    user_type: nullableNumber(member.type),
+    open_token: nullableNumber(member.opt),
+    open_profile_link_id: isNonZeroLong(member.pli) ? longToString(member.pli) : null,
+    open_permission: nullableNumber(member.mt),
+  }
 }
 
 function formatMessages(
@@ -743,6 +806,36 @@ export class KakaoTalkClient {
         return formatMessages(allMessages, count, chatId, this.nameCache)
       } catch (error) {
         throw wrapError(error, 'get_messages_failed')
+      }
+    })
+  }
+
+  async getMembers(chatId: string): Promise<KakaoMember[]> {
+    const parsedChatId = parseChatId(chatId)
+    return this.executeWithReconnect(async ({ session }) => {
+      try {
+        const response = await session.getAllMembers(parsedChatId)
+        assertLocoOk(response, 'GETMEM')
+        const members = (response.body.members ?? []) as Array<Record<string, unknown>>
+        return members.map(formatMember)
+      } catch (error) {
+        throw wrapError(error, 'get_members_failed')
+      }
+    })
+  }
+
+  async getMembersByIds(chatId: string, userIds: string[]): Promise<KakaoMember[]> {
+    if (userIds.length === 0) return []
+    const parsedChatId = parseChatId(chatId)
+    const memberIds = userIds.map((id) => parseUserId(id))
+    return this.executeWithReconnect(async ({ session }) => {
+      try {
+        const response = await session.getMembersByIds(parsedChatId, memberIds)
+        assertLocoOk(response, 'MEMBER')
+        const members = (response.body.members ?? []) as Array<Record<string, unknown>>
+        return members.map(formatMember)
+      } catch (error) {
+        throw wrapError(error, 'get_members_failed')
       }
     })
   }
