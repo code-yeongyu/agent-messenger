@@ -17,6 +17,7 @@ import {
   DiscordReactionSchema,
   DiscordUserSchema,
 } from '@/platforms/discordbot/index'
+import type { DiscordBotListenerOptions } from '@/platforms/discordbot/index'
 
 it('DiscordBotClient is exported from barrel', () => {
   expect(typeof DiscordBotClient).toBe('function')
@@ -32,6 +33,11 @@ it('DiscordBotCredentialManager is exported from barrel', () => {
 
 it('DiscordBotListener is exported from barrel', () => {
   expect(typeof DiscordBotListener).toBe('function')
+})
+
+it('DiscordBotListenerOptions type is exported from barrel', () => {
+  const options: DiscordBotListenerOptions = { intents: 0 }
+  expect(options.intents).toBe(0)
 })
 
 it('DiscordGatewayOpcode is exported from barrel', () => {

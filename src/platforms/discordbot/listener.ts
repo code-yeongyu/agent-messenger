@@ -24,6 +24,10 @@ const DEFAULT_INTENTS =
 
 type EventKey = keyof DiscordBotListenerEventMap
 
+export interface DiscordBotListenerOptions {
+  intents?: number
+}
+
 export class DiscordBotListener {
   private client: DiscordBotClient
   private intents: number
@@ -43,7 +47,7 @@ export class DiscordBotListener {
   private cachedUser: { id: string; username: string } | null = null
   private generation = 0
 
-  constructor(client: DiscordBotClient, options?: { intents?: number }) {
+  constructor(client: DiscordBotClient, options?: DiscordBotListenerOptions) {
     this.client = client
     this.intents = options?.intents ?? DEFAULT_INTENTS
   }
