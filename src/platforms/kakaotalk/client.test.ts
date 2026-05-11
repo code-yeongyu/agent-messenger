@@ -295,6 +295,91 @@ describe('KakaoTalkClient', () => {
       client.close()
     })
 
+    it('resolves open-chat titles via INFOLINK fallback in batch resolveTitles=true path', async () => {
+      // Mixed login snapshot: regular chat (uses CHATINFO TITLE meta), open chat
+      // with TITLE meta (CHATINFO only), open chat without TITLE meta (CHATINFO
+      // empty + INFOLINK fallback). Verifies the batch path wires open-chat
+      // fallback correctly — previously only the single-chat getChatTitle()
+      // path was covered.
+      const mixedLogin = {
+        chatDatas: [
+          {
+            c: 100,
+            t: 1,
+            k: ['Alice'],
+            i: [1],
+            a: 1,
+            n: 0,
+            o: 1700000003,
+            l: null,
+            ll: makeLong(1),
+          },
+          {
+            c: 500,
+            t: 'OM',
+            li: makeLong(7777),
+            k: ['User1'],
+            i: [10],
+            a: 1,
+            n: 0,
+            o: 1700000002,
+            l: null,
+            ll: makeLong(2),
+          },
+          {
+            c: 600,
+            t: 'OD',
+            li: makeLong(8888),
+            k: ['User2'],
+            i: [20],
+            a: 1,
+            n: 0,
+            o: 1700000001,
+            l: null,
+            ll: makeLong(3),
+          },
+        ],
+        lastTokenId: makeLong(0),
+        lastChatId: makeLong(0),
+        eof: true,
+      }
+      mockLogin.mockResolvedValue(mixedLogin)
+
+      // CHATINFO is fired in parallel for all 3 chats; mock by chatId so order
+      // doesn't matter (Promise.all resolves in fire order, not array order).
+      mockGetChannelInfo.mockImplementation((chatId: { low: number; high: number }) => {
+        switch (chatId.low) {
+          case 100:
+            return Promise.resolve({ body: { chatInfo: { chatMetas: [{ type: 3, content: 'Regular Title' }] } } })
+          case 500:
+            return Promise.resolve({ body: { chatInfo: { chatMetas: [{ type: 3, content: 'Open With Title' }] } } })
+          case 600:
+            return Promise.resolve({ body: { chatInfo: { chatMetas: [] } } })
+          default:
+            return Promise.resolve({ body: {} })
+        }
+      })
+      mockGetOpenLinkInfo.mockResolvedValueOnce({ body: { ols: [{ ln: 'Open Link Name' }] } })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const chats = await client.getChats({ resolveTitles: true })
+
+      const byId = Object.fromEntries(chats.map((c) => [c.chat_id, c]))
+      expect(byId['100'].title).toBe('Regular Title')
+      expect(byId['500'].title).toBe('Open With Title')
+      expect(byId['600'].title).toBe('Open Link Name')
+
+      // INFOLINK fires only for the open chat that lacked a TITLE meta — not
+      // for the regular chat (skipped by isOpenChat) and not for the open
+      // chat that already had a TITLE (skipped by short-circuit).
+      expect(mockGetOpenLinkInfo).toHaveBeenCalledTimes(1)
+      const [linkIds] = mockGetOpenLinkInfo.mock.calls[0] as [Array<{ low: number; high: number }>]
+      expect(linkIds).toHaveLength(1)
+      expect(linkIds[0]).toMatchObject({ low: 8888, high: 0 })
+
+      client.close()
+    })
+
     it('sorts chats by recency (o field descending)', async () => {
       const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
       const chats = await client.getChats()
@@ -1113,6 +1198,44 @@ describe('KakaoTalkClient', () => {
       expect(result).toEqual([])
       expect(mockGetMembersByIds).not.toHaveBeenCalled()
       expect(mockLogin).not.toHaveBeenCalled()
+
+      client.close()
+    })
+
+    it('reconnects and retries getMembers after silent disconnect (full executeWithReconnect path)', async () => {
+      // Earlier tests verify assertLocoOk throws on a synthetic-disconnect packet,
+      // but they don't exercise the reconnect path: executeWithReconnect only
+      // retries when the underlying socket also closed (state.session !== this.state.session).
+      // This test fires the captured onClose callback before the rejection so the
+      // client's state is nulled, then verifies the operation is retried against
+      // a fresh session and the second response is returned to the caller.
+      const closeHandlers: Array<() => void> = []
+      mockOnClose.mockImplementation((handler: () => void) => {
+        closeHandlers.push(handler)
+      })
+
+      mockGetAllMembers.mockImplementationOnce(() => {
+        // Fire the close handler captured during the first session's setup —
+        // simulates the LOCO TCP socket closing while the GETMEM is in flight.
+        // executeWithReconnect sees state.session !== this.state.session and retries.
+        const handler = closeHandlers[0]
+        if (handler) handler()
+        return Promise.resolve({ statusCode: -1, body: { error: 'connection closed' } })
+      })
+      mockGetAllMembers.mockResolvedValueOnce({
+        statusCode: 0,
+        body: { members: [{ userId: makeLong(42), nickName: 'Alice', type: 100 }] },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const members = await client.getMembers('100')
+
+      expect(members).toHaveLength(1)
+      expect(members[0].nickname).toBe('Alice')
+      expect(mockGetAllMembers).toHaveBeenCalledTimes(2)
+      // Login fires twice: once for the initial connect, once for the reconnect
+      // after the captured onClose handler invalidated this.state.
+      expect(mockLogin).toHaveBeenCalledTimes(2)
 
       client.close()
     })

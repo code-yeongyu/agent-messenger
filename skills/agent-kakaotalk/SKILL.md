@@ -383,7 +383,7 @@ All commands output JSON by default for AI consumption:
   "active_members": 3,
   "unread_count": 5,
   "last_message": {
-    "author_id": "1111111111",
+    "author_id": 1111111111,
     "author_name": "Alice",
     "message": "Hello everyone!",
     "sent_at": 1705312200000
