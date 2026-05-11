@@ -5,7 +5,9 @@ export type { SlackBotListenerOptions } from './listener'
 export type {
   SlackBotConfig,
   SlackBotCredentials,
+  SlackBotEntry,
   SlackBotListenerEventMap,
+  SlackBotWorkspace,
   SlackChannel,
   SlackFile,
   SlackMessage,
@@ -34,7 +36,9 @@ export type {
 export {
   SlackBotConfigSchema,
   SlackBotCredentialsSchema,
+  SlackBotEntrySchema,
   SlackBotError,
+  SlackBotWorkspaceSchema,
   SlackChannelSchema,
   SlackFileSchema,
   SlackMessageSchema,
