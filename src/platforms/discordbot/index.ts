@@ -1,6 +1,7 @@
 export { DiscordBotClient } from './client'
 export { DiscordBotCredentialManager } from './credential-manager'
 export { DiscordBotListener } from './listener'
+export type { DiscordBotListenerOptions } from './listener'
 export type {
   DiscordBotConfig,
   DiscordBotCredentials,
