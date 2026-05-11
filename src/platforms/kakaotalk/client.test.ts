@@ -13,6 +13,7 @@ const mockGetAllMembers = mock(() => Promise.resolve({}))
 const mockGetMembersByIds = mock(() => Promise.resolve({}))
 const mockSyncMessages = mock(() => Promise.resolve({}))
 const mockSendMessage = mock(() => Promise.resolve({}))
+const mockMarkRead = mock(() => Promise.resolve({}))
 const mockClose = mock(() => {})
 const mockOnClose = mock((_handler: () => void) => {})
 const mockOnPush = mock((_handler: (packet: unknown) => void) => {})
@@ -29,6 +30,7 @@ mock.module('./protocol/session', () => ({
     getMembersByIds = mockGetMembersByIds
     syncMessages = mockSyncMessages
     sendMessage = mockSendMessage
+    markRead = mockMarkRead
     close = mockClose
     onClose = mockOnClose
     onPush = mockOnPush
@@ -50,6 +52,7 @@ function resetAllMocks() {
   mockGetMembersByIds.mockReset()
   mockSyncMessages.mockReset()
   mockSendMessage.mockReset()
+  mockMarkRead.mockReset()
   mockClose.mockReset()
   mockOnClose.mockReset()
   mockOnPush.mockReset()
@@ -904,6 +907,174 @@ describe('KakaoTalkClient', () => {
         await client.sendMessage('100', 'hello')
       } catch (e) {
         expect((e as KakaoTalkError).code).toBe('send_message_failed')
+      }
+
+      client.close()
+    })
+  })
+
+  describe('markRead', () => {
+    it('calls session.markRead with parsed chatId/watermark and no linkId for normal chat', async () => {
+      // given
+      mockMarkRead.mockResolvedValueOnce({ statusCode: 0, body: { status: 0 } })
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      // when
+      const result = await client.markRead('100', '42')
+
+      // then
+      expect(mockMarkRead).toHaveBeenCalledTimes(1)
+      const [chatIdArg, watermarkArg, linkIdArg] = mockMarkRead.mock.calls[0] as [
+        { toString(): string },
+        { toString(): string },
+        unknown,
+      ]
+      expect(chatIdArg.toString()).toBe('100')
+      expect(watermarkArg.toString()).toBe('42')
+      expect(linkIdArg).toBeUndefined()
+      expect(result).toEqual({ success: true, status_code: 0, chat_id: '100', watermark: '42' })
+
+      client.close()
+    })
+
+    it('forwards linkId when caller passes it (open chat)', async () => {
+      // given
+      mockMarkRead.mockResolvedValueOnce({ statusCode: 0, body: { status: 0 } })
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      // when
+      await client.markRead('200', '999', { linkId: '77777' })
+
+      // then
+      const [, , linkIdArg] = mockMarkRead.mock.calls[0] as [unknown, unknown, { toString(): string }]
+      expect(linkIdArg).toBeDefined()
+      expect(linkIdArg.toString()).toBe('77777')
+
+      client.close()
+    })
+
+    it('reports success when body.status is absent (treated as 0)', async () => {
+      // given
+      mockMarkRead.mockResolvedValueOnce({ statusCode: 0, body: {} })
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      // when
+      const result = await client.markRead('100', '42')
+
+      // then
+      expect(result).toEqual({ success: true, status_code: 0, chat_id: '100', watermark: '42' })
+
+      client.close()
+    })
+
+    it('reports failure from body.status (not transport statusCode) - the open-chat-missing-link case', async () => {
+      // given
+      mockMarkRead.mockResolvedValueOnce({ statusCode: 0, body: { status: -500 } })
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      // when
+      const result = await client.markRead('100', '42')
+
+      // then
+      expect(result).toEqual({ success: false, status_code: -500, chat_id: '100', watermark: '42' })
+
+      client.close()
+    })
+
+    it('throws (so executeWithReconnect retries) on transport-level statusCode != 0', async () => {
+      // given - simulates LocoConnection.handleClose synthetic packet
+      mockMarkRead.mockRejectedValue(new Error('NOTIREAD failed: statusCode=-1'))
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      // when / then
+      try {
+        await client.markRead('100', '42')
+        throw new Error('expected to throw')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('mark_read_failed')
+      }
+
+      client.close()
+    })
+
+    it('treats synthetic disconnect packet (statusCode: -1) as transport failure (throws)', async () => {
+      // given
+      mockMarkRead.mockResolvedValueOnce({ statusCode: -1, body: { error: 'connection closed' } })
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      // when / then
+      try {
+        await client.markRead('100', '42')
+        throw new Error('expected to throw')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('mark_read_failed')
+      }
+
+      client.close()
+    })
+
+    it('throws KakaoTalkError(invalid_chat_id) for non-numeric chatId', async () => {
+      // given
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      // when / then
+      try {
+        await client.markRead('not-a-number', '42')
+        throw new Error('expected to throw')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('invalid_chat_id')
+      }
+
+      client.close()
+    })
+
+    it('throws KakaoTalkError(invalid_log_id) for non-numeric logId', async () => {
+      // given
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      // when / then
+      try {
+        await client.markRead('100', 'not-a-number')
+        throw new Error('expected to throw')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('invalid_log_id')
+      }
+
+      client.close()
+    })
+
+    it('throws KakaoTalkError(invalid_link_id) for non-numeric linkId', async () => {
+      // given
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      // when / then
+      try {
+        await client.markRead('100', '42', { linkId: 'not-a-number' })
+        throw new Error('expected to throw')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('invalid_link_id')
+      }
+
+      client.close()
+    })
+
+    it('wraps transport errors as KakaoTalkError(mark_read_failed)', async () => {
+      // given
+      mockMarkRead.mockRejectedValue(new Error('Socket closed'))
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      // when / then
+      try {
+        await client.markRead('100', '42')
+        throw new Error('expected to throw')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('mark_read_failed')
       }
 
       client.close()

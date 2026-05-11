@@ -203,6 +203,20 @@ export class LocoSession {
     })
   }
 
+  /**
+   * Advance the server-side read watermark for a chat (NOTIREAD). Open chats
+   * supply `linkId`; normal chats must omit it (the wire `li` key must be
+   * absent, not null/0).
+   */
+  async markRead(chatId: Long, watermark: Long, linkId?: Long): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    const body: Record<string, unknown> = { chatId, watermark }
+    if (linkId !== undefined) {
+      body.li = linkId
+    }
+    return this.connection.sendPacket('NOTIREAD', body)
+  }
+
   onPush(handler: (packet: LocoPacket) => void): void {
     this.pushHandler = handler
     if (this.connection) {

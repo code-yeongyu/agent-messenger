@@ -10,7 +10,15 @@ import { warn } from '@/shared/utils/stderr'
 import { LANG, PC_OS_NAME, getLocoDeviceConfig } from './protocol/config'
 import { LocoSession } from './protocol/session'
 import type { ChatListResponse, LocoPacket, LoginListResponse, SyncState } from './protocol/types'
-import type { KakaoChat, KakaoDeviceType, KakaoMember, KakaoMessage, KakaoProfile, KakaoSendResult } from './types'
+import type {
+  KakaoChat,
+  KakaoDeviceType,
+  KakaoMarkReadResult,
+  KakaoMember,
+  KakaoMessage,
+  KakaoProfile,
+  KakaoSendResult,
+} from './types'
 
 export type KakaoSessionEvent =
   | { type: 'connected'; userId: string }
@@ -125,6 +133,22 @@ function parseUserId(userId: string): Long {
     return parseLong(userId)
   } catch (cause) {
     throw new KakaoTalkError(`Invalid userId: ${userId}`, 'invalid_user_id', { cause })
+  }
+}
+
+function parseLogId(logId: string): Long {
+  try {
+    return parseLong(logId)
+  } catch (cause) {
+    throw new KakaoTalkError(`Invalid logId: ${logId}`, 'invalid_log_id', { cause })
+  }
+}
+
+function parseLinkId(linkId: string): Long {
+  try {
+    return parseLong(linkId)
+  } catch (cause) {
+    throw new KakaoTalkError(`Invalid linkId: ${linkId}`, 'invalid_link_id', { cause })
   }
 }
 
@@ -854,6 +878,40 @@ export class KakaoTalkClient {
         }
       } catch (error) {
         throw wrapError(error, 'send_message_failed')
+      }
+    })
+  }
+
+  /**
+   * Advance the read watermark for `chatId` up to and including `logId`.
+   * The caller decides open vs normal: pass `opts.linkId` for open chats
+   * (오픈채팅) and omit it for normal chats. Open chats without a `linkId`
+   * are rejected by the server with a non-zero `body.status` — this method
+   * does not auto-detect.
+   */
+  async markRead(chatId: string, logId: string, opts?: { linkId?: string }): Promise<KakaoMarkReadResult> {
+    const parsedChatId = parseChatId(chatId)
+    const parsedWatermark = parseLogId(logId)
+    const parsedLinkId = opts?.linkId !== undefined ? parseLinkId(opts.linkId) : undefined
+
+    return this.executeWithReconnect(async ({ session }) => {
+      try {
+        const response = await session.markRead(parsedChatId, parsedWatermark, parsedLinkId)
+        // Throw on transport-level failure (incl. synthetic { statusCode: -1 }
+        // from LocoConnection.handleClose) so executeWithReconnect retries on
+        // a fresh session. The NOTIREAD command result lives in body.status.
+        if (response.statusCode !== 0) {
+          throw new Error(`NOTIREAD failed: statusCode=${response.statusCode}`)
+        }
+        const bodyStatus = typeof response.body.status === 'number' ? response.body.status : 0
+        return {
+          success: bodyStatus === 0,
+          status_code: bodyStatus,
+          chat_id: chatId,
+          watermark: logId,
+        }
+      } catch (error) {
+        throw wrapError(error, 'mark_read_failed')
       }
     })
   }

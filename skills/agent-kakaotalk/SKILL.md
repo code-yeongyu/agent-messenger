@@ -335,10 +335,34 @@ agent-kakaotalk message list <chat-id> --pretty
 agent-kakaotalk message send <chat-id> "Hello world"
 agent-kakaotalk message send <chat-id> "Hello world" --pretty
 
+# Mark messages as read up to a given log ID
+agent-kakaotalk message mark-read <chat-id> <log-id>
+agent-kakaotalk message mark-read <chat-id> <log-id> --pretty
+agent-kakaotalk message mark-read <chat-id> <log-id> --link-id <li>   # open chats only
+
 # Use a specific account
 agent-kakaotalk message list <chat-id> --account <account-id>
 agent-kakaotalk message send <chat-id> "Hello" --account <account-id>
+agent-kakaotalk message mark-read <chat-id> <log-id> --account <account-id>
 ```
+
+#### Mark as Read
+
+`message mark-read` sends a LOCO `NOTIREAD` packet to advance the server-side read watermark for a chat. The watermark is a `log_id` — typically the latest message's `log_id` from `message list` — not a timestamp.
+
+Output (JSON by default; `--pretty` pretty-prints the same JSON):
+
+```json
+{ "success": true, "status_code": 0, "chat_id": "9876543210", "watermark": "123456789" }
+```
+
+The process exits non-zero when `success` is `false` so shell scripts can branch on it.
+
+Notes:
+- Caller-driven and explicit — there is no auto-mark-on-receive behavior. Blind acking incoming messages would be a distinct behavioral fingerprint against an undocumented protocol and is intentionally out of scope.
+- Observed in testing on a sub-device tablet slot (the default `agent-messenger` slot). KakaoTalk does not support third-party clients; server behavior may vary by chat type, account region, or client version. Use sparingly; avoid tight loops.
+- The phone's home-screen OS unread badge may lag until the phone client foregrounds; the in-app counter updates faster. Observed quirk, not a guaranteed contract.
+- For open chats (오픈채팅) pass `--link-id <li>` (the `li` field on the open chat). Without it the server returns a non-zero `body.status`, which the CLI reports as `"success": false` with the server's status code, and exits non-zero.
 
 #### Message List Output
 
