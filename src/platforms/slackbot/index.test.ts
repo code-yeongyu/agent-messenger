@@ -5,8 +5,10 @@ import {
   SlackBotConfigSchema,
   SlackBotCredentialManager,
   SlackBotCredentialsSchema,
+  SlackBotEntrySchema,
   SlackBotError,
   SlackBotListener,
+  SlackBotWorkspaceSchema,
   SlackChannelSchema,
   SlackFileSchema,
   SlackMessageSchema,
@@ -36,6 +38,14 @@ it('SlackBotConfigSchema is exported from barrel', () => {
 
 it('SlackBotCredentialsSchema is exported from barrel', () => {
   expect(typeof SlackBotCredentialsSchema.parse).toBe('function')
+})
+
+it('SlackBotEntrySchema is exported from barrel', () => {
+  expect(typeof SlackBotEntrySchema.parse).toBe('function')
+})
+
+it('SlackBotWorkspaceSchema is exported from barrel', () => {
+  expect(typeof SlackBotWorkspaceSchema.parse).toBe('function')
 })
 
 it('SlackChannelSchema is exported from barrel', () => {
