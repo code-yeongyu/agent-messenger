@@ -224,17 +224,39 @@ export const DiscordIntent = {
   AutoModerationExecution: 1 << 21,
 } as const
 
+export interface DiscordGatewayEmbed {
+  type?: string
+  title?: string
+  description?: string
+  url?: string
+}
+
+export interface DiscordGatewayStickerItem {
+  id: string
+  name: string
+  format_type?: number
+}
+
 export interface DiscordGatewayMessageCreateEvent {
   type: 'MESSAGE_CREATE'
   id: string
   channel_id: string
   guild_id?: string
-  author: { id: string; username: string; bot?: boolean }
+  author: { id: string; username: string; global_name?: string | null; bot?: boolean }
   content: string
   timestamp: string
   edited_timestamp?: string
   mentions?: DiscordUser[]
+  mention_everyone?: boolean
+  mention_roles?: string[]
+  message_reference?: {
+    message_id?: string
+    channel_id?: string
+    guild_id?: string
+  }
   attachments?: DiscordFile[]
+  embeds?: DiscordGatewayEmbed[]
+  sticker_items?: DiscordGatewayStickerItem[]
 }
 
 export interface DiscordGatewayMessageUpdateEvent {
