@@ -235,6 +235,47 @@ describe('DiscordBotListener', () => {
       expect(messages[0].channel_id).toBe('C123')
     })
 
+    it('surfaces global_name, mentions, message_reference, embeds, and sticker_items', async () => {
+      const client = createMockClient()
+      listener = new DiscordBotListener(client)
+
+      const messages: DiscordGatewayMessageCreateEvent[] = []
+      listener.on('message_create', (event) => messages.push(event))
+
+      await listener.start()
+      mockWsInstance.simulateOpen()
+      mockWsInstance.simulateHello()
+      mockWsInstance.simulateReady()
+      mockWsInstance.simulateDispatch(
+        'MESSAGE_CREATE',
+        {
+          id: 'msg_2',
+          channel_id: 'C123',
+          author: { id: 'U456', username: 'user', global_name: 'User Display' },
+          content: 'reply text',
+          timestamp: '2024-01-01T00:00:00Z',
+          mention_everyone: false,
+          mention_roles: ['R1'],
+          message_reference: { message_id: 'msg_orig', channel_id: 'C123', guild_id: 'G1' },
+          embeds: [{ type: 'rich', title: 'embed-title', description: 'embed-desc', url: 'https://example.com' }],
+          sticker_items: [{ id: 'sk1', name: 'wave', format_type: 1 }],
+        },
+        2,
+      )
+
+      expect(messages.length).toBe(1)
+      const event = messages[0]
+      expect(event.author.global_name).toBe('User Display')
+      expect(event.mention_everyone).toBe(false)
+      expect(event.mention_roles).toEqual(['R1'])
+      expect(event.message_reference?.message_id).toBe('msg_orig')
+      expect(event.message_reference?.guild_id).toBe('G1')
+      expect(event.embeds?.[0]?.title).toBe('embed-title')
+      expect(event.embeds?.[0]?.url).toBe('https://example.com')
+      expect(event.sticker_items?.[0]?.name).toBe('wave')
+      expect(event.sticker_items?.[0]?.format_type).toBe(1)
+    })
+
     it('emits message_update events', async () => {
       const client = createMockClient()
       listener = new DiscordBotListener(client)
