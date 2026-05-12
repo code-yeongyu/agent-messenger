@@ -36,7 +36,7 @@ export const LANG = 'ko'
 export const COUNTRY_ISO = 'KR'
 export const PROTOCOL_VERSION = '1'
 
-export const PING_INTERVAL_MS = 300_000
+export const PING_INTERVAL_MS = 20_000
 
 export interface LocoDeviceConfig {
   os: string
