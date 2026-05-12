@@ -71,6 +71,8 @@ const newer = await client.getMessages('9876543210', { from: '123456789' })
 
 Each `KakaoMessage` carries an `author_name: string | null`. The SDK auto-populates this from the same chat-list response that already arrives at login (no extra LOCO calls). It resolves for "display members" — the small set of nicknames KakaoTalk includes in the chat list — and is `null` for everyone else.
 
+Each `KakaoMessage` also carries an `attachment: Record<string, unknown> | null`. For text messages this is `null`. For non-text messages (photos, videos, files, stickers, etc.) it is the parsed LOCO attachment payload — a JSON object whose shape varies by `type`. Photo messages use fields like `k` (CDN key), `w`/`h` (dimensions), `mt` (mime type), and `url`; sticker messages use `path`/`emoticonItemPath`. Treat it as opaque and narrow per `type`.
+
 ### Members
 
 ```typescript

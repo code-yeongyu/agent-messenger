@@ -90,6 +90,7 @@ export interface KakaoMessage {
   author_id: number
   author_name: string | null
   message: string
+  attachment: Record<string, unknown> | null
   sent_at: number
 }
 
@@ -148,6 +149,7 @@ export const KakaoMessageSchema = z.object({
   author_id: z.number(),
   author_name: z.string().nullable(),
   message: z.string(),
+  attachment: z.record(z.string(), z.unknown()).nullable(),
   sent_at: z.number(),
 })
 
@@ -237,6 +239,7 @@ export interface KakaoTalkPushMessageEvent {
   author_name: string | null
   message: string
   message_type: number
+  attachment: Record<string, unknown> | null
   sent_at: number
 }
 
@@ -314,6 +317,7 @@ export const KakaoTalkPushMessageEventSchema = z.object({
   author_name: z.string().nullable(),
   message: z.string(),
   message_type: z.number(),
+  attachment: z.record(z.string(), z.unknown()).nullable(),
   sent_at: z.number(),
 })
 

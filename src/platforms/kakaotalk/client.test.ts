@@ -774,6 +774,7 @@ describe('KakaoTalkClient', () => {
         author_id: 42,
         author_name: null,
         message: 'hello',
+        attachment: null,
         sent_at: 1700000001,
       })
       expect(messages[1]).toEqual({
@@ -782,6 +783,7 @@ describe('KakaoTalkClient', () => {
         author_id: 43,
         author_name: null,
         message: 'world',
+        attachment: null,
         sent_at: 1700000002,
       })
 
@@ -855,6 +857,65 @@ describe('KakaoTalkClient', () => {
 
       expect(messages[0].message).toBe('first')
       expect(messages[1].message).toBe('second')
+
+      client.close()
+    })
+
+    it('parses chatLog.attachment JSON for photo messages', async () => {
+      mockGetChatLogs.mockResolvedValueOnce({
+        body: {
+          status: 0,
+          chatLogs: [
+            {
+              logId: makeLong(20),
+              chatId: 100,
+              type: 2,
+              authorId: 42,
+              message: '사진',
+              sendAt: 1700000010,
+              attachment: '{"k":"path/to/img.jpg","w":1320,"h":2868,"mt":"image/jpeg"}',
+            },
+          ],
+          eof: true,
+        },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const messages = await client.getMessages('100')
+
+      expect(messages[0].attachment).toEqual({
+        k: 'path/to/img.jpg',
+        w: 1320,
+        h: 2868,
+        mt: 'image/jpeg',
+      })
+
+      client.close()
+    })
+
+    it('returns null attachment for malformed JSON', async () => {
+      mockGetChatLogs.mockResolvedValueOnce({
+        body: {
+          status: 0,
+          chatLogs: [
+            {
+              logId: makeLong(21),
+              chatId: 100,
+              type: 1,
+              authorId: 42,
+              message: 'broken',
+              sendAt: 1700000011,
+              attachment: 'not-json',
+            },
+          ],
+          eof: true,
+        },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const messages = await client.getMessages('100')
+
+      expect(messages[0].attachment).toBeNull()
 
       client.close()
     })
