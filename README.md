@@ -235,6 +235,9 @@ const listener = new KakaoTalkListener(client)
 listener.on('message', (event) => {
   console.log(`New message in ${event.chat_id}: ${event.message}`)
 })
+listener.on('emoticon', (event) => {
+  console.log(`Sticker (${event.emoticon_kind}) in ${event.chat_id}: ${event.sticker_path}`)
+})
 await listener.start()
 ```
 

@@ -4,6 +4,7 @@ import type { KakaoSessionEvent, KakaoSessionEventHandler, KakaoPushHandler, Kak
 import { KakaoTalkListener } from './listener'
 import type { LocoPacket } from './protocol/types'
 import type {
+  KakaoTalkPushEmoticonEvent,
   KakaoTalkPushGenericEvent,
   KakaoTalkPushMemberEvent,
   KakaoTalkPushMessageEvent,
@@ -173,6 +174,241 @@ describe('KakaoTalkListener', () => {
       })
 
       expect(messages[0].author_name).toBe('Alice')
+    })
+  })
+
+  describe('emoticon events', () => {
+    it('emits emoticon on MSG push with type=20 (animated sticker)', async () => {
+      const { listener: l, client } = createListener()
+      listener = l
+
+      const emoticons: KakaoTalkPushEmoticonEvent[] = []
+      listener.on('emoticon', (event) => emoticons.push(event))
+
+      await listener.start()
+      client.emitPush('MSG', {
+        chatId: { high: 0, low: 100 },
+        chatLog: {
+          logId: { high: 0, low: 200 },
+          authorId: 42,
+          message: '',
+          type: 20,
+          sendAt: 1700000000,
+          attachment: '{"path":"4412724.emot_001.webp","emoticonItemPath":"4412724.emot_001.webp","name":"(emoticon)"}',
+        },
+      })
+
+      expect(emoticons.length).toBe(1)
+      expect(emoticons[0].type).toBe('EMOTICON')
+      expect(emoticons[0].chat_id).toBe('100')
+      expect(emoticons[0].log_id).toBe('200')
+      expect(emoticons[0].author_id).toBe(42)
+      expect(emoticons[0].message_type).toBe(20)
+      expect(emoticons[0].emoticon_kind).toBe('sticker_ani')
+      expect(emoticons[0].pack_id).toBe('4412724')
+      expect(emoticons[0].sticker_path).toBe('4412724.emot_001.webp')
+      expect(emoticons[0].sent_at).toBe(1700000000)
+    })
+
+    it('emits emoticon on MSG push with type=12 (static sticker)', async () => {
+      const { listener: l, client } = createListener()
+      listener = l
+
+      const emoticons: KakaoTalkPushEmoticonEvent[] = []
+      listener.on('emoticon', (event) => emoticons.push(event))
+
+      await listener.start()
+      client.emitPush('MSG', {
+        chatId: { high: 0, low: 100 },
+        chatLog: {
+          logId: { high: 0, low: 201 },
+          authorId: 42,
+          message: '',
+          type: 12,
+          sendAt: 1700000001,
+          attachment: '{"path":"2222149.emot_004.png","emoticonItemPath":"2222149.emot_004.png","name":"(emoticon)"}',
+        },
+      })
+
+      expect(emoticons.length).toBe(1)
+      expect(emoticons[0].emoticon_kind).toBe('sticker')
+      expect(emoticons[0].pack_id).toBe('2222149')
+      expect(emoticons[0].sticker_path).toBe('2222149.emot_004.png')
+    })
+
+    it.each([
+      [6, 'ditem_emoticon' as const],
+      [22, 'actioncon' as const],
+      [25, 'sticker_gif' as const],
+    ])('maps message_type=%i to emoticon_kind=%s', async (msgType, expectedKind) => {
+      const { listener: l, client } = createListener()
+      listener = l
+
+      const emoticons: KakaoTalkPushEmoticonEvent[] = []
+      listener.on('emoticon', (event) => emoticons.push(event))
+
+      await listener.start()
+      client.emitPush('MSG', {
+        chatId: { high: 0, low: 100 },
+        chatLog: {
+          logId: { high: 0, low: 202 },
+          authorId: 42,
+          message: '',
+          type: msgType,
+          sendAt: 1700000002,
+          attachment: '{"path":"9999999.emot_001.webp"}',
+        },
+      })
+
+      expect(emoticons[0].emoticon_kind).toBe(expectedKind)
+    })
+
+    it('still emits the message event for back-compat when emoticon arrives', async () => {
+      const { listener: l, client } = createListener()
+      listener = l
+
+      const messages: KakaoTalkPushMessageEvent[] = []
+      const emoticons: KakaoTalkPushEmoticonEvent[] = []
+      listener.on('message', (event) => messages.push(event))
+      listener.on('emoticon', (event) => emoticons.push(event))
+
+      await listener.start()
+      client.emitPush('MSG', {
+        chatId: { high: 0, low: 100 },
+        chatLog: {
+          logId: { high: 0, low: 203 },
+          authorId: 42,
+          message: '',
+          type: 12,
+          sendAt: 1700000003,
+          attachment: '{"path":"2222149.emot_004.png"}',
+        },
+      })
+
+      expect(messages.length).toBe(1)
+      expect(messages[0].message_type).toBe(12)
+      expect(emoticons.length).toBe(1)
+    })
+
+    it('does not emit emoticon for non-sticker types', async () => {
+      const { listener: l, client } = createListener()
+      listener = l
+
+      const emoticons: KakaoTalkPushEmoticonEvent[] = []
+      listener.on('emoticon', (event) => emoticons.push(event))
+
+      await listener.start()
+      client.emitPush('MSG', {
+        chatId: { high: 0, low: 100 },
+        chatLog: {
+          logId: { high: 0, low: 204 },
+          authorId: 42,
+          message: 'hello',
+          type: 1,
+          sendAt: 1700000004,
+          attachment: '{}',
+        },
+      })
+
+      expect(emoticons.length).toBe(0)
+    })
+
+    it('emits emoticon with null fields when attachment is malformed JSON', async () => {
+      const { listener: l, client } = createListener()
+      listener = l
+
+      const emoticons: KakaoTalkPushEmoticonEvent[] = []
+      listener.on('emoticon', (event) => emoticons.push(event))
+
+      await listener.start()
+      client.emitPush('MSG', {
+        chatId: { high: 0, low: 100 },
+        chatLog: {
+          logId: { high: 0, low: 205 },
+          authorId: 42,
+          message: '',
+          type: 12,
+          sendAt: 1700000005,
+          attachment: 'not-json',
+        },
+      })
+
+      expect(emoticons.length).toBe(1)
+      expect(emoticons[0].sticker_path).toBeNull()
+      expect(emoticons[0].pack_id).toBeNull()
+    })
+
+    it('emits emoticon with null fields when attachment is missing', async () => {
+      const { listener: l, client } = createListener()
+      listener = l
+
+      const emoticons: KakaoTalkPushEmoticonEvent[] = []
+      listener.on('emoticon', (event) => emoticons.push(event))
+
+      await listener.start()
+      client.emitPush('MSG', {
+        chatId: { high: 0, low: 100 },
+        chatLog: {
+          logId: { high: 0, low: 206 },
+          authorId: 42,
+          message: '',
+          type: 20,
+          sendAt: 1700000006,
+        },
+      })
+
+      expect(emoticons.length).toBe(1)
+      expect(emoticons[0].sticker_path).toBeNull()
+      expect(emoticons[0].pack_id).toBeNull()
+    })
+
+    it('falls back to emoticonItemPath when path is absent', async () => {
+      const { listener: l, client } = createListener()
+      listener = l
+
+      const emoticons: KakaoTalkPushEmoticonEvent[] = []
+      listener.on('emoticon', (event) => emoticons.push(event))
+
+      await listener.start()
+      client.emitPush('MSG', {
+        chatId: { high: 0, low: 100 },
+        chatLog: {
+          logId: { high: 0, low: 207 },
+          authorId: 42,
+          message: '',
+          type: 12,
+          sendAt: 1700000007,
+          attachment: '{"emoticonItemPath":"3333.emot_009.png"}',
+        },
+      })
+
+      expect(emoticons[0].sticker_path).toBe('3333.emot_009.png')
+      expect(emoticons[0].pack_id).toBe('3333')
+    })
+
+    it('does not throw or leak invalid types when attachment.path is a non-string', async () => {
+      const { listener: l, client } = createListener()
+      listener = l
+
+      const emoticons: KakaoTalkPushEmoticonEvent[] = []
+      listener.on('emoticon', (event) => emoticons.push(event))
+
+      await listener.start()
+      client.emitPush('MSG', {
+        chatId: { high: 0, low: 100 },
+        chatLog: {
+          logId: { high: 0, low: 208 },
+          authorId: 42,
+          message: '',
+          type: 12,
+          sendAt: 1700000008,
+          attachment: '{"path":12345,"emoticonItemPath":null,"name":{"nested":"obj"}}',
+        },
+      })
+
+      expect(emoticons.length).toBe(1)
+      expect(emoticons[0].sticker_path).toBeNull()
+      expect(emoticons[0].pack_id).toBeNull()
     })
   })
 
