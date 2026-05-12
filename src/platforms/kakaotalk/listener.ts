@@ -31,13 +31,12 @@ function parseAttachmentJson(raw: unknown): Record<string, unknown> | null {
   if (typeof raw !== 'string' || raw.length === 0) return null
   try {
     const parsed = JSON.parse(raw) as unknown
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>
-    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+    const attachment = parsed as Record<string, unknown>
+    return Object.keys(attachment).length > 0 ? attachment : null
   } catch {
     return null
   }
-  return null
 }
 
 function nonEmptyString(value: unknown): string | null {
@@ -148,6 +147,8 @@ export class KakaoTalkListener {
         const authorName = this.client.lookupAuthorName?.(chatId, authorId) ?? null
         const sentAt = chatLog.sendAt as number
 
+        const attachment = parseAttachmentJson(chatLog.attachment)
+
         const messageEvent: KakaoTalkPushMessageEvent = {
           type: 'MSG',
           chat_id: chatId,
@@ -156,12 +157,12 @@ export class KakaoTalkListener {
           author_name: authorName,
           message: chatLog.message as string,
           message_type: messageType,
+          attachment,
           sent_at: sentAt,
         }
         this.emitter.emit('message', messageEvent)
 
         if (isEmoticonType(messageType)) {
-          const attachment = parseAttachmentJson(chatLog.attachment)
           const stickerPath = nonEmptyString(attachment?.path) ?? nonEmptyString(attachment?.emoticonItemPath)
           const emoticonEvent: KakaoTalkPushEmoticonEvent = {
             type: 'EMOTICON',

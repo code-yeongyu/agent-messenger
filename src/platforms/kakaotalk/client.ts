@@ -113,6 +113,18 @@ function longToString(v: unknown): string {
   return String(v ?? 0)
 }
 
+function parseAttachmentJson(raw: unknown): Record<string, unknown> | null {
+  if (typeof raw !== 'string' || raw.length === 0) return null
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+    const attachment = parsed as Record<string, unknown>
+    return Object.keys(attachment).length > 0 ? attachment : null
+  } catch {
+    return null
+  }
+}
+
 function parseLong(s: string): Long {
   const big = BigInt(s)
   const low = Number(big & 0xffffffffn)
@@ -422,6 +434,7 @@ function formatMessages(
     author_id: log.authorId as number,
     author_name: nameCache.lookup(chatId, log.authorId as number),
     message: log.message as string,
+    attachment: parseAttachmentJson(log.attachment),
     sent_at: log.sendAt as number,
   }))
 }

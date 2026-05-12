@@ -184,10 +184,11 @@ agent-kakaotalk message send <chat-id> "Hello" --account <account-id>
 Each message includes:
 
 - `log_id` — unique message identifier
-- `type` — message type (1 = text, 2 = photo, etc.)
+- `type` — message type (1 = text, 2 = photo, 12 = sticker, 20 = animated sticker, etc.)
 - `author_id` — sender's user ID
 - `author_name` — sender's nickname when known from the chat list (otherwise `null`; only the room's "display members" are cached)
-- `message` — message text content
+- `message` — message text content (empty string for non-text messages like stickers)
+- `attachment` — parsed JSON metadata for non-text messages (e.g. photo URL/dimensions, sticker path), or `null` for plain text. Shape varies by `type`; treat as an opaque object and narrow per message type.
 - `sent_at` — Unix timestamp (milliseconds)
 
 #### Fetching More Messages
@@ -253,7 +254,7 @@ Output includes:
 - No open chat browsing or joining
 - No search across chats
 
-- Plain text messages only (no photos, videos, or rich content)
+- Read-only for rich content: photos, stickers, files, and other non-text messages are exposed via the `attachment` field on each message, but sending them is not supported
 - Chat IDs are numeric and not human-readable — use `chat list` to discover them
 
 ## Troubleshooting

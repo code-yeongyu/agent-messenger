@@ -412,6 +412,153 @@ describe('KakaoTalkListener', () => {
     })
   })
 
+  describe('attachment field', () => {
+    it('parses chatLog.attachment JSON into a structured field', async () => {
+      const { listener: l, client } = createListener()
+      listener = l
+
+      const messages: KakaoTalkPushMessageEvent[] = []
+      listener.on('message', (event) => messages.push(event))
+
+      await listener.start()
+      client.emitPush('MSG', {
+        chatId: { high: 0, low: 100 },
+        chatLog: {
+          logId: { high: 0, low: 200 },
+          authorId: 42,
+          message: '사진',
+          type: 2,
+          sendAt: 1700000000,
+          attachment:
+            '{"k":"abc/photo.jpg","w":1320,"h":2868,"s":438315,"mt":"image/jpeg","url":"https://talk.kakaocdn.net/p"}',
+        },
+      })
+
+      expect(messages[0].attachment).toEqual({
+        k: 'abc/photo.jpg',
+        w: 1320,
+        h: 2868,
+        s: 438315,
+        mt: 'image/jpeg',
+        url: 'https://talk.kakaocdn.net/p',
+      })
+    })
+
+    it('returns null when attachment is "{}" (text messages have no payload)', async () => {
+      const { listener: l, client } = createListener()
+      listener = l
+
+      const messages: KakaoTalkPushMessageEvent[] = []
+      listener.on('message', (event) => messages.push(event))
+
+      await listener.start()
+      client.emitPush('MSG', {
+        chatId: { high: 0, low: 100 },
+        chatLog: {
+          logId: { high: 0, low: 201 },
+          authorId: 42,
+          message: 'hi',
+          type: 1,
+          sendAt: 1700000001,
+          attachment: '{}',
+        },
+      })
+
+      expect(messages[0].attachment).toBeNull()
+    })
+
+    it('returns null when attachment is absent', async () => {
+      const { listener: l, client } = createListener()
+      listener = l
+
+      const messages: KakaoTalkPushMessageEvent[] = []
+      listener.on('message', (event) => messages.push(event))
+
+      await listener.start()
+      client.emitPush('MSG', {
+        chatId: { high: 0, low: 100 },
+        chatLog: {
+          logId: { high: 0, low: 202 },
+          authorId: 42,
+          message: 'hi',
+          type: 1,
+          sendAt: 1700000002,
+        },
+      })
+
+      expect(messages[0].attachment).toBeNull()
+    })
+
+    it('returns null when attachment is an empty string', async () => {
+      const { listener: l, client } = createListener()
+      listener = l
+
+      const messages: KakaoTalkPushMessageEvent[] = []
+      listener.on('message', (event) => messages.push(event))
+
+      await listener.start()
+      client.emitPush('MSG', {
+        chatId: { high: 0, low: 100 },
+        chatLog: {
+          logId: { high: 0, low: 203 },
+          authorId: 42,
+          message: '',
+          type: 1,
+          sendAt: 1700000003,
+          attachment: '',
+        },
+      })
+
+      expect(messages[0].attachment).toBeNull()
+    })
+
+    it('returns null when attachment is malformed JSON', async () => {
+      const { listener: l, client } = createListener()
+      listener = l
+
+      const messages: KakaoTalkPushMessageEvent[] = []
+      listener.on('message', (event) => messages.push(event))
+
+      await listener.start()
+      client.emitPush('MSG', {
+        chatId: { high: 0, low: 100 },
+        chatLog: {
+          logId: { high: 0, low: 204 },
+          authorId: 42,
+          message: '',
+          type: 1,
+          sendAt: 1700000004,
+          attachment: 'not-json{',
+        },
+      })
+
+      expect(messages[0].attachment).toBeNull()
+    })
+
+    it('returns null when attachment is a JSON array (non-object)', async () => {
+      const { listener: l, client } = createListener()
+      listener = l
+
+      const messages: KakaoTalkPushMessageEvent[] = []
+      listener.on('message', (event) => messages.push(event))
+
+      await listener.start()
+      client.emitPush('MSG', {
+        chatId: { high: 0, low: 100 },
+        chatLog: {
+          logId: { high: 0, low: 205 },
+          authorId: 42,
+          message: '',
+          type: 1,
+          sendAt: 1700000005,
+          attachment: '[1,2,3]',
+        },
+      })
+
+      expect(messages[0].attachment).toBeNull()
+    })
+  })
+
   describe('member events', () => {
     it('emits member_joined on NEWMEM push', async () => {
       const { listener: l, client } = createListener()
