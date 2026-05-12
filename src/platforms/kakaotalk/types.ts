@@ -240,6 +240,35 @@ export interface KakaoTalkPushMessageEvent {
   sent_at: number
 }
 
+export type KakaoEmoticonKind = 'sticker' | 'sticker_ani' | 'actioncon' | 'sticker_gif' | 'ditem_emoticon'
+
+export const KAKAO_EMOTICON_KIND_BY_TYPE = {
+  6: 'ditem_emoticon',
+  12: 'sticker',
+  20: 'sticker_ani',
+  22: 'actioncon',
+  25: 'sticker_gif',
+} as const satisfies Record<number, KakaoEmoticonKind>
+
+export type KakaoEmoticonMessageType = keyof typeof KAKAO_EMOTICON_KIND_BY_TYPE
+
+export const KAKAO_EMOTICON_MESSAGE_TYPES = Object.keys(KAKAO_EMOTICON_KIND_BY_TYPE).map(
+  Number,
+) as KakaoEmoticonMessageType[]
+
+export interface KakaoTalkPushEmoticonEvent {
+  type: 'EMOTICON'
+  chat_id: string
+  log_id: string
+  author_id: number
+  author_name: string | null
+  message_type: KakaoEmoticonMessageType
+  emoticon_kind: KakaoEmoticonKind
+  pack_id: string | null
+  sticker_path: string | null
+  sent_at: number
+}
+
 export interface KakaoTalkPushMemberEvent {
   type: 'NEWMEM' | 'DELMEM'
   chat_id: string
@@ -260,12 +289,14 @@ export interface KakaoTalkPushGenericEvent {
 
 export type KakaoTalkPushEvent =
   | KakaoTalkPushMessageEvent
+  | KakaoTalkPushEmoticonEvent
   | KakaoTalkPushMemberEvent
   | KakaoTalkPushReadEvent
   | KakaoTalkPushGenericEvent
 
 export interface KakaoTalkListenerEventMap {
   message: [event: KakaoTalkPushMessageEvent]
+  emoticon: [event: KakaoTalkPushEmoticonEvent]
   member_joined: [event: KakaoTalkPushMemberEvent]
   member_left: [event: KakaoTalkPushMemberEvent]
   read: [event: KakaoTalkPushReadEvent]
@@ -283,6 +314,19 @@ export const KakaoTalkPushMessageEventSchema = z.object({
   author_name: z.string().nullable(),
   message: z.string(),
   message_type: z.number(),
+  sent_at: z.number(),
+})
+
+export const KakaoTalkPushEmoticonEventSchema = z.object({
+  type: z.literal('EMOTICON'),
+  chat_id: z.string(),
+  log_id: z.string(),
+  author_id: z.number(),
+  author_name: z.string().nullable(),
+  message_type: z.union([z.literal(6), z.literal(12), z.literal(20), z.literal(22), z.literal(25)]),
+  emoticon_kind: z.enum(['sticker', 'sticker_ani', 'actioncon', 'sticker_gif', 'ditem_emoticon']),
+  pack_id: z.string().nullable(),
+  sticker_path: z.string().nullable(),
   sent_at: z.number(),
 })
 

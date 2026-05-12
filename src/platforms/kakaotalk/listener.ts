@@ -2,12 +2,15 @@ import { EventEmitter } from 'events'
 
 import type { KakaoSessionEvent, KakaoTalkClient } from './client'
 import type { LocoPacket } from './protocol/types'
-import type {
-  KakaoTalkListenerEventMap,
-  KakaoTalkPushGenericEvent,
-  KakaoTalkPushMemberEvent,
-  KakaoTalkPushMessageEvent,
-  KakaoTalkPushReadEvent,
+import {
+  KAKAO_EMOTICON_KIND_BY_TYPE,
+  type KakaoEmoticonMessageType,
+  type KakaoTalkListenerEventMap,
+  type KakaoTalkPushEmoticonEvent,
+  type KakaoTalkPushGenericEvent,
+  type KakaoTalkPushMemberEvent,
+  type KakaoTalkPushMessageEvent,
+  type KakaoTalkPushReadEvent,
 } from './types'
 
 type EventKey = keyof KakaoTalkListenerEventMap
@@ -18,6 +21,35 @@ function longToString(v: unknown): string {
     return ((BigInt(high >>> 0) << 32n) | BigInt(low >>> 0)).toString()
   }
   return String(v ?? 0)
+}
+
+function isEmoticonType(type: number): type is KakaoEmoticonMessageType {
+  return type in KAKAO_EMOTICON_KIND_BY_TYPE
+}
+
+function parseAttachmentJson(raw: unknown): Record<string, unknown> | null {
+  if (typeof raw !== 'string' || raw.length === 0) return null
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+function nonEmptyString(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+function extractPackIdFromPath(path: string | null): string | null {
+  if (!path) return null
+  const dotIndex = path.indexOf('.')
+  if (dotIndex <= 0) return null
+  const head = path.slice(0, dotIndex)
+  return /^\d+$/.test(head) ? head : null
 }
 
 export class KakaoTalkListener {
@@ -111,17 +143,41 @@ export class KakaoTalkListener {
         const chatLog = body.chatLog as Record<string, unknown>
         const chatId = longToString(body.chatId)
         const authorId = chatLog.authorId as number
-        const event: KakaoTalkPushMessageEvent = {
+        const logId = longToString(chatLog.logId)
+        const messageType = chatLog.type as number
+        const authorName = this.client.lookupAuthorName?.(chatId, authorId) ?? null
+        const sentAt = chatLog.sendAt as number
+
+        const messageEvent: KakaoTalkPushMessageEvent = {
           type: 'MSG',
           chat_id: chatId,
-          log_id: longToString(chatLog.logId),
+          log_id: logId,
           author_id: authorId,
-          author_name: this.client.lookupAuthorName?.(chatId, authorId) ?? null,
+          author_name: authorName,
           message: chatLog.message as string,
-          message_type: chatLog.type as number,
-          sent_at: chatLog.sendAt as number,
+          message_type: messageType,
+          sent_at: sentAt,
         }
-        this.emitter.emit('message', event)
+        this.emitter.emit('message', messageEvent)
+
+        if (isEmoticonType(messageType)) {
+          const attachment = parseAttachmentJson(chatLog.attachment)
+          const stickerPath = nonEmptyString(attachment?.path) ?? nonEmptyString(attachment?.emoticonItemPath)
+          const emoticonEvent: KakaoTalkPushEmoticonEvent = {
+            type: 'EMOTICON',
+            chat_id: chatId,
+            log_id: logId,
+            author_id: authorId,
+            author_name: authorName,
+            message_type: messageType,
+            emoticon_kind: KAKAO_EMOTICON_KIND_BY_TYPE[messageType],
+            pack_id: extractPackIdFromPath(stickerPath),
+            sticker_path: stickerPath,
+            sent_at: sentAt,
+          }
+          this.emitter.emit('emoticon', emoticonEvent)
+        }
+
         this.emitter.emit('kakaotalk_event', { type: method, ...body })
         break
       }
