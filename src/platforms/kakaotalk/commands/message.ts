@@ -33,6 +33,24 @@ async function sendAction(
   }
 }
 
+async function markReadAction(
+  chatId: string,
+  logId: string,
+  options: { account?: string; linkId?: string; pretty?: boolean },
+): Promise<void> {
+  try {
+    const result = await withKakaoClient(options, (client) =>
+      client.markRead(chatId, logId, options.linkId !== undefined ? { linkId: options.linkId } : undefined),
+    )
+    console.log(formatOutput(result, options.pretty))
+    if (!result.success) {
+      process.exit(1)
+    }
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
 export const messageCommand = new Command('message')
   .description('KakaoTalk message commands')
   .addCommand(
@@ -53,4 +71,14 @@ export const messageCommand = new Command('message')
       .option('--account <id>', 'Use a specific KakaoTalk account')
       .option('--pretty', 'Pretty print JSON output')
       .action(sendAction),
+  )
+  .addCommand(
+    new Command('mark-read')
+      .description('Mark messages in a chat room as read up to a given log ID')
+      .argument('<chat-id>', 'Chat room ID')
+      .argument('<log-id>', 'Watermark log ID (mark messages up to and including this log_id as read)')
+      .option('--account <id>', 'Use a specific KakaoTalk account')
+      .option('--link-id <li>', 'Open-chat link ID (REQUIRED for open chats / 오픈채팅)')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(markReadAction),
   )

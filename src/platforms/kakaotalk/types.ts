@@ -118,6 +118,13 @@ export interface KakaoSendResult {
   sent_at: number
 }
 
+export interface KakaoMarkReadResult {
+  success: boolean
+  status_code: number
+  chat_id: string
+  watermark: string
+}
+
 export const KakaoChatSchema = z.object({
   chat_id: z.string(),
   type: z.number(),
@@ -164,6 +171,13 @@ export const KakaoSendResultSchema = z.object({
   chat_id: z.string(),
   log_id: z.string(),
   sent_at: z.number(),
+})
+
+export const KakaoMarkReadResultSchema = z.object({
+  success: z.boolean(),
+  status_code: z.number(),
+  chat_id: z.string(),
+  watermark: z.string(),
 })
 
 export interface KakaoProfile {
