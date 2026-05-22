@@ -106,19 +106,21 @@ async function extractAction(options: {
 
         if (options.debug) {
           const domain = workspaceDomains[ws.workspace_id]
-          debug(
-            `[debug] Attempting web token refresh for ${ws.workspace_id}${domain ? ` (${domain}.slack.com)` : ''}...`,
-          )
+          const target = domain
+            ? `${ws.workspace_id} (${domain}.slack.com)`
+            : `${ws.workspace_id} (trying all known domains)`
+          debug(`[debug] Attempting web token refresh for ${target}...`)
         }
         const refreshed = await tryWebTokenRefresh(ws, workspaceDomains)
         if (refreshed) {
           ws.token = refreshed.token
+          ws.workspace_id = refreshed.workspace_id
           ws.workspace_name = refreshed.workspace_name
           validWorkspaces.push(ws)
           await credManager.setWorkspace(ws)
 
           if (options.debug) {
-            debug(`[debug] ✓ Web refresh succeeded: ${refreshed.workspace_name}`)
+            debug(`[debug] ✓ Web refresh succeeded: ${refreshed.workspace_id}/${refreshed.workspace_name}`)
           }
         } else if (options.debug) {
           debug('[debug] ✗ Web refresh failed')

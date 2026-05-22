@@ -21,20 +21,29 @@ export async function ensureSlackAuth(): Promise<void> {
     const workspaces = await extractor.extract()
     const workspaceDomains = extractor.getWorkspaceDomains()
 
-    const validWorkspaces = []
+    const validWorkspaces: ExtractedWorkspace[] = []
+    const resolvedTeamIds = new Set<string>()
+    const refreshCache = new Map<string, RefreshResult | null>()
+
     for (const ws of workspaces) {
       try {
         const client = await new SlackClient().login({ token: ws.token, cookie: ws.cookie })
         const authInfo = await client.testAuth()
+        if (!authInfo.team_id) throw new Error('testAuth returned empty team_id')
         ws.workspace_id = authInfo.team_id
         ws.workspace_name = authInfo.team || ws.workspace_name
-        await credManager.setWorkspace(ws)
-        validWorkspaces.push(ws)
+        if (!resolvedTeamIds.has(ws.workspace_id)) {
+          resolvedTeamIds.add(ws.workspace_id)
+          await credManager.setWorkspace(ws)
+          validWorkspaces.push(ws)
+        }
       } catch {
-        const refreshed = await tryWebTokenRefresh(ws, workspaceDomains)
-        if (refreshed) {
+        const refreshed = await tryWebTokenRefresh(ws, workspaceDomains, { resolvedTeamIds, refreshCache })
+        if (refreshed && !resolvedTeamIds.has(refreshed.workspace_id)) {
           ws.token = refreshed.token
+          ws.workspace_id = refreshed.workspace_id
           ws.workspace_name = refreshed.workspace_name
+          resolvedTeamIds.add(ws.workspace_id)
           await credManager.setWorkspace(ws)
           validWorkspaces.push(ws)
         }
@@ -54,21 +63,81 @@ export async function ensureSlackAuth(): Promise<void> {
   }
 }
 
+// Bound worst-case HTTP traffic for users with very large root-state.json workspace lists.
+const MAX_DOMAIN_ATTEMPTS = 16
+
+// Slack workspace subdomains match `^[a-z][a-z0-9-]*$` per signup rules; validating here
+// prevents a tampered root-state.json from steering the cookie-bearing fetch to a non-Slack
+// host (e.g. a domain value containing `.`, `/`, `:`, `@`, `#`, or `?`).
+const SLACK_DOMAIN_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9-]*$/
+
+export type RefreshResult = { token: string; workspace_id: string; workspace_name: string }
+
+export type RefreshContext = {
+  resolvedTeamIds?: Set<string>
+  refreshCache?: Map<string, RefreshResult | null>
+}
+
 export async function tryWebTokenRefresh(
   ws: ExtractedWorkspace,
   workspaceDomains: Record<string, string>,
-): Promise<{ token: string; workspace_name: string } | null> {
+  context: RefreshContext = {},
+): Promise<RefreshResult | null> {
   if (!ws.cookie) return null
-  const domain = workspaceDomains[ws.workspace_id]
-  if (!domain) return null
 
+  // Try the domain that maps to this workspace_id first (when known), then fall back to
+  // every other known domain. Slack tokens extracted from LevelDB blobs sometimes carry
+  // workspace_id="unknown" because the regex window around the xoxc- bytes does not
+  // contain the T... team id; in that case the cookie may still be valid for one of the
+  // other workspaces the user is signed into.
+  const candidates = orderCandidateDomains(ws.workspace_id, workspaceDomains)
+  if (candidates.length === 0) return null
+
+  for (const { domain } of candidates) {
+    if (!SLACK_DOMAIN_REGEX.test(domain)) continue
+
+    const cacheKey = `${ws.cookie}\u0000${domain}`
+    const cached = context.refreshCache?.get(cacheKey)
+    let result: RefreshResult | null
+    if (cached !== undefined) {
+      result = cached
+    } else {
+      result = await refreshAndVerify(ws.cookie, domain, ws.workspace_name)
+      context.refreshCache?.set(cacheKey, result)
+    }
+    if (!result) continue
+    if (context.resolvedTeamIds?.has(result.workspace_id)) continue
+    return result
+  }
+  return null
+}
+
+function orderCandidateDomains(
+  workspaceId: string,
+  workspaceDomains: Record<string, string>,
+): Array<{ workspace_id: string; domain: string }> {
+  const entries = Object.entries(workspaceDomains).map(([workspace_id, domain]) => ({ workspace_id, domain }))
+  const exact = entries.findIndex((e) => e.workspace_id === workspaceId)
+  if (exact > 0) {
+    const [match] = entries.splice(exact, 1)
+    entries.unshift(match)
+  }
+  return entries.slice(0, MAX_DOMAIN_ATTEMPTS)
+}
+
+async function refreshAndVerify(cookie: string, domain: string, fallbackName: string): Promise<RefreshResult | null> {
   try {
-    const freshToken = await refreshTokenFromWeb(domain, ws.cookie)
+    const freshToken = await refreshTokenFromWeb(domain, cookie)
     if (!freshToken) return null
 
-    const client = await new SlackClient().login({ token: freshToken, cookie: ws.cookie })
+    const client = await new SlackClient().login({ token: freshToken, cookie })
     const authInfo = await client.testAuth()
-    return { token: freshToken, workspace_name: authInfo.team || ws.workspace_name }
+    if (!authInfo.team_id) return null
+    return {
+      token: freshToken,
+      workspace_id: authInfo.team_id,
+      workspace_name: authInfo.team || fallbackName,
+    }
   } catch {
     return null
   }
