@@ -278,7 +278,7 @@ describe('ensureSlackAuth', () => {
     )
   })
 
-  it('skips web refresh when no domain is known for workspace', async () => {
+  it('skips web refresh when domain map is empty', async () => {
     // given — domain mapping is empty
     extractSpy.mockResolvedValue([
       { workspace_id: 'T-stale', workspace_name: 'stale-ws', token: 'xoxc-stale', cookie: 'xoxd-valid' },
@@ -291,6 +291,108 @@ describe('ensureSlackAuth', () => {
 
     // then — no fetch attempt, workspace not saved
     expect(fetchSpy).not.toHaveBeenCalledWith(expect.stringContaining('ssb/redirect'), expect.anything())
+    expect(setWorkspaceSpy).not.toHaveBeenCalled()
+  })
+
+  it('falls back to other known domains when workspace_id has no domain mapping', async () => {
+    // given — token has workspace_id 'unknown' (extractor couldn't resolve team id),
+    // but cookie is valid for the second domain in root-state.json
+    extractSpy.mockResolvedValue([
+      { workspace_id: 'unknown', workspace_name: 'unknown', token: 'xoxc-stale', cookie: 'xoxd-valid' },
+    ])
+    getWorkspaceDomainsSpy.mockReturnValue({
+      T_OTHER_A: 'other-a',
+      T_OTHER_B: 'other-b',
+    })
+
+    fetchSpy.mockImplementation((url: string) => {
+      if (url.startsWith('https://other-a.slack.com/')) {
+        return Promise.resolve(new Response('<html>"api_token":"xoxc-fresh-a"</html>', { status: 200 }))
+      }
+      if (url.startsWith('https://other-b.slack.com/')) {
+        return Promise.resolve(new Response('<html>"api_token":"xoxc-fresh-b"</html>', { status: 200 }))
+      }
+      return Promise.resolve(new Response('', { status: 500 }))
+    })
+
+    // The first testAuth call is from the loop's main path with the stale local token (fails),
+    // the second is the first domain candidate (fails), the third is the second candidate (succeeds).
+    let authCalls = 0
+    testAuthSpy.mockImplementation(() => {
+      authCalls++
+      if (authCalls < 3) throw new Error('invalid_auth')
+      return Promise.resolve({ user_id: 'U1', team_id: 'T_OTHER_B', user: 'user', team: 'Other B' })
+    })
+
+    // when
+    await ensureSlackAuth()
+
+    // then — both candidate domains were tried; the workspace saves with the resolved team_id
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://other-a.slack.com/ssb/redirect',
+      expect.objectContaining({ headers: { Cookie: 'd=xoxd-valid' } }),
+    )
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://other-b.slack.com/ssb/redirect',
+      expect.objectContaining({ headers: { Cookie: 'd=xoxd-valid' } }),
+    )
+    expect(setWorkspaceSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ workspace_id: 'T_OTHER_B', token: 'xoxc-fresh-b', workspace_name: 'Other B' }),
+    )
+  })
+
+  it('stops trying domains once a refresh+verify succeeds', async () => {
+    // given — first candidate domain succeeds; later domains must not be attempted
+    extractSpy.mockResolvedValue([
+      { workspace_id: 'T_TARGET', workspace_name: 'target', token: 'xoxc-stale', cookie: 'xoxd-valid' },
+    ])
+    getWorkspaceDomainsSpy.mockReturnValue({
+      T_TARGET: 'target-domain',
+      T_OTHER: 'other-domain',
+    })
+
+    fetchSpy.mockResolvedValue(new Response('<html>"api_token":"xoxc-fresh"</html>', { status: 200 }))
+
+    let authCalls = 0
+    testAuthSpy.mockImplementation(() => {
+      authCalls++
+      if (authCalls === 1) throw new Error('invalid_auth')
+      return Promise.resolve({ user_id: 'U1', team_id: 'T_TARGET', user: 'user', team: 'Target' })
+    })
+
+    // when
+    await ensureSlackAuth()
+
+    // then — the exact-match domain is tried, fallback domain is not
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://target-domain.slack.com/ssb/redirect',
+      expect.objectContaining({ headers: { Cookie: 'd=xoxd-valid' } }),
+    )
+    expect(fetchSpy).not.toHaveBeenCalledWith(
+      'https://other-domain.slack.com/ssb/redirect',
+      expect.anything(),
+    )
+  })
+
+  it('returns failure when no known domain validates the cookie', async () => {
+    // given — none of the domains in the map produce a valid token+cookie pair
+    extractSpy.mockResolvedValue([
+      { workspace_id: 'unknown', workspace_name: 'unknown', token: 'xoxc-stale', cookie: 'xoxd-valid' },
+    ])
+    getWorkspaceDomainsSpy.mockReturnValue({
+      T_A: 'a',
+      T_B: 'b',
+    })
+
+    fetchSpy.mockResolvedValue(new Response('<html>"api_token":"xoxc-fresh"</html>', { status: 200 }))
+    testAuthSpy.mockRejectedValue(new Error('invalid_auth'))
+
+    // when
+    await ensureSlackAuth()
+
+    // then — every candidate is tried, none save
+    expect(fetchSpy).toHaveBeenCalledWith('https://a.slack.com/ssb/redirect', expect.anything())
+    expect(fetchSpy).toHaveBeenCalledWith('https://b.slack.com/ssb/redirect', expect.anything())
     expect(setWorkspaceSpy).not.toHaveBeenCalled()
   })
 

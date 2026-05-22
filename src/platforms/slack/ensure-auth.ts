@@ -34,6 +34,7 @@ export async function ensureSlackAuth(): Promise<void> {
         const refreshed = await tryWebTokenRefresh(ws, workspaceDomains)
         if (refreshed) {
           ws.token = refreshed.token
+          ws.workspace_id = refreshed.workspace_id
           ws.workspace_name = refreshed.workspace_name
           await credManager.setWorkspace(ws)
           validWorkspaces.push(ws)
@@ -54,21 +55,65 @@ export async function ensureSlackAuth(): Promise<void> {
   }
 }
 
+// Hard cap to avoid issuing dozens of HTTP requests for workspaces with very large domain maps.
+const MAX_DOMAIN_ATTEMPTS = 16
+
 export async function tryWebTokenRefresh(
   ws: ExtractedWorkspace,
   workspaceDomains: Record<string, string>,
-): Promise<{ token: string; workspace_name: string } | null> {
+): Promise<{ token: string; workspace_id: string; workspace_name: string } | null> {
   if (!ws.cookie) return null
-  const domain = workspaceDomains[ws.workspace_id]
-  if (!domain) return null
 
+  // Try the domain that maps to this workspace_id first (when known), then fall back to
+  // every other known domain. Slack tokens extracted from LevelDB blobs sometimes carry
+  // workspace_id="unknown" because the regex window around the xoxc- bytes does not
+  // contain the T... team id; in that case the cookie may still be valid for one of the
+  // other workspaces the user is signed into.
+  const candidates = orderCandidateDomains(ws.workspace_id, workspaceDomains)
+  if (candidates.length === 0) return null
+
+  for (const { workspace_id, domain } of candidates) {
+    const result = await refreshAndVerify(ws.cookie, domain, ws.workspace_name)
+    if (result) {
+      return {
+        token: result.token,
+        workspace_id: result.workspace_id || workspace_id,
+        workspace_name: result.workspace_name,
+      }
+    }
+  }
+  return null
+}
+
+function orderCandidateDomains(
+  workspaceId: string,
+  workspaceDomains: Record<string, string>,
+): Array<{ workspace_id: string; domain: string }> {
+  const entries = Object.entries(workspaceDomains).map(([workspace_id, domain]) => ({ workspace_id, domain }))
+  const exact = entries.findIndex((e) => e.workspace_id === workspaceId)
+  if (exact > 0) {
+    const [match] = entries.splice(exact, 1)
+    entries.unshift(match)
+  }
+  return entries.slice(0, MAX_DOMAIN_ATTEMPTS)
+}
+
+async function refreshAndVerify(
+  cookie: string,
+  domain: string,
+  fallbackName: string,
+): Promise<{ token: string; workspace_id: string; workspace_name: string } | null> {
   try {
-    const freshToken = await refreshTokenFromWeb(domain, ws.cookie)
+    const freshToken = await refreshTokenFromWeb(domain, cookie)
     if (!freshToken) return null
 
-    const client = await new SlackClient().login({ token: freshToken, cookie: ws.cookie })
+    const client = await new SlackClient().login({ token: freshToken, cookie })
     const authInfo = await client.testAuth()
-    return { token: freshToken, workspace_name: authInfo.team || ws.workspace_name }
+    return {
+      token: freshToken,
+      workspace_id: authInfo.team_id,
+      workspace_name: authInfo.team || fallbackName,
+    }
   } catch {
     return null
   }
