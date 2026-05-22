@@ -106,7 +106,9 @@ async function extractAction(options: {
 
         if (options.debug) {
           const domain = workspaceDomains[ws.workspace_id]
-          const target = domain ? `${ws.workspace_id} (${domain}.slack.com)` : `${ws.workspace_id} (trying all known domains)`
+          const target = domain
+            ? `${ws.workspace_id} (${domain}.slack.com)`
+            : `${ws.workspace_id} (trying all known domains)`
           debug(`[debug] Attempting web token refresh for ${target}...`)
         }
         const refreshed = await tryWebTokenRefresh(ws, workspaceDomains)

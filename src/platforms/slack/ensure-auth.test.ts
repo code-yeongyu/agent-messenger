@@ -10,10 +10,12 @@ let extractSpy: ReturnType<typeof spyOn>
 let extractCookieSpy: ReturnType<typeof spyOn>
 let getWorkspaceDomainsSpy: ReturnType<typeof spyOn>
 let testAuthSpy: ReturnType<typeof spyOn>
+let loginSpy: ReturnType<typeof spyOn>
 let setWorkspaceSpy: ReturnType<typeof spyOn>
 let loadSpy: ReturnType<typeof spyOn>
 let setCurrentWorkspaceSpy: ReturnType<typeof spyOn>
 let fetchSpy: ReturnType<typeof spyOn>
+let activeToken: string | null = null
 
 beforeEach(() => {
   getWorkspaceSpy = spyOn(CredentialManager.prototype, 'getWorkspace').mockResolvedValue(null)
@@ -30,6 +32,15 @@ beforeEach(() => {
   extractCookieSpy = spyOn(TokenExtractor.prototype, 'extractCookie').mockResolvedValue('xoxd-fresh-cookie')
 
   getWorkspaceDomainsSpy = spyOn(TokenExtractor.prototype, 'getWorkspaceDomains').mockReturnValue({})
+
+  activeToken = null
+  loginSpy = spyOn(SlackClient.prototype, 'login').mockImplementation(function (
+    this: SlackClient,
+    credentials?: { token: string; cookie: string },
+  ) {
+    activeToken = credentials?.token ?? null
+    return Promise.resolve(this)
+  })
 
   testAuthSpy = spyOn(SlackClient.prototype, 'testAuth').mockResolvedValue({
     user_id: 'U123',
@@ -55,12 +66,23 @@ afterEach(() => {
   extractSpy?.mockRestore()
   extractCookieSpy?.mockRestore()
   getWorkspaceDomainsSpy?.mockRestore()
+  loginSpy?.mockRestore()
   testAuthSpy?.mockRestore()
   setWorkspaceSpy?.mockRestore()
   loadSpy?.mockRestore()
   setCurrentWorkspaceSpy?.mockRestore()
   fetchSpy?.mockRestore()
 })
+
+function authResponseByToken(map: Record<string, { team_id: string; team?: string } | Error>) {
+  testAuthSpy.mockImplementation(() => {
+    const token = activeToken ?? '<no-token>'
+    const result = map[token]
+    if (!result) throw new Error('invalid_auth')
+    if (result instanceof Error) throw result
+    return Promise.resolve({ user_id: 'U1', user: 'user', team: result.team, team_id: result.team_id })
+  })
+}
 
 describe('ensureSlackAuth', () => {
   it('skips extraction when stored credentials are valid', async () => {
@@ -295,8 +317,8 @@ describe('ensureSlackAuth', () => {
   })
 
   it('falls back to other known domains when workspace_id has no domain mapping', async () => {
-    // given — token has workspace_id 'unknown' (extractor couldn't resolve team id),
-    // but cookie is valid for the second domain in root-state.json
+    // given — workspace_id 'unknown' (extractor couldn't resolve team id); cookie is valid
+    // for the second candidate domain in root-state.json
     extractSpy.mockResolvedValue([
       { workspace_id: 'unknown', workspace_name: 'unknown', token: 'xoxc-stale', cookie: 'xoxd-valid' },
     ])
@@ -315,13 +337,8 @@ describe('ensureSlackAuth', () => {
       return Promise.resolve(new Response('', { status: 500 }))
     })
 
-    // The first testAuth call is from the loop's main path with the stale local token (fails),
-    // the second is the first domain candidate (fails), the third is the second candidate (succeeds).
-    let authCalls = 0
-    testAuthSpy.mockImplementation(() => {
-      authCalls++
-      if (authCalls < 3) throw new Error('invalid_auth')
-      return Promise.resolve({ user_id: 'U1', team_id: 'T_OTHER_B', user: 'user', team: 'Other B' })
+    authResponseByToken({
+      'xoxc-fresh-b': { team_id: 'T_OTHER_B', team: 'Other B' },
     })
 
     // when
@@ -342,7 +359,7 @@ describe('ensureSlackAuth', () => {
   })
 
   it('stops trying domains once a refresh+verify succeeds', async () => {
-    // given — first candidate domain succeeds; later domains must not be attempted
+    // given — exact-match domain succeeds on first attempt; the fallback domain must not be fetched
     extractSpy.mockResolvedValue([
       { workspace_id: 'T_TARGET', workspace_name: 'target', token: 'xoxc-stale', cookie: 'xoxd-valid' },
     ])
@@ -353,11 +370,8 @@ describe('ensureSlackAuth', () => {
 
     fetchSpy.mockResolvedValue(new Response('<html>"api_token":"xoxc-fresh"</html>', { status: 200 }))
 
-    let authCalls = 0
-    testAuthSpy.mockImplementation(() => {
-      authCalls++
-      if (authCalls === 1) throw new Error('invalid_auth')
-      return Promise.resolve({ user_id: 'U1', team_id: 'T_TARGET', user: 'user', team: 'Target' })
+    authResponseByToken({
+      'xoxc-fresh': { team_id: 'T_TARGET', team: 'Target' },
     })
 
     // when
@@ -368,10 +382,7 @@ describe('ensureSlackAuth', () => {
       'https://target-domain.slack.com/ssb/redirect',
       expect.objectContaining({ headers: { Cookie: 'd=xoxd-valid' } }),
     )
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      'https://other-domain.slack.com/ssb/redirect',
-      expect.anything(),
-    )
+    expect(fetchSpy).not.toHaveBeenCalledWith('https://other-domain.slack.com/ssb/redirect', expect.anything())
   })
 
   it('returns failure when no known domain validates the cookie', async () => {
@@ -394,6 +405,115 @@ describe('ensureSlackAuth', () => {
     expect(fetchSpy).toHaveBeenCalledWith('https://a.slack.com/ssb/redirect', expect.anything())
     expect(fetchSpy).toHaveBeenCalledWith('https://b.slack.com/ssb/redirect', expect.anything())
     expect(setWorkspaceSpy).not.toHaveBeenCalled()
+  })
+
+  it('skips domains with non-subdomain characters', async () => {
+    // given — a tampered root-state.json with a domain that contains a dot/slash/colon
+    extractSpy.mockResolvedValue([
+      { workspace_id: 'unknown', workspace_name: 'unknown', token: 'xoxc-stale', cookie: 'xoxd-valid' },
+    ])
+    getWorkspaceDomainsSpy.mockReturnValue({
+      T_EVIL: 'attacker.com#',
+      T_GOOD: 'good',
+    })
+
+    fetchSpy.mockResolvedValue(new Response('<html>"api_token":"xoxc-fresh"</html>', { status: 200 }))
+    authResponseByToken({ 'xoxc-fresh': { team_id: 'T_GOOD', team: 'Good' } })
+
+    // when
+    await ensureSlackAuth()
+
+    // then — the bad domain is never fetched; the good domain succeeds
+    expect(fetchSpy).not.toHaveBeenCalledWith(expect.stringContaining('attacker.com'), expect.anything())
+    expect(fetchSpy).toHaveBeenCalledWith('https://good.slack.com/ssb/redirect', expect.anything())
+    expect(setWorkspaceSpy).toHaveBeenCalledWith(expect.objectContaining({ workspace_id: 'T_GOOD' }))
+  })
+
+  it('rejects refresh result when testAuth returns empty team_id', async () => {
+    // given — the fresh token verifies but Slack returns no team_id
+    extractSpy.mockResolvedValue([
+      { workspace_id: 'unknown', workspace_name: 'unknown', token: 'xoxc-stale', cookie: 'xoxd-valid' },
+    ])
+    getWorkspaceDomainsSpy.mockReturnValue({ T_A: 'a' })
+    fetchSpy.mockResolvedValue(new Response('<html>"api_token":"xoxc-fresh"</html>', { status: 200 }))
+    testAuthSpy.mockResolvedValue({ user_id: 'U1', team_id: '', user: 'user', team: undefined })
+
+    // when
+    await ensureSlackAuth()
+
+    // then — nothing is saved despite successful refresh+login
+    expect(setWorkspaceSpy).not.toHaveBeenCalled()
+  })
+
+  it('does not resolve multiple unknown workspaces to the same team', async () => {
+    // given — two unknown tokens share a cookie that validates against the first candidate domain.
+    // Naive iteration would resolve both to T_A; the resolved-team-id tracker must prevent the
+    // second unknown from claiming an already-saved team.
+    extractSpy.mockResolvedValue([
+      { workspace_id: 'unknown', workspace_name: 'unknown', token: 'xoxc-stale-1', cookie: 'xoxd-valid' },
+      { workspace_id: 'unknown', workspace_name: 'unknown', token: 'xoxc-stale-2', cookie: 'xoxd-valid' },
+    ])
+    getWorkspaceDomainsSpy.mockReturnValue({ T_A: 'a', T_B: 'b' })
+
+    fetchSpy.mockImplementation((url: string) => {
+      if (url.startsWith('https://a.slack.com/')) {
+        return Promise.resolve(new Response('<html>"api_token":"xoxc-fresh-a"</html>', { status: 200 }))
+      }
+      if (url.startsWith('https://b.slack.com/')) {
+        return Promise.resolve(new Response('<html>"api_token":"xoxc-fresh-b"</html>', { status: 200 }))
+      }
+      return Promise.resolve(new Response('', { status: 500 }))
+    })
+    authResponseByToken({
+      'xoxc-fresh-a': { team_id: 'T_A', team: 'A' },
+      'xoxc-fresh-b': { team_id: 'T_B', team: 'B' },
+    })
+
+    // when
+    await ensureSlackAuth()
+
+    // then — T_A and T_B each saved exactly once
+    const savedIds = setWorkspaceSpy.mock.calls.map((c) => (c[0] as { workspace_id: string }).workspace_id)
+    expect(savedIds.sort()).toEqual(['T_A', 'T_B'])
+  })
+
+  it('caches refresh attempts per (cookie, domain) within one extraction', async () => {
+    // given — two unknown tokens with the same cookie; both will iterate the same domains
+    extractSpy.mockResolvedValue([
+      { workspace_id: 'unknown', workspace_name: 'unknown', token: 'xoxc-stale-1', cookie: 'xoxd-valid' },
+      { workspace_id: 'unknown', workspace_name: 'unknown', token: 'xoxc-stale-2', cookie: 'xoxd-valid' },
+    ])
+    getWorkspaceDomainsSpy.mockReturnValue({ T_A: 'a', T_B: 'b' })
+
+    fetchSpy.mockResolvedValue(new Response('', { status: 500 }))
+    testAuthSpy.mockRejectedValue(new Error('invalid_auth'))
+
+    // when
+    await ensureSlackAuth()
+
+    // then — each domain fetched at most once across both workspaces (2 total, not 4)
+    const refreshCalls = fetchSpy.mock.calls.filter((c) => String(c[0]).includes('/ssb/redirect'))
+    expect(refreshCalls.length).toBe(2)
+  })
+
+  it('caps domain attempts at MAX_DOMAIN_ATTEMPTS', async () => {
+    // given — 20 candidate domains; only the first 16 should be attempted
+    extractSpy.mockResolvedValue([
+      { workspace_id: 'unknown', workspace_name: 'unknown', token: 'xoxc-stale', cookie: 'xoxd-valid' },
+    ])
+    const manyDomains: Record<string, string> = {}
+    for (let i = 0; i < 20; i++) manyDomains[`T_${i}`] = `dom${i}`
+    getWorkspaceDomainsSpy.mockReturnValue(manyDomains)
+
+    fetchSpy.mockResolvedValue(new Response('', { status: 500 }))
+    testAuthSpy.mockRejectedValue(new Error('invalid_auth'))
+
+    // when
+    await ensureSlackAuth()
+
+    // then — exactly 16 refresh attempts
+    const refreshCalls = fetchSpy.mock.calls.filter((c) => String(c[0]).includes('/ssb/redirect'))
+    expect(refreshCalls.length).toBe(16)
   })
 
   it('skips web refresh when workspace has no cookie', async () => {
