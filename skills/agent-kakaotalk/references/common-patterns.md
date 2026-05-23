@@ -55,9 +55,48 @@ agent-kakaotalk message send "$TARGET_CHAT" "Hey Alice!"
 
 **When to use**: First time interacting with a chat, or when the user references a chat by name.
 
-> Note: `display_name` joins the chat's member nicknames. For the user-set room title (matching the KakaoTalk app), see [Pattern 9](#pattern-9-resolve-canonical-room-titles).
+> Note: `display_name` joins the chat's member nicknames. For the user-set room title (matching the KakaoTalk app), see [Pattern 10](#pattern-10-resolve-canonical-room-titles).
 
-## Pattern 3: Monitor Chat for New Messages
+## Pattern 3: Send Files, Photos, Videos, and Audio
+
+**Use case**: Upload an attachment to a chat (photo, video, voice, generic file, or multi-photo gallery)
+
+```bash
+#!/bin/bash
+
+CHAT_ID="9876543210"
+
+# Single file — MIME is sniffed from the filename and routed to the right kind
+agent-kakaotalk message upload "$CHAT_ID" ./photo.jpg     # → photo (inline preview)
+agent-kakaotalk message upload "$CHAT_ID" ./clip.mp4      # → video (inline player)
+agent-kakaotalk message upload "$CHAT_ID" ./voice.m4a     # → audio (voice bubble)
+agent-kakaotalk message upload "$CHAT_ID" ./report.pdf    # → file (download icon)
+
+# Multi-photo gallery — pass 2+ files and the CLI uses the gallery flow
+agent-kakaotalk message upload "$CHAT_ID" ./img1.jpg ./img2.jpg ./img3.jpg
+
+# Force a specific kind to override auto-routing
+agent-kakaotalk message upload "$CHAT_ID" ./clip.mp4 --as file   # send as generic file, not inline video
+
+# Override MIME detection for extension-less files
+agent-kakaotalk message upload "$CHAT_ID" ./data.bin --mime application/octet-stream
+
+# With error handling
+RESULT=$(agent-kakaotalk message upload "$CHAT_ID" ./photo.jpg)
+SUCCESS=$(echo "$RESULT" | jq -r '.success')
+if [ "$SUCCESS" = "true" ]; then
+  echo "Uploaded as log_id $(echo "$RESULT" | jq -r '.log_id')"
+else
+  echo "Upload failed: $(echo "$RESULT" | jq -r '.status_code')"
+  exit 1
+fi
+```
+
+**When to use**: Sending screenshots, generated reports, deployment artifacts, voice notes, or photo bundles to a chat.
+
+**Routing rules**: `image/*` → photo, `video/*` → video, `audio/*` → audio (voice memo), everything else → generic file. The full SHIP / POST / COMPLETE LOCO pipeline is handled internally — no separate "send text after upload" step is needed. KakaoTalk caps single-message attachment sizes server-side; the CLI surfaces the server's status code on rejection.
+
+## Pattern 4: Monitor Chat for New Messages
 
 **Use case**: Watch a chat room and respond to new messages
 
@@ -91,7 +130,7 @@ done
 
 **Limitations**: Polling-based, not real-time. Each poll establishes a LOCO connection, so use reasonable intervals (10s+).
 
-## Pattern 4: Read Recent Chat History
+## Pattern 5: Read Recent Chat History
 
 **Use case**: Catch up on what happened in a chat
 
@@ -113,7 +152,7 @@ echo "$MESSAGES" | jq -r '.[] | "\(.author_id): \(.message // "[non-text]")"'
 
 **When to use**: Context gathering, summarizing conversations, catching up on missed messages.
 
-## Pattern 5: Fetch More Messages
+## Pattern 6: Fetch More Messages
 
 **Use case**: Read more messages than the default 20
 
@@ -148,7 +187,7 @@ NEW_MESSAGES=$(agent-kakaotalk message list "$CHAT_ID" --from "$LAST_SEEN")
 
 **Pagination details**: The CLI now prefers KakaoTalk's `MCHATLOGS` flow for history reads, fetching message batches from the requested `--from` point and returning the last N messages after deduplication and ascending sort. If that path cannot provide results, it falls back to `CHATONROOM` + `SYNCMSG` for compatibility. As a safety net, both paths are capped at 50 internal pages. A warning is printed to stderr only when that cap is actually hit and the returned history may be incomplete.
 
-## Pattern 6: Multi-Chat Broadcast
+## Pattern 7: Multi-Chat Broadcast
 
 **Use case**: Send the same message to multiple chats
 
@@ -176,7 +215,7 @@ done
 
 **When to use**: Announcements, notifications across multiple chats.
 
-## Pattern 7: Multi-Account Operations
+## Pattern 8: Multi-Account Operations
 
 **Use case**: Manage and operate across multiple KakaoTalk accounts
 
@@ -201,7 +240,7 @@ agent-kakaotalk auth status --account 1111111111
 
 **When to use**: Managing multiple KakaoTalk identities, sending messages as different accounts, or checking status across accounts.
 
-## Pattern 8: Unread Message Summary
+## Pattern 9: Unread Message Summary
 
 **Use case**: Check which chats have unread messages
 
@@ -223,7 +262,7 @@ echo "$UNREAD" | jq -r '.[] | "  \(.display_name // "Unknown") — \(.unread_cou
 
 **When to use**: Morning catch-up, checking for urgent messages, triage.
 
-## Pattern 9: Resolve Canonical Room Titles
+## Pattern 10: Resolve Canonical Room Titles
 
 **Use case**: Show user-set room names (matching the official KakaoTalk app) instead of comma-joined member nicknames
 
@@ -269,7 +308,7 @@ const chats = await client.getChats({ resolveTitles: true })
 const title = await client.getChatTitle('9876543210')
 ```
 
-## Pattern 10: Error Handling and Retry
+## Pattern 11: Error Handling and Retry
 
 **Use case**: Robust message sending with retries
 

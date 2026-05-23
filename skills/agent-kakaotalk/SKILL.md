@@ -335,6 +335,20 @@ agent-kakaotalk message list <chat-id> --pretty
 agent-kakaotalk message send <chat-id> "Hello world"
 agent-kakaotalk message send <chat-id> "Hello world" --pretty
 
+# Send a file (auto-routes by MIME: photo / video / audio / generic file)
+agent-kakaotalk message upload <chat-id> ./photo.jpg
+agent-kakaotalk message upload <chat-id> ./clip.mp4
+agent-kakaotalk message upload <chat-id> ./voice.m4a
+agent-kakaotalk message upload <chat-id> ./report.pdf
+
+# Send a multi-photo gallery (2+ images in one message)
+agent-kakaotalk message upload <chat-id> ./img1.jpg ./img2.jpg ./img3.jpg
+
+# Force a specific kind (override auto-routing)
+agent-kakaotalk message upload <chat-id> ./clip.mp4 --as file       # send as generic file, not video
+agent-kakaotalk message upload <chat-id> ./image --as photo         # extension-less file
+agent-kakaotalk message upload <chat-id> ./data.bin --mime application/octet-stream
+
 # Mark messages as read up to a given log ID
 agent-kakaotalk message mark-read <chat-id> <log-id>
 agent-kakaotalk message mark-read <chat-id> <log-id> --pretty
@@ -343,8 +357,48 @@ agent-kakaotalk message mark-read <chat-id> <log-id> --link-id <li>   # open cha
 # Use a specific account
 agent-kakaotalk message list <chat-id> --account <account-id>
 agent-kakaotalk message send <chat-id> "Hello" --account <account-id>
+agent-kakaotalk message upload <chat-id> ./photo.jpg --account <account-id>
 agent-kakaotalk message mark-read <chat-id> <log-id> --account <account-id>
 ```
+
+#### Sending Attachments
+
+`message upload` sends photos, videos, audio, and arbitrary files to a chat. The CLI sniffs the MIME type from the filename and dispatches to the matching KakaoTalk message type, so the common case is a single command and a file path:
+
+```bash
+agent-kakaotalk message upload <chat-id> ./report.pdf
+```
+
+Routing rules:
+
+| Filename / MIME | Sent as | KakaoTalk renders it as |
+| --- | --- | --- |
+| `image/*` (`.jpg`, `.png`, `.gif`, `.webp`) | photo | Inline image with tap-to-zoom |
+| `video/*` (`.mp4`, `.mov`, `.webm`) | video | Inline player with play button |
+| `audio/*` (`.m4a`, `.mp3`, `.wav`, `.ogg`) | audio | Voice-message bubble with waveform |
+| anything else | file | Generic file attachment with download icon |
+
+Multi-photo galleries (one message that contains several images): pass 2+ files and the CLI uses the gallery flow automatically.
+
+```bash
+agent-kakaotalk message upload <chat-id> ./img1.jpg ./img2.jpg ./img3.jpg
+```
+
+Override the auto-routing with `--as <photo|video|audio|file|multi>` when you need explicit control — for example, to send an `.mp4` as a generic downloadable file instead of an inline video. Use `--mime <type>` to override MIME detection (handy for extension-less files or when the caller knows better than the filename).
+
+Output (JSON by default; `--pretty` pretty-prints the same JSON):
+
+```json
+{ "success": true, "status_code": 0, "chat_id": "9876543210", "log_id": "3846830417126748160", "sent_at": 1779509936 }
+```
+
+The process exits non-zero when `success` is `false`.
+
+Notes:
+- All attachment kinds use the same SHIP / POST / COMPLETE LOCO pipeline (and MSHIP / MPOST / FORWARD for multi-photo). The server registers the chatlog itself once the upload finishes; no follow-up text message is needed.
+- KakaoTalk caps single-message attachment sizes server-side (currently ~300MB for files, ~20MB per image in multi-photo). The CLI surfaces the server's status code on rejection.
+- Filenames are preserved on the recipient side for `file` kind, used as a display label for `audio`, and ignored for `photo` / `video` (the client renders the bytes directly).
+- Each upload opens one fresh TCP+LOCO connection per attachment. Multi-photo opens N connections in parallel.
 
 #### Mark as Read
 
@@ -368,7 +422,7 @@ Notes:
 
 Each message includes:
 - `log_id` — unique message identifier
-- `type` — message type (1 = text, 2 = photo, 12 = sticker, 20 = animated sticker, etc.)
+- `type` — message type (1 = text, 2 = photo, 3 = video, 5 = audio, 12 = sticker, 18 = file, 20 = animated sticker, 27 = multi-photo, etc.)
 - `author_id` — sender's user ID
 - `author_name` — sender's nickname when known from the chat list (otherwise `null`; only the room's "display members" are cached)
 - `message` — message text content (empty string for non-text messages like stickers)
