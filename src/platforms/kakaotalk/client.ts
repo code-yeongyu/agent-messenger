@@ -7,17 +7,24 @@ import { Long } from 'bson'
 import { getConfigDir } from '@/shared/utils/config-dir'
 import { warn } from '@/shared/utils/stderr'
 
+import { detectImageDimensions } from './image-meta'
+import { guessMimeFromFilename, sha1Hex } from './media-upload'
+import { uploadMediaToLoco, uploadMultiMediaEntry } from './protocol/media-uploader'
 import { LANG, PC_OS_NAME, getLocoDeviceConfig } from './protocol/config'
 import { LocoSession } from './protocol/session'
 import type { ChatListResponse, LocoPacket, LoginListResponse, SyncState } from './protocol/types'
-import type {
-  KakaoChat,
-  KakaoDeviceType,
-  KakaoMarkReadResult,
-  KakaoMember,
-  KakaoMessage,
-  KakaoProfile,
-  KakaoSendResult,
+import {
+  KAKAO_MESSAGE_TYPE,
+  type KakaoChat,
+  type KakaoDeviceType,
+  type KakaoFileExtra,
+  type KakaoMarkReadResult,
+  type KakaoMember,
+  type KakaoMessage,
+  type KakaoMultiPhotoExtra,
+  type KakaoPhotoExtra,
+  type KakaoProfile,
+  type KakaoSendResult,
 } from './types'
 
 export type KakaoSessionEvent =
@@ -891,6 +898,274 @@ export class KakaoTalkClient {
         }
       } catch (error) {
         throw wrapError(error, 'send_message_failed')
+      }
+    })
+  }
+
+  async sendAttachment(
+    chatId: string,
+    data: Uint8Array | Buffer,
+    filename: string,
+    mimeType?: string,
+  ): Promise<KakaoSendResult> {
+    const mime = mimeType ?? guessMimeFromFilename(filename)
+    if (mime.startsWith('image/')) {
+      return this.sendPhoto(chatId, data, filename)
+    }
+    if (mime.startsWith('video/')) {
+      return this.sendVideo(chatId, data, filename)
+    }
+    if (mime.startsWith('audio/')) {
+      return this.sendAudio(chatId, data, filename)
+    }
+    return this.sendFile(chatId, data, filename, mime)
+  }
+
+  async sendPhoto(chatId: string, photo: Uint8Array | Buffer, filename = 'image.jpg'): Promise<KakaoSendResult> {
+    this.ensureAuth()
+    const data = photo instanceof Uint8Array ? photo : new Uint8Array(photo)
+    const dim = detectImageDimensions(data)
+    const checksum = await sha1Hex(data)
+    const ext = filename.includes('.') ? filename.split('.').pop()! : 'jpg'
+
+    return this.sendMediaViaLoco({
+      chatId,
+      data,
+      msgType: KAKAO_MESSAGE_TYPE.PHOTO,
+      filename,
+      checksum,
+      extension: ext,
+      width: dim.width,
+      height: dim.height,
+      errorCode: 'send_photo_failed',
+    })
+  }
+
+  async sendVideo(chatId: string, video: Uint8Array | Buffer, filename = 'video.mp4'): Promise<KakaoSendResult> {
+    this.ensureAuth()
+    const data = video instanceof Uint8Array ? video : new Uint8Array(video)
+    const checksum = await sha1Hex(data)
+    const ext = filename.includes('.') ? filename.split('.').pop()! : 'mp4'
+
+    return this.sendMediaViaLoco({
+      chatId,
+      data,
+      msgType: KAKAO_MESSAGE_TYPE.VIDEO,
+      filename,
+      checksum,
+      extension: ext,
+      errorCode: 'send_video_failed',
+    })
+  }
+
+  async sendAudio(chatId: string, audio: Uint8Array | Buffer, filename = 'audio.m4a'): Promise<KakaoSendResult> {
+    this.ensureAuth()
+    const data = audio instanceof Uint8Array ? audio : new Uint8Array(audio)
+    const checksum = await sha1Hex(data)
+    const ext = filename.includes('.') ? filename.split('.').pop()! : 'm4a'
+
+    return this.sendMediaViaLoco({
+      chatId,
+      data,
+      msgType: KAKAO_MESSAGE_TYPE.AUDIO,
+      filename,
+      checksum,
+      extension: ext,
+      errorCode: 'send_audio_failed',
+    })
+  }
+
+  async sendFile(
+    chatId: string,
+    file: Uint8Array | Buffer,
+    filename: string,
+    mimeType = 'application/octet-stream',
+  ): Promise<KakaoSendResult> {
+    void mimeType
+    this.ensureAuth()
+    const data = file instanceof Uint8Array ? file : new Uint8Array(file)
+    const checksum = await sha1Hex(data)
+    const ext = filename.includes('.') ? filename.split('.').pop()! : ''
+
+    return this.sendMediaViaLoco({
+      chatId,
+      data,
+      msgType: KAKAO_MESSAGE_TYPE.FILE,
+      filename,
+      checksum,
+      extension: ext,
+      errorCode: 'send_file_failed',
+    })
+  }
+
+  async sendMultiPhoto(
+    chatId: string,
+    photos: Array<{ data: Uint8Array | Buffer; filename?: string }>,
+  ): Promise<KakaoSendResult> {
+    this.ensureAuth()
+    if (photos.length < 2) {
+      throw new KakaoTalkError(
+        'sendMultiPhoto requires at least 2 photos; use sendPhoto for a single image',
+        'send_multi_photo_failed',
+      )
+    }
+
+    const prepared = await Promise.all(
+      photos.map(async (p, i) => {
+        const bytes = p.data instanceof Uint8Array ? p.data : new Uint8Array(p.data)
+        const filename = p.filename ?? `image-${i + 1}.jpg`
+        const dim = detectImageDimensions(bytes)
+        const checksum = (await sha1Hex(bytes)).toLowerCase()
+        const ext = filename.includes('.') ? filename.split('.').pop()! : 'jpg'
+        return { bytes, filename, dim, checksum, ext }
+      }),
+    )
+
+    const parsedChatId = parseChatId(chatId)
+
+    return this.executeWithReconnect(async ({ session }) => {
+      try {
+        const mshipResp = await session.shipMultiMedia(
+          parsedChatId,
+          KAKAO_MESSAGE_TYPE.MULTIPHOTO,
+          prepared.map((p) => p.bytes.byteLength),
+          prepared.map((p) => p.checksum),
+          prepared.map((p) => p.ext),
+        )
+
+        if (mshipResp.statusCode !== 0) {
+          throw new KakaoTalkError(
+            `MSHIP rejected (status ${mshipResp.statusCode})`,
+            'send_multi_photo_failed',
+          )
+        }
+
+        const body = mshipResp.body as Record<string, unknown>
+        const kl = body.kl as string[] | undefined
+        const vhl = body.vhl as string[] | undefined
+        const pl = body.pl as number[] | undefined
+        if (!kl || !vhl || !pl || kl.length !== prepared.length) {
+          throw new KakaoTalkError(
+            `MSHIP response missing arrays: kl=${kl?.length} vhl=${vhl?.length} pl=${pl?.length}`,
+            'send_multi_photo_failed',
+          )
+        }
+
+        await Promise.all(
+          prepared.map((p, i) =>
+            uploadMultiMediaEntry({
+              shipToken: kl[i]!,
+              shipHost: vhl[i]!,
+              shipPort: pl[i]!,
+              chatId: parsedChatId,
+              msgType: KAKAO_MESSAGE_TYPE.MULTIPHOTO,
+              userId: this.userId!,
+              filename: p.filename,
+              data: p.bytes,
+              width: p.dim.width,
+              height: p.dim.height,
+              deviceType: this.deviceType,
+            }),
+          ),
+        )
+
+        const extra: KakaoMultiPhotoExtra = {
+          kl,
+          wl: prepared.map((p) => p.dim.width),
+          hl: prepared.map((p) => p.dim.height),
+          mtl: prepared.map((p) => p.dim.mimeType),
+          sl: prepared.map((p) => p.bytes.byteLength),
+          csl: prepared.map((p) => p.checksum),
+          cmtl: prepared.map(() => ''),
+        }
+
+        const forwardResp = await session.forwardChat(
+          parsedChatId,
+          KAKAO_MESSAGE_TYPE.MULTIPHOTO,
+          extra as unknown as Record<string, unknown>,
+        )
+
+        return {
+          success: forwardResp.statusCode === 0,
+          status_code: forwardResp.statusCode,
+          chat_id: chatId,
+          log_id: longToString((forwardResp.body as Record<string, unknown>).logId),
+          sent_at: ((forwardResp.body as Record<string, unknown>).sendAt as number | undefined) ?? 0,
+        }
+      } catch (error) {
+        throw wrapError(error, 'send_multi_photo_failed')
+      }
+    })
+  }
+
+  private async sendMediaViaLoco(opts: {
+    chatId: string
+    data: Uint8Array
+    msgType: number
+    filename: string
+    checksum: string
+    extension: string
+    width?: number
+    height?: number
+    errorCode: string
+  }): Promise<KakaoSendResult> {
+    const parsedChatId = parseChatId(opts.chatId)
+    return this.executeWithReconnect(async ({ session }) => {
+      try {
+        const shipResp = await session.shipMedia(
+          parsedChatId,
+          opts.msgType,
+          opts.data.byteLength,
+          opts.checksum,
+          opts.extension,
+        )
+
+        if (shipResp.statusCode !== 0) {
+          throw new KakaoTalkError(
+            `SHIP rejected (status ${shipResp.statusCode})`,
+            opts.errorCode,
+          )
+        }
+
+        const body = shipResp.body as Record<string, unknown>
+        const shipToken = body.k as string | undefined
+        const shipHost = body.vh as string | undefined
+        const shipPort = body.p as number | undefined
+
+        if (typeof shipToken !== 'string' || typeof shipHost !== 'string' || typeof shipPort !== 'number') {
+          throw new KakaoTalkError(
+            `SHIP response missing fields: k=${shipToken} vh=${shipHost} p=${shipPort}`,
+            opts.errorCode,
+          )
+        }
+
+        const uploadRes = await uploadMediaToLoco({
+          shipToken,
+          shipHost,
+          shipPort,
+          chatId: parsedChatId,
+          msgType: opts.msgType,
+          userId: this.userId!,
+          filename: opts.filename,
+          data: opts.data,
+          width: opts.width,
+          height: opts.height,
+          deviceType: this.deviceType,
+        })
+
+        const completeBody = uploadRes.completePacket?.body as Record<string, unknown> | undefined
+        const chatLog = completeBody?.chatLog as Record<string, unknown> | undefined
+        const logId = chatLog?.logId
+
+        return {
+          success: uploadRes.completePacket !== null && uploadRes.postStatusCode === 0,
+          status_code: uploadRes.postStatusCode,
+          chat_id: opts.chatId,
+          log_id: longToString(logId),
+          sent_at: (chatLog?.sendAt as number | undefined) ?? 0,
+        }
+      } catch (error) {
+        throw wrapError(error, opts.errorCode)
       }
     })
   }
