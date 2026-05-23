@@ -334,6 +334,18 @@ export interface SlackSocketModeMessageEvent {
   event_ts?: string
   edited?: { user: string; ts: string }
   hidden?: boolean
+  // Set on every reply within a thread; identifies the author of the message
+  // the thread is rooted at. Useful for deciding whether a reply targets the
+  // bot, another human, or an unknown parent.
+  parent_user_id?: string
+  // Client-generated UUID on user-authored messages, stable across Slack-side
+  // resends of the same gesture. Primary dedupe key for the "one user action
+  // surfaces as two events" case.
+  client_msg_id?: string
+  // Attachments delivered inline on the same message event. Slack does not
+  // fire a separate file_share envelope for messages we receive over Socket
+  // Mode, so consumers reading attachments off `message` events look here.
+  files?: SlackFile[]
   [key: string]: unknown
 }
 
@@ -345,6 +357,10 @@ export interface SlackSocketModeAppMentionEvent {
   ts: string
   thread_ts?: string
   event_ts?: string
+  // `app_mention` envelopes do not always carry `client_msg_id`, but typing
+  // it keeps the promotion to a message-shaped event lossless if Slack ever
+  // starts sending it on this event.
+  client_msg_id?: string
   [key: string]: unknown
 }
 
