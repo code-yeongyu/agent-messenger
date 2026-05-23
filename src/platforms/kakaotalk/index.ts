@@ -13,8 +13,11 @@ export type {
   KakaoEmoticonKind,
   KakaoEmoticonMessageType,
   KakaoFileExtra,
+  KakaoLoginResult,
+  KakaoMarkReadResult,
   KakaoMember,
   KakaoMessage,
+  KakaoMultiPhotoExtra,
   KakaoPhotoExtra,
   KakaoProfile,
   KakaoSendResult,
@@ -33,6 +36,7 @@ export {
   KakaoAccountCredentialsSchema,
   KakaoChatSchema,
   KakaoConfigSchema,
+  KakaoMarkReadResultSchema,
   KakaoMemberSchema,
   KakaoMessageSchema,
   KakaoProfileSchema,
@@ -42,6 +46,8 @@ export {
   KakaoTalkPushMessageEventSchema,
   KakaoTalkPushReadEventSchema,
 } from './types'
+export { attemptLogin, generateDeviceUuid, loginFlow, registerDevice, requestPasscode } from './auth/kakao-login'
+export type { LoginCredentials } from './auth/kakao-login'
 export { sha1Hex } from './media-upload'
 export { detectImageDimensions } from './image-meta'
 export type { AttachmentInput, AttachmentPlan, ResolvedAttachment, SingleAttachmentKind } from './attachment-router'
