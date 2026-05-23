@@ -129,12 +129,7 @@ export class LocoSession {
   // Sends a WRITE with non-text message_type plus the JSON-stringified `extra`
   // payload that KakaoTalk clients render as the attachment (photo, file, etc).
   // See types.ts → KakaoPhotoExtra / KakaoFileExtra for the per-type shape.
-  async sendAttachment(
-    chatId: Long,
-    type: number,
-    extra: Record<string, unknown>,
-    caption = '',
-  ): Promise<LocoPacket> {
+  async sendAttachment(chatId: Long, type: number, extra: Record<string, unknown>, caption = ''): Promise<LocoPacket> {
     if (!this.connection) throw new Error('Not connected')
     return this.connection.sendPacket('WRITE', {
       chatId,
@@ -148,13 +143,7 @@ export class LocoSession {
   // SHIP — request a media-upload ticket. Reserves a slot on a media LOCO
   // server and returns the token (k), host (vh), and port (p) the client must
   // connect to next. Sent on the main session.
-  async shipMedia(
-    chatId: Long,
-    type: number,
-    size: number,
-    checksum: string,
-    extension: string,
-  ): Promise<LocoPacket> {
+  async shipMedia(chatId: Long, type: number, size: number, checksum: string, extension: string): Promise<LocoPacket> {
     if (!this.connection) throw new Error('Not connected')
     const body: Record<string, unknown> = {
       c: chatId,
@@ -189,12 +178,7 @@ export class LocoSession {
   // FORWARD — used after MPOST: registers a multi-attachment chatlog as one
   // message. Same shape as WRITE but the server routes the attachment to
   // multi-media rendering (galleries, multi-photo posts).
-  async forwardChat(
-    chatId: Long,
-    type: number,
-    extra: Record<string, unknown>,
-    caption = '',
-  ): Promise<LocoPacket> {
+  async forwardChat(chatId: Long, type: number, extra: Record<string, unknown>, caption = ''): Promise<LocoPacket> {
     if (!this.connection) throw new Error('Not connected')
     return this.connection.sendPacket('FORWARD', {
       chatId,

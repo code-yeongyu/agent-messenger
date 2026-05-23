@@ -209,12 +209,12 @@ agent-kakaotalk message upload <chat-id> ./report.pdf
 
 Routing rules:
 
-| Filename / MIME                             | Sent as | KakaoTalk renders it as                       |
-| ------------------------------------------- | ------- | --------------------------------------------- |
-| `image/*` (`.jpg`, `.png`, `.gif`, `.webp`) | photo   | Inline image with tap-to-zoom                 |
-| `video/*` (`.mp4`, `.mov`, `.webm`)         | video   | Inline player with play button                |
-| `audio/*` (`.m4a`, `.mp3`, `.wav`, `.ogg`)  | audio   | Voice-message bubble with waveform            |
-| anything else                               | file    | Generic file attachment with download icon    |
+| Filename / MIME                             | Sent as | KakaoTalk renders it as                    |
+| ------------------------------------------- | ------- | ------------------------------------------ |
+| `image/*` (`.jpg`, `.png`, `.gif`, `.webp`) | photo   | Inline image with tap-to-zoom              |
+| `video/*` (`.mp4`, `.mov`, `.webm`)         | video   | Inline player with play button             |
+| `audio/*` (`.m4a`, `.mp3`, `.wav`, `.ogg`)  | audio   | Voice-message bubble with waveform         |
+| anything else                               | file    | Generic file attachment with download icon |
 
 Pass 2+ files (or `--as multi`) to send a multi-photo gallery in one message. Override the auto-routing with `--as <photo|video|audio|file|multi>` when you need explicit control — for example, to send an `.mp4` as a generic downloadable file instead of an inline video. Use `--mime <type>` to override MIME detection (handy for extension-less files).
 

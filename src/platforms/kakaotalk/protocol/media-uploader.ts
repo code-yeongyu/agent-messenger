@@ -1,10 +1,9 @@
 import { Long } from 'bson'
 
-import { LANG, MCCMNC, getLocoDeviceConfig } from './config'
+import type { KakaoDeviceType } from '../types'
+import { MCCMNC, getLocoDeviceConfig } from './config'
 import { LocoConnection } from './connection'
 import type { LocoPacket } from './types'
-
-import type { KakaoDeviceType } from '../types'
 
 export interface UploadToLocoOptions {
   shipToken: string
@@ -52,10 +51,7 @@ export async function uploadMultiMediaEntry(opts: UploadToLocoOptions): Promise<
   return runPostStreamComplete(opts, 'MPOST')
 }
 
-async function runPostStreamComplete(
-  opts: UploadToLocoOptions,
-  opcode: 'POST' | 'MPOST',
-): Promise<UploadToLocoResult> {
+async function runPostStreamComplete(opts: UploadToLocoOptions, opcode: 'POST' | 'MPOST'): Promise<UploadToLocoResult> {
   const device = getLocoDeviceConfig(opts.deviceType)
 
   const conn = new LocoConnection()
