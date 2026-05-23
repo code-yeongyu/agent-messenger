@@ -18,12 +18,10 @@ import {
   KAKAO_MESSAGE_TYPE,
   type KakaoChat,
   type KakaoDeviceType,
-  type KakaoFileExtra,
   type KakaoMarkReadResult,
   type KakaoMember,
   type KakaoMessage,
   type KakaoMultiPhotoExtra,
-  type KakaoPhotoExtra,
   type KakaoProfile,
   type KakaoSendResult,
 } from './types'
@@ -1073,9 +1071,17 @@ export class KakaoTalkClient {
         const kl = body.kl as string[] | undefined
         const vhl = body.vhl as string[] | undefined
         const pl = body.pl as number[] | undefined
-        if (!kl || !vhl || !pl || kl.length !== prepared.length) {
+        if (
+          !kl ||
+          !vhl ||
+          !pl ||
+          kl.length !== prepared.length ||
+          vhl.length !== prepared.length ||
+          pl.length !== prepared.length
+        ) {
           throw new KakaoTalkError(
-            `MSHIP response missing arrays: kl=${kl?.length} vhl=${vhl?.length} pl=${pl?.length}`,
+            `MSHIP response arrays do not match prepared.length=${prepared.length}: ` +
+              `kl=${kl?.length} vhl=${vhl?.length} pl=${pl?.length}`,
             'send_multi_photo_failed',
           )
         }

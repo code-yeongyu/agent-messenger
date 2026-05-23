@@ -30,6 +30,13 @@ describe('resolveAttachment', () => {
     expect(r.mime).toBe('image/png')
   })
 
+  it('routes upper-case and mixed-case MIME overrides the same as lower-case', () => {
+    expect(resolveAttachment({ data: bytes, filename: 'x.bin', mime: 'IMAGE/JPEG' }).kind).toBe('photo')
+    expect(resolveAttachment({ data: bytes, filename: 'x.bin', mime: 'Video/MP4' }).kind).toBe('video')
+    expect(resolveAttachment({ data: bytes, filename: 'x.bin', mime: 'Audio/MPEG' }).kind).toBe('audio')
+    expect(resolveAttachment({ data: bytes, filename: 'x.bin', mime: 'IMAGE/PNG' }).mime).toBe('image/png')
+  })
+
   it('preserves data and filename verbatim', () => {
     const r = resolveAttachment({ data: bytes, filename: 'cat picture.jpg' })
     expect(r.data).toBe(bytes)

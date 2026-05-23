@@ -78,6 +78,9 @@ async function uploadAction(
       }
     })
     console.log(formatOutput(result, options.pretty))
+    if (!result.success) {
+      process.exit(1)
+    }
   } catch (error) {
     handleError(error as Error)
   }

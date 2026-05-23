@@ -21,7 +21,9 @@ export type AttachmentPlan =
   | { kind: 'sequential'; resolved: readonly ResolvedAttachment[] }
 
 export function resolveAttachment(input: AttachmentInput): ResolvedAttachment {
-  const mime = input.mime ?? guessMimeFromFilename(input.filename)
+  // MIME types are case-insensitive per RFC 2045 §5.1; normalize so an `Image/JPEG`
+  // override still routes to `photo` instead of falling through to `file`.
+  const mime = (input.mime ?? guessMimeFromFilename(input.filename)).toLowerCase()
   const kind: SingleAttachmentKind = mime.startsWith('image/')
     ? 'photo'
     : mime.startsWith('video/')
