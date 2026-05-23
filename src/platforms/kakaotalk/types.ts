@@ -119,6 +119,63 @@ export interface KakaoSendResult {
   sent_at: number
 }
 
+// LOCO message_type values. Source: KakaoTalk APK 26.4.2 + typeclaw inbound parser.
+export const KAKAO_MESSAGE_TYPE = {
+  TEXT: 1,
+  PHOTO: 2,
+  VIDEO: 3,
+  AUDIO: 5,
+  FILE: 18,
+  MULTIPHOTO: 27,
+} as const
+
+// PHOTO `extra` keys verified by inbound capture of a real KakaoTalk client
+// photo message (2026-05). The bare minimum the receiver needs to render
+// the inline preview is k/s/w/h/mt/cs — url and thumbnailUrl are server-issued
+// pre-signed URLs that the recipient regenerates locally from k, so we don't
+// supply them on outbound.
+export interface KakaoPhotoExtra {
+  k: string
+  s: number
+  w: number
+  h: number
+  mt: string
+  cs: string
+  url?: string
+  thumbnailUrl?: string
+  thumbnailWidth?: number
+  thumbnailHeight?: number
+  expire?: number
+}
+
+export interface KakaoFileExtra {
+  k: string
+  s: number
+  name: string
+  mt: string
+  cs: string
+  expire?: number
+  url?: string
+}
+
+// MULTIPHOTO extra — each per-file field of KakaoPhotoExtra becomes a
+// parallel array. Verified by inbound capture of a real multi-photo message
+// (2026-05). csl uses lowercase hex (unlike PHOTO's cs which is uppercase).
+export interface KakaoMultiPhotoExtra {
+  kl: string[]
+  wl: number[]
+  hl: number[]
+  mtl: string[]
+  sl: number[]
+  csl: string[]
+  cmtl?: string[]
+  imageUrls?: string[]
+  thumbnailUrls?: string[]
+  thumbnailWidths?: number[]
+  thumbnailHeights?: number[]
+  expire?: number
+}
+
 export interface KakaoMarkReadResult {
   success: boolean
   status_code: number
