@@ -7,10 +7,11 @@ import { Long } from 'bson'
 import { getConfigDir } from '@/shared/utils/config-dir'
 import { warn } from '@/shared/utils/stderr'
 
+import { type AttachmentInput, type ResolvedAttachment, planAttachments } from './attachment-router'
 import { detectImageDimensions } from './image-meta'
-import { guessMimeFromFilename, sha1Hex } from './media-upload'
-import { uploadMediaToLoco, uploadMultiMediaEntry } from './protocol/media-uploader'
+import { sha1Hex } from './media-upload'
 import { LANG, PC_OS_NAME, getLocoDeviceConfig } from './protocol/config'
+import { uploadMediaToLoco, uploadMultiMediaEntry } from './protocol/media-uploader'
 import { LocoSession } from './protocol/session'
 import type { ChatListResponse, LocoPacket, LoginListResponse, SyncState } from './protocol/types'
 import {
@@ -907,18 +908,49 @@ export class KakaoTalkClient {
     data: Uint8Array | Buffer,
     filename: string,
     mimeType?: string,
+  ): Promise<KakaoSendResult>
+  async sendAttachment(chatId: string, attachments: ReadonlyArray<AttachmentInput>): Promise<KakaoSendResult>
+  async sendAttachment(
+    chatId: string,
+    dataOrAttachments: Uint8Array | Buffer | ReadonlyArray<AttachmentInput>,
+    filename?: string,
+    mimeType?: string,
   ): Promise<KakaoSendResult> {
-    const mime = mimeType ?? guessMimeFromFilename(filename)
-    if (mime.startsWith('image/')) {
-      return this.sendPhoto(chatId, data, filename)
+    const inputs: ReadonlyArray<AttachmentInput> = Array.isArray(dataOrAttachments)
+      ? dataOrAttachments
+      : [{ data: dataOrAttachments, filename: filename!, mime: mimeType }]
+    const plan = planAttachments(inputs)
+    switch (plan.kind) {
+      case 'single':
+        return this.dispatchSingleAttachment(chatId, plan.resolved)
+      case 'multiphoto':
+        return this.sendMultiPhoto(
+          chatId,
+          plan.items.map((it) => ({ data: it.data, filename: it.filename })),
+        )
+      case 'sequential': {
+        let last: KakaoSendResult | null = null
+        for (const r of plan.resolved) {
+          const result = await this.dispatchSingleAttachment(chatId, r)
+          if (!result.success) return result
+          last = result
+        }
+        return last!
+      }
     }
-    if (mime.startsWith('video/')) {
-      return this.sendVideo(chatId, data, filename)
+  }
+
+  private dispatchSingleAttachment(chatId: string, r: ResolvedAttachment): Promise<KakaoSendResult> {
+    switch (r.kind) {
+      case 'photo':
+        return this.sendPhoto(chatId, r.data, r.filename)
+      case 'video':
+        return this.sendVideo(chatId, r.data, r.filename)
+      case 'audio':
+        return this.sendAudio(chatId, r.data, r.filename)
+      case 'file':
+        return this.sendFile(chatId, r.data, r.filename, r.mime)
     }
-    if (mime.startsWith('audio/')) {
-      return this.sendAudio(chatId, data, filename)
-    }
-    return this.sendFile(chatId, data, filename, mime)
   }
 
   async sendPhoto(chatId: string, photo: Uint8Array | Buffer, filename = 'image.jpg'): Promise<KakaoSendResult> {
@@ -1034,10 +1066,7 @@ export class KakaoTalkClient {
         )
 
         if (mshipResp.statusCode !== 0) {
-          throw new KakaoTalkError(
-            `MSHIP rejected (status ${mshipResp.statusCode})`,
-            'send_multi_photo_failed',
-          )
+          throw new KakaoTalkError(`MSHIP rejected (status ${mshipResp.statusCode})`, 'send_multi_photo_failed')
         }
 
         const body = mshipResp.body as Record<string, unknown>
@@ -1121,10 +1150,7 @@ export class KakaoTalkClient {
         )
 
         if (shipResp.statusCode !== 0) {
-          throw new KakaoTalkError(
-            `SHIP rejected (status ${shipResp.statusCode})`,
-            opts.errorCode,
-          )
+          throw new KakaoTalkError(`SHIP rejected (status ${shipResp.statusCode})`, opts.errorCode)
         }
 
         const body = shipResp.body as Record<string, unknown>

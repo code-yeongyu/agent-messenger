@@ -580,6 +580,11 @@ try {
   const chatId = chats[0].chat_id
   const result = await client.sendMessage(chatId, 'Hello from SDK!')
 
+  // Send a file (photo / video / audio / file auto-routed by MIME). Pass
+  // an array to send several at once — all-image arrays become a gallery.
+  const photo = await Bun.file('./photo.jpg').bytes()
+  await client.sendAttachment(chatId, photo, 'photo.jpg')
+
   // Read messages
   const messages = await client.getMessages(chatId, { count: 50 })
 } finally {
@@ -595,14 +600,13 @@ See the [KakaoTalk SDK documentation](https://agent-messenger.dev/docs/sdk/kakao
 ## Limitations
 
 - Auto-extraction of email/password from the desktop app is **macOS and Windows only** (KakaoTalk desktop is not available on Linux). Linux users must pass `--email` and `--password` (or `--password-file`) explicitly — the LOCO protocol, login flow, and all messaging features work on Linux.
-- No file upload or download
 - No channel/chat room creation or management
 - No friend list management
 - No reactions or emoji
 - No message editing or deletion
 - No open chat (오픈채팅) browsing or joining
 - No search across chats
-- Read-only for rich content: photos, stickers, files, and other non-text messages are exposed via the `attachment` field on each message, but sending them is not supported
+- Stickers / emoticons cannot be sent (inbound stickers expose pack/path metadata, but the sticker store requires desktop-app purchase flows the SDK does not replicate). Photos, videos, audio, and arbitrary files can both be received and sent — see [`message upload`](#message-commands) and [`KakaoTalkClient.sendAttachment`](#sdk-programmatic-usage).
 - Chat IDs are numeric and not human-readable — use `chat list` to discover them
 
 ## Troubleshooting

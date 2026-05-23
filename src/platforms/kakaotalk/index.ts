@@ -44,3 +44,5 @@ export {
 } from './types'
 export { sha1Hex } from './media-upload'
 export { detectImageDimensions } from './image-meta'
+export type { AttachmentInput, AttachmentPlan, ResolvedAttachment, SingleAttachmentKind } from './attachment-router'
+export { planAttachments, resolveAttachment } from './attachment-router'
