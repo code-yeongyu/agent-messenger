@@ -126,6 +126,89 @@ export class LocoSession {
     })
   }
 
+  // Sends a WRITE with non-text message_type plus the JSON-stringified `extra`
+  // payload that KakaoTalk clients render as the attachment (photo, file, etc).
+  // See types.ts → KakaoPhotoExtra / KakaoFileExtra for the per-type shape.
+  async sendAttachment(
+    chatId: Long,
+    type: number,
+    extra: Record<string, unknown>,
+    caption = '',
+  ): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    return this.connection.sendPacket('WRITE', {
+      chatId,
+      msg: caption,
+      type,
+      noSeen: false,
+      extra: JSON.stringify(extra),
+    })
+  }
+
+  // SHIP — request a media-upload ticket. Reserves a slot on a media LOCO
+  // server and returns the token (k), host (vh), and port (p) the client must
+  // connect to next. Sent on the main session.
+  async shipMedia(
+    chatId: Long,
+    type: number,
+    size: number,
+    checksum: string,
+    extension: string,
+  ): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    const body: Record<string, unknown> = {
+      c: chatId,
+      t: type,
+      s: Long.fromNumber(size),
+      cs: checksum,
+    }
+    if (extension.length > 0) body.e = extension
+    return this.connection.sendPacket('SHIP', body)
+  }
+
+  // MSHIP — multi-file equivalent of SHIP. Per-file fields become parallel
+  // arrays (sl/csl/el) and the response carries kl/vhl/pl arrays the caller
+  // must fan out across — one MPOST connection per entry.
+  async shipMultiMedia(
+    chatId: Long,
+    type: number,
+    sizes: number[],
+    checksums: string[],
+    extensions: string[],
+  ): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    return this.connection.sendPacket('MSHIP', {
+      c: chatId,
+      t: type,
+      sl: sizes.map((s) => Long.fromNumber(s)),
+      csl: checksums,
+      el: extensions,
+    })
+  }
+
+  // FORWARD — used after MPOST: registers a multi-attachment chatlog as one
+  // message. Same shape as WRITE but the server routes the attachment to
+  // multi-media rendering (galleries, multi-photo posts).
+  async forwardChat(
+    chatId: Long,
+    type: number,
+    extra: Record<string, unknown>,
+    caption = '',
+  ): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    return this.connection.sendPacket('FORWARD', {
+      chatId,
+      msg: caption,
+      type,
+      noSeen: false,
+      extra: JSON.stringify(extra),
+    })
+  }
+
+  getConnection(): LocoConnection | null {
+    return this.connection
+  }
+
   async syncMessages(chatId: Long, count = 20, cursor?: Long, maxLogId?: Long): Promise<LocoPacket> {
     if (!this.connection) throw new Error('Not connected')
     return this.connection.sendPacket('SYNCMSG', {
