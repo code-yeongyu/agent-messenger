@@ -50,6 +50,17 @@ export class LocoConnection {
     await this.write(handshakePacket)
   }
 
+  // Writes raw bytes onto the LOCO stream after applying the same AES-128-GCM
+  // framing as encrypted packets — used by the media-upload POST step where
+  // the protocol expects the file payload to follow the POST request inside
+  // the same encrypted channel (chunked into N frames automatically by the
+  // crypto layer's 4-byte-size + nonce + ciphertext + tag wrapping).
+  async writeRaw(data: Buffer): Promise<void> {
+    if (!this.crypto) throw new Error('crypto not initialised')
+    const encrypted = this.crypto.encrypt(data)
+    await this.write(encrypted)
+  }
+
   async sendPacket(method: string, body: Record<string, unknown> = {}): Promise<LocoPacket> {
     const packetId = ++this.packetIdCounter
     const packet: LocoPacket = {

@@ -12,8 +12,10 @@ export type {
   KakaoDeviceType,
   KakaoEmoticonKind,
   KakaoEmoticonMessageType,
+  KakaoFileExtra,
   KakaoMember,
   KakaoMessage,
+  KakaoPhotoExtra,
   KakaoProfile,
   KakaoSendResult,
   KakaoTalkListenerEventMap,
@@ -27,6 +29,7 @@ export type {
 export {
   KAKAO_EMOTICON_KIND_BY_TYPE,
   KAKAO_EMOTICON_MESSAGE_TYPES,
+  KAKAO_MESSAGE_TYPE,
   KakaoAccountCredentialsSchema,
   KakaoChatSchema,
   KakaoConfigSchema,
@@ -39,3 +42,7 @@ export {
   KakaoTalkPushMessageEventSchema,
   KakaoTalkPushReadEventSchema,
 } from './types'
+export { sha1Hex } from './media-upload'
+export { detectImageDimensions } from './image-meta'
+export type { AttachmentInput, AttachmentPlan, ResolvedAttachment, SingleAttachmentKind } from './attachment-router'
+export { planAttachments, resolveAttachment } from './attachment-router'

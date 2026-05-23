@@ -94,6 +94,38 @@ const result = await client.sendMessage('9876543210', 'Hello from SDK!')
 // → KakaoSendResult { success, status_code, chat_id, log_id, sent_at }
 ```
 
+#### Attachments
+
+`sendAttachment` is the single entry point for outbound photos, videos, audio, files, and multi-photo galleries. It accepts either one buffer or an array of `{ data, filename, mime? }` tuples; MIME is sniffed from the filename when not given, and the client dispatches to the right LOCO message_type internally.
+
+```typescript
+// Single attachment — MIME inferred from the filename extension
+//   image/* → photo, video/* → video, audio/* → audio, anything else → file
+await client.sendAttachment('9876543210', photoBytes, 'cat.jpg')
+await client.sendAttachment('9876543210', pdfBytes, 'report.pdf')
+
+// Force a specific MIME (extension-less files, or to send a video as a generic file)
+await client.sendAttachment('9876543210', mp4Bytes, 'clip.mp4', 'application/octet-stream')
+
+// Multiple attachments — the client picks the right wire flow:
+//   all-image (length >= 2) → multi-photo gallery (sendMultiPhoto under the hood)
+//   mixed kinds              → sequential individual sends, fail-fast on first error
+//   length === 1             → equivalent to the single-buffer overload
+await client.sendAttachment('9876543210', [
+  { data: photo1, filename: 'a.jpg' },
+  { data: photo2, filename: 'b.png' },
+  { data: photo3, filename: 'c.webp' },
+])
+
+await client.sendAttachment('9876543210', [
+  { data: photo, filename: 'screenshot.png' },
+  { data: spec, filename: 'spec.pdf' },
+])
+// → KakaoSendResult of the last successful send (or the first failure, if any)
+```
+
+The typed helpers `sendPhoto`, `sendVideo`, `sendAudio`, `sendFile`, and `sendMultiPhoto` remain available when you want to bypass MIME sniffing and dispatch to a specific message_type explicitly.
+
 ### Cleanup
 
 ```typescript
