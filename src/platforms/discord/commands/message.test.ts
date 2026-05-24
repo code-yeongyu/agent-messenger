@@ -12,6 +12,14 @@ let clientDeleteMessageSpy: ReturnType<typeof spyOn>
 let clientAckMessageSpy: ReturnType<typeof spyOn>
 let clientSearchMessagesSpy: ReturnType<typeof spyOn>
 let credManagerLoadSpy: ReturnType<typeof spyOn>
+let clientLoginSpy: ReturnType<typeof spyOn>
+
+class ProcessExitError extends Error {
+  constructor(readonly code: string | number | null | undefined) {
+    super(`process exited with ${code}`)
+    this.name = 'ProcessExitError'
+  }
+}
 
 beforeEach(() => {
   // Spy on DiscordClient.prototype methods
@@ -90,6 +98,8 @@ beforeEach(() => {
     current_server: 'server_123',
     servers: {},
   })
+
+  clientLoginSpy = spyOn(DiscordClient.prototype, 'login')
 })
 
 afterEach(() => {
@@ -101,6 +111,7 @@ afterEach(() => {
   clientAckMessageSpy?.mockRestore()
   clientSearchMessagesSpy?.mockRestore()
   credManagerLoadSpy?.mockRestore()
+  clientLoginSpy?.mockRestore()
 })
 
 it('send: returns message with id', async () => {
@@ -220,4 +231,26 @@ it('search: passes options to client', async () => {
     limit: 10,
     offset: 5,
   })
+})
+
+it('send: blocks readonly account before Discord login', async () => {
+  const originalExit = process.exit
+  process.exit = (code?: string | number | null | undefined): never => {
+    throw new ProcessExitError(code)
+  }
+  credManagerLoadSpy.mockResolvedValue({
+    token: 'test_token',
+    current_server: 'server_123',
+    servers: {},
+    readonly: true,
+  })
+
+  try {
+    await expect(sendAction('ch_456', 'Hello world', { pretty: false })).rejects.toThrow(ProcessExitError)
+  } finally {
+    process.exit = originalExit
+  }
+
+  expect(clientLoginSpy).not.toHaveBeenCalled()
+  expect(clientSendMessageSpy).not.toHaveBeenCalled()
 })
