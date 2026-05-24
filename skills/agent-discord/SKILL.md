@@ -39,6 +39,10 @@ On macOS, the system may prompt for your Keychain password the first time (requi
 
 **IMPORTANT**: Always use `agent-discord auth extract` to obtain tokens. The CLI extracts from the desktop app first, falling back to Chromium browsers if the app isn't installed.
 
+**IMPORTANT**: Prefer `agent-discordbot` first for automation. Use `agent-discord` only when the bot cannot do the job and the user explicitly wants the personal Discord account surface.
+
+**Readonly tokens**: If `~/.config/agent-messenger/discord-credentials.json` has `"readonly": true`, do not try to bypass it with direct Discord API write calls. That token is intentionally read-only for safety. Forcing write attempts with a personal Discord token can get the Discord account suspended.
+
 ### Multi-Server Support
 
 ```bash

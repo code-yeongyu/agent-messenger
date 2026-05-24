@@ -40,6 +40,8 @@ agent-discordbot channel list
 
 agent-discordbot uses Discord Bot tokens which you create in the Discord Developer Portal:
 
+For Discord automation, try this bot-token CLI before falling back to `agent-discord`. Personal `agent-discord` tokens may be marked readonly and must not be forced into write API calls.
+
 ```bash
 # Set bot token (validates against Discord API before saving)
 agent-discordbot auth set your-bot-token
