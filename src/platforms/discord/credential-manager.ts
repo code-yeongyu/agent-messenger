@@ -7,6 +7,8 @@ export interface DiscordConfig {
   token: string | null
   current_server: string | null
   servers: Record<string, { server_id: string; server_name: string }>
+  readonly?: boolean
+  account_label?: string
 }
 
 export class DiscordCredentialManager {
@@ -98,5 +100,15 @@ export class DiscordCredentialManager {
     }
 
     return { token, serverId }
+  }
+
+  isReadonly(config: DiscordConfig): boolean {
+    return config.readonly === true
+  }
+
+  async setReadonly(readonly: boolean): Promise<void> {
+    const config = await this.load()
+    config.readonly = readonly
+    await this.save(config)
   }
 }

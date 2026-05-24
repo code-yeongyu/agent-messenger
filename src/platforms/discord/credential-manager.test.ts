@@ -189,4 +189,24 @@ describe('DiscordCredentialManager', () => {
     expect(await manager.getCurrentServer()).toBe('server-1')
     expect(await manager.getServers()).toEqual(servers)
   })
+
+  it('readonly defaults to false for existing configs', async () => {
+    const manager = setup()
+    const config = await manager.load()
+
+    expect(manager.isReadonly(config)).toBe(false)
+  })
+
+  it('setReadonly persists readonly without changing token or servers', async () => {
+    const manager = setup()
+    await manager.setToken('token-1')
+    await manager.setCurrentServer('server-1')
+
+    await manager.setReadonly(true)
+
+    const config = await manager.load()
+    expect(config.token).toBe('token-1')
+    expect(config.current_server).toBe('server-1')
+    expect(manager.isReadonly(config)).toBe(true)
+  })
 })
