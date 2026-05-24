@@ -58,6 +58,7 @@ export class DiscordBotCredentialManager {
         token: bot.token,
         bot_id: bot.bot_id,
         bot_name: bot.bot_name,
+        token_label: bot.token_label,
       }
     }
 
@@ -72,6 +73,7 @@ export class DiscordBotCredentialManager {
       token: bot.token,
       bot_id: bot.bot_id,
       bot_name: bot.bot_name,
+      token_label: bot.token_label,
     }
   }
 
@@ -82,6 +84,7 @@ export class DiscordBotCredentialManager {
       bot_id: creds.bot_id,
       bot_name: creds.bot_name,
       token: creds.token,
+      token_label: creds.token_label,
     }
 
     config.current = {
@@ -132,6 +135,7 @@ export class DiscordBotCredentialManager {
         token: bot.token,
         bot_id: bot.bot_id,
         bot_name: bot.bot_name,
+        token_label: bot.token_label,
         is_current: config.current?.bot_id === bot.bot_id,
       })
     }

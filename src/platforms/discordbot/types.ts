@@ -4,6 +4,7 @@ export interface DiscordBotEntry {
   bot_id: string
   bot_name: string
   token: string
+  token_label?: string
 }
 
 export interface DiscordBotConfig {
@@ -11,12 +12,14 @@ export interface DiscordBotConfig {
   bots: Record<string, DiscordBotEntry>
   current_server: string | null
   servers: Record<string, { server_id: string; server_name: string }>
+  config_label?: string
 }
 
 export interface DiscordBotCredentials {
   token: string
   bot_id: string
   bot_name: string
+  token_label?: string
   server_id?: string
   server_name?: string
 }
@@ -97,6 +100,7 @@ export const DiscordBotEntrySchema = z.object({
   bot_id: z.string(),
   bot_name: z.string(),
   token: z.string(),
+  token_label: z.string().optional(),
 })
 
 export const DiscordBotConfigSchema = z.object({
@@ -114,12 +118,14 @@ export const DiscordBotConfigSchema = z.object({
       server_name: z.string(),
     }),
   ),
+  config_label: z.string().optional(),
 })
 
 export const DiscordBotCredentialsSchema = z.object({
   token: z.string(),
   bot_id: z.string(),
   bot_name: z.string(),
+  token_label: z.string().optional(),
   server_id: z.string().optional(),
   server_name: z.string().optional(),
 })
