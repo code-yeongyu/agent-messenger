@@ -7,6 +7,7 @@ import { formatOutput } from '@/shared/utils/output'
 
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
+import { assertDiscordWritable } from '../readonly-guard'
 import type { DiscordDMChannel } from '../types'
 
 export async function listAction(options: { pretty?: boolean }): Promise<void> {
@@ -51,6 +52,7 @@ export async function createAction(userId: string, options: { pretty?: boolean }
       process.exit(1)
     }
 
+    assertDiscordWritable(config, 'dm create', credManager)
     const client = await new DiscordClient().login({ token: config.token })
     const engine = await getPolicyEngine()
     engine.assertAllowed('discord', 'write', { kind: 'user', id: userId })

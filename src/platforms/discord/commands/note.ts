@@ -5,6 +5,7 @@ import { formatOutput } from '@/shared/utils/output'
 
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
+import { assertDiscordWritable } from '../readonly-guard'
 
 async function getAction(userId: string, options: { pretty?: boolean }): Promise<void> {
   try {
@@ -39,6 +40,7 @@ async function setAction(userId: string, note: string, options: { pretty?: boole
       process.exit(1)
     }
 
+    assertDiscordWritable(config, 'note set', credManager)
     const client = await new DiscordClient().login({ token: config.token })
     const result = await client.setUserNote(userId, note)
 

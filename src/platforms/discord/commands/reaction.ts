@@ -7,6 +7,7 @@ import { formatOutput } from '@/shared/utils/output'
 
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
+import { assertDiscordWritable } from '../readonly-guard'
 import type { DiscordMessage, DiscordReaction } from '../types'
 
 type DiscordMessageWithReactions = DiscordMessage & { reactions?: DiscordReaction[] }
@@ -26,6 +27,7 @@ export async function addAction(
       process.exit(1)
     }
 
+    assertDiscordWritable(config, 'reaction add', credManager)
     const client = await new DiscordClient().login({ token: config.token })
     const engine = await getPolicyEngine()
     engine.assertAllowed('discord', 'write', await resolveDiscordChannelTarget(client, engine, channelId, 'write'))
@@ -62,6 +64,7 @@ export async function removeAction(
       process.exit(1)
     }
 
+    assertDiscordWritable(config, 'reaction remove', credManager)
     const client = await new DiscordClient().login({ token: config.token })
     const engine = await getPolicyEngine()
     engine.assertAllowed('discord', 'write', await resolveDiscordChannelTarget(client, engine, channelId, 'write'))

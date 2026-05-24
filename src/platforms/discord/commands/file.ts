@@ -9,6 +9,7 @@ import { formatOutput } from '@/shared/utils/output'
 
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
+import { assertDiscordWritable } from '../readonly-guard'
 import type { DiscordFile } from '../types'
 
 export async function uploadAction(
@@ -25,6 +26,7 @@ export async function uploadAction(
       process.exit(1)
     }
 
+    assertDiscordWritable(config, 'file upload', credManager)
     const client = await new DiscordClient().login({ token: config.token })
     const engine = await getPolicyEngine()
     engine.assertAllowed('discord', 'write', await resolveDiscordChannelTarget(client, engine, channelId, 'write'))
