@@ -6,6 +6,7 @@ import { Command } from 'commander'
 
 import { collectBrowserProfileOption } from '@/shared/chromium'
 import { handleError } from '@/shared/utils/error-handler'
+import { isInteractive } from '@/shared/utils/interactive'
 import { formatOutput } from '@/shared/utils/output'
 import { info, warn, error as stderrError, debug } from '@/shared/utils/stderr'
 
@@ -13,10 +14,6 @@ import { InstagramClient, generateAndroidDeviceId, generateDeviceString } from '
 import { InstagramCredentialManager } from '../credential-manager'
 import { InstagramTokenExtractor } from '../token-extractor'
 import { createAccountId } from '../types'
-
-function isInteractive(): boolean {
-  return Boolean(process.stdin.isTTY && process.stdout.isTTY)
-}
 
 async function promptText(message: string): Promise<string | undefined> {
   const { createInterface } = await import('node:readline/promises')

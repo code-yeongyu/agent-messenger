@@ -2,6 +2,7 @@ import { Command } from 'commander'
 
 import { collectBrowserProfileOption } from '@/shared/chromium'
 import { handleError } from '@/shared/utils/error-handler'
+import { isInteractive } from '@/shared/utils/interactive'
 import { formatOutput } from '@/shared/utils/output'
 import { info, debug } from '@/shared/utils/stderr'
 
@@ -43,12 +44,15 @@ async function resolveClientCredentials(options: {
   return getWebexAppCredentials()
 }
 
-export async function loginAction(options: {
+interface LoginOptions {
   token?: string
+  deviceCode?: string
   clientId?: string
   clientSecret?: string
   pretty?: boolean
-}): Promise<void> {
+}
+
+export async function loginAction(options: LoginOptions): Promise<void> {
   try {
     const credManager = new WebexCredentialManager()
 
@@ -70,6 +74,16 @@ export async function loginAction(options: {
           options.pretty,
         ),
       )
+      return
+    }
+
+    if (options.deviceCode) {
+      await finishDeviceGrant(credManager, options)
+      return
+    }
+
+    if (!isInteractive()) {
+      await startNonInteractiveDeviceGrant(credManager, options)
       return
     }
 
@@ -108,6 +122,81 @@ export async function loginAction(options: {
   } catch (error) {
     handleError(error as Error)
   }
+}
+
+async function startNonInteractiveDeviceGrant(
+  credManager: WebexCredentialManager,
+  options: LoginOptions,
+): Promise<void> {
+  const { clientId } = await resolveClientCredentials(options)
+  const device = await credManager.requestDeviceCode(clientId)
+  const expiresAt = Date.now() + device.expiresIn * 1000
+
+  console.log(
+    formatOutput(
+      {
+        next_action: 'authorize_in_browser',
+        verification_uri: device.verificationUri,
+        verification_uri_complete: device.verificationUriComplete,
+        user_code: device.userCode,
+        device_code: device.deviceCode,
+        expires_at: expiresAt,
+        message:
+          'Show the user `verification_uri` and `user_code` (or just `verification_uri_complete`) and ask them to approve access in any browser. After they approve, run `agent-webex auth login --device-code <device_code>` to retrieve the token. The device code expires at `expires_at`. If you passed `--client-id`/`--client-secret`, pass them again on the second call.',
+      },
+      options.pretty,
+    ),
+  )
+  process.exit(0)
+}
+
+async function finishDeviceGrant(credManager: WebexCredentialManager, options: LoginOptions): Promise<void> {
+  const { clientId, clientSecret } = await resolveClientCredentials(options)
+  const result = await credManager.exchangeDeviceCode(options.deviceCode!, clientId, clientSecret)
+
+  if (result.status === 'success') {
+    await credManager.saveConfig({ ...result.config, clientId, clientSecret, tokenType: 'oauth' })
+    const client = await new WebexClient().login({ token: result.config.accessToken })
+    const person = await client.testAuth()
+    console.log(
+      formatOutput(
+        {
+          authenticated: true,
+          user: { id: person.id, displayName: person.displayName, emails: person.emails },
+        },
+        options.pretty,
+      ),
+    )
+    return
+  }
+
+  if (result.status === 'pending') {
+    console.log(
+      formatOutput(
+        {
+          next_action: 'still_pending',
+          device_code: options.deviceCode,
+          message:
+            'User has not approved access yet. Confirm with the user that they completed authorization in the browser, then run `agent-webex auth login --device-code <device_code>` again to retry.',
+        },
+        options.pretty,
+      ),
+    )
+    process.exit(0)
+    return
+  }
+
+  console.log(
+    formatOutput(
+      {
+        next_action: 'restart',
+        error: result.status === 'expired' ? 'Device code expired.' : `Device code exchange failed: ${result.message}`,
+        message: 'This device code is no longer valid. Run `agent-webex auth login` to start a new login.',
+      },
+      options.pretty,
+    ),
+  )
+  process.exit(1)
 }
 
 export async function statusAction(options: { pretty?: boolean }): Promise<void> {
@@ -276,8 +365,18 @@ export const authCommand = new Command('auth')
   .description('Authentication commands')
   .addCommand(
     new Command('login')
-      .description('Login to Webex')
+      .description(
+        'Log in to Webex. In a TTY this opens a browser and waits for approval. ' +
+          'When non-interactive (AI agents, CI/CD): first call starts the OAuth Device Grant flow ' +
+          'and returns a verification URL, user code, and device code. After the user approves in a ' +
+          'browser, call again with --device-code to exchange it for a token. Pass --token for ' +
+          'fully unattended auth.',
+      )
       .option('--token <token>', 'Use a bot token or personal access token directly')
+      .option(
+        '--device-code <code>',
+        'OAuth Device Grant code returned from a previous non-interactive `auth login` call',
+      )
       .option('--client-id <id>', 'Webex Integration client ID')
       .option('--client-secret <secret>', 'Webex Integration client secret')
       .option('--pretty', 'Pretty print JSON output')

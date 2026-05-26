@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 
 import { handleError } from '@/shared/utils/error-handler'
+import { isInteractive } from '@/shared/utils/interactive'
 import { formatOutput } from '@/shared/utils/output'
 import { displayQR } from '@/shared/utils/qr'
 import { info } from '@/shared/utils/stderr'
@@ -8,10 +9,6 @@ import { info } from '@/shared/utils/stderr'
 import { LineClient } from '../client'
 import { LineCredentialManager } from '../credential-manager'
 import type { LineDevice } from '../types'
-
-function isInteractiveSession(): boolean {
-  return Boolean(process.stdin.isTTY && process.stdout.isTTY)
-}
 
 function getDefaultDevice(): LineDevice {
   return 'ANDROIDSECONDARY'
@@ -28,7 +25,7 @@ async function loginAction(options: {
     const credManager = new LineCredentialManager()
     const client = new LineClient(credManager)
     const device: LineDevice = (options.device as LineDevice | undefined) ?? getDefaultDevice()
-    const interactive = isInteractiveSession()
+    const interactive = isInteractive()
 
     if (options.token) {
       const now = new Date().toISOString()

@@ -212,6 +212,65 @@ export class WebexCredentialManager {
     throw new Error('Device authorization timed out')
   }
 
+  async exchangeDeviceCode(
+    deviceCode: string,
+    clientId: string,
+    clientSecret?: string,
+  ): Promise<
+    | { status: 'success'; config: Pick<WebexConfig, 'accessToken' | 'refreshToken' | 'expiresAt'> }
+    | { status: 'pending' }
+    | { status: 'expired' }
+    | { status: 'error'; message: string }
+  > {
+    const basicAuth = btoa(`${clientId}:${clientSecret ?? ''}`)
+
+    const response = await fetch(OAUTH_DEVICE_TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${basicAuth}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+        device_code: deviceCode,
+        client_id: clientId,
+      }),
+    })
+
+    if (response.ok) {
+      const data = (await response.json()) as {
+        access_token: string
+        refresh_token: string
+        expires_in: number
+      }
+      return {
+        status: 'success',
+        config: {
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token,
+          expiresAt: Date.now() + data.expires_in * 1000,
+        },
+      }
+    }
+
+    if (response.status === 428) return { status: 'pending' }
+
+    const errorBody = (await response.json().catch(() => null)) as {
+      errors?: Array<{ description: string }>
+    } | null
+    const errorDesc = errorBody?.errors?.[0]?.description ?? ''
+
+    if (errorDesc.includes('authorization_pending') || errorDesc.includes('slow_down')) {
+      return { status: 'pending' }
+    }
+
+    if (errorDesc.includes('expired_token') || errorDesc.includes('expired')) {
+      return { status: 'expired' }
+    }
+
+    return { status: 'error', message: errorDesc || `http_${response.status}` }
+  }
+
   async clearCredentials(): Promise<void> {
     if (existsSync(this.credentialsPath)) {
       await rm(this.credentialsPath)

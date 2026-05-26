@@ -373,4 +373,82 @@ describe('WebexCredentialManager', () => {
     expect(loaded?.clientId).toBeUndefined()
     expect(loaded?.clientSecret).toBeUndefined()
   })
+
+  describe('exchangeDeviceCode', () => {
+    let originalFetch: typeof globalThis.fetch
+
+    beforeEach(() => {
+      originalFetch = globalThis.fetch
+    })
+
+    afterEach(() => {
+      globalThis.fetch = originalFetch
+    })
+
+    it('returns success with config on 200', async () => {
+      globalThis.fetch = mock(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        ),
+      ) as unknown as typeof globalThis.fetch
+
+      const result = await credManager.exchangeDeviceCode('dc', 'cid', 'csec')
+      expect(result.status).toBe('success')
+      if (result.status === 'success') {
+        expect(result.config.accessToken).toBe('at')
+        expect(result.config.refreshToken).toBe('rt')
+      }
+    })
+
+    it('returns pending on 428', async () => {
+      globalThis.fetch = mock(() =>
+        Promise.resolve(new Response('', { status: 428 })),
+      ) as unknown as typeof globalThis.fetch
+      const result = await credManager.exchangeDeviceCode('dc', 'cid', 'csec')
+      expect(result.status).toBe('pending')
+    })
+
+    it('returns pending when error description includes authorization_pending', async () => {
+      globalThis.fetch = mock(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ errors: [{ description: 'authorization_pending' }] }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        ),
+      ) as unknown as typeof globalThis.fetch
+      const result = await credManager.exchangeDeviceCode('dc', 'cid', 'csec')
+      expect(result.status).toBe('pending')
+    })
+
+    it('returns expired when error description signals expiry', async () => {
+      globalThis.fetch = mock(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ errors: [{ description: 'expired_token' }] }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        ),
+      ) as unknown as typeof globalThis.fetch
+      const result = await credManager.exchangeDeviceCode('dc', 'cid', 'csec')
+      expect(result.status).toBe('expired')
+    })
+
+    it('returns error on other failures', async () => {
+      globalThis.fetch = mock(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ errors: [{ description: 'access_denied' }] }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        ),
+      ) as unknown as typeof globalThis.fetch
+      const result = await credManager.exchangeDeviceCode('dc', 'cid', 'csec')
+      expect(result.status).toBe('error')
+      if (result.status === 'error') expect(result.message).toContain('access_denied')
+    })
+  })
 })

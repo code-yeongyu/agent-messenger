@@ -76,6 +76,37 @@ Note: Messages sent via OAuth Device Grant show "via agent-messenger" because th
 
 Optionally, pass `--token <bot-token>` for bot token auth. Or pass `--client-id <id> --client-secret <secret>` to use your own Webex Integration credentials instead of the built-in ones.
 
+**For AI agents (non-TTY)**: `agent-webex auth login` exposes the OAuth Device Grant flow as a stateless two-call sequence — no hangs, no polling loops, no on-disk state. Just structured JSON every time.
+
+**Call 1** (no `--device-code` passed): the command requests a device code from Webex and returns immediately:
+
+```json
+{
+  "next_action": "authorize_in_browser",
+  "verification_uri": "https://login.webex.com/verify",
+  "verification_uri_complete": "https://login.webex.com/verify?userCode=ABC123",
+  "user_code": "ABC123",
+  "device_code": "d8eb0eca-2fee-428e-a59e-5e6d487b33ba",
+  "expires_at": 1779786537203,
+  "message": "Show the user `verification_uri` and `user_code` ..."
+}
+```
+
+Show the user `verification_uri_complete` (or `verification_uri` + `user_code`) in chat. **Remember the `device_code` value** — you will pass it back on the second call. Ask the user to confirm once they have approved access in any browser, on any device.
+
+**Call 2** (`--device-code <device_code>`): pass the `device_code` from Call 1's response. The command makes one polling call to Webex:
+
+- **Success** — returns `{ "authenticated": true, "user": { ... } }`, exit 0.
+- **Still pending** — returns `{ "next_action": "still_pending", "device_code": "...", ... }`, exit 0. The user has not approved yet; confirm with them and retry with the same `--device-code` value.
+- **Expired / failed** — returns `{ "next_action": "restart", "error": "..." }`, exit 1. The device code is no longer usable; start over with another `agent-webex auth login` (no flags) to get a fresh one.
+
+If you passed `--client-id` / `--client-secret` (custom Webex Integration) on Call 1, pass them again on Call 2.
+
+Alternatives that skip the Device Grant flow entirely:
+
+- `agent-webex auth login --token <bot-or-personal-access-token>` — fully unattended, no human required.
+- `agent-webex auth extract` — read an existing browser session token (no auth flow at all).
+
 Env vars `AGENT_WEBEX_CLIENT_ID` / `AGENT_WEBEX_CLIENT_SECRET` can also override the built-in credentials.
 
 ```bash
