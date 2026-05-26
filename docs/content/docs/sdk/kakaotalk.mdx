@@ -44,6 +44,15 @@ const allChats = await client.getChats({ all: true })
 
 // Search chats by display name
 const results = await client.getChats({ search: 'Alice' })
+
+// Resolve user-set room titles via CHATINFO (one extra LOCO call per chat).
+// Each KakaoChat gets a `title: string | null` matching the in-app room name.
+// For open chats with no user-set title, the SDK falls back to the OpenLink
+// link name via an additional INFOLINK call (only for OM / OD chats).
+const titled = await client.getChats({ resolveTitles: true })
+
+// Resolve a single chat's title directly (returns null on error or missing title)
+const title = await client.getChatTitle('9876543210')
 ```
 
 ### Messages
@@ -60,6 +69,23 @@ const more = await client.getMessages('9876543210', { count: 100 })
 const newer = await client.getMessages('9876543210', { from: '123456789' })
 ```
 
+Each `KakaoMessage` carries an `author_name: string | null`. The SDK auto-populates this from the same chat-list response that already arrives at login (no extra LOCO calls). It resolves for "display members" — the small set of nicknames KakaoTalk includes in the chat list — and is `null` for everyone else.
+
+Each `KakaoMessage` also carries an `attachment: Record<string, unknown> | null`. For text messages this is `null`. For non-text messages (photos, videos, files, stickers, etc.) it is the parsed LOCO attachment payload — a JSON object whose shape varies by `type`. Photo messages use fields like `k` (CDN key), `w`/`h` (dimensions), `mt` (mime type), and `url`; sticker messages use `path`/`emoticonItemPath`. Treat it as opaque and narrow per `type`.
+
+### Members
+
+```typescript
+// List all members of a chat (LOCO GETMEM)
+const members = await client.getMembers('9876543210')
+// → KakaoMember[]
+
+// Resolve a specific subset by user_id (LOCO MEMBER) — useful for >100-member rooms
+const subset = await client.getMembersByIds('9876543210', ['1234567890', '9876543210'])
+```
+
+Each `KakaoMember` includes `user_id`, `nickname`, profile image URLs, `status_message`, `country_iso`, `user_type` (nullable; `null` when the server omits the field), and open-chat-only fields (`open_token`, `open_profile_link_id`, `open_permission` — the last is the OpenChannelUserPerm bitfield: `1`=OWNER, `2`=NONE, `4`=MANAGER, `8`=BOT).
+
 ### Sending
 
 ```typescript
@@ -67,6 +93,38 @@ const newer = await client.getMessages('9876543210', { from: '123456789' })
 const result = await client.sendMessage('9876543210', 'Hello from SDK!')
 // → KakaoSendResult { success, status_code, chat_id, log_id, sent_at }
 ```
+
+#### Attachments
+
+`sendAttachment` is the single entry point for outbound photos, videos, audio, files, and multi-photo galleries. It accepts either one buffer or an array of `{ data, filename, mime? }` tuples; MIME is sniffed from the filename when not given, and the client dispatches to the right LOCO message_type internally.
+
+```typescript
+// Single attachment — MIME inferred from the filename extension
+//   image/* → photo, video/* → video, audio/* → audio, anything else → file
+await client.sendAttachment('9876543210', photoBytes, 'cat.jpg')
+await client.sendAttachment('9876543210', pdfBytes, 'report.pdf')
+
+// Force a specific MIME (extension-less files, or to send a video as a generic file)
+await client.sendAttachment('9876543210', mp4Bytes, 'clip.mp4', 'application/octet-stream')
+
+// Multiple attachments — the client picks the right wire flow:
+//   all-image (length >= 2) → multi-photo gallery (sendMultiPhoto under the hood)
+//   mixed kinds              → sequential individual sends, fail-fast on first error
+//   length === 1             → equivalent to the single-buffer overload
+await client.sendAttachment('9876543210', [
+  { data: photo1, filename: 'a.jpg' },
+  { data: photo2, filename: 'b.png' },
+  { data: photo3, filename: 'c.webp' },
+])
+
+await client.sendAttachment('9876543210', [
+  { data: photo, filename: 'screenshot.png' },
+  { data: spec, filename: 'spec.pdf' },
+])
+// → KakaoSendResult of the last successful send (or the first failure, if any)
+```
+
+The typed helpers `sendPhoto`, `sendVideo`, `sendAudio`, `sendFile`, and `sendMultiPhoto` remain available when you want to bypass MIME sniffing and dispatch to a specific message_type explicitly.
 
 ### Cleanup
 
@@ -79,7 +137,7 @@ Once closed, any subsequent method call throws a `KakaoTalkError` with code `cli
 
 ## KakaoTalkListener
 
-Real-time event listener that receives push events from KakaoTalk via the LOCO protocol. Manages its own LOCO session with automatic reconnection.
+Real-time event listener that receives push events from KakaoTalk via the LOCO protocol. Subscribes to the underlying client's LOCO session.
 
 ```typescript
 import { KakaoTalkClient, KakaoTalkListener } from 'agent-messenger/kakaotalk'
@@ -107,7 +165,7 @@ listener.on('read', (event) => {
   console.log(`User ${event.user_id} read ${event.chat_id} up to ${event.watermark}`)
 })
 
-listener.on('disconnected', () => console.log('Reconnecting...'))
+listener.on('disconnected', () => console.log('LOCO session dropped'))
 listener.on('error', (err) => console.error(err))
 
 await listener.start()
@@ -116,20 +174,26 @@ await listener.start()
 
 ### Events
 
-| Event             | Payload                     | Description                           |
-| ----------------- | --------------------------- | ------------------------------------- |
-| `message`         | `KakaoTalkPushMessageEvent` | New message received                  |
-| `member_joined`   | `KakaoTalkPushMemberEvent`  | Member joined a chat                  |
-| `member_left`     | `KakaoTalkPushMemberEvent`  | Member left a chat                    |
-| `read`            | `KakaoTalkPushReadEvent`    | Read receipt (unread count decreased) |
-| `kakaotalk_event` | `KakaoTalkPushGenericEvent` | Catch-all for all push events         |
-| `connected`       | `{ userId: string }`        | Connected to LOCO server              |
-| `disconnected`    | —                           | Disconnected (will auto-reconnect)    |
-| `error`           | `Error`                     | Connection or protocol error          |
+| Event             | Payload                     | Description                             |
+| ----------------- | --------------------------- | --------------------------------------- |
+| `message`         | `KakaoTalkPushMessageEvent` | New message received                    |
+| `member_joined`   | `KakaoTalkPushMemberEvent`  | Member joined a chat                    |
+| `member_left`     | `KakaoTalkPushMemberEvent`  | Member left a chat                      |
+| `read`            | `KakaoTalkPushReadEvent`    | Read receipt (unread count decreased)   |
+| `kakaotalk_event` | `KakaoTalkPushGenericEvent` | Catch-all for all push events           |
+| `connected`       | `{ userId: string }`        | Connected to LOCO server                |
+| `disconnected`    | —                           | LOCO session dropped (see Reconnection) |
+| `error`           | `Error`                     | Connection or protocol error            |
 
 ### Reconnection
 
-The listener automatically reconnects with exponential backoff (1s → 2s → 4s → ... → 30s max) when the connection drops. Server-requested migrations (`CHANGESVR`) trigger immediate reconnection. If the session is kicked by another device (`KICKOUT`), the listener stops and emits an error.
+The listener does not implement a reconnection loop. Behavior on session drop:
+
+- **Server-requested migration (`CHANGESVR`)** — The client invalidates the session, emits `disconnected`, and immediately establishes a new session in the background. Subscribers receive `connected` again once it succeeds. No action required.
+- **Network drop or peer close** — The client emits `disconnected` and clears its session state. The next SDK API call (`getChats`, `getMessages`, `sendMessage`) will lazily re-establish the session via `executeWithReconnect`. The listener itself stays passive — to resume push delivery after a drop, call `await client.acquireSession()` (or any API call) from your `disconnected` handler.
+- **Kicked by another device (`KICKOUT`)** — The listener stops and emits `error`. This is terminal; you must `login()` a new client to recover.
+
+If you need a long-running listener that survives network drops, wrap `acquireSession()` in your own retry loop driven by the `disconnected` event.
 
 ## KakaoCredentialManager
 
@@ -172,6 +236,7 @@ await manager.setCurrentAccount('1234567890')
 ```typescript
 import type {
   KakaoChat,
+  KakaoMember,
   KakaoMessage,
   KakaoSendResult,
   KakaoAccountCredentials,
@@ -188,6 +253,7 @@ Runtime-validated schemas are also exported for parsing API responses:
 ```typescript
 import {
   KakaoChatSchema,
+  KakaoMemberSchema,
   KakaoMessageSchema,
   KakaoSendResultSchema,
   KakaoAccountCredentialsSchema,

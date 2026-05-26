@@ -1,7 +1,7 @@
 ---
 name: agent-slackbot
 description: Interact with Slack workspaces using bot tokens - send messages, read channels, manage reactions
-version: 2.10.2
+version: 2.17.0
 allowed-tools: Bash(agent-slackbot:*)
 metadata:
   openclaw:
@@ -17,6 +17,17 @@ metadata:
 # Agent SlackBot
 
 A TypeScript CLI tool that enables AI agents and humans to interact with Slack workspaces using bot tokens (xoxb-). Unlike agent-slack which extracts user tokens from the desktop app, agent-slackbot uses standard Slack Bot tokens for server-side and CI/CD integrations.
+
+## Key Concepts
+
+Before diving in, a few things about Slack Bot integration:
+
+- **Bot tokens (xoxb-)** — Issued from the Slack App config (api.slack.com/apps). Bots act as the bot user, not as you. Different name, different permissions, different identity.
+- **Workspace + Bot hierarchy** — Each workspace can have multiple bot tokens (one per Slack App). The CLI stores bots under their workspace and lets you switch between them.
+- **Channel access requires invitation** — Bots must be invited to private channels with `/invite @YourBotName` before they can read or post.
+- **Bot scopes are immutable per-token** — Token capabilities are baked in at App creation. Adding a new scope means re-installing the App and refreshing the token.
+- **Edit/delete is bot-scoped** — A bot can only edit/delete messages it sent. It cannot modify other users' messages.
+- **Real-time events** — Available via the SDK's Socket Mode listener (separate `xapp-` app-level token required), not via the CLI.
 
 ## Quick Start
 
@@ -201,7 +212,14 @@ agent-slackbot message update <channel> <ts> <new-text>
 
 # Delete a message (bot's own messages only)
 agent-slackbot message delete <channel> <ts> --force
+
+# Show typing/status indicator in an AI Assistant thread
+agent-slackbot message typing <channel> <thread_ts>
+agent-slackbot message typing <channel> <thread_ts> "is analyzing..."
+agent-slackbot message typing <channel> <thread_ts> ""   # clear status
 ```
+
+> **Typing indicators**: `message typing` calls Slack's `assistant.threads.setStatus` API. It only works inside **AI Assistant threads** (not regular channels/DMs) and requires the `chat:write` bot scope. The status auto-clears when your bot posts the next message, or after 2 minutes if no message is sent. Pass an empty string `""` to clear the status manually.
 
 ### Channel Commands
 
@@ -237,6 +255,33 @@ agent-slackbot reaction add C0ACZKTDDC0 1234567890.123456 thumbsup
 agent-slackbot reaction remove <channel> <ts> <emoji>
 ```
 
+### File Commands
+
+```bash
+# Upload a file to a channel (requires files:write scope)
+agent-slackbot file upload <channel> <path>
+agent-slackbot file upload C0ACZKTDDC0 ./report.pdf
+agent-slackbot file upload C0ACZKTDDC0 ./log.txt --filename build-log.txt
+agent-slackbot file upload C0ACZKTDDC0 ./screenshot.png --thread 1234567890.123456 --comment "FYI"
+
+# List files visible to the bot (requires files:read scope)
+agent-slackbot file list
+agent-slackbot file list --channel C0ACZKTDDC0
+agent-slackbot file list --user U123 --limit 50
+
+# Show file details
+agent-slackbot file info <file-id>
+
+# Download a file by ID (saves to current dir or given path)
+agent-slackbot file download <file-id>
+agent-slackbot file download F0123ABC ./downloads/
+
+# Delete a file (bot's own files only)
+agent-slackbot file delete <file-id> --force
+```
+
+> **File scopes**: `file upload` requires `files:write`; `file list`, `file info`, and `file download` require `files:read`. Add these to your Slack App's bot token scopes and reinstall the app. The bot can only delete files it uploaded.
+
 ## Output Format
 
 ### JSON (Default)
@@ -258,6 +303,13 @@ Use `--pretty` flag for formatted output:
 ```bash
 agent-slackbot channel list --pretty
 ```
+
+## Global Options
+
+| Option       | Description                                          |
+| ------------ | ---------------------------------------------------- |
+| `--pretty`   | Human-readable output instead of compact JSON        |
+| `--bot <id>` | Use a specific bot for this command (workspace/bot)  |
 
 ## Common Patterns
 
@@ -299,7 +351,7 @@ Credentials stored in `~/.config/agent-messenger/slackbot-credentials.json` (060
 | Token type           | User token (xoxc-)              | Bot token (xoxb-)            |
 | Token source         | Auto-extracted from desktop app | Manual from Slack App config |
 | Message search       | Yes                             | No (requires user token)     |
-| File operations      | Yes                             | No                           |
+| File operations      | Yes                             | Upload/list/info/download/delete (with scopes) |
 | Snapshot             | Yes                             | No                           |
 | Edit/delete messages | Any message                     | Bot's own messages only      |
 | Workspace management | Multi-workspace                 | Multi-bot, multi-workspace   |
@@ -307,14 +359,13 @@ Credentials stored in `~/.config/agent-messenger/slackbot-credentials.json` (060
 
 ## Limitations
 
-- No real-time events / Socket Mode
+- No real-time events in the CLI (real-time Socket Mode events are available via the SDK — see the README's "Real-time Events (Slack Bot)" section)
 - No message search (requires user token scope)
-- No file upload/download
+- File operations require `files:read` / `files:write` scopes; bot can only delete files it uploaded
 - No workspace snapshot
 - Bot can only edit/delete its own messages
 - Bot must be invited to private channels
 - No scheduled messages
-- Plain text messages only (no blocks/formatting)
 
 ## Troubleshooting
 

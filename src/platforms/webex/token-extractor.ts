@@ -4,6 +4,8 @@ import { join } from 'node:path'
 
 import { ClassicLevel } from 'classic-level'
 
+import { getAgentBrowserProfileDirs } from '@/shared/chromium'
+
 export interface ExtractedWebexToken {
   accessToken: string
   refreshToken?: string
@@ -74,11 +76,18 @@ export class WebexTokenExtractor {
   private platform: NodeJS.Platform
   private baseDir: string | null
   private debugLog: ((message: string) => void) | null
+  private customBrowserProfileDirs: string[]
 
-  constructor(platform?: NodeJS.Platform, debugLog?: (message: string) => void, baseDir?: string) {
+  constructor(
+    platform?: NodeJS.Platform,
+    debugLog?: (message: string) => void,
+    baseDir?: string,
+    customBrowserProfileDirs?: string[],
+  ) {
     this.platform = platform ?? process.platform
     this.debugLog = debugLog ?? null
     this.baseDir = baseDir ?? null
+    this.customBrowserProfileDirs = customBrowserProfileDirs ?? []
   }
 
   private debug(message: string): void {
@@ -87,7 +96,7 @@ export class WebexTokenExtractor {
 
   getBrowserProfileDirs(): string[] {
     if (this.baseDir) {
-      return this.discoverProfileDirs(this.baseDir)
+      return [...this.discoverProfileDirs(this.baseDir), ...this.getCustomBrowserProfileLevelDBDirs()]
     }
 
     const dirs: string[] = []
@@ -100,6 +109,19 @@ export class WebexTokenExtractor {
       dirs.push(...profileDirs)
     }
 
+    dirs.push(...this.getCustomBrowserProfileLevelDBDirs())
+
+    return dirs
+  }
+
+  private getCustomBrowserProfileLevelDBDirs(): string[] {
+    const dirs: string[] = []
+    for (const profileDir of getAgentBrowserProfileDirs({ customProfileDirs: this.customBrowserProfileDirs })) {
+      const leveldb = join(profileDir, 'Local Storage', 'leveldb')
+      if (existsSync(leveldb)) {
+        dirs.push(leveldb)
+      }
+    }
     return dirs
   }
 

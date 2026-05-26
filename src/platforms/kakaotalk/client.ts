@@ -1,16 +1,38 @@
 import { existsSync } from 'node:fs'
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import { Long } from 'bson'
 
+import { getConfigDir } from '@/shared/utils/config-dir'
 import { warn } from '@/shared/utils/stderr'
 
+import { type AttachmentInput, type ResolvedAttachment, planAttachments } from './attachment-router'
+import { detectImageDimensions } from './image-meta'
+import { sha1Hex } from './media-upload'
 import { LANG, PC_OS_NAME, getLocoDeviceConfig } from './protocol/config'
+import { uploadMediaToLoco, uploadMultiMediaEntry } from './protocol/media-uploader'
 import { LocoSession } from './protocol/session'
-import type { ChatListResponse, LoginListResponse, SyncState } from './protocol/types'
-import type { KakaoChat, KakaoDeviceType, KakaoMessage, KakaoProfile, KakaoSendResult } from './types'
+import type { ChatListResponse, LocoPacket, LoginListResponse, SyncState } from './protocol/types'
+import {
+  KAKAO_MESSAGE_TYPE,
+  type KakaoChat,
+  type KakaoDeviceType,
+  type KakaoMarkReadResult,
+  type KakaoMember,
+  type KakaoMessage,
+  type KakaoMultiPhotoExtra,
+  type KakaoProfile,
+  type KakaoSendResult,
+} from './types'
+
+export type KakaoSessionEvent =
+  | { type: 'connected'; userId: string }
+  | { type: 'disconnected' }
+  | { type: 'kicked'; reason: string }
+
+export type KakaoPushHandler = (packet: LocoPacket) => void
+export type KakaoSessionEventHandler = (event: KakaoSessionEvent) => void
 
 export class KakaoTalkError extends Error {
   code: string
@@ -29,6 +51,58 @@ interface SessionState {
   loginResult: LoginListResponse
 }
 
+class MemberNameCache {
+  private byChatId = new Map<string, Map<number, string>>()
+
+  ingest(chatDatas: readonly ChatData[]): void {
+    for (const chat of chatDatas) {
+      const ids = chat.i as Array<{ low: number; high: number } | number> | undefined
+      const names = chat.k as string[] | undefined
+      if (!Array.isArray(ids) || !Array.isArray(names)) continue
+
+      const chatId = String(chat.c)
+      let map = this.byChatId.get(chatId)
+      if (!map) {
+        map = new Map()
+        this.byChatId.set(chatId, map)
+      }
+
+      const len = Math.min(ids.length, names.length)
+      for (let i = 0; i < len; i++) {
+        const numericId = toNumericUserId(ids[i])
+        if (numericId === null) continue
+        const name = names[i]
+        if (typeof name === 'string' && name.length > 0) {
+          map.set(numericId, name)
+        }
+      }
+    }
+  }
+
+  lookup(chatId: string, userId: number): string | null {
+    return this.byChatId.get(chatId)?.get(userId) ?? null
+  }
+
+  forget(chatId: string): void {
+    this.byChatId.delete(chatId)
+  }
+
+  clear(): void {
+    this.byChatId.clear()
+  }
+}
+
+function toNumericUserId(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null
+  if (v && typeof v === 'object' && 'low' in v && 'high' in v) {
+    const { low, high } = v as { low: number; high: number }
+    // chatDatas[].i entries are member user IDs. KakaoTalk user IDs fit in
+    // 53 bits — safe to flatten the BSON Long pair to a JS number for keying.
+    return (high >>> 0) * 0x100000000 + (low >>> 0)
+  }
+  return null
+}
+
 function bsonToLong(v: unknown): Long | undefined {
   if (v && typeof v === 'object' && 'high' in v && 'low' in v) {
     const { high, low } = v as { high: number; low: number }
@@ -45,6 +119,18 @@ function longToString(v: unknown): string {
   return String(v ?? 0)
 }
 
+function parseAttachmentJson(raw: unknown): Record<string, unknown> | null {
+  if (typeof raw !== 'string' || raw.length === 0) return null
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+    const attachment = parsed as Record<string, unknown>
+    return Object.keys(attachment).length > 0 ? attachment : null
+  } catch {
+    return null
+  }
+}
+
 function parseLong(s: string): Long {
   const big = BigInt(s)
   const low = Number(big & 0xffffffffn)
@@ -52,25 +138,104 @@ function parseLong(s: string): Long {
   return new Long(low, high)
 }
 
-function formatChat(chat: ChatData): KakaoChat {
+function parseChatId(chatId: string): Long {
+  try {
+    return parseLong(chatId)
+  } catch (cause) {
+    throw new KakaoTalkError(`Invalid chatId: ${chatId}`, 'invalid_chat_id', { cause })
+  }
+}
+
+function parseUserId(userId: string): Long {
+  try {
+    return parseLong(userId)
+  } catch (cause) {
+    throw new KakaoTalkError(`Invalid userId: ${userId}`, 'invalid_user_id', { cause })
+  }
+}
+
+function parseLogId(logId: string): Long {
+  try {
+    return parseLong(logId)
+  } catch (cause) {
+    throw new KakaoTalkError(`Invalid logId: ${logId}`, 'invalid_log_id', { cause })
+  }
+}
+
+function parseLinkId(linkId: string): Long {
+  try {
+    return parseLong(linkId)
+  } catch (cause) {
+    throw new KakaoTalkError(`Invalid linkId: ${linkId}`, 'invalid_link_id', { cause })
+  }
+}
+
+function formatChat(chat: ChatData, title: string | null, nameCache: MemberNameCache): KakaoChat {
   const memberNames = (chat.k ?? []) as string[]
   const lastLog = chat.l as Record<string, unknown> | null
   const displayName = memberNames.join(', ') || null
+  const chatId = String(chat.c)
 
   return {
-    chat_id: String(chat.c),
+    chat_id: chatId,
     type: chat.t as number,
     display_name: displayName,
+    title,
     active_members: chat.a as number,
     unread_count: chat.n as number,
     last_message: lastLog
       ? {
           author_id: lastLog.authorId as number,
+          author_name: nameCache.lookup(chatId, lastLog.authorId as number),
           message: lastLog.message as string,
           sent_at: lastLog.sendAt as number,
         }
       : null,
   }
+}
+
+const META_TYPE_TITLE = 3
+
+interface ChannelMetaEntry {
+  type?: number
+  content?: string
+}
+
+interface ChannelInfoResponse {
+  chatInfo?: {
+    chatMetas?: ChannelMetaEntry[]
+  }
+}
+
+function extractTitle(body: Record<string, unknown>): string | null {
+  const info = (body as ChannelInfoResponse).chatInfo
+  const metas = info?.chatMetas
+  if (!Array.isArray(metas)) return null
+
+  const titleMeta = metas.find((m) => m?.type === META_TYPE_TITLE)
+  const content = titleMeta?.content
+  return typeof content === 'string' && content.length > 0 ? content : null
+}
+
+interface OpenLinkInfoResponse {
+  ols?: Array<{ ln?: unknown }>
+}
+
+function extractOpenLinkName(body: Record<string, unknown>): string | null {
+  const ols = (body as OpenLinkInfoResponse).ols
+  if (!Array.isArray(ols) || ols.length === 0) return null
+  const ln = ols[0]?.ln
+  return typeof ln === 'string' && ln.length > 0 ? ln : null
+}
+
+const OPEN_CHAT_TYPES = new Set(['OM', 'OD'])
+
+function isOpenChat(chat: ChatData): boolean {
+  return typeof chat.t === 'string' && OPEN_CHAT_TYPES.has(chat.t)
+}
+
+function getOpenLinkId(chat: ChatData): Long | null {
+  return bsonToLong(chat.li) ?? null
 }
 
 function matchesSearch(chat: ChatData, term: string): boolean {
@@ -105,10 +270,8 @@ function wrapError(error: unknown, code: string): KakaoTalkError {
 
 const MAX_PAGES = 50
 
-const CONFIG_DIR = join(homedir(), '.config', 'agent-messenger')
-
 function syncStatePath(deviceUuid: string): string {
-  return join(CONFIG_DIR, `kakaotalk-sync-state-${deviceUuid}.json`)
+  return join(getConfigDir(), `kakaotalk-sync-state-${deviceUuid}.json`)
 }
 
 async function loadSyncState(deviceUuid: string): Promise<SyncState | undefined> {
@@ -133,7 +296,7 @@ async function loadSyncState(deviceUuid: string): Promise<SyncState | undefined>
 }
 
 async function saveSyncState(deviceUuid: string, state: SyncState): Promise<void> {
-  await mkdir(CONFIG_DIR, { recursive: true })
+  await mkdir(getConfigDir(), { recursive: true })
   const path = syncStatePath(deviceUuid)
   await writeFile(path, JSON.stringify(state, null, 2))
   await chmod(path, 0o600)
@@ -216,14 +379,68 @@ function mergeSyncState(previous: SyncState | undefined, loginResult: LoginListR
   return next
 }
 
-function formatMessages(logs: Array<Record<string, unknown>>, count: number): KakaoMessage[] {
+function nullableString(v: unknown): string | null {
+  return typeof v === 'string' && v.length > 0 ? v : null
+}
+
+function nullableNumber(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null
+}
+
+function isNonZeroLong(v: unknown): boolean {
+  if (typeof v === 'number') return v !== 0
+  if (v && typeof v === 'object' && 'low' in v && 'high' in v) {
+    const { low, high } = v as { low: number; high: number }
+    return low !== 0 || high !== 0
+  }
+  return v !== undefined && v !== null
+}
+
+// Reject synthetic LocoConnection close packets ({ statusCode: -1, body.error: 'connection closed' })
+// and explicit body-level failures. Required for any SDK method whose response body has no
+// caller-visible error channel (e.g. GETMEM/MEMBER return `[]` for both empty rooms and dead
+// sockets). Throwing here lets executeWithReconnect detect session death and reconnect.
+function assertLocoOk(response: LocoPacket, command: string): void {
+  if (response.statusCode !== 0) {
+    throw new Error(`${command} failed: statusCode=${response.statusCode}`)
+  }
+  const bodyStatus = response.body.status
+  if (typeof bodyStatus === 'number' && bodyStatus !== 0) {
+    throw new Error(`${command} failed: body.status=${bodyStatus}`)
+  }
+}
+
+function formatMember(member: Record<string, unknown>): KakaoMember {
+  return {
+    user_id: longToString(member.userId),
+    nickname: typeof member.nickName === 'string' ? member.nickName : '',
+    profile_image_url: nullableString(member.profileImageUrl ?? member.pi),
+    full_profile_image_url: nullableString(member.fullProfileImageUrl ?? member.fpi),
+    original_profile_image_url: nullableString(member.originalProfileImageUrl ?? member.opi),
+    status_message: nullableString(member.statusMessage),
+    country_iso: nullableString(member.countryIso),
+    user_type: nullableNumber(member.type),
+    open_token: nullableNumber(member.opt),
+    open_profile_link_id: isNonZeroLong(member.pli) ? longToString(member.pli) : null,
+    open_permission: nullableNumber(member.mt),
+  }
+}
+
+function formatMessages(
+  logs: Array<Record<string, unknown>>,
+  count: number,
+  chatId: string,
+  nameCache: MemberNameCache,
+): KakaoMessage[] {
   logs.sort((a, b) => (a.sendAt as number) - (b.sendAt as number))
 
   return logs.slice(-count).map((log) => ({
     log_id: longToString(log.logId),
     type: log.type as number,
     author_id: log.authorId as number,
+    author_name: nameCache.lookup(chatId, log.authorId as number),
     message: log.message as string,
+    attachment: parseAttachmentJson(log.attachment),
     sent_at: log.sendAt as number,
   }))
 }
@@ -236,6 +453,9 @@ export class KakaoTalkClient {
   private state: SessionState | null = null
   private initPromise: Promise<SessionState> | null = null
   private closed = false
+  private pushHandlers = new Set<KakaoPushHandler>()
+  private sessionEventHandlers = new Set<KakaoSessionEventHandler>()
+  private nameCache = new MemberNameCache()
 
   async login(
     credentials?: { oauthToken: string; userId: string; deviceUuid?: string; deviceType?: KakaoDeviceType },
@@ -282,6 +502,7 @@ export class KakaoTalkClient {
     if (this.state) return this.state
 
     // Guard against concurrent init — reuse the in-flight promise
+    const isOwner = !this.initPromise
     if (!this.initPromise) {
       this.initPromise = this.connect()
     }
@@ -293,7 +514,11 @@ export class KakaoTalkClient {
         state.session.close()
         throw new KakaoTalkError('Client is closed', 'client_closed')
       }
+      const wasNew = this.state !== state
       this.state = state
+      if (isOwner && wasNew) {
+        this.emitSessionEvent({ type: 'connected', userId: this.userId! })
+      }
       return state
     } catch (error) {
       // Reset so next call retries cleanly; connect() already wraps in KakaoTalkError
@@ -301,6 +526,29 @@ export class KakaoTalkClient {
       this.initPromise = null
       throw error
     }
+  }
+
+  async acquireSession(): Promise<LocoSession> {
+    const state = await this.ensureSession()
+    return state.session
+  }
+
+  onPush(handler: KakaoPushHandler): () => void {
+    this.pushHandlers.add(handler)
+    return () => {
+      this.pushHandlers.delete(handler)
+    }
+  }
+
+  onSessionEvent(handler: KakaoSessionEventHandler): () => void {
+    this.sessionEventHandlers.add(handler)
+    return () => {
+      this.sessionEventHandlers.delete(handler)
+    }
+  }
+
+  isConnected(): boolean {
+    return this.state !== null && !this.closed
   }
 
   private async executeWithReconnect<T>(operation: (state: SessionState) => Promise<T>): Promise<T> {
@@ -316,7 +564,10 @@ export class KakaoTalkClient {
       try {
         state.session.close()
       } catch {}
-      this.initPromise = null
+      // initPromise is intentionally NOT cleared here: a concurrent caller may already
+      // be awaiting an in-flight replacement, and starting a parallel one would send a
+      // second LOGINLIST with the same duuid — re-introducing the very self-eviction
+      // this layer prevents. Lifecycle paths (onClose / invalidateSession) own that field.
       state = await this.ensureSession()
       return operation(state)
     }
@@ -324,6 +575,15 @@ export class KakaoTalkClient {
 
   private async connect(): Promise<SessionState> {
     const session = new LocoSession()
+    session.onPush((packet) => this.dispatchPush(session, packet))
+    session.onClose(() => {
+      if (this.state?.session === session) {
+        this.state = null
+        this.initPromise = null
+        this.emitSessionEvent({ type: 'disconnected' })
+      }
+    })
+
     try {
       const syncState = await loadSyncState(this.deviceUuid!)
       const loginResult = await session.login(
@@ -337,12 +597,7 @@ export class KakaoTalkClient {
       const newSyncState = mergeSyncState(syncState, loginResult)
       await saveSyncState(this.deviceUuid!, newSyncState)
 
-      session.onClose(() => {
-        if (this.state?.session === session) {
-          this.state = null
-          this.initPromise = null
-        }
-      })
+      this.nameCache.ingest((loginResult.chatDatas ?? []) as ChatData[])
 
       return { session, loginResult }
     } catch (error) {
@@ -351,7 +606,61 @@ export class KakaoTalkClient {
     }
   }
 
-  async getChats(options?: { all?: boolean; search?: string }): Promise<KakaoChat[]> {
+  private dispatchPush(session: LocoSession, packet: LocoPacket): void {
+    // Only fan out pushes from the currently adopted session. While state is null
+    // (pre-adoption during connect, or post-invalidation during reconnect) the
+    // packet is discarded — we never want a not-yet-adopted or already-dead session
+    // to reach subscribers and look "live".
+    if (this.state?.session !== session) return
+
+    if (packet.method === 'KICKOUT') {
+      this.emitSessionEvent({ type: 'kicked', reason: 'Session kicked — another device logged in' })
+      this.invalidateSession(session)
+      return
+    }
+
+    if (packet.method === 'CHANGESVR') {
+      for (const handler of this.pushHandlers) {
+        try {
+          handler(packet)
+        } catch {}
+      }
+      this.invalidateSession(session)
+      this.emitSessionEvent({ type: 'disconnected' })
+      this.ensureSession().catch(() => {
+        // ensureSession already cleared state on failure; subsequent API calls will retry
+        // and surface the error. Listeners do not receive 'connected' until a reconnect
+        // succeeds, which is the correct outcome.
+      })
+      return
+    }
+
+    for (const handler of this.pushHandlers) {
+      try {
+        handler(packet)
+      } catch {}
+    }
+  }
+
+  private invalidateSession(session: LocoSession): void {
+    if (this.state?.session === session) {
+      this.state = null
+      this.initPromise = null
+    }
+    try {
+      session.close()
+    } catch {}
+  }
+
+  private emitSessionEvent(event: KakaoSessionEvent): void {
+    for (const handler of this.sessionEventHandlers) {
+      try {
+        handler(event)
+      } catch {}
+    }
+  }
+
+  async getChats(options?: { all?: boolean; search?: string; resolveTitles?: boolean }): Promise<KakaoChat[]> {
     return this.executeWithReconnect(async ({ session, loginResult }) => {
       try {
         const allChats: ChatData[] = []
@@ -385,6 +694,7 @@ export class KakaoTalkClient {
             if (chatDatas.length === 0) break
 
             collectChats(chatDatas, allChats, seenChatIds)
+            this.nameCache.ingest(chatDatas)
             cursor = body
             pages++
           }
@@ -397,11 +707,56 @@ export class KakaoTalkClient {
           results = allChats.filter((c) => matchesSearch(c, options.search!))
         }
 
-        return results.map(formatChat)
+        const titles = options?.resolveTitles
+          ? await Promise.all(results.map((chat) => this.fetchChatTitle(session, parseLong(String(chat.c)), chat)))
+          : null
+
+        return results.map((chat, i) => formatChat(chat, titles ? titles[i] : null, this.nameCache))
       } catch (error) {
         throw wrapError(error, 'get_chats_failed')
       }
     })
+  }
+
+  /**
+   * Resolve the user-set room title via CHATINFO. Returns null on any error
+   * (network, malformed response, or no TITLE meta present). Designed to be
+   * fire-and-forget per chat — failures don't poison the whole `getChats` call.
+   */
+  async getChatTitle(chatId: string): Promise<string | null> {
+    let parsed: Long
+    try {
+      parsed = parseLong(chatId)
+    } catch {
+      return null
+    }
+    return this.executeWithReconnect(async ({ session, loginResult }) => {
+      const chat = (loginResult.chatDatas ?? []).find((c) => String(c.c) === chatId)
+      return this.fetchChatTitle(session, parsed, chat)
+    })
+  }
+
+  private async fetchChatTitle(session: LocoSession, chatId: Long, chat: ChatData | undefined): Promise<string | null> {
+    let title: string | null = null
+    try {
+      const response = await session.getChannelInfo(chatId)
+      title = extractTitle(response.body as Record<string, unknown>)
+    } catch {
+      title = null
+    }
+
+    if (title) return title
+    if (!chat || !isOpenChat(chat)) return null
+
+    const linkId = getOpenLinkId(chat)
+    if (!linkId) return null
+
+    try {
+      const response = await session.getOpenLinkInfo([linkId])
+      return extractOpenLinkName(response.body as Record<string, unknown>)
+    } catch {
+      return null
+    }
   }
 
   async getMessages(chatId: string, options?: { count?: number; from?: string }): Promise<KakaoMessage[]> {
@@ -428,7 +783,7 @@ export class KakaoTalkClient {
               (log) => longToString(log.chatId) === chatId,
             )
             if (batch.length === 0) {
-              return formatMessages(allMessages, count)
+              return formatMessages(allMessages, count, chatId, this.nameCache)
             }
 
             for (const log of batch) {
@@ -441,7 +796,7 @@ export class KakaoTalkClient {
 
             const maxLog = findMaxLogId(batch, 'logId')
             if (!maxLog || maxLog.equals(cur) || response.body.eof) {
-              return formatMessages(allMessages, count)
+              return formatMessages(allMessages, count, chatId, this.nameCache)
             }
 
             cur = maxLog
@@ -454,7 +809,7 @@ export class KakaoTalkClient {
 
         if (allMessages.length > 0) {
           warn(`[agent-kakaotalk] Warning: message fetch capped at ${MAX_PAGES} pages. Results may be incomplete.`)
-          return formatMessages(allMessages, count)
+          return formatMessages(allMessages, count, chatId, this.nameCache)
         }
 
         // Fetch fresh lastLogId via CHATONROOM (not the stale login-time snapshot)
@@ -491,9 +846,39 @@ export class KakaoTalkClient {
           warn(`[agent-kakaotalk] Warning: message fetch capped at ${MAX_PAGES} pages. Results may be incomplete.`)
         }
 
-        return formatMessages(allMessages, count)
+        return formatMessages(allMessages, count, chatId, this.nameCache)
       } catch (error) {
         throw wrapError(error, 'get_messages_failed')
+      }
+    })
+  }
+
+  async getMembers(chatId: string): Promise<KakaoMember[]> {
+    const parsedChatId = parseChatId(chatId)
+    return this.executeWithReconnect(async ({ session }) => {
+      try {
+        const response = await session.getAllMembers(parsedChatId)
+        assertLocoOk(response, 'GETMEM')
+        const members = (response.body.members ?? []) as Array<Record<string, unknown>>
+        return members.map(formatMember)
+      } catch (error) {
+        throw wrapError(error, 'get_members_failed')
+      }
+    })
+  }
+
+  async getMembersByIds(chatId: string, userIds: string[]): Promise<KakaoMember[]> {
+    if (userIds.length === 0) return []
+    const parsedChatId = parseChatId(chatId)
+    const memberIds = userIds.map((id) => parseUserId(id))
+    return this.executeWithReconnect(async ({ session }) => {
+      try {
+        const response = await session.getMembersByIds(parsedChatId, memberIds)
+        assertLocoOk(response, 'MEMBER')
+        const members = (response.body.members ?? []) as Array<Record<string, unknown>>
+        return members.map(formatMember)
+      } catch (error) {
+        throw wrapError(error, 'get_members_failed')
       }
     })
   }
@@ -539,6 +924,341 @@ export class KakaoTalkClient {
         }
       } catch (error) {
         throw wrapError(error, 'reply_message_failed')
+      }
+    })
+  }
+
+  async sendAttachment(
+    chatId: string,
+    data: Uint8Array | Buffer,
+    filename: string,
+    mimeType?: string,
+  ): Promise<KakaoSendResult>
+  async sendAttachment(chatId: string, attachments: ReadonlyArray<AttachmentInput>): Promise<KakaoSendResult>
+  async sendAttachment(
+    chatId: string,
+    dataOrAttachments: Uint8Array | Buffer | ReadonlyArray<AttachmentInput>,
+    filename?: string,
+    mimeType?: string,
+  ): Promise<KakaoSendResult> {
+    const inputs: ReadonlyArray<AttachmentInput> = Array.isArray(dataOrAttachments)
+      ? dataOrAttachments
+      : [{ data: dataOrAttachments, filename: filename!, mime: mimeType }]
+    const plan = planAttachments(inputs)
+    switch (plan.kind) {
+      case 'single':
+        return this.dispatchSingleAttachment(chatId, plan.resolved)
+      case 'multiphoto':
+        return this.sendMultiPhoto(
+          chatId,
+          plan.items.map((it) => ({ data: it.data, filename: it.filename })),
+        )
+      case 'sequential': {
+        let last: KakaoSendResult | null = null
+        for (const r of plan.resolved) {
+          const result = await this.dispatchSingleAttachment(chatId, r)
+          if (!result.success) return result
+          last = result
+        }
+        return last!
+      }
+    }
+  }
+
+  private dispatchSingleAttachment(chatId: string, r: ResolvedAttachment): Promise<KakaoSendResult> {
+    switch (r.kind) {
+      case 'photo':
+        return this.sendPhoto(chatId, r.data, r.filename)
+      case 'video':
+        return this.sendVideo(chatId, r.data, r.filename)
+      case 'audio':
+        return this.sendAudio(chatId, r.data, r.filename)
+      case 'file':
+        return this.sendFile(chatId, r.data, r.filename, r.mime)
+    }
+  }
+
+  async sendPhoto(chatId: string, photo: Uint8Array | Buffer, filename = 'image.jpg'): Promise<KakaoSendResult> {
+    this.ensureAuth()
+    const data = photo instanceof Uint8Array ? photo : new Uint8Array(photo)
+    const dim = detectImageDimensions(data)
+    const checksum = await sha1Hex(data)
+    const ext = filename.includes('.') ? filename.split('.').pop()! : 'jpg'
+
+    return this.sendMediaViaLoco({
+      chatId,
+      data,
+      msgType: KAKAO_MESSAGE_TYPE.PHOTO,
+      filename,
+      checksum,
+      extension: ext,
+      width: dim.width,
+      height: dim.height,
+      errorCode: 'send_photo_failed',
+    })
+  }
+
+  async sendVideo(chatId: string, video: Uint8Array | Buffer, filename = 'video.mp4'): Promise<KakaoSendResult> {
+    this.ensureAuth()
+    const data = video instanceof Uint8Array ? video : new Uint8Array(video)
+    const checksum = await sha1Hex(data)
+    const ext = filename.includes('.') ? filename.split('.').pop()! : 'mp4'
+
+    return this.sendMediaViaLoco({
+      chatId,
+      data,
+      msgType: KAKAO_MESSAGE_TYPE.VIDEO,
+      filename,
+      checksum,
+      extension: ext,
+      errorCode: 'send_video_failed',
+    })
+  }
+
+  async sendAudio(chatId: string, audio: Uint8Array | Buffer, filename = 'audio.m4a'): Promise<KakaoSendResult> {
+    this.ensureAuth()
+    const data = audio instanceof Uint8Array ? audio : new Uint8Array(audio)
+    const checksum = await sha1Hex(data)
+    const ext = filename.includes('.') ? filename.split('.').pop()! : 'm4a'
+
+    return this.sendMediaViaLoco({
+      chatId,
+      data,
+      msgType: KAKAO_MESSAGE_TYPE.AUDIO,
+      filename,
+      checksum,
+      extension: ext,
+      errorCode: 'send_audio_failed',
+    })
+  }
+
+  async sendFile(
+    chatId: string,
+    file: Uint8Array | Buffer,
+    filename: string,
+    mimeType = 'application/octet-stream',
+  ): Promise<KakaoSendResult> {
+    void mimeType
+    this.ensureAuth()
+    const data = file instanceof Uint8Array ? file : new Uint8Array(file)
+    const checksum = await sha1Hex(data)
+    const ext = filename.includes('.') ? filename.split('.').pop()! : ''
+
+    return this.sendMediaViaLoco({
+      chatId,
+      data,
+      msgType: KAKAO_MESSAGE_TYPE.FILE,
+      filename,
+      checksum,
+      extension: ext,
+      errorCode: 'send_file_failed',
+    })
+  }
+
+  async sendMultiPhoto(
+    chatId: string,
+    photos: Array<{ data: Uint8Array | Buffer; filename?: string }>,
+  ): Promise<KakaoSendResult> {
+    this.ensureAuth()
+    if (photos.length < 2) {
+      throw new KakaoTalkError(
+        'sendMultiPhoto requires at least 2 photos; use sendPhoto for a single image',
+        'send_multi_photo_failed',
+      )
+    }
+
+    const prepared = await Promise.all(
+      photos.map(async (p, i) => {
+        const bytes = p.data instanceof Uint8Array ? p.data : new Uint8Array(p.data)
+        const filename = p.filename ?? `image-${i + 1}.jpg`
+        const dim = detectImageDimensions(bytes)
+        const checksum = (await sha1Hex(bytes)).toLowerCase()
+        const ext = filename.includes('.') ? filename.split('.').pop()! : 'jpg'
+        return { bytes, filename, dim, checksum, ext }
+      }),
+    )
+
+    const parsedChatId = parseChatId(chatId)
+
+    return this.executeWithReconnect(async ({ session }) => {
+      try {
+        const mshipResp = await session.shipMultiMedia(
+          parsedChatId,
+          KAKAO_MESSAGE_TYPE.MULTIPHOTO,
+          prepared.map((p) => p.bytes.byteLength),
+          prepared.map((p) => p.checksum),
+          prepared.map((p) => p.ext),
+        )
+
+        if (mshipResp.statusCode !== 0) {
+          throw new KakaoTalkError(`MSHIP rejected (status ${mshipResp.statusCode})`, 'send_multi_photo_failed')
+        }
+
+        const body = mshipResp.body as Record<string, unknown>
+        const kl = body.kl as string[] | undefined
+        const vhl = body.vhl as string[] | undefined
+        const pl = body.pl as number[] | undefined
+        if (
+          !kl ||
+          !vhl ||
+          !pl ||
+          kl.length !== prepared.length ||
+          vhl.length !== prepared.length ||
+          pl.length !== prepared.length
+        ) {
+          throw new KakaoTalkError(
+            `MSHIP response arrays do not match prepared.length=${prepared.length}: ` +
+              `kl=${kl?.length} vhl=${vhl?.length} pl=${pl?.length}`,
+            'send_multi_photo_failed',
+          )
+        }
+
+        await Promise.all(
+          prepared.map((p, i) =>
+            uploadMultiMediaEntry({
+              shipToken: kl[i]!,
+              shipHost: vhl[i]!,
+              shipPort: pl[i]!,
+              chatId: parsedChatId,
+              msgType: KAKAO_MESSAGE_TYPE.MULTIPHOTO,
+              userId: this.userId!,
+              filename: p.filename,
+              data: p.bytes,
+              width: p.dim.width,
+              height: p.dim.height,
+              deviceType: this.deviceType,
+            }),
+          ),
+        )
+
+        const extra: KakaoMultiPhotoExtra = {
+          kl,
+          wl: prepared.map((p) => p.dim.width),
+          hl: prepared.map((p) => p.dim.height),
+          mtl: prepared.map((p) => p.dim.mimeType),
+          sl: prepared.map((p) => p.bytes.byteLength),
+          csl: prepared.map((p) => p.checksum),
+          cmtl: prepared.map(() => ''),
+        }
+
+        const forwardResp = await session.forwardChat(
+          parsedChatId,
+          KAKAO_MESSAGE_TYPE.MULTIPHOTO,
+          extra as unknown as Record<string, unknown>,
+        )
+
+        return {
+          success: forwardResp.statusCode === 0,
+          status_code: forwardResp.statusCode,
+          chat_id: chatId,
+          log_id: longToString((forwardResp.body as Record<string, unknown>).logId),
+          sent_at: ((forwardResp.body as Record<string, unknown>).sendAt as number | undefined) ?? 0,
+        }
+      } catch (error) {
+        throw wrapError(error, 'send_multi_photo_failed')
+      }
+    })
+  }
+
+  private async sendMediaViaLoco(opts: {
+    chatId: string
+    data: Uint8Array
+    msgType: number
+    filename: string
+    checksum: string
+    extension: string
+    width?: number
+    height?: number
+    errorCode: string
+  }): Promise<KakaoSendResult> {
+    const parsedChatId = parseChatId(opts.chatId)
+    return this.executeWithReconnect(async ({ session }) => {
+      try {
+        const shipResp = await session.shipMedia(
+          parsedChatId,
+          opts.msgType,
+          opts.data.byteLength,
+          opts.checksum,
+          opts.extension,
+        )
+
+        if (shipResp.statusCode !== 0) {
+          throw new KakaoTalkError(`SHIP rejected (status ${shipResp.statusCode})`, opts.errorCode)
+        }
+
+        const body = shipResp.body as Record<string, unknown>
+        const shipToken = body.k as string | undefined
+        const shipHost = body.vh as string | undefined
+        const shipPort = body.p as number | undefined
+
+        if (typeof shipToken !== 'string' || typeof shipHost !== 'string' || typeof shipPort !== 'number') {
+          throw new KakaoTalkError(
+            `SHIP response missing fields: k=${shipToken} vh=${shipHost} p=${shipPort}`,
+            opts.errorCode,
+          )
+        }
+
+        const uploadRes = await uploadMediaToLoco({
+          shipToken,
+          shipHost,
+          shipPort,
+          chatId: parsedChatId,
+          msgType: opts.msgType,
+          userId: this.userId!,
+          filename: opts.filename,
+          data: opts.data,
+          width: opts.width,
+          height: opts.height,
+          deviceType: this.deviceType,
+        })
+
+        const completeBody = uploadRes.completePacket?.body as Record<string, unknown> | undefined
+        const chatLog = completeBody?.chatLog as Record<string, unknown> | undefined
+        const logId = chatLog?.logId
+
+        return {
+          success: uploadRes.completePacket !== null && uploadRes.postStatusCode === 0,
+          status_code: uploadRes.postStatusCode,
+          chat_id: opts.chatId,
+          log_id: longToString(logId),
+          sent_at: (chatLog?.sendAt as number | undefined) ?? 0,
+        }
+      } catch (error) {
+        throw wrapError(error, opts.errorCode)
+      }
+    })
+  }
+
+  /**
+   * Advance the read watermark for `chatId` up to and including `logId`.
+   * The caller decides open vs normal: pass `opts.linkId` for open chats
+   * (오픈채팅) and omit it for normal chats. Open chats without a `linkId`
+   * are rejected by the server with a non-zero `body.status` — this method
+   * does not auto-detect.
+   */
+  async markRead(chatId: string, logId: string, opts?: { linkId?: string }): Promise<KakaoMarkReadResult> {
+    const parsedChatId = parseChatId(chatId)
+    const parsedWatermark = parseLogId(logId)
+    const parsedLinkId = opts?.linkId !== undefined ? parseLinkId(opts.linkId) : undefined
+
+    return this.executeWithReconnect(async ({ session }) => {
+      try {
+        const response = await session.markRead(parsedChatId, parsedWatermark, parsedLinkId)
+        // Throw on transport-level failure (incl. synthetic { statusCode: -1 }
+        // from LocoConnection.handleClose) so executeWithReconnect retries on
+        // a fresh session. The NOTIREAD command result lives in body.status.
+        if (response.statusCode !== 0) {
+          throw new Error(`NOTIREAD failed: statusCode=${response.statusCode}`)
+        }
+        const bodyStatus = typeof response.body.status === 'number' ? response.body.status : 0
+        return {
+          success: bodyStatus === 0,
+          status_code: bodyStatus,
+          chat_id: chatId,
+          watermark: logId,
+        }
+      } catch (error) {
+        throw wrapError(error, 'mark_read_failed')
       }
     })
   }
@@ -613,5 +1333,12 @@ export class KakaoTalkClient {
     }
     this.state = null
     this.initPromise = null
+    this.pushHandlers.clear()
+    this.sessionEventHandlers.clear()
+    this.nameCache.clear()
+  }
+
+  lookupAuthorName(chatId: string, authorId: number): string | null {
+    return this.nameCache.lookup(chatId, authorId)
   }
 }

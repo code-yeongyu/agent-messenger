@@ -73,10 +73,12 @@ export interface KakaoChat {
   chat_id: string
   type: number
   display_name: string | null
+  title: string | null
   active_members: number
   unread_count: number
   last_message: {
     author_id: number
+    author_name: string | null
     message: string
     sent_at: number
   } | null
@@ -86,8 +88,27 @@ export interface KakaoMessage {
   log_id: string
   type: number
   author_id: number
+  author_name: string | null
   message: string
+  attachment: Record<string, unknown> | null
   sent_at: number
+}
+
+export interface KakaoMember {
+  user_id: string
+  nickname: string
+  profile_image_url: string | null
+  full_profile_image_url: string | null
+  original_profile_image_url: string | null
+  status_message: string | null
+  country_iso: string | null
+  /** KakaoTalk UserType: 100=FRIEND, 1000=OPEN_PROFILE, etc. `null` when the server omits the field. */
+  user_type: number | null
+  /** Open-chat-only fields below; `null` for normal chats. */
+  open_token: number | null
+  open_profile_link_id: string | null
+  /** OpenChannelUserPerm bitfield: 1=OWNER, 2=NONE, 4=MANAGER, 8=BOT. Forward-compatible with future values. */
+  open_permission: number | null
 }
 
 export interface KakaoSendResult {
@@ -98,15 +119,81 @@ export interface KakaoSendResult {
   sent_at: number
 }
 
+// LOCO message_type values. Source: KakaoTalk APK 26.4.2 + typeclaw inbound parser.
+export const KAKAO_MESSAGE_TYPE = {
+  TEXT: 1,
+  PHOTO: 2,
+  VIDEO: 3,
+  AUDIO: 5,
+  FILE: 18,
+  MULTIPHOTO: 27,
+} as const
+
+// PHOTO `extra` keys verified by inbound capture of a real KakaoTalk client
+// photo message (2026-05). The bare minimum the receiver needs to render
+// the inline preview is k/s/w/h/mt/cs — url and thumbnailUrl are server-issued
+// pre-signed URLs that the recipient regenerates locally from k, so we don't
+// supply them on outbound.
+export interface KakaoPhotoExtra {
+  k: string
+  s: number
+  w: number
+  h: number
+  mt: string
+  cs: string
+  url?: string
+  thumbnailUrl?: string
+  thumbnailWidth?: number
+  thumbnailHeight?: number
+  expire?: number
+}
+
+export interface KakaoFileExtra {
+  k: string
+  s: number
+  name: string
+  mt: string
+  cs: string
+  expire?: number
+  url?: string
+}
+
+// MULTIPHOTO extra — each per-file field of KakaoPhotoExtra becomes a
+// parallel array. Verified by inbound capture of a real multi-photo message
+// (2026-05). csl uses lowercase hex (unlike PHOTO's cs which is uppercase).
+export interface KakaoMultiPhotoExtra {
+  kl: string[]
+  wl: number[]
+  hl: number[]
+  mtl: string[]
+  sl: number[]
+  csl: string[]
+  cmtl?: string[]
+  imageUrls?: string[]
+  thumbnailUrls?: string[]
+  thumbnailWidths?: number[]
+  thumbnailHeights?: number[]
+  expire?: number
+}
+
+export interface KakaoMarkReadResult {
+  success: boolean
+  status_code: number
+  chat_id: string
+  watermark: string
+}
+
 export const KakaoChatSchema = z.object({
   chat_id: z.string(),
   type: z.number(),
   display_name: z.string().nullable(),
+  title: z.string().nullable(),
   active_members: z.number(),
   unread_count: z.number(),
   last_message: z
     .object({
       author_id: z.number(),
+      author_name: z.string().nullable(),
       message: z.string(),
       sent_at: z.number(),
     })
@@ -117,8 +204,24 @@ export const KakaoMessageSchema = z.object({
   log_id: z.string(),
   type: z.number(),
   author_id: z.number(),
+  author_name: z.string().nullable(),
   message: z.string(),
+  attachment: z.record(z.string(), z.unknown()).nullable(),
   sent_at: z.number(),
+})
+
+export const KakaoMemberSchema = z.object({
+  user_id: z.string(),
+  nickname: z.string(),
+  profile_image_url: z.string().nullable(),
+  full_profile_image_url: z.string().nullable(),
+  original_profile_image_url: z.string().nullable(),
+  status_message: z.string().nullable(),
+  country_iso: z.string().nullable(),
+  user_type: z.number().nullable(),
+  open_token: z.number().nullable(),
+  open_profile_link_id: z.string().nullable(),
+  open_permission: z.number().nullable(),
 })
 
 export const KakaoSendResultSchema = z.object({
@@ -127,6 +230,13 @@ export const KakaoSendResultSchema = z.object({
   chat_id: z.string(),
   log_id: z.string(),
   sent_at: z.number(),
+})
+
+export const KakaoMarkReadResultSchema = z.object({
+  success: z.boolean(),
+  status_code: z.number(),
+  chat_id: z.string(),
+  watermark: z.string(),
 })
 
 export interface KakaoProfile {
@@ -183,8 +293,39 @@ export interface KakaoTalkPushMessageEvent {
   chat_id: string
   log_id: string
   author_id: number
+  author_name: string | null
   message: string
   message_type: number
+  attachment: Record<string, unknown> | null
+  sent_at: number
+}
+
+export type KakaoEmoticonKind = 'sticker' | 'sticker_ani' | 'actioncon' | 'sticker_gif' | 'ditem_emoticon'
+
+export const KAKAO_EMOTICON_KIND_BY_TYPE = {
+  6: 'ditem_emoticon',
+  12: 'sticker',
+  20: 'sticker_ani',
+  22: 'actioncon',
+  25: 'sticker_gif',
+} as const satisfies Record<number, KakaoEmoticonKind>
+
+export type KakaoEmoticonMessageType = keyof typeof KAKAO_EMOTICON_KIND_BY_TYPE
+
+export const KAKAO_EMOTICON_MESSAGE_TYPES = Object.keys(KAKAO_EMOTICON_KIND_BY_TYPE).map(
+  Number,
+) as KakaoEmoticonMessageType[]
+
+export interface KakaoTalkPushEmoticonEvent {
+  type: 'EMOTICON'
+  chat_id: string
+  log_id: string
+  author_id: number
+  author_name: string | null
+  message_type: KakaoEmoticonMessageType
+  emoticon_kind: KakaoEmoticonKind
+  pack_id: string | null
+  sticker_path: string | null
   sent_at: number
 }
 
@@ -208,12 +349,14 @@ export interface KakaoTalkPushGenericEvent {
 
 export type KakaoTalkPushEvent =
   | KakaoTalkPushMessageEvent
+  | KakaoTalkPushEmoticonEvent
   | KakaoTalkPushMemberEvent
   | KakaoTalkPushReadEvent
   | KakaoTalkPushGenericEvent
 
 export interface KakaoTalkListenerEventMap {
   message: [event: KakaoTalkPushMessageEvent]
+  emoticon: [event: KakaoTalkPushEmoticonEvent]
   member_joined: [event: KakaoTalkPushMemberEvent]
   member_left: [event: KakaoTalkPushMemberEvent]
   read: [event: KakaoTalkPushReadEvent]
@@ -228,8 +371,23 @@ export const KakaoTalkPushMessageEventSchema = z.object({
   chat_id: z.string(),
   log_id: z.string(),
   author_id: z.number(),
+  author_name: z.string().nullable(),
   message: z.string(),
   message_type: z.number(),
+  attachment: z.record(z.string(), z.unknown()).nullable(),
+  sent_at: z.number(),
+})
+
+export const KakaoTalkPushEmoticonEventSchema = z.object({
+  type: z.literal('EMOTICON'),
+  chat_id: z.string(),
+  log_id: z.string(),
+  author_id: z.number(),
+  author_name: z.string().nullable(),
+  message_type: z.union([z.literal(6), z.literal(12), z.literal(20), z.literal(22), z.literal(25)]),
+  emoticon_kind: z.enum(['sticker', 'sticker_ani', 'actioncon', 'sticker_gif', 'ditem_emoticon']),
+  pack_id: z.string().nullable(),
+  sticker_path: z.string().nullable(),
   sent_at: z.number(),
 })
 

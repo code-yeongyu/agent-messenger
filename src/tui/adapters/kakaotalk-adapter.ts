@@ -26,10 +26,10 @@ export class KakaoTalkAdapter implements PlatformAdapter {
 
   async getChannels(): Promise<UnifiedChannel[]> {
     const client = this.ensureClient()
-    const chats = await client.getChats()
+    const chats = await client.getChats({ resolveTitles: true })
     return chats.map((chat) => ({
       id: chat.chat_id,
-      name: chat.display_name || `Chat ${chat.chat_id}`,
+      name: chat.title || chat.display_name || `Chat ${chat.chat_id}`,
     }))
   }
 
@@ -39,7 +39,7 @@ export class KakaoTalkAdapter implements PlatformAdapter {
     return messages.map((msg) => ({
       id: msg.log_id,
       channelId,
-      author: String(msg.author_id),
+      author: msg.author_name || String(msg.author_id),
       content: msg.message ?? '',
       timestamp: String(msg.sent_at),
     }))

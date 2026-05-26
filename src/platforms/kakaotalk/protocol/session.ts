@@ -1,17 +1,6 @@
 import { Binary, Long } from 'bson'
 
 import type { KakaoDeviceType } from '../types'
-
-const MAX_SAFE_INT_LONG = Long.fromNumber(Number.MAX_SAFE_INTEGER)
-
-function longToJsonNumber(value: Long): number {
-  if (value.greaterThan(MAX_SAFE_INT_LONG)) {
-    throw new Error(
-      `KakaoTalk reply id ${value.toString()} exceeds Number.MAX_SAFE_INTEGER and cannot be serialized losslessly into the LOCO extra JSON.`,
-    )
-  }
-  return value.toNumber()
-}
 import {
   BOOKING_HOST,
   BOOKING_PORT,
@@ -27,6 +16,17 @@ import {
 } from './config'
 import { LocoConnection } from './connection'
 import type { BookingResponse, CheckinResponse, LoginListResponse, LocoPacket, SyncState } from './types'
+
+const MAX_SAFE_INT_LONG = Long.fromNumber(Number.MAX_SAFE_INTEGER)
+
+function longToJsonNumber(value: Long): number {
+  if (value.greaterThan(MAX_SAFE_INT_LONG)) {
+    throw new Error(
+      `KakaoTalk reply id ${value.toString()} exceeds Number.MAX_SAFE_INTEGER and cannot be serialized losslessly into the LOCO extra JSON.`,
+    )
+  }
+  return value.toNumber()
+}
 
 export class LocoSession {
   private connection: LocoConnection | null = null
@@ -162,6 +162,73 @@ export class LocoSession {
     })
   }
 
+  // Sends a WRITE with non-text message_type plus the JSON-stringified `extra`
+  // payload that KakaoTalk clients render as the attachment (photo, file, etc).
+  // See types.ts → KakaoPhotoExtra / KakaoFileExtra for the per-type shape.
+  async sendAttachment(chatId: Long, type: number, extra: Record<string, unknown>, caption = ''): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    return this.connection.sendPacket('WRITE', {
+      chatId,
+      msg: caption,
+      type,
+      noSeen: false,
+      extra: JSON.stringify(extra),
+    })
+  }
+
+  // SHIP — request a media-upload ticket. Reserves a slot on a media LOCO
+  // server and returns the token (k), host (vh), and port (p) the client must
+  // connect to next. Sent on the main session.
+  async shipMedia(chatId: Long, type: number, size: number, checksum: string, extension: string): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    const body: Record<string, unknown> = {
+      c: chatId,
+      t: type,
+      s: Long.fromNumber(size),
+      cs: checksum,
+    }
+    if (extension.length > 0) body.e = extension
+    return this.connection.sendPacket('SHIP', body)
+  }
+
+  // MSHIP — multi-file equivalent of SHIP. Per-file fields become parallel
+  // arrays (sl/csl/el) and the response carries kl/vhl/pl arrays the caller
+  // must fan out across — one MPOST connection per entry.
+  async shipMultiMedia(
+    chatId: Long,
+    type: number,
+    sizes: number[],
+    checksums: string[],
+    extensions: string[],
+  ): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    return this.connection.sendPacket('MSHIP', {
+      c: chatId,
+      t: type,
+      sl: sizes.map((s) => Long.fromNumber(s)),
+      csl: checksums,
+      el: extensions,
+    })
+  }
+
+  // FORWARD — used after MPOST: registers a multi-attachment chatlog as one
+  // message. Same shape as WRITE but the server routes the attachment to
+  // multi-media rendering (galleries, multi-photo posts).
+  async forwardChat(chatId: Long, type: number, extra: Record<string, unknown>, caption = ''): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    return this.connection.sendPacket('FORWARD', {
+      chatId,
+      msg: caption,
+      type,
+      noSeen: false,
+      extra: JSON.stringify(extra),
+    })
+  }
+
+  getConnection(): LocoConnection | null {
+    return this.connection
+  }
+
   async syncMessages(chatId: Long, count = 20, cursor?: Long, maxLogId?: Long): Promise<LocoPacket> {
     if (!this.connection) throw new Error('Not connected')
     return this.connection.sendPacket('SYNCMSG', {
@@ -185,6 +252,50 @@ export class LocoSession {
     return this.connection.sendPacket('CHATONROOM', { chatId })
   }
 
+  /**
+   * Fetch detailed channel info (CHATINFO). Unlike CHATONROOM, this returns
+   * a `chatInfo` sub-document containing `chatMetas` (room title, notice, etc.)
+   * and `displayMembers` (user_id ↔ nickname pairs). Used to resolve the
+   * canonical user-set room title.
+   */
+  async getChannelInfo(chatId: Long): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    return this.connection.sendPacket('CHATINFO', { chatId })
+  }
+
+  /**
+   * Fetch open-link info (INFOLINK) for one or more openchat links. The
+   * response body has shape `{ ols: OpenLinkStruct[] }` where each struct's
+   * `ln` field carries the open-chat link name — the canonical fallback when
+   * an open chat has no user-set TITLE meta.
+   */
+  async getOpenLinkInfo(linkIds: Long[]): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    return this.connection.sendPacket('INFOLINK', { lis: linkIds })
+  }
+
+  /**
+   * Fetch the full member list for a chat (GETMEM). Response body has shape
+   * `{ members: NormalMemberStruct[] | OpenMemberStruct[], token: number }`.
+   * Use this to resolve nicknames for users not present in the chat list's
+   * "display members" cache — necessary for groups with more than ~5 members.
+   */
+  async getAllMembers(chatId: Long): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    return this.connection.sendPacket('GETMEM', { chatId })
+  }
+
+  /**
+   * Fetch info for a specific subset of members in a chat (MEMBER). Response
+   * body has shape `{ chatId, members: NormalMemberStruct[] | OpenMemberStruct[] }`.
+   * Useful when you already have user IDs (e.g. from a CHATONROOM `mi` array
+   * for >100-member rooms) and only need to resolve a few of them.
+   */
+  async getMembersByIds(chatId: Long, memberIds: Long[]): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    return this.connection.sendPacket('MEMBER', { chatId, memberIds })
+  }
+
   async getChatList(lastTokenId?: Long, lastChatId?: Long): Promise<LocoPacket> {
     if (!this.connection) throw new Error('Not connected')
     return this.connection.sendPacket('LCHATLIST', {
@@ -193,6 +304,20 @@ export class LocoSession {
       lastTokenId: lastTokenId ?? Long.fromNumber(0),
       lastChatId: lastChatId ?? Long.fromNumber(0),
     })
+  }
+
+  /**
+   * Advance the server-side read watermark for a chat (NOTIREAD). Open chats
+   * supply `linkId`; normal chats must omit it (the wire `li` key must be
+   * absent, not null/0).
+   */
+  async markRead(chatId: Long, watermark: Long, linkId?: Long): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    const body: Record<string, unknown> = { chatId, watermark }
+    if (linkId !== undefined) {
+      body.li = linkId
+    }
+    return this.connection.sendPacket('NOTIREAD', body)
   }
 
   onPush(handler: (packet: LocoPacket) => void): void {

@@ -35,6 +35,7 @@ beforeEach(() => {
     servers: {
       'server-1': { server_id: 'server-1', server_name: 'Server One' },
     },
+    readonly: false,
   })
 })
 

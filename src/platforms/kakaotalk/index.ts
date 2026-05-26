@@ -1,4 +1,6 @@
 export { KakaoTalkClient, KakaoTalkError } from './client'
+export { classifyKakaoChat } from './chat-classifier'
+export type { KakaoChatKind } from './chat-classifier'
 export { KakaoCredentialManager, CredentialManager } from './credential-manager'
 export { KakaoTalkListener } from './listener'
 export type { PendingLoginState } from './credential-manager'
@@ -8,10 +10,19 @@ export type {
   KakaoChat,
   KakaoConfig,
   KakaoDeviceType,
+  KakaoEmoticonKind,
+  KakaoEmoticonMessageType,
+  KakaoFileExtra,
+  KakaoLoginResult,
+  KakaoMarkReadResult,
+  KakaoMember,
   KakaoMessage,
+  KakaoMultiPhotoExtra,
+  KakaoPhotoExtra,
   KakaoProfile,
   KakaoSendResult,
   KakaoTalkListenerEventMap,
+  KakaoTalkPushEmoticonEvent,
   KakaoTalkPushEvent,
   KakaoTalkPushGenericEvent,
   KakaoTalkPushMemberEvent,
@@ -19,13 +30,25 @@ export type {
   KakaoTalkPushReadEvent,
 } from './types'
 export {
+  KAKAO_EMOTICON_KIND_BY_TYPE,
+  KAKAO_EMOTICON_MESSAGE_TYPES,
+  KAKAO_MESSAGE_TYPE,
   KakaoAccountCredentialsSchema,
   KakaoChatSchema,
   KakaoConfigSchema,
+  KakaoMarkReadResultSchema,
+  KakaoMemberSchema,
   KakaoMessageSchema,
   KakaoProfileSchema,
   KakaoSendResultSchema,
+  KakaoTalkPushEmoticonEventSchema,
   KakaoTalkPushMemberEventSchema,
   KakaoTalkPushMessageEventSchema,
   KakaoTalkPushReadEventSchema,
 } from './types'
+export { attemptLogin, generateDeviceUuid, loginFlow, registerDevice, requestPasscode } from './auth/kakao-login'
+export type { LoginCredentials } from './auth/kakao-login'
+export { sha1Hex } from './media-upload'
+export { detectImageDimensions } from './image-meta'
+export type { AttachmentInput, AttachmentPlan, ResolvedAttachment, SingleAttachmentKind } from './attachment-router'
+export { planAttachments, resolveAttachment } from './attachment-router'

@@ -1,16 +1,17 @@
 import { existsSync } from 'node:fs'
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 
+import { getConfigDir } from '../../shared/utils/config-dir'
 import type { SlackBotConfig, SlackBotCredentials, SlackBotWorkspace } from './types'
+import { SlackBotConfigSchema } from './types'
 
 export class SlackBotCredentialManager {
   private configDir: string
   private credentialsPath: string
 
   constructor(configDir?: string) {
-    this.configDir = configDir ?? join(homedir(), '.config', 'agent-messenger')
+    this.configDir = configDir ?? getConfigDir()
     this.credentialsPath = join(this.configDir, 'slackbot-credentials.json')
   }
 
@@ -20,12 +21,41 @@ export class SlackBotCredentialManager {
     }
 
     const content = await readFile(this.credentialsPath, 'utf-8')
-    return JSON.parse(content) as SlackBotConfig
+    let json: unknown
+    try {
+      json = JSON.parse(content)
+    } catch {
+      return { current: null, workspaces: {} }
+    }
+    const parsed = SlackBotConfigSchema.safeParse(json)
+    if (parsed.success) {
+      return parsed.data
+    }
+    // Schema validation failed (e.g., a stored token from a third-party tool does not
+    // start with xoxb-, or a future schema added new required fields). Fall back to the
+    // raw object to preserve existing entries; the runtime will surface real auth errors
+    // when the token is actually used. This matches pre-validation behavior so upgrades
+    // never silently empty a user's credentials file.
+    process.stderr.write(
+      `[agent-slackbot] Warning: credentials file at ${this.credentialsPath} did not match the expected schema. Using raw values; run "auth set" to fix.\n`,
+    )
+    return this.coerceLooseConfig(json)
+  }
+
+  private coerceLooseConfig(raw: unknown): SlackBotConfig {
+    if (!raw || typeof raw !== 'object') {
+      return { current: null, workspaces: {} }
+    }
+    const obj = raw as Partial<SlackBotConfig>
+    return {
+      current: obj.current ?? null,
+      workspaces: obj.workspaces ?? {},
+    }
   }
 
   async save(config: SlackBotConfig): Promise<void> {
     await mkdir(this.configDir, { recursive: true })
-    await writeFile(this.credentialsPath, JSON.stringify(config, null, 2))
+    await writeFile(this.credentialsPath, JSON.stringify(config, null, 2), { mode: 0o600 })
     await chmod(this.credentialsPath, 0o600)
   }
 
@@ -73,6 +103,7 @@ export class SlackBotCredentialManager {
     // Try "workspace_id/bot_id" format first
     if (botId.includes('/')) {
       const [workspaceId, id] = botId.split('/')
+      if (!workspaceId || !id) return null
       const workspace = config.workspaces[workspaceId]
       if (!workspace) return null
       const bot = workspace.bots[id]
@@ -101,22 +132,24 @@ export class SlackBotCredentialManager {
       }
     }
 
-    if (matches.length === 1) return matches[0]
+    const [onlyMatch, ...rest] = matches
+    if (onlyMatch && rest.length === 0) return onlyMatch
     return null
   }
 
   async setCredentials(creds: SlackBotCredentials): Promise<void> {
     const config = await this.load()
 
-    if (!config.workspaces[creds.workspace_id]) {
-      config.workspaces[creds.workspace_id] = {
-        workspace_id: creds.workspace_id,
-        workspace_name: creds.workspace_name,
-        bots: {},
-      }
+    const existing = config.workspaces[creds.workspace_id]
+    const workspace: SlackBotWorkspace = existing ?? {
+      workspace_id: creds.workspace_id,
+      workspace_name: creds.workspace_name,
+      bots: {},
+    }
+    if (!existing) {
+      config.workspaces[creds.workspace_id] = workspace
     }
 
-    const workspace = config.workspaces[creds.workspace_id]
     workspace.workspace_name = creds.workspace_name
     workspace.bots[creds.bot_id] = {
       bot_id: creds.bot_id,
@@ -137,6 +170,7 @@ export class SlackBotCredentialManager {
 
     if (botId.includes('/')) {
       const [workspaceId, id] = botId.split('/')
+      if (!workspaceId || !id) return false
       const workspace = config.workspaces[workspaceId]
       if (!workspace || !workspace.bots[id]) return false
 
@@ -153,16 +187,16 @@ export class SlackBotCredentialManager {
       return true
     }
 
-    const matches: { workspace: SlackBotWorkspace }[] = []
+    const matches: SlackBotWorkspace[] = []
     for (const workspace of Object.values(config.workspaces)) {
       if (workspace.bots[botId]) {
-        matches.push({ workspace })
+        matches.push(workspace)
       }
     }
 
-    if (matches.length !== 1) return false
+    const [workspace, ...rest] = matches
+    if (!workspace || rest.length > 0) return false
 
-    const { workspace } = matches[0]
     delete workspace.bots[botId]
     if (Object.keys(workspace.bots).length === 0) {
       delete config.workspaces[workspace.workspace_id]

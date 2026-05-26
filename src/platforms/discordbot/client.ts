@@ -317,11 +317,12 @@ export class DiscordBotClient {
     }
     const message = await this.requestFormData<MessageWithAttachments>(`/channels/${channelId}/messages`, formData)
 
-    if (!message.attachments || message.attachments.length === 0) {
+    const first = message.attachments?.[0]
+    if (!first) {
       throw new DiscordBotError('Upload succeeded but no attachments returned', 'no_attachments')
     }
 
-    return message.attachments[0]
+    return first
   }
 
   async listFiles(channelId: string): Promise<DiscordFile[]> {
@@ -355,6 +356,10 @@ export class DiscordBotClient {
 
   async archiveThread(threadId: string, archived: boolean = true): Promise<DiscordChannel> {
     return this.request<DiscordChannel>('PATCH', `/channels/${threadId}`, { archived })
+  }
+
+  async gatewayConnect(): Promise<{ token: string }> {
+    return { token: this.ensureAuth() }
   }
 
   async resolveChannel(guildId: string, channel: string): Promise<string> {

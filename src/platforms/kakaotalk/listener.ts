@@ -1,18 +1,17 @@
 import { EventEmitter } from 'events'
 
-import type { KakaoTalkClient } from './client'
-import { LocoSession } from './protocol/session'
+import type { KakaoSessionEvent, KakaoTalkClient } from './client'
 import type { LocoPacket } from './protocol/types'
-import type {
-  KakaoTalkListenerEventMap,
-  KakaoTalkPushGenericEvent,
-  KakaoTalkPushMemberEvent,
-  KakaoTalkPushMessageEvent,
-  KakaoTalkPushReadEvent,
+import {
+  KAKAO_EMOTICON_KIND_BY_TYPE,
+  type KakaoEmoticonMessageType,
+  type KakaoTalkListenerEventMap,
+  type KakaoTalkPushEmoticonEvent,
+  type KakaoTalkPushGenericEvent,
+  type KakaoTalkPushMemberEvent,
+  type KakaoTalkPushMessageEvent,
+  type KakaoTalkPushReadEvent,
 } from './types'
-
-const RECONNECT_BASE_DELAY = 1_000
-const RECONNECT_MAX_DELAY = 30_000
 
 type EventKey = keyof KakaoTalkListenerEventMap
 
@@ -24,14 +23,40 @@ function longToString(v: unknown): string {
   return String(v ?? 0)
 }
 
+function isEmoticonType(type: number): type is KakaoEmoticonMessageType {
+  return type in KAKAO_EMOTICON_KIND_BY_TYPE
+}
+
+function parseAttachmentJson(raw: unknown): Record<string, unknown> | null {
+  if (typeof raw !== 'string' || raw.length === 0) return null
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+    const attachment = parsed as Record<string, unknown>
+    return Object.keys(attachment).length > 0 ? attachment : null
+  } catch {
+    return null
+  }
+}
+
+function nonEmptyString(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+function extractPackIdFromPath(path: string | null): string | null {
+  if (!path) return null
+  const dotIndex = path.indexOf('.')
+  if (dotIndex <= 0) return null
+  const head = path.slice(0, dotIndex)
+  return /^\d+$/.test(head) ? head : null
+}
+
 export class KakaoTalkListener {
   private client: KakaoTalkClient
   private running = false
-  private session: LocoSession | null = null
   private emitter = new EventEmitter()
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
-  private reconnectAttempts = 0
-  private userId: string | null = null
+  private unsubscribePush: (() => void) | null = null
+  private unsubscribeSession: (() => void) | null = null
 
   constructor(client: KakaoTalkClient) {
     this.client = client
@@ -40,17 +65,33 @@ export class KakaoTalkListener {
   async start(): Promise<void> {
     if (this.running) return
     this.running = true
-    this.reconnectAttempts = 0
-    await this.connect()
+
+    this.unsubscribePush = this.client.onPush((packet) => this.handlePush(packet))
+    this.unsubscribeSession = this.client.onSessionEvent((event) => this.handleSessionEvent(event))
+
+    const alreadyConnected = this.client.isConnected()
+
+    try {
+      await this.client.acquireSession()
+      if (!this.running) return
+      if (alreadyConnected) {
+        const { userId } = this.client.getCredentials()
+        this.emitter.emit('connected', { userId })
+      }
+    } catch (error) {
+      this.emitter.emit('error', error instanceof Error ? error : new Error(String(error)))
+      this.running = false
+      this.teardown()
+    }
   }
 
   stop(): void {
-    this.running = false
-    this.clearTimers()
-    if (this.session) {
-      this.session.close()
-      this.session = null
+    if (!this.running) {
+      this.teardown()
+      return
     }
+    this.running = false
+    this.teardown()
   }
 
   on<K extends EventKey>(event: K, listener: (...args: KakaoTalkListenerEventMap[K]) => void): this {
@@ -68,41 +109,28 @@ export class KakaoTalkListener {
     return this
   }
 
-  private async connect(): Promise<void> {
+  private teardown(): void {
+    this.unsubscribePush?.()
+    this.unsubscribePush = null
+    this.unsubscribeSession?.()
+    this.unsubscribeSession = null
+  }
+
+  private handleSessionEvent(event: KakaoSessionEvent): void {
     if (!this.running) return
 
-    try {
-      const { oauthToken, userId, deviceUuid, deviceType } = this.client.getCredentials()
-      if (!this.running) return
-
-      this.userId = userId
-      const session = new LocoSession()
-
-      session.onPush((packet) => this.handlePush(packet))
-      session.onClose(() => {
-        if (this.session !== session) return
-        this.session = null
-        if (this.running) {
-          this.emitter.emit('disconnected')
-          this.scheduleReconnect()
-        }
-      })
-
-      await session.login(oauthToken, userId, deviceUuid, undefined, deviceType)
-
-      if (!this.running) {
-        session.close()
-        return
-      }
-
-      this.reconnectAttempts = 0
-      this.session = session
-      this.emitter.emit('connected', { userId })
-    } catch (error) {
-      this.emitter.emit('error', error instanceof Error ? error : new Error(String(error)))
-      if (this.running) {
-        this.scheduleReconnect()
-      }
+    switch (event.type) {
+      case 'connected':
+        this.emitter.emit('connected', { userId: event.userId })
+        break
+      case 'disconnected':
+        this.emitter.emit('disconnected')
+        break
+      case 'kicked':
+        this.emitter.emit('error', new Error(event.reason))
+        this.running = false
+        this.teardown()
+        break
     }
   }
 
@@ -112,16 +140,45 @@ export class KakaoTalkListener {
     switch (method) {
       case 'MSG': {
         const chatLog = body.chatLog as Record<string, unknown>
-        const event: KakaoTalkPushMessageEvent = {
+        const chatId = longToString(body.chatId)
+        const authorId = chatLog.authorId as number
+        const logId = longToString(chatLog.logId)
+        const messageType = chatLog.type as number
+        const authorName = this.client.lookupAuthorName?.(chatId, authorId) ?? null
+        const sentAt = chatLog.sendAt as number
+
+        const attachment = parseAttachmentJson(chatLog.attachment)
+
+        const messageEvent: KakaoTalkPushMessageEvent = {
           type: 'MSG',
-          chat_id: longToString(body.chatId),
-          log_id: longToString(chatLog.logId),
-          author_id: chatLog.authorId as number,
+          chat_id: chatId,
+          log_id: logId,
+          author_id: authorId,
+          author_name: authorName,
           message: chatLog.message as string,
-          message_type: chatLog.type as number,
-          sent_at: chatLog.sendAt as number,
+          message_type: messageType,
+          attachment,
+          sent_at: sentAt,
         }
-        this.emitter.emit('message', event)
+        this.emitter.emit('message', messageEvent)
+
+        if (isEmoticonType(messageType)) {
+          const stickerPath = nonEmptyString(attachment?.path) ?? nonEmptyString(attachment?.emoticonItemPath)
+          const emoticonEvent: KakaoTalkPushEmoticonEvent = {
+            type: 'EMOTICON',
+            chat_id: chatId,
+            log_id: logId,
+            author_id: authorId,
+            author_name: authorName,
+            message_type: messageType,
+            emoticon_kind: KAKAO_EMOTICON_KIND_BY_TYPE[messageType],
+            pack_id: extractPackIdFromPath(stickerPath),
+            sticker_path: stickerPath,
+            sent_at: sentAt,
+          }
+          this.emitter.emit('emoticon', emoticonEvent)
+        }
+
         this.emitter.emit('kakaotalk_event', { type: method, ...body })
         break
       }
@@ -162,42 +219,11 @@ export class KakaoTalkListener {
         break
       }
 
-      case 'CHANGESVR': {
-        this.reconnectAttempts = 0
-        const prev = this.session
-        this.session = null
-        prev?.close()
-        this.connect()
-        break
-      }
-
-      case 'KICKOUT': {
-        this.emitter.emit('error', new Error('Session kicked — another device logged in'))
-        this.running = false
-        this.session?.close()
-        this.session = null
-        break
-      }
-
       default: {
         const event: KakaoTalkPushGenericEvent = { type: method, ...body }
         this.emitter.emit('kakaotalk_event', event)
         break
       }
-    }
-  }
-
-  private scheduleReconnect(): void {
-    this.clearTimers()
-    const delay = Math.min(RECONNECT_BASE_DELAY * 2 ** this.reconnectAttempts, RECONNECT_MAX_DELAY)
-    this.reconnectAttempts++
-    this.reconnectTimer = setTimeout(() => this.connect(), delay)
-  }
-
-  private clearTimers(): void {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer)
-      this.reconnectTimer = null
     }
   }
 }

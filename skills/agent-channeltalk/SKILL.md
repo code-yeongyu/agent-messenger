@@ -1,7 +1,7 @@
 ---
 name: agent-channeltalk
 description: Interact with Channel Talk using extracted desktop app or browser credentials - read chats, send messages, search messages, manage groups
-version: 2.10.2
+version: 2.17.0
 allowed-tools: Bash(agent-channeltalk:*)
 metadata:
   openclaw:
@@ -168,6 +168,10 @@ If a memorized ID returns an error (chat not found, group not found), remove it 
 ```bash
 # Extract cookies from Channel Talk desktop app or browser (usually automatic)
 agent-channeltalk auth extract
+agent-channeltalk auth extract --browser-profile ~/browser-data
+agent-channeltalk auth extract --browser-profile "$HOME/work-profile,$HOME/personal-profile"
+
+# --browser-profile accepts repeatable or comma-separated Chromium profile/user-data dirs
 
 # Check auth status
 agent-channeltalk auth status

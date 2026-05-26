@@ -1,7 +1,7 @@
 ---
 name: agent-teams
 description: Interact with Microsoft Teams - send messages, read channels, manage reactions
-version: 2.10.2
+version: 2.17.0
 allowed-tools: Bash(agent-teams:*)
 metadata:
   openclaw:
@@ -148,6 +148,10 @@ If a memorized ID returns an error (channel not found, team not found), remove i
 # Extract token from Teams desktop app or browser (usually automatic)
 agent-teams auth extract
 agent-teams auth extract --debug
+agent-teams auth extract --browser-profile ~/browser-data
+agent-teams auth extract --browser-profile ~/work-profile --browser-profile ~/personal-profile
+
+# --browser-profile accepts repeatable or comma-separated Chromium profile/user-data dirs
 
 # Check auth status (includes token expiry info)
 agent-teams auth status

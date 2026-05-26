@@ -157,6 +157,18 @@ src/
         chat.ts
         message.ts
         ...
+    telegrambot/            # Telegram Bot platform (Bot API)
+      cli.ts                # Telegram Bot CLI entry
+      client.ts             # Telegram Bot API client
+      credential-manager.ts # Credential storage
+      listener.ts           # Long-polling listener
+      types.ts              # TypeScript types
+      commands/             # Command handlers
+        auth.ts
+        chat.ts
+        message.ts
+        reaction.ts
+        ...
     channeltalk/            # Channel Talk platform (beta)
       cli.ts                # Channel Talk CLI entry
       client.ts             # Channel Talk API client

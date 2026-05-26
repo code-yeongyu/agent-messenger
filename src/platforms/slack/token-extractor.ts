@@ -12,7 +12,9 @@ import {
   ChromiumCookieDecryptor,
   ChromiumCookieReader,
   discoverBrowserProfileDirs,
+  findLocalStatePath,
   getBrowserBasePath,
+  getAgentBrowserProfileDirs,
 } from '@/shared/chromium'
 import { DerivedKeyCache } from '@/shared/utils/derived-key-cache'
 import { lookupLinuxKeyringPassword } from '@/shared/utils/linux-keyring'
@@ -63,12 +65,14 @@ export class TokenExtractor {
   private debugLog: ((message: string) => void) | null
   private browserDecryptor: ChromiumCookieDecryptor
   private browserCookieReader: ChromiumCookieReader
+  private customBrowserProfileDirs: string[]
 
   constructor(
     platform?: NodeJS.Platform,
     slackDir?: string,
     keyCache?: DerivedKeyCache,
     debugLog?: (message: string) => void,
+    customBrowserProfileDirs?: string[],
   ) {
     this.platform = platform ?? process.platform
 
@@ -79,6 +83,7 @@ export class TokenExtractor {
     this.slackDir = slackDir ?? this.getSlackDir()
     this.keyCache = keyCache ?? new DerivedKeyCache()
     this.debugLog = debugLog ?? null
+    this.customBrowserProfileDirs = customBrowserProfileDirs ?? []
     this.browserDecryptor = new ChromiumCookieDecryptor({ platform: this.platform })
     this.browserCookieReader = new ChromiumCookieReader()
   }
@@ -188,6 +193,9 @@ export class TokenExtractor {
   }
 
   async extract(): Promise<ExtractedWorkspace[]> {
+    const results: ExtractedWorkspace[] = []
+    const seenTokens = new Set<string>()
+
     if (existsSync(this.slackDir)) {
       await this.getDerivedKeyAsync()
 
@@ -201,25 +209,53 @@ export class TokenExtractor {
           if (this.cachedKey) {
             await this.keyCache.set('slack', this.cachedKey)
             const retryCookie = await this.extractCookieFromSQLite()
-            return tokens.map((t) => ({
-              workspace_id: t.teamId,
-              workspace_name: t.teamName,
-              token: t.token,
-              cookie: retryCookie,
-            }))
+            this.addExtractedWorkspaces(results, seenTokens, tokens, retryCookie)
+            return this.customBrowserProfileDirs.length > 0 ? this.mergeBrowserResults(results, seenTokens) : results
           }
         }
 
-        return tokens.map((t) => ({
-          workspace_id: t.teamId,
-          workspace_name: t.teamName,
-          token: t.token,
-          cookie: cookie,
-        }))
+        this.addExtractedWorkspaces(results, seenTokens, tokens, cookie)
+        return this.customBrowserProfileDirs.length > 0 ? this.mergeBrowserResults(results, seenTokens) : results
       }
     }
 
     return this.extractFromBrowsers()
+  }
+
+  private async mergeBrowserResults(
+    results: ExtractedWorkspace[],
+    seenTokens: Set<string>,
+  ): Promise<ExtractedWorkspace[]> {
+    for (const workspace of await this.extractFromBrowsers()) {
+      const existing = results.find((item) => item.token === workspace.token)
+      if (existing) {
+        if (!existing.cookie && workspace.cookie) {
+          existing.cookie = workspace.cookie
+        }
+        continue
+      }
+      seenTokens.add(workspace.token)
+      results.push(workspace)
+    }
+    return results
+  }
+
+  private addExtractedWorkspaces(
+    results: ExtractedWorkspace[],
+    seenTokens: Set<string>,
+    tokens: TokenInfo[],
+    cookie: string,
+  ): void {
+    for (const token of tokens) {
+      if (seenTokens.has(token.token)) continue
+      seenTokens.add(token.token)
+      results.push({
+        workspace_id: token.teamId,
+        workspace_name: token.teamName,
+        token: token.token,
+        cookie,
+      })
+    }
   }
 
   async extractFromBrowsers(): Promise<ExtractedWorkspace[]> {
@@ -259,6 +295,33 @@ export class TokenExtractor {
       }
     }
 
+    for (const profileDir of getAgentBrowserProfileDirs({ customProfileDirs: this.customBrowserProfileDirs })) {
+      const leveldbDir = join(profileDir, 'Local Storage', 'leveldb')
+      if (!existsSync(leveldbDir)) continue
+
+      let tokenInfos: TokenInfo[]
+      try {
+        tokenInfos = await this.extractFromLevelDB(leveldbDir, 'local-storage')
+      } catch {
+        continue
+      }
+
+      if (tokenInfos.length === 0) continue
+
+      const cookie = await this.extractCookieFromBrowserProfile(profileDir, profileDir)
+
+      for (const t of tokenInfos) {
+        if (seenTokens.has(t.token)) continue
+        seenTokens.add(t.token)
+        results.push({
+          workspace_id: t.teamId,
+          workspace_name: t.teamName,
+          token: t.token,
+          cookie,
+        })
+      }
+    }
+
     return results
   }
 
@@ -293,7 +356,7 @@ export class TokenExtractor {
     if (row.value?.startsWith('xoxd-')) return row.value
 
     if (row.encrypted_value && row.encrypted_value.length > 0) {
-      const localStatePath = join(browserBase, 'Local State')
+      const localStatePath = findLocalStatePath(cookiesPath) ?? join(browserBase, 'Local State')
       const decrypted = this.browserDecryptor.decryptCookie(
         Buffer.from(row.encrypted_value),
         existsSync(localStatePath) ? localStatePath : undefined,

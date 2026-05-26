@@ -2,9 +2,12 @@
   "title": "TypeScript SDK",
   "pages": [
     "slack",
+    "slackbot",
     "discord",
+    "discordbot",
     "teams",
     "webex",
+    "telegrambot",
     "whatsapp",
     "whatsappbot",
     "line",

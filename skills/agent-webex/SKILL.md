@@ -1,7 +1,7 @@
 ---
 name: agent-webex
 description: Interact with Cisco Webex - send messages, read spaces, manage memberships
-version: 2.10.2
+version: 2.17.0
 allowed-tools: Bash(agent-webex:*)
 metadata:
   openclaw:
@@ -54,7 +54,13 @@ agent-webex auth extract
 
 # With debug output
 agent-webex auth extract --debug
+
+# Scan custom Chromium profile/user-data dirs
+agent-webex auth extract --browser-profile ~/browser-data
+agent-webex auth extract --browser-profile ~/work-profile --browser-profile ~/personal-profile
 ```
+
+`--browser-profile` accepts repeatable or comma-separated Chromium profile/user-data directories. Use it for agent-browser profiles, custom Chrome user data dirs, or portable browser profiles.
 
 **Supported browsers**: Chrome, Chrome Canary, Edge, Arc, Brave, Vivaldi, Chromium
 

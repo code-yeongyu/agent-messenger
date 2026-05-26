@@ -7,6 +7,14 @@ import { infoAction, listAction, uploadAction } from './file'
 let clientUploadFileSpy: ReturnType<typeof spyOn>
 let clientListFilesSpy: ReturnType<typeof spyOn>
 let credManagerLoadSpy: ReturnType<typeof spyOn>
+let clientLoginSpy: ReturnType<typeof spyOn>
+
+class ProcessExitError extends Error {
+  constructor(readonly code: string | number | null | undefined) {
+    super(`process exited with ${code}`)
+    this.name = 'ProcessExitError'
+  }
+}
 
 beforeEach(() => {
   // Spy on DiscordClient.prototype methods
@@ -40,13 +48,17 @@ beforeEach(() => {
     token: 'test_token',
     current_server: 'server_123',
     servers: {},
+    readonly: false,
   })
+
+  clientLoginSpy = spyOn(DiscordClient.prototype, 'login')
 })
 
 afterEach(() => {
   clientUploadFileSpy?.mockRestore()
   clientListFilesSpy?.mockRestore()
   credManagerLoadSpy?.mockRestore()
+  clientLoginSpy?.mockRestore()
 })
 
 it('upload: sends multipart request and returns file info', async () => {
@@ -83,4 +95,25 @@ it('info: returns single file details', async () => {
   const output = consoleSpy.mock.calls[0][0]
   expect(output).toContain('file_123')
   expect(output).toContain('test.pdf')
+})
+
+it('given personal token config without explicit write opt-in, when uploading a file, then blocks before Discord login', async () => {
+  const originalExit = process.exit
+  process.exit = (code?: string | number | null | undefined): never => {
+    throw new ProcessExitError(code)
+  }
+  credManagerLoadSpy.mockResolvedValue({
+    token: 'test_token',
+    current_server: 'server_123',
+    servers: {},
+  })
+
+  try {
+    await expect(uploadAction('ch_456', '/path/to/test.pdf', { pretty: false })).rejects.toThrow(ProcessExitError)
+  } finally {
+    process.exit = originalExit
+  }
+
+  expect(clientLoginSpy).not.toHaveBeenCalled()
+  expect(clientUploadFileSpy).not.toHaveBeenCalled()
 })

@@ -1,0 +1,149 @@
+---
+title: Telegram Bot
+description: Complete reference for the agent-telegrambot CLI.
+---
+
+> **Tip**: After `npm install -g agent-messenger`, `agent-telegrambot` is available directly. For one-off execution without a global install you can use `npm exec --package agent-messenger agent-telegrambot ...`, `pnpm dlx --package agent-messenger agent-telegrambot ...`, `yarn dlx agent-messenger agent-telegrambot ...`, or `bunx --package agent-messenger agent-telegrambot ...`.
+
+## Overview
+
+`agent-telegrambot` wraps Telegram's official [HTTP Bot API](https://core.telegram.org/bots/api). It uses bot tokens issued by [@BotFather](https://t.me/BotFather) and is designed for server-side and CI/CD integrations.
+
+For acting as a real user account (not a bot), use [`agent-telegram`](./telegram) instead.
+
+## Requirements
+
+- A bot token from [@BotFather](https://t.me/BotFather)
+- Node.js 18+ or Bun runtime
+
+## Quick Start
+
+```bash
+# Set your bot token (validates against Telegram)
+agent-telegrambot auth set 123456789:ABC-DEF1234...
+
+# Verify auth
+agent-telegrambot whoami
+
+# Send a message
+agent-telegrambot message send @channelname "Hello"
+
+# Get chat info
+agent-telegrambot chat info @channelname
+```
+
+## Authentication
+
+```bash
+# Set bot token
+agent-telegrambot auth set <token>
+
+# Set with custom bot identifier
+agent-telegrambot auth set <token> --bot deploy
+
+# Check auth status
+agent-telegrambot auth status
+
+# List stored bots
+agent-telegrambot auth list
+
+# Switch active bot
+agent-telegrambot auth use <bot-id>
+
+# Remove a stored bot
+agent-telegrambot auth remove <bot-id>
+
+# Clear all credentials
+agent-telegrambot auth clear
+```
+
+Credentials are stored in `~/.config/agent-messenger/telegrambot-credentials.json` (0600 permissions).
+
+## Commands
+
+### Messages
+
+```bash
+# Send a text message
+agent-telegrambot message send <chat> <text>
+
+# Format with Markdown or HTML
+agent-telegrambot message send <chat> "<b>Bold</b>" --parse-mode HTML
+
+# Reply to a specific message
+agent-telegrambot message send <chat> "Reply" --reply-to 12345
+
+# Send silently
+agent-telegrambot message send <chat> "..." --silent
+
+# Forum topic
+agent-telegrambot message send <chat> "..." --thread-id 5
+
+# Edit a message
+agent-telegrambot message update <chat> <message-id> <new-text>
+
+# Delete a message
+agent-telegrambot message delete <chat> <message-id> --force
+
+# Forward a message
+agent-telegrambot message forward <to-chat> <from-chat> <message-id>
+
+# Upload a document
+agent-telegrambot message upload <chat> ./file.pdf --caption "Report"
+```
+
+### Chats
+
+```bash
+# Get chat info (title, type, description, member count)
+agent-telegrambot chat info <chat>
+
+# Get a specific member's status
+agent-telegrambot chat member <chat> <user-id>
+```
+
+### Reactions
+
+```bash
+# Set a reaction (replaces existing)
+agent-telegrambot reaction set <chat> <message-id> 👍
+
+# Big animation
+agent-telegrambot reaction set <chat> <message-id> 👍 --big
+
+# Clear reactions
+agent-telegrambot reaction clear <chat> <message-id>
+```
+
+### Whoami
+
+```bash
+agent-telegrambot whoami
+agent-telegrambot whoami --bot <bot-id>
+```
+
+## Chat IDs
+
+The `<chat>` argument accepts:
+
+- **Numeric ID**: `123456789` (user), `-1001234567890` (supergroup/channel)
+- **@username**: `@channelname` (public chats only)
+- **Plain username**: `channelname` (auto-prefixed with `@`)
+
+## Global Options
+
+| Option       | Description                           |
+| ------------ | ------------------------------------- |
+| `--pretty`   | Human-readable output instead of JSON |
+| `--bot <id>` | Use a specific bot for this command   |
+
+## Real-Time Events
+
+The CLI does not expose real-time events, but the SDK does — via long-polling. See the [SDK reference](../sdk/telegrambot) for `TelegramBotListener`.
+
+## Common Errors
+
+- `Unauthorized` — Invalid or revoked token. Generate a new one via @BotFather.
+- `Forbidden` — User hasn't `/start`ed the bot, bot was kicked, or bot lacks permissions.
+- `Bad Request: chat not found` — Wrong chat ID or bot isn't in the chat.
+- `Conflict` — Another polling instance (or webhook) is active for this bot.

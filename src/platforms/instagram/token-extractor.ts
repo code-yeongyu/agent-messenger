@@ -10,6 +10,7 @@ import {
   discoverBrowserProfileDirs,
   findLocalStatePath,
   getBrowserBasePath,
+  getAgentBrowserProfileDirs,
 } from '@/shared/chromium'
 import type { KeychainVariant } from '@/shared/chromium'
 
@@ -30,10 +31,12 @@ export class InstagramTokenExtractor {
   private debugLog: ((message: string) => void) | null
   private decryptor: ChromiumCookieDecryptor
   private cookieReader: ChromiumCookieReader
+  private customBrowserProfileDirs: string[]
 
-  constructor(platform?: NodeJS.Platform, debugLog?: (message: string) => void) {
+  constructor(platform?: NodeJS.Platform, debugLog?: (message: string) => void, customBrowserProfileDirs?: string[]) {
     this.platform = platform ?? process.platform
     this.debugLog = debugLog ?? null
+    this.customBrowserProfileDirs = customBrowserProfileDirs ?? []
     this.decryptor = new ChromiumCookieDecryptor({ platform: this.platform })
     this.cookieReader = new ChromiumCookieReader()
   }
@@ -52,6 +55,11 @@ export class InstagramTokenExtractor {
       }
     }
 
+    for (const profileDir of getAgentBrowserProfileDirs({ customProfileDirs: this.customBrowserProfileDirs })) {
+      paths.push(join(profileDir, 'Cookies'))
+      paths.push(join(profileDir, 'Network', 'Cookies'))
+    }
+
     return paths
   }
 
@@ -63,6 +71,10 @@ export class InstagramTokenExtractor {
       if (!browserBase) continue
 
       paths.push(join(browserBase, 'Local State'))
+    }
+
+    for (const profileDir of getAgentBrowserProfileDirs({ customProfileDirs: this.customBrowserProfileDirs })) {
+      paths.push(join(profileDir, 'Local State'))
     }
 
     return paths

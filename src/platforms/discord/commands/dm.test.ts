@@ -55,6 +55,7 @@ beforeEach(() => {
     token: 'test-token',
     current_server: null,
     servers: {},
+    readonly: false,
   })
 })
 

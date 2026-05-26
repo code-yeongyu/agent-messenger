@@ -1,7 +1,7 @@
 ---
 name: agent-channeltalkbot
 description: Interact with Channel Talk workspaces using API credentials - send messages, read chats, manage groups and bots
-version: 2.10.2
+version: 2.17.0
 allowed-tools: Bash(agent-channeltalkbot:*)
 metadata:
   openclaw:
@@ -14,7 +14,7 @@ metadata:
         bins: [agent-channeltalkbot]
 ---
 
-# Agent ChannelBot
+# Agent ChannelTalkBot
 
 A TypeScript CLI tool that enables AI agents and humans to interact with Channel Talk workspaces using API credentials (Access Key + Access Secret). Designed for customer support automation, team inbox management, and CI/CD integrations.
 
@@ -368,7 +368,7 @@ Common errors: `No credentials`, `Workspace not found`, `Bot name is required`, 
 
 ## Configuration
 
-Credentials stored in `~/.config/agent-messenger/channelbot-credentials.json` (0600 permissions). See [references/authentication.md](references/authentication.md) for format and security details.
+Credentials stored in `~/.config/agent-messenger/channeltalkbot-credentials.json` (0600 permissions). See [references/authentication.md](references/authentication.md) for format and security details.
 
 Config format:
 
@@ -386,6 +386,20 @@ Config format:
   "default_bot": "Support Bot"
 }
 ```
+
+## Key Differences from agent-channeltalk
+
+| Feature              | agent-channeltalk           | agent-channeltalkbot                |
+| -------------------- | --------------------------- | ----------------------------------- |
+| Auth type            | Cookie extraction (browser) | API credentials (access key/secret) |
+| Token source         | Auto-extracted from session | Channel Talk admin Open API         |
+| Acts as              | Manager (you)               | Bot (named identity)                |
+| Send group messages  | Yes                         | Yes (requires bot name)             |
+| Send user-chat reply | Yes                         | Yes                                 |
+| Manage bots          | No                          | Yes (create / delete)               |
+| Workspace snapshot   | Yes                         | Yes                                 |
+| Search messages      | Yes (UI search)             | No (API limitation)                 |
+| CI/CD friendly       | Requires browser session    | Yes (just set access key/secret)    |
 
 ## Limitations
 

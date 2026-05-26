@@ -1,23 +1,44 @@
 export { DiscordBotClient } from './client'
 export { DiscordBotCredentialManager } from './credential-manager'
-export {
+export { DiscordBotListener } from './listener'
+export type { DiscordBotListenerOptions } from './listener'
+export type {
   DiscordBotConfig,
-  DiscordBotConfigSchema,
   DiscordBotCredentials,
-  DiscordBotCredentialsSchema,
   DiscordBotEntry,
+  DiscordBotListenerEventMap,
+  DiscordChannel,
+  DiscordFile,
+  DiscordGatewayChannelEvent,
+  DiscordGatewayEmbed,
+  DiscordGatewayEvent,
+  DiscordGatewayGenericEvent,
+  DiscordGatewayGuildEvent,
+  DiscordGatewayInteractionEvent,
+  DiscordGatewayMemberEvent,
+  DiscordGatewayMessageCreateEvent,
+  DiscordGatewayMessageDeleteEvent,
+  DiscordGatewayMessageUpdateEvent,
+  DiscordGatewayPresenceEvent,
+  DiscordGatewayReactionEvent,
+  DiscordGatewayStickerItem,
+  DiscordGatewayTypingEvent,
+  DiscordGuild,
+  DiscordMessage,
+  DiscordReaction,
+  DiscordUser,
+} from './types'
+export {
+  DiscordBotConfigSchema,
+  DiscordBotCredentialsSchema,
   DiscordBotEntrySchema,
   DiscordBotError,
-  DiscordChannel,
   DiscordChannelSchema,
-  DiscordFile,
   DiscordFileSchema,
-  DiscordGuild,
+  DiscordGatewayOpcode,
   DiscordGuildSchema,
-  DiscordMessage,
+  DiscordIntent,
   DiscordMessageSchema,
-  DiscordReaction,
   DiscordReactionSchema,
-  DiscordUser,
   DiscordUserSchema,
 } from './types'

@@ -33,6 +33,7 @@ describe('whoami command', () => {
       return fn(fakeClient, {} as TelegramAccount, new TelegramCredentialManager())
     })
     consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {})
+    consoleLogSpy.mockClear()
   })
 
   afterEach(() => {

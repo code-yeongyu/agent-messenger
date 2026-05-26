@@ -30,11 +30,13 @@ export interface SlackBotConfig {
 // Error class for SlackBot operations
 export class SlackBotError extends Error {
   code: string
+  retryAfter?: number
 
-  constructor(message: string, code: string) {
+  constructor(message: string, code: string, retryAfter?: number) {
     super(message)
     this.name = 'SlackBotError'
     this.code = code
+    if (retryAfter !== undefined) this.retryAfter = retryAfter
   }
 }
 
@@ -221,3 +223,240 @@ export const SlackFileSchema = z.object({
   user: z.string(),
   channels: z.array(z.string()).optional(),
 })
+
+// Socket Mode envelope types — see https://api.slack.com/apis/socket-mode
+
+export interface SlackSocketModeHelloEnvelope {
+  type: 'hello'
+  connection_info?: { app_id: string }
+  num_connections?: number
+  debug_info?: {
+    host?: string
+    started?: string
+    build_number?: number
+    approximate_connection_time?: number
+  }
+}
+
+export type SlackSocketModeDisconnectReason = 'warning' | 'refresh_requested' | 'link_disabled' | string
+
+export interface SlackSocketModeDisconnectEnvelope {
+  type: 'disconnect'
+  reason: SlackSocketModeDisconnectReason
+  debug_info?: {
+    host?: string
+  }
+}
+
+export interface SlackSocketModeEventsApiEnvelope {
+  type: 'events_api'
+  envelope_id: string
+  payload: {
+    token?: string
+    team_id?: string
+    api_app_id?: string
+    event: SlackSocketModeEvent
+    type?: 'event_callback' | string
+    event_id?: string
+    event_time?: number
+    [key: string]: unknown
+  }
+  accepts_response_payload?: boolean
+  retry_attempt?: number
+  retry_reason?: string
+}
+
+export interface SlackSocketModeSlashCommandEnvelope {
+  type: 'slash_commands'
+  envelope_id: string
+  payload: {
+    command: string
+    text: string
+    user_id: string
+    user_name?: string
+    channel_id: string
+    channel_name?: string
+    team_id: string
+    team_domain?: string
+    api_app_id?: string
+    response_url?: string
+    trigger_id?: string
+    [key: string]: unknown
+  }
+  accepts_response_payload?: boolean
+}
+
+export interface SlackSocketModeInteractiveEnvelope {
+  type: 'interactive'
+  envelope_id: string
+  payload: {
+    type: string
+    user?: { id: string; username?: string; name?: string; team_id?: string }
+    api_app_id?: string
+    token?: string
+    trigger_id?: string
+    response_url?: string
+    actions?: Array<Record<string, unknown>>
+    view?: Record<string, unknown>
+    [key: string]: unknown
+  }
+  accepts_response_payload?: boolean
+}
+
+export interface SlackSocketModeGenericEnvelope {
+  type: string
+  envelope_id?: string
+  payload?: Record<string, unknown>
+  accepts_response_payload?: boolean
+  [key: string]: unknown
+}
+
+export type SlackSocketModeEnvelope =
+  | SlackSocketModeHelloEnvelope
+  | SlackSocketModeDisconnectEnvelope
+  | SlackSocketModeEventsApiEnvelope
+  | SlackSocketModeSlashCommandEnvelope
+  | SlackSocketModeInteractiveEnvelope
+  | SlackSocketModeGenericEnvelope
+
+// Inner Events API event lives at `payload.event` — see SlackSocketModeEventsApiEnvelope.
+
+export interface SlackSocketModeMessageEvent {
+  type: 'message'
+  subtype?: string
+  channel: string
+  channel_type?: string
+  user?: string
+  bot_id?: string
+  text?: string
+  ts: string
+  thread_ts?: string
+  event_ts?: string
+  edited?: { user: string; ts: string }
+  hidden?: boolean
+  // Set on every reply within a thread; identifies the author of the message
+  // the thread is rooted at. Useful for deciding whether a reply targets the
+  // bot, another human, or an unknown parent.
+  parent_user_id?: string
+  // Client-generated UUID on user-authored messages, stable across Slack-side
+  // resends of the same gesture. Primary dedupe key for the "one user action
+  // surfaces as two events" case.
+  client_msg_id?: string
+  // Attachments delivered inline on the same message event. Slack does not
+  // fire a separate file_share envelope for messages we receive over Socket
+  // Mode, so consumers reading attachments off `message` events look here.
+  files?: SlackFile[]
+  [key: string]: unknown
+}
+
+export interface SlackSocketModeAppMentionEvent {
+  type: 'app_mention'
+  channel: string
+  user: string
+  text: string
+  ts: string
+  thread_ts?: string
+  event_ts?: string
+  // `app_mention` envelopes do not always carry `client_msg_id`, but typing
+  // it keeps the promotion to a message-shaped event lossless if Slack ever
+  // starts sending it on this event.
+  client_msg_id?: string
+  [key: string]: unknown
+}
+
+export interface SlackSocketModeReactionEvent {
+  type: 'reaction_added' | 'reaction_removed'
+  user: string
+  reaction: string
+  item: { type: string; channel: string; ts: string }
+  item_user?: string
+  event_ts: string
+  [key: string]: unknown
+}
+
+export interface SlackSocketModeMemberChannelEvent {
+  type: 'member_joined_channel' | 'member_left_channel'
+  user: string
+  channel: string
+  channel_type?: string
+  team?: string
+  event_ts?: string
+  [key: string]: unknown
+}
+
+export interface SlackSocketModeChannelEvent {
+  type:
+    | 'channel_created'
+    | 'channel_deleted'
+    | 'channel_rename'
+    | 'channel_archive'
+    | 'channel_unarchive'
+    | 'channel_left'
+  channel: { id: string; name?: string } | string
+  event_ts?: string
+  [key: string]: unknown
+}
+
+export interface SlackSocketModeGenericEvent {
+  type: string
+  [key: string]: unknown
+}
+
+export type SlackSocketModeEvent =
+  | SlackSocketModeMessageEvent
+  | SlackSocketModeAppMentionEvent
+  | SlackSocketModeReactionEvent
+  | SlackSocketModeMemberChannelEvent
+  | SlackSocketModeChannelEvent
+  | SlackSocketModeGenericEvent
+
+// Acknowledgment callback. Without args sends `{ envelope_id }`; with args sends
+// `{ envelope_id, payload }` (for `accepts_response_payload: true` envelopes).
+export type SlackSocketModeAck = (responsePayload?: Record<string, unknown>) => void
+
+export interface SlackSocketModeEventsApiArgs<E extends SlackSocketModeEvent = SlackSocketModeEvent> {
+  ack: SlackSocketModeAck
+  envelope_id: string
+  body: SlackSocketModeEventsApiEnvelope['payload']
+  event: E
+  retry_num?: number
+  retry_reason?: string
+  accepts_response_payload?: boolean
+}
+
+export interface SlackSocketModeSlashCommandArgs {
+  ack: SlackSocketModeAck
+  envelope_id: string
+  body: SlackSocketModeSlashCommandEnvelope['payload']
+  accepts_response_payload?: boolean
+}
+
+export interface SlackSocketModeInteractiveArgs {
+  ack: SlackSocketModeAck
+  envelope_id: string
+  body: SlackSocketModeInteractiveEnvelope['payload']
+  accepts_response_payload?: boolean
+}
+
+export interface SlackBotListenerEventMap {
+  connected: [info: { app_id?: string; num_connections?: number }]
+  disconnected: []
+  error: [error: Error]
+
+  message: [args: SlackSocketModeEventsApiArgs<SlackSocketModeMessageEvent>]
+  app_mention: [args: SlackSocketModeEventsApiArgs<SlackSocketModeAppMentionEvent>]
+  reaction_added: [args: SlackSocketModeEventsApiArgs<SlackSocketModeReactionEvent>]
+  reaction_removed: [args: SlackSocketModeEventsApiArgs<SlackSocketModeReactionEvent>]
+  member_joined_channel: [args: SlackSocketModeEventsApiArgs<SlackSocketModeMemberChannelEvent>]
+  member_left_channel: [args: SlackSocketModeEventsApiArgs<SlackSocketModeMemberChannelEvent>]
+  channel_created: [args: SlackSocketModeEventsApiArgs<SlackSocketModeChannelEvent>]
+  channel_deleted: [args: SlackSocketModeEventsApiArgs<SlackSocketModeChannelEvent>]
+  channel_rename: [args: SlackSocketModeEventsApiArgs<SlackSocketModeChannelEvent>]
+  channel_archive: [args: SlackSocketModeEventsApiArgs<SlackSocketModeChannelEvent>]
+  channel_unarchive: [args: SlackSocketModeEventsApiArgs<SlackSocketModeChannelEvent>]
+
+  slash_commands: [args: SlackSocketModeSlashCommandArgs]
+  interactive: [args: SlackSocketModeInteractiveArgs]
+
+  slack_event: [args: SlackSocketModeEventsApiArgs<SlackSocketModeGenericEvent> | SlackSocketModeGenericEnvelope]
+}

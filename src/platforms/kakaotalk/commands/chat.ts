@@ -9,11 +9,12 @@ async function listAction(options: {
   account?: string
   all?: boolean
   search?: string
+  resolveTitles?: boolean
   pretty?: boolean
 }): Promise<void> {
   try {
     const chats = await withKakaoClient(options, (client) =>
-      client.getChats({ all: options.all, search: options.search }),
+      client.getChats({ all: options.all, search: options.search, resolveTitles: options.resolveTitles }),
     )
     console.log(formatOutput(chats, options.pretty))
   } catch (error) {
@@ -29,6 +30,7 @@ export const chatCommand = new Command('chat')
       .option('--account <id>', 'Use a specific KakaoTalk account')
       .option('--all', 'Fetch all chats (paginate beyond login snapshot)')
       .option('--search <name>', 'Search for a chat by display name')
+      .option('--resolve-titles', 'Fetch user-set room titles via CHATINFO (slower; one extra LOCO call per chat)')
       .option('--pretty', 'Pretty print JSON output')
       .action(listAction),
   )

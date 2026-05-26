@@ -149,16 +149,21 @@ export async function validateTeamsEnvironment(): Promise<boolean> {
   return true
 }
 
-// ChannelBot Test Environment — requires E2E_CHANNELBOT_WORKSPACE_ID to opt-in.
+// ChannelBot Test Environment — requires E2E_CHANNELTALKBOT_WORKSPACE_ID to opt-in.
+// E2E_CHANNELBOT_WORKSPACE_ID is also accepted as a legacy fallback.
 // The E2E group is auto-discovered by name from the workspace's group list.
 // Never run against a real business workspace automatically.
-export const CHANNELBOT_TEST_WORKSPACE_ID = process.env.E2E_CHANNELBOT_WORKSPACE_ID || ''
-export const CHANNELBOT_TEST_WORKSPACE_NAME = process.env.E2E_CHANNELBOT_WORKSPACE_NAME || ''
+export const CHANNELBOT_TEST_WORKSPACE_ID =
+  process.env.E2E_CHANNELTALKBOT_WORKSPACE_ID || process.env.E2E_CHANNELBOT_WORKSPACE_ID || ''
+export const CHANNELBOT_TEST_WORKSPACE_NAME =
+  process.env.E2E_CHANNELTALKBOT_WORKSPACE_NAME || process.env.E2E_CHANNELBOT_WORKSPACE_NAME || ''
 export const E2E_GROUP_NAME = 'E2E'
 
 export async function validateChannelBotEnvironment(): Promise<{ groupId: string; groupName: string } | null> {
   if (!CHANNELBOT_TEST_WORKSPACE_ID) {
-    console.warn('Skipping ChannelBot E2E: set E2E_CHANNELBOT_WORKSPACE_ID to run against a dedicated test workspace.')
+    console.warn(
+      'Skipping ChannelBot E2E: set E2E_CHANNELTALKBOT_WORKSPACE_ID to run against a dedicated test workspace.',
+    )
     return null
   }
 
@@ -232,6 +237,30 @@ export async function validateTelegramEnvironment(): Promise<boolean> {
   const result = await runCLI('telegram', ['auth', 'status'])
   if (result.exitCode !== 0) {
     throw new Error('Telegram authentication failed. Run: agent-telegram auth login')
+  }
+
+  return true
+}
+
+// Telegram Bot Test Environment
+export const TELEGRAMBOT_TEST_CHAT_ID = process.env.E2E_TELEGRAMBOT_CHAT_ID || ''
+
+export async function validateTelegramBotEnvironment(): Promise<boolean> {
+  if (!TELEGRAMBOT_TEST_CHAT_ID) {
+    console.warn('Skipping Telegram Bot E2E: set E2E_TELEGRAMBOT_CHAT_ID to run against a dedicated test chat.')
+    return false
+  }
+
+  const { runCLI, parseJSON } = await import('./helpers')
+
+  const result = await runCLI('telegrambot', ['auth', 'status'])
+  if (result.exitCode !== 0) {
+    throw new Error('Telegram Bot authentication failed. Run: agent-telegrambot auth set <token>')
+  }
+
+  const data = parseJSON<{ valid: boolean }>(result.stdout)
+  if (!data?.valid) {
+    throw new Error('Telegram Bot credentials invalid or expired. Run: agent-telegrambot auth set <token>')
   }
 
   return true

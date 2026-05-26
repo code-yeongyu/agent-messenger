@@ -65,6 +65,70 @@ const mockReactions = {
   add: mock(() => Promise.resolve({ ok: true })),
   remove: mock(() => Promise.resolve({ ok: true })),
 }
+const mockAssistant = {
+  threads: {
+    setStatus: mock(() => Promise.resolve({ ok: true })),
+  },
+}
+const mockFiles = {
+  uploadV2: mock(() =>
+    Promise.resolve({
+      ok: true,
+      files: [
+        {
+          ok: true,
+          files: [
+            {
+              id: 'F123',
+              name: 'test.txt',
+              title: 'test.txt',
+              mimetype: 'text/plain',
+              size: 12,
+              url_private: 'https://files.slack.com/files-pri/T123-F123/test.txt',
+              created: 1234567890,
+              user: 'U123',
+              channels: ['C123'],
+            },
+          ],
+        },
+      ],
+    }),
+  ),
+  list: mock(() =>
+    Promise.resolve({
+      ok: true,
+      files: [
+        {
+          id: 'F123',
+          name: 'test.txt',
+          title: 'test.txt',
+          mimetype: 'text/plain',
+          size: 1024,
+          url_private: 'https://files.slack.com/files-pri/T123-F123/test.txt',
+          created: 1234567890,
+          user: 'U123',
+        },
+      ],
+    }),
+  ),
+  info: mock(() =>
+    Promise.resolve({
+      ok: true,
+      file: {
+        id: 'F123',
+        name: 'test.txt',
+        title: 'test.txt',
+        mimetype: 'text/plain',
+        size: 1024,
+        url_private: 'https://files.slack.com/files-pri/T123-F123/test.txt',
+        created: 1234567890,
+        user: 'U123',
+        channels: ['C123'],
+      },
+    }),
+  ),
+  delete: mock(() => Promise.resolve({ ok: true })),
+}
 const mockUsers = {
   list: mock(() =>
     Promise.resolve({
@@ -105,6 +169,8 @@ mock.module('@slack/web-api', () => ({
     chat = mockChat
     reactions = mockReactions
     users = mockUsers
+    files = mockFiles
+    assistant = mockAssistant
   },
 }))
 
@@ -120,6 +186,11 @@ describe('SlackBotClient', () => {
     mockReactions.remove.mockClear()
     mockUsers.list.mockClear()
     mockUsers.info.mockClear()
+    mockFiles.uploadV2.mockClear()
+    mockFiles.list.mockClear()
+    mockFiles.info.mockClear()
+    mockFiles.delete.mockClear()
+    mockAssistant.threads.setStatus.mockClear()
   })
 
   describe('login', () => {
@@ -172,6 +243,73 @@ describe('SlackBotClient', () => {
       expect(result.ts).toBe('1234567890.123456')
       expect(result.text).toBe('Hello')
     })
+
+    it('does not pass blocks/attachments when omitted', async () => {
+      // given
+      const client = await new SlackBotClient().login({ token: 'xoxb-test-token' })
+
+      // when
+      await client.postMessage('C123', 'Hello')
+
+      // then
+      expect(mockChat.postMessage).toHaveBeenCalledWith({
+        channel: 'C123',
+        text: 'Hello',
+        thread_ts: undefined,
+        blocks: undefined,
+        attachments: undefined,
+        unfurl_links: undefined,
+        unfurl_media: undefined,
+        mrkdwn: undefined,
+      })
+    })
+
+    it('forwards blocks to chat.postMessage', async () => {
+      // given
+      const client = await new SlackBotClient().login({ token: 'xoxb-test-token' })
+      const blocks = [
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: '*hello*' },
+        },
+      ]
+
+      // when
+      await client.postMessage('C123', 'Hello', { blocks })
+
+      // then
+      expect(mockChat.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ channel: 'C123', text: 'Hello', blocks }),
+      )
+    })
+
+    it('forwards thread_ts, attachments, and unfurl/mrkdwn flags', async () => {
+      // given
+      const client = await new SlackBotClient().login({ token: 'xoxb-test-token' })
+      const attachments = [{ text: 'attached' }]
+
+      // when
+      await client.postMessage('C123', 'Hello', {
+        thread_ts: '1234567890.000001',
+        attachments,
+        unfurl_links: false,
+        unfurl_media: false,
+        mrkdwn: true,
+      })
+
+      // then
+      expect(mockChat.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channel: 'C123',
+          text: 'Hello',
+          thread_ts: '1234567890.000001',
+          attachments,
+          unfurl_links: false,
+          unfurl_media: false,
+          mrkdwn: true,
+        }),
+      )
+    })
   })
 
   describe('getConversationHistory', () => {
@@ -221,6 +359,38 @@ describe('SlackBotClient', () => {
       // when/then: should not throw
       await client.removeReaction('C123', '1234567890.123456', 'thumbsup')
       expect(mockReactions.remove).toHaveBeenCalled()
+    })
+  })
+
+  describe('setAssistantStatus', () => {
+    it('sets assistant typing status with channel_id and thread_ts', async () => {
+      // given
+      const client = await new SlackBotClient().login({ token: 'xoxb-test-token' })
+
+      // when
+      await client.setAssistantStatus('C123', '1234567890.123456', 'is typing...')
+
+      // then
+      expect(mockAssistant.threads.setStatus).toHaveBeenCalledWith({
+        channel_id: 'C123',
+        thread_ts: '1234567890.123456',
+        status: 'is typing...',
+      })
+    })
+
+    it('clears status when given empty string', async () => {
+      // given
+      const client = await new SlackBotClient().login({ token: 'xoxb-test-token' })
+
+      // when
+      await client.setAssistantStatus('C123', '1234567890.123456', '')
+
+      // then
+      expect(mockAssistant.threads.setStatus).toHaveBeenCalledWith({
+        channel_id: 'C123',
+        thread_ts: '1234567890.123456',
+        status: '',
+      })
     })
   })
 
@@ -365,6 +535,177 @@ describe('SlackBotClient', () => {
       // then
       expect(user.id).toBe('U123')
       expect(user.name).toBe('testuser')
+    })
+  })
+
+  describe('uploadFile', () => {
+    it('uploads file via files.uploadV2 and returns mapped file', async () => {
+      // given
+      const client = await new SlackBotClient().login({ token: 'xoxb-test-token' })
+
+      // when
+      const file = await client.uploadFile('C123', Buffer.from('test content'), 'test.txt')
+
+      // then
+      expect(file.id).toBe('F123')
+      expect(file.name).toBe('test.txt')
+      expect(file.size).toBe(12)
+      expect(mockFiles.uploadV2).toHaveBeenCalledWith(
+        expect.objectContaining({ channel_id: 'C123', filename: 'test.txt' }),
+      )
+    })
+
+    it('forwards thread_ts, title, initial_comment to the SDK', async () => {
+      // given
+      const client = await new SlackBotClient().login({ token: 'xoxb-test-token' })
+
+      // when
+      await client.uploadFile('C123', Buffer.from('x'), 'test.txt', {
+        thread_ts: '1234567890.123456',
+        title: 'My Title',
+        initial_comment: 'Here you go',
+      })
+
+      // then
+      expect(mockFiles.uploadV2).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channel_id: 'C123',
+          filename: 'test.txt',
+          thread_ts: '1234567890.123456',
+          title: 'My Title',
+          initial_comment: 'Here you go',
+        }),
+      )
+    })
+
+    it('throws SlackBotError when API responds not ok', async () => {
+      // given
+      mockFiles.uploadV2.mockResolvedValueOnce({ ok: false, error: 'file_upload_failed' } as any)
+      const client = await new SlackBotClient().login({ token: 'xoxb-test-token' })
+
+      // when/then
+      await expect(client.uploadFile('C123', Buffer.from('x'), 'test.txt')).rejects.toThrow(SlackBotError)
+    })
+
+    it('throws SlackBotError when completion has no inner files', async () => {
+      // given
+      mockFiles.uploadV2.mockResolvedValueOnce({ ok: true, files: [{ ok: true, files: [] }] } as any)
+      const client = await new SlackBotClient().login({ token: 'xoxb-test-token' })
+
+      // when/then
+      await expect(client.uploadFile('C123', Buffer.from('x'), 'test.txt')).rejects.toThrow(SlackBotError)
+    })
+  })
+
+  describe('listFiles', () => {
+    it('returns mapped files', async () => {
+      // given
+      const client = await new SlackBotClient().login({ token: 'xoxb-test-token' })
+
+      // when
+      const files = await client.listFiles()
+
+      // then
+      expect(files).toHaveLength(1)
+      expect(files[0].id).toBe('F123')
+      expect(files[0].mimetype).toBe('text/plain')
+    })
+
+    it('forwards channel/user/limit to the SDK', async () => {
+      // given
+      const client = await new SlackBotClient().login({ token: 'xoxb-test-token' })
+
+      // when
+      await client.listFiles({ channel: 'C123', user: 'U123', limit: 50 })
+
+      // then
+      expect(mockFiles.list).toHaveBeenCalledWith({ channel: 'C123', user: 'U123', count: 50 })
+    })
+  })
+
+  describe('getFileInfo', () => {
+    it('returns file metadata', async () => {
+      // given
+      const client = await new SlackBotClient().login({ token: 'xoxb-test-token' })
+
+      // when
+      const file = await client.getFileInfo('F123')
+
+      // then
+      expect(file.id).toBe('F123')
+      expect(file.url_private).toBe('https://files.slack.com/files-pri/T123-F123/test.txt')
+    })
+
+    it('throws on API failure', async () => {
+      // given
+      mockFiles.info.mockResolvedValueOnce({ ok: false, error: 'file_not_found' } as any)
+      const client = await new SlackBotClient().login({ token: 'xoxb-test-token' })
+
+      // when/then
+      await expect(client.getFileInfo('F999')).rejects.toThrow(SlackBotError)
+    })
+  })
+
+  describe('downloadFile', () => {
+    it('downloads file content using the bot token', async () => {
+      // given
+      const originalFetch = globalThis.fetch
+      let capturedAuthHeader: string | null = null
+      globalThis.fetch = async (_url: any, init: any = {}) => {
+        capturedAuthHeader = init?.headers?.Authorization ?? null
+        return new Response(Buffer.from('downloaded content'), { status: 200 })
+      }
+
+      try {
+        const client = await new SlackBotClient().login({ token: 'xoxb-test-token' })
+
+        // when
+        const result = await client.downloadFile('F123')
+
+        // then
+        expect(capturedAuthHeader).toBe('Bearer xoxb-test-token')
+        expect(result.file.id).toBe('F123')
+        expect(result.buffer.toString()).toBe('downloaded content')
+      } finally {
+        globalThis.fetch = originalFetch
+      }
+    })
+
+    it('throws SlackBotError when download HTTP response is not ok', async () => {
+      // given
+      const originalFetch = globalThis.fetch
+      globalThis.fetch = async () => new Response('forbidden', { status: 403, statusText: 'Forbidden' })
+
+      try {
+        const client = await new SlackBotClient().login({ token: 'xoxb-test-token' })
+
+        // when/then
+        await expect(client.downloadFile('F123')).rejects.toThrow(SlackBotError)
+      } finally {
+        globalThis.fetch = originalFetch
+      }
+    })
+  })
+
+  describe('deleteFile', () => {
+    it('calls files.delete with the given file ID', async () => {
+      // given
+      const client = await new SlackBotClient().login({ token: 'xoxb-test-token' })
+
+      // when
+      await client.deleteFile('F123')
+
+      // then
+      expect(mockFiles.delete).toHaveBeenCalledWith({ file: 'F123' })
+    })
+
+    it('throws on API failure', async () => {
+      // given
+      mockFiles.delete.mockResolvedValueOnce({ ok: false, error: 'cant_delete_file' } as any)
+      const client = await new SlackBotClient().login({ token: 'xoxb-test-token' })
+
+      // when/then
+      await expect(client.deleteFile('F123')).rejects.toThrow(SlackBotError)
     })
   })
 })

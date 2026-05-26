@@ -1,7 +1,7 @@
 ---
 name: agent-discord
 description: Read Discord servers with personal tokens - inspect servers, channels, messages, members, mentions, files, snapshots, and readonly credentials. NEVER send messages or perform Discord write automation with agent-discord; use agent-discordbot for bot-token writes.
-version: 2.10.2
+version: 2.17.0
 allowed-tools: Bash(agent-discord:*)
 metadata:
   openclaw:
@@ -138,6 +138,10 @@ If a memorized ID returns an error (channel not found, server not found), remove
 # Extract token from Discord desktop app or browser (usually automatic)
 agent-discord auth extract
 agent-discord auth extract --debug
+agent-discord auth extract --browser-profile ~/browser-data
+agent-discord auth extract --browser-profile "$HOME/work-profile,$HOME/personal-profile"
+
+# --browser-profile accepts repeatable or comma-separated Chromium profile/user-data dirs
 
 # Check auth status
 agent-discord auth status

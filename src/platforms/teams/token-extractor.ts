@@ -11,6 +11,7 @@ import {
   discoverBrowserProfileDirs,
   findLocalStatePath,
   getBrowserBasePath,
+  getAgentBrowserProfileDirs,
 } from '@/shared/chromium'
 import type { KeychainVariant } from '@/shared/chromium'
 import { DerivedKeyCache } from '@/shared/utils/derived-key-cache'
@@ -62,10 +63,17 @@ export class TeamsTokenExtractor {
   private decryptor: ChromiumCookieDecryptor
   private cookieReader: ChromiumCookieReader
   private debugLog: ((message: string) => void) | null
+  private customBrowserProfileDirs: string[]
 
-  constructor(platform?: NodeJS.Platform, keyCache?: DerivedKeyCache, debugLog?: (message: string) => void) {
+  constructor(
+    platform?: NodeJS.Platform,
+    keyCache?: DerivedKeyCache,
+    debugLog?: (message: string) => void,
+    customBrowserProfileDirs?: string[],
+  ) {
     this.platform = platform ?? process.platform
     this.debugLog = debugLog ?? null
+    this.customBrowserProfileDirs = customBrowserProfileDirs ?? []
 
     const resolvedKeyCache = keyCache ?? new DerivedKeyCache()
     this.decryptor = new ChromiumCookieDecryptor({
@@ -180,6 +188,11 @@ export class TeamsTokenExtractor {
         paths.push({ path: join(profileDir, 'Cookies'), accountType: 'work', accountTypeKnown: false })
         paths.push({ path: join(profileDir, 'Network', 'Cookies'), accountType: 'work', accountTypeKnown: false })
       }
+    }
+
+    for (const profileDir of getAgentBrowserProfileDirs({ customProfileDirs: this.customBrowserProfileDirs })) {
+      paths.push({ path: join(profileDir, 'Cookies'), accountType: 'work', accountTypeKnown: false })
+      paths.push({ path: join(profileDir, 'Network', 'Cookies'), accountType: 'work', accountTypeKnown: false })
     }
 
     return paths

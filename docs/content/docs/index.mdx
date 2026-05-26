@@ -33,14 +33,14 @@ No app creation. No admin approval. No waiting.
 
 ## Key Features
 
-| Feature             | Description                                                                                                                                                          |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Auto-extraction** | Pulls tokens from desktop apps automatically                                                                                                                         |
-| **Multi-platform**  | Slack, Discord, Microsoft Teams, Telegram, WhatsApp, LINE, Instagram, KakaoTalk, and Channel Talk (beta)                                                             |
-| **Multi-workspace** | Switch between workspaces/servers easily                                                                                                                             |
-| **JSON output**     | Machine-readable by default, `--pretty` for humans                                                                                                                   |
-| **Comprehensive**   | Messages, channels, users, reactions, files                                                                                                                          |
-| **Bot support**     | [`agent-slackbot`](/docs/cli/slackbot), [`agent-discordbot`](/docs/cli/discordbot), and [`agent-channeltalkbot`](/docs/cli/channeltalkbot) for server-side and CI/CD |
+| Feature             | Description                                                                                                                                                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Auto-extraction** | Pulls tokens from desktop apps automatically                                                                                                                                                                       |
+| **Multi-platform**  | Slack, Discord, Microsoft Teams, Telegram, WhatsApp, LINE, Instagram, KakaoTalk, and Channel Talk (beta)                                                                                                           |
+| **Multi-workspace** | Switch between workspaces/servers easily                                                                                                                                                                           |
+| **JSON output**     | Machine-readable by default, `--pretty` for humans                                                                                                                                                                 |
+| **Comprehensive**   | Messages, channels, users, reactions, files                                                                                                                                                                        |
+| **Bot support**     | [`agent-slackbot`](/docs/cli/slackbot), [`agent-discordbot`](/docs/cli/discordbot), [`agent-telegrambot`](/docs/cli/telegrambot), and [`agent-channeltalkbot`](/docs/cli/channeltalkbot) for server-side and CI/CD |
 
 ## Why Not MCP?
 
@@ -81,7 +81,7 @@ OAuth is better when you need:
 - **Multi-user applications** - Many users authenticating separately
 - **Granular permissions** - Fine-tuned access control
 
-For these use cases, Agent Messenger also supports bot tokens via [`agent-slackbot`](/docs/cli/slackbot), [`agent-discordbot`](/docs/cli/discordbot), and [`agent-channeltalkbot`](/docs/cli/channeltalkbot).
+For these use cases, Agent Messenger also supports bot tokens via [`agent-slackbot`](/docs/cli/slackbot), [`agent-discordbot`](/docs/cli/discordbot), [`agent-telegrambot`](/docs/cli/telegrambot), and [`agent-channeltalkbot`](/docs/cli/channeltalkbot).
 
 ## Design Principles
 
@@ -114,6 +114,7 @@ Tokens stay on your machine. Nothing is sent to external servers. Your credentia
 - [Discord Bot](/docs/cli/discordbot) - Bot token integration for server-side and CI/CD
 - [Teams](/docs/cli/teams) - Full Teams command reference
 - [Telegram](/docs/cli/telegram) - TDLib setup and Telegram command reference
+- [Telegram Bot](/docs/cli/telegrambot) - Bot token integration for server-side and CI/CD
 - [WhatsApp](/docs/cli/whatsapp) - Full WhatsApp command reference
 - [WhatsApp Bot](/docs/cli/whatsappbot) - Cloud API integration for WhatsApp Business
 - [LINE](/docs/cli/line) - Full LINE command reference

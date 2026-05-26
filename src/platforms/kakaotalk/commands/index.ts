@@ -1,4 +1,5 @@
 export { authCommand } from './auth'
 export { chatCommand } from './chat'
+export { memberCommand } from './member'
 export { messageCommand } from './message'
 export { whoamiCommand } from './whoami'
