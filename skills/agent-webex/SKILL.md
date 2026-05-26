@@ -76,6 +76,12 @@ Note: Messages sent via OAuth Device Grant show "via agent-messenger" because th
 
 Optionally, pass `--token <bot-token>` for bot token auth. Or pass `--client-id <id> --client-secret <secret>` to use your own Webex Integration credentials instead of the built-in ones.
 
+**For AI agents**: `agent-webex auth login` is interactive — it requires a human to approve access in a browser. When run without a TTY (the typical case for AI agents), the command does NOT hang waiting for a browser approval. It returns immediately with `{"next_action": "run_interactive", ...}` and exit code 1. Do not retry the same command. Instead, either:
+
+- Ask the user to run `agent-webex auth login` themselves in their own terminal, or
+- Use `agent-webex auth extract` to read an existing browser session token, or
+- Use `agent-webex auth login --token <bot-or-personal-access-token>` for non-interactive token-based auth.
+
 Env vars `AGENT_WEBEX_CLIENT_ID` / `AGENT_WEBEX_CLIENT_SECRET` can also override the built-in credentials.
 
 ```bash

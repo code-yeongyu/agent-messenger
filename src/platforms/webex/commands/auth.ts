@@ -16,6 +16,10 @@ interface ResolvedCredentials {
   clientSecret: string
 }
 
+function isInteractive(): boolean {
+  return Boolean(process.stdin.isTTY && process.stdout.isTTY)
+}
+
 async function openBrowser(url: string): Promise<void> {
   const { exec } = await import('node:child_process')
   const command =
@@ -70,6 +74,22 @@ export async function loginAction(options: {
           options.pretty,
         ),
       )
+      return
+    }
+
+    if (!isInteractive()) {
+      console.log(
+        formatOutput(
+          {
+            error: 'Interactive login required.',
+            next_action: 'run_interactive',
+            message:
+              'OAuth Device Grant requires a human to approve access in a browser. Ask the user to run `agent-webex auth login` in their own terminal. For non-interactive auth, pass `--token <bot-or-personal-access-token>` instead. Use `agent-webex auth extract` to read an existing browser session token.',
+          },
+          options.pretty,
+        ),
+      )
+      process.exit(1)
       return
     }
 
@@ -276,7 +296,10 @@ export const authCommand = new Command('auth')
   .description('Authentication commands')
   .addCommand(
     new Command('login')
-      .description('Login to Webex')
+      .description(
+        'Log in to Webex; the OAuth Device Grant flow is interactive and opens a browser. ' +
+          'For non-interactive use (AI agents, CI/CD), pass --token, or run `auth extract`.',
+      )
       .option('--token <token>', 'Use a bot token or personal access token directly')
       .option('--client-id <id>', 'Webex Integration client ID')
       .option('--client-secret <secret>', 'Webex Integration client secret')

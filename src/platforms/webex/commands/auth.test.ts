@@ -12,6 +12,8 @@ describe('auth commands', () => {
   let consoleErrorSpy: ReturnType<typeof spyOn>
   let execSpy: ReturnType<typeof spyOn>
   const protoSpies: ReturnType<typeof spyOn>[] = []
+  let originalStdinTTY: boolean | undefined
+  let originalStdoutTTY: boolean | undefined
   const mockPerson = {
     id: 'person-1',
     displayName: 'Test User',
@@ -27,10 +29,19 @@ describe('auth commands', () => {
     return s
   }
 
+  function setTTY(value: boolean | undefined): void {
+    Object.defineProperty(process.stdin, 'isTTY', { value, writable: true, configurable: true })
+    Object.defineProperty(process.stdout, 'isTTY', { value, writable: true, configurable: true })
+  }
+
   beforeEach(() => {
     consoleSpy = spyOn(console, 'log').mockImplementation(() => {})
     consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {})
     execSpy = spyOn(childProcess, 'exec').mockImplementation((() => {}) as any)
+    originalStdinTTY = process.stdin.isTTY
+    originalStdoutTTY = process.stdout.isTTY
+    // Default to interactive TTY for existing tests; non-interactive tests override.
+    setTTY(true)
   })
 
   afterEach(() => {
@@ -39,6 +50,12 @@ describe('auth commands', () => {
     execSpy.mockRestore()
     for (const s of protoSpies) s.mockRestore()
     protoSpies.length = 0
+    setTTY(originalStdinTTY)
+    Object.defineProperty(process.stdout, 'isTTY', {
+      value: originalStdoutTTY,
+      writable: true,
+      configurable: true,
+    })
   })
 
   describe('loginAction with --token', () => {
@@ -148,6 +165,57 @@ describe('auth commands', () => {
       const savedConfig = saveSpy.mock.calls[0][0] as { clientId: string; clientSecret: string }
       expect(savedConfig.clientId).toBe('my-id')
       expect(savedConfig.clientSecret).toBe('my-secret')
+    })
+  })
+
+  describe('loginAction non-interactive (no TTY)', () => {
+    it('returns next_action=run_interactive and exits when device-grant flow would block', async () => {
+      setTTY(false)
+      const requestSpy = protoSpy(WebexCredentialManager.prototype, 'requestDeviceCode').mockResolvedValue({
+        deviceCode: 'd',
+        userCode: 'u',
+        verificationUri: 'https://v',
+        verificationUriComplete: 'https://vc',
+        expiresIn: 300,
+        interval: 0.01,
+      })
+      const pollSpy = protoSpy(WebexCredentialManager.prototype, 'pollDeviceToken')
+      const exitSpy = protoSpy(process, 'exit').mockImplementation(() => undefined as never)
+
+      await loginAction({ pretty: false })
+
+      const lastCall = consoleSpy.mock.calls[consoleSpy.mock.calls.length - 1][0] as string
+      const output = JSON.parse(lastCall)
+      expect(output.next_action).toBe('run_interactive')
+      expect(output.error).toContain('Interactive login required')
+      expect(output.message).toContain('--token')
+      expect(output.message).toContain('auth extract')
+      expect(requestSpy).not.toHaveBeenCalled()
+      expect(pollSpy).not.toHaveBeenCalled()
+      expect(exitSpy).toHaveBeenCalledWith(1)
+    })
+
+    it('still allows --token login when non-interactive (bot/PAT path)', async () => {
+      setTTY(false)
+      protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
+      protoSpy(WebexClient.prototype, 'testAuth').mockResolvedValue(mockPerson)
+      protoSpy(WebexCredentialManager.prototype, 'saveConfig').mockResolvedValue(undefined)
+
+      await loginAction({ token: 'bot-token-123', pretty: false })
+
+      const lastCall = consoleSpy.mock.calls[consoleSpy.mock.calls.length - 1][0] as string
+      const output = JSON.parse(lastCall)
+      expect(output.authenticated).toBe(true)
+      expect(output.user.displayName).toBe('Test User')
+    })
+
+    it('does not open a browser when non-interactive', async () => {
+      setTTY(false)
+      protoSpy(process, 'exit').mockImplementation(() => undefined as never)
+
+      await loginAction({ pretty: false })
+
+      expect(execSpy).not.toHaveBeenCalled()
     })
   })
 
