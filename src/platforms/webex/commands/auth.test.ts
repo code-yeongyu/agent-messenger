@@ -169,30 +169,125 @@ describe('auth commands', () => {
   })
 
   describe('loginAction non-interactive (no TTY)', () => {
-    it('returns next_action=run_interactive and exits when device-grant flow would block', async () => {
+    const device = {
+      deviceCode: 'webex-device-code-abc123',
+      userCode: 'USER-CODE',
+      verificationUri: 'https://webex.com/verify',
+      verificationUriComplete: 'https://webex.com/verify?user_code=USER-CODE',
+      expiresIn: 300,
+      interval: 1,
+    }
+
+    it('first call (no --device-code): requests device code and returns it in JSON', async () => {
       setTTY(false)
-      const requestSpy = protoSpy(WebexCredentialManager.prototype, 'requestDeviceCode').mockResolvedValue({
-        deviceCode: 'd',
-        userCode: 'u',
-        verificationUri: 'https://v',
-        verificationUriComplete: 'https://vc',
-        expiresIn: 300,
-        interval: 0.01,
-      })
+      const requestSpy = protoSpy(WebexCredentialManager.prototype, 'requestDeviceCode').mockResolvedValue(device)
+      const exchangeSpy = protoSpy(WebexCredentialManager.prototype, 'exchangeDeviceCode')
       const pollSpy = protoSpy(WebexCredentialManager.prototype, 'pollDeviceToken')
       const exitSpy = protoSpy(process, 'exit').mockImplementation(() => undefined as never)
 
       await loginAction({ pretty: false })
 
+      expect(requestSpy).toHaveBeenCalled()
+      expect(exchangeSpy).not.toHaveBeenCalled()
+      expect(pollSpy).not.toHaveBeenCalled()
+
       const lastCall = consoleSpy.mock.calls[consoleSpy.mock.calls.length - 1][0] as string
       const output = JSON.parse(lastCall)
-      expect(output.next_action).toBe('run_interactive')
-      expect(output.error).toContain('Interactive login required')
-      expect(output.message).toContain('--token')
-      expect(output.message).toContain('auth extract')
+      expect(output.next_action).toBe('authorize_in_browser')
+      expect(output.verification_uri).toBe(device.verificationUri)
+      expect(output.verification_uri_complete).toBe(device.verificationUriComplete)
+      expect(output.user_code).toBe(device.userCode)
+      expect(output.device_code).toBe(device.deviceCode)
+      expect(output.message).toContain('--device-code')
+      expect(exitSpy).toHaveBeenCalledWith(0)
+    })
+
+    it('does not open a browser on the first non-interactive call', async () => {
+      setTTY(false)
+      protoSpy(WebexCredentialManager.prototype, 'requestDeviceCode').mockResolvedValue(device)
+      protoSpy(process, 'exit').mockImplementation(() => undefined as never)
+
+      await loginAction({ pretty: false })
+
+      expect(execSpy).not.toHaveBeenCalled()
+    })
+
+    it('second call (--device-code, pending): returns still_pending and echoes back the device_code', async () => {
+      setTTY(false)
+      protoSpy(WebexCredentialManager.prototype, 'exchangeDeviceCode').mockResolvedValue({ status: 'pending' })
+      const requestSpy = protoSpy(WebexCredentialManager.prototype, 'requestDeviceCode')
+      const exitSpy = protoSpy(process, 'exit').mockImplementation(() => undefined as never)
+
+      await loginAction({ deviceCode: 'webex-device-code-abc123', pretty: false })
+
+      expect(requestSpy).not.toHaveBeenCalled()
+
+      const lastCall = consoleSpy.mock.calls[consoleSpy.mock.calls.length - 1][0] as string
+      const output = JSON.parse(lastCall)
+      expect(output.next_action).toBe('still_pending')
+      expect(output.device_code).toBe('webex-device-code-abc123')
+      expect(exitSpy).toHaveBeenCalledWith(0)
+    })
+
+    it('second call (--device-code, success): saves token and returns authenticated=true', async () => {
+      setTTY(false)
+      const exchangeSpy = protoSpy(WebexCredentialManager.prototype, 'exchangeDeviceCode').mockResolvedValue({
+        status: 'success',
+        config: { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3_600_000 },
+      })
+      const saveConfigSpy = protoSpy(WebexCredentialManager.prototype, 'saveConfig').mockResolvedValue(undefined)
+      protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
+      protoSpy(WebexClient.prototype, 'testAuth').mockResolvedValue(mockPerson)
+
+      await loginAction({
+        deviceCode: 'webex-device-code-abc123',
+        clientId: 'my-id',
+        clientSecret: 'my-secret',
+        pretty: false,
+      })
+
+      expect(exchangeSpy).toHaveBeenCalledWith('webex-device-code-abc123', 'my-id', 'my-secret')
+      const savedConfig = saveConfigSpy.mock.calls[0][0] as { tokenType: string; clientId: string }
+      expect(savedConfig.tokenType).toBe('oauth')
+      expect(savedConfig.clientId).toBe('my-id')
+
+      const lastCall = consoleSpy.mock.calls[consoleSpy.mock.calls.length - 1][0] as string
+      const output = JSON.parse(lastCall)
+      expect(output.authenticated).toBe(true)
+      expect(output.user.displayName).toBe('Test User')
+    })
+
+    it('second call (--device-code, expired): returns next_action=restart, exits 1', async () => {
+      setTTY(false)
+      protoSpy(WebexCredentialManager.prototype, 'exchangeDeviceCode').mockResolvedValue({ status: 'expired' })
+      const exitSpy = protoSpy(process, 'exit').mockImplementation(() => undefined as never)
+
+      await loginAction({ deviceCode: 'webex-device-code-abc123', pretty: false })
+
+      const lastCall = consoleSpy.mock.calls[consoleSpy.mock.calls.length - 1][0] as string
+      const output = JSON.parse(lastCall)
+      expect(output.next_action).toBe('restart')
+      expect(output.error).toContain('expired')
+      expect(exitSpy).toHaveBeenCalledWith(1)
+    })
+
+    it('--device-code works even with a TTY (interactive sessions can also resume)', async () => {
+      setTTY(true)
+      const exchangeSpy = protoSpy(WebexCredentialManager.prototype, 'exchangeDeviceCode').mockResolvedValue({
+        status: 'success',
+        config: { accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3_600_000 },
+      })
+      const requestSpy = protoSpy(WebexCredentialManager.prototype, 'requestDeviceCode')
+      const pollSpy = protoSpy(WebexCredentialManager.prototype, 'pollDeviceToken')
+      protoSpy(WebexCredentialManager.prototype, 'saveConfig').mockResolvedValue(undefined)
+      protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
+      protoSpy(WebexClient.prototype, 'testAuth').mockResolvedValue(mockPerson)
+
+      await loginAction({ deviceCode: 'webex-device-code-abc123', pretty: false })
+
+      expect(exchangeSpy).toHaveBeenCalled()
       expect(requestSpy).not.toHaveBeenCalled()
       expect(pollSpy).not.toHaveBeenCalled()
-      expect(exitSpy).toHaveBeenCalledWith(1)
     })
 
     it('still allows --token login when non-interactive (bot/PAT path)', async () => {
@@ -207,15 +302,6 @@ describe('auth commands', () => {
       const output = JSON.parse(lastCall)
       expect(output.authenticated).toBe(true)
       expect(output.user.displayName).toBe('Test User')
-    })
-
-    it('does not open a browser when non-interactive', async () => {
-      setTTY(false)
-      protoSpy(process, 'exit').mockImplementation(() => undefined as never)
-
-      await loginAction({ pretty: false })
-
-      expect(execSpy).not.toHaveBeenCalled()
     })
   })
 
