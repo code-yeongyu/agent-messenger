@@ -139,13 +139,10 @@ if [ "$MESSAGE_COUNT" -gt 0 ]; then
   echo ""
 fi
 
-echo -e "${BOLD}${CYAN}Quick Actions:${NC}"
+echo -e "${BOLD}${CYAN}Quick Read Actions:${NC}"
 echo ""
-echo -e "  ${GREEN}# Send message to a channel${NC}"
 FIRST_CHANNEL=$(echo "$CHANNELS" | jq -r '[.[] | select(.type == 0)][0].id // "CHANNEL_ID"')
 FIRST_CHANNEL_NAME=$(echo "$CHANNELS" | jq -r '[.[] | select(.type == 0)][0].name // "general"')
-echo -e "  agent-discord message send $FIRST_CHANNEL \"Hello!\""
-echo ""
 echo -e "  ${GREEN}# List messages in #$FIRST_CHANNEL_NAME${NC}"
 echo -e "  agent-discord message list $FIRST_CHANNEL --limit 10"
 echo ""

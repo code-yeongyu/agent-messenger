@@ -94,6 +94,7 @@ export async function extractAction(options: { pretty?: boolean; debug?: boolean
           token,
           current_server: servers[0].id,
           servers: serverMap,
+          readonly: true,
         }
 
         await credManager.save(config)

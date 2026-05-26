@@ -254,11 +254,11 @@ agent-discord auth status
 With extracted credentials, agent-discord has the same permissions as you in Discord:
 
 - Read all channels you have access to
-- Send messages as you
-- Upload/download files
-- Manage reactions
+- Download files you have access to
 - Access user information
 - View server member lists
+
+`agent-discord` stores extracted personal tokens as readonly by default. Never use personal-token credentials for Discord sends, reactions, uploads, thread writes, DM creation, or any other write automation. Use `agent-discordbot` with a bot token for writes.
 
 ### What agent-discord Cannot Do
 

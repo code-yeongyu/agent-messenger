@@ -97,6 +97,7 @@ beforeEach(() => {
     token: 'test_token',
     current_server: 'server_123',
     servers: {},
+    readonly: false,
   })
 
   clientLoginSpy = spyOn(DiscordClient.prototype, 'login')
@@ -243,6 +244,27 @@ it('send: blocks readonly account before Discord login', async () => {
     current_server: 'server_123',
     servers: {},
     readonly: true,
+  })
+
+  try {
+    await expect(sendAction('ch_456', 'Hello world', { pretty: false })).rejects.toThrow(ProcessExitError)
+  } finally {
+    process.exit = originalExit
+  }
+
+  expect(clientLoginSpy).not.toHaveBeenCalled()
+  expect(clientSendMessageSpy).not.toHaveBeenCalled()
+})
+
+it('given personal token config without explicit write opt-in, when sending, then blocks before Discord login', async () => {
+  const originalExit = process.exit
+  process.exit = (code?: string | number | null | undefined): never => {
+    throw new ProcessExitError(code)
+  }
+  credManagerLoadSpy.mockResolvedValue({
+    token: 'test_token',
+    current_server: 'server_123',
+    servers: {},
   })
 
   try {

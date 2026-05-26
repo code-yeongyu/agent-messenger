@@ -26,6 +26,7 @@ export async function ensureDiscordAuth(): Promise<void> {
       token: extracted[0].token,
       current_server: servers[0]?.id ?? null,
       servers: serverMap,
+      readonly: true,
     })
   } catch {}
 }

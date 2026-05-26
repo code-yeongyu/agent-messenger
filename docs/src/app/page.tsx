@@ -495,7 +495,7 @@ const FEATURES = [
     icon: <UserIcon className="size-5" />,
     title: 'Act As Yourself',
     description:
-      'Extracts your user session — not a bot token. Your agent sends messages, reacts, and searches as you. Need bot mode? Bot CLIs are included too.',
+      'Extracts your user session for read/search workflows. Discord personal tokens stay readonly by default; bot CLIs handle write automation.',
   },
   {
     icon: <TerminalIcon className="size-5" />,
@@ -540,8 +540,8 @@ const TERMINAL_DEMOS = [
       { output: '✓ 12 channels, 48 members, recent activity captured' },
       { prompt: '$ ', cmd: 'agent-discord message search "API redesign"' },
       { output: '✓ Found 8 messages' },
-      { prompt: '$ ', cmd: 'agent-discord message send 1098765432 "Summary posted"' },
-      { output: '✓ Message sent' },
+      { prompt: '$ ', cmd: 'agent-discordbot message send 1098765432 "Summary posted"' },
+      { output: '✓ Bot message sent' },
     ],
   },
   {

@@ -109,12 +109,6 @@ check_messages() {
       echo -e "Message: $(truncate_text "$CONTENT")"
       echo -e "${GREEN}----------------------------------------------${NC}"
       
-      # Example: Auto-respond to keywords
-      # Uncomment to enable
-      # if echo "$CONTENT" | grep -qi "bot"; then
-      #   echo -e "${YELLOW}Detected keyword, responding...${NC}"
-      #   agent-discord message send "$CHANNEL_ID" "You called?"
-      # fi
     fi
     
     LAST_ID="$LATEST_ID"

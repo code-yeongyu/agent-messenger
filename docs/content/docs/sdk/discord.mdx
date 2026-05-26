@@ -15,7 +15,7 @@ import { DiscordClient, DiscordCredentialManager, DiscordError, DiscordListener 
 
 ## DiscordClient
 
-The main client for interacting with Discord's API programmatically. All API methods include automatic rate-limit handling with per-bucket and global rate-limit tracking.
+The main client for interacting with Discord's API programmatically. Personal-token credentials extracted by `agent-discord` are readonly by default. Use this SDK for read, search, and inspection workflows; use bot-token tooling for write automation.
 
 ```typescript
 import { DiscordClient } from 'agent-messenger/discord'
@@ -66,10 +66,6 @@ const channel = await client.getChannel(channelId)
 ### Messages
 
 ```typescript
-// Send a message to a channel
-const msg = await client.sendMessage(channelId, 'Hello world')
-// → DiscordMessage { id, channel_id, author, content, timestamp }
-
 // Get recent messages from a channel (default limit: 50)
 const messages = await client.getMessages(channelId)
 const limited = await client.getMessages(channelId, 25)
@@ -78,23 +74,14 @@ const limited = await client.getMessages(channelId, 25)
 // Get a single message by ID
 const message = await client.getMessage(channelId, messageId)
 // → DiscordMessage
-
-// Delete a message
-await client.deleteMessage(channelId, messageId)
-
-// Mark a message as read
-await client.ackMessage(channelId, messageId)
 ```
 
 ### Reactions
 
 ```typescript
-// Add a reaction (use standard emoji or custom emoji name)
-await client.addReaction(channelId, messageId, '👍')
-await client.addReaction(channelId, messageId, 'custom_emoji_name:123456789')
-
-// Remove your reaction
-await client.removeReaction(channelId, messageId, '👍')
+// Inspect reactions from message and event payloads.
+const message = await client.getMessage(channelId, messageId)
+console.log(message.reactions)
 ```
 
 ### Users
@@ -116,10 +103,6 @@ const profile = await client.getUserProfile(userId)
 ### Files
 
 ```typescript
-// Upload a file to a channel (by file path)
-const file = await client.uploadFile(channelId, '/path/to/report.pdf')
-// → DiscordFile { id, filename, size, url, content_type?, height?, width? }
-
 // List files (attachments) from recent messages in a channel
 const files = await client.listFiles(channelId)
 // → DiscordFile[]
@@ -192,18 +175,9 @@ const filtered = await client.searchMessages(serverId, 'API design', {
 ### Threads
 
 ```typescript
-// Create a thread in a channel
-const thread = await client.createThread(channelId, 'Bug Report: Login Issue')
-const configured = await client.createThread(channelId, 'Design Review', {
-  auto_archive_duration: 1440, // minutes: 60, 1440, 4320, or 10080
-  rate_limit_per_user: 5, // seconds between messages (slow mode)
-})
-// → DiscordChannel (with thread_metadata)
-
-// Archive (or unarchive) a thread
-await client.archiveThread(threadId)
-await client.archiveThread(threadId, false) // unarchive
-// → DiscordChannel
+// Thread metadata is available through channel and message reads.
+const thread = await client.getChannel(threadId)
+console.log(thread.thread_metadata)
 ```
 
 ## Real-Time Events
@@ -378,84 +352,52 @@ import {
 
 ## Examples
 
-### Deploy Notifier
-
-Post a deployment message, stream progress with replies, and mark it complete with a reaction.
+### Deployment Context
 
 ```typescript
 import { DiscordClient } from 'agent-messenger/discord'
 
-const client = await new DiscordClient().login({ token })
-
-// Post parent message to deploys channel
-const msg = await client.sendMessage(channelId, '🚀 Deploying v2.1.0 to production...')
-await client.addReaction(channelId, msg.id, '⏳')
-
-// Stream progress with follow-up messages
-await client.sendMessage(channelId, '• Building application...')
-await client.sendMessage(channelId, '• Running tests (142 passed)...')
-await client.sendMessage(channelId, '• Rolling out to 3 regions...')
-
-// Finalize
-await client.removeReaction(channelId, msg.id, '⏳')
-await client.addReaction(channelId, msg.id, '✅')
-await client.deleteMessage(channelId, msg.id)
-await client.sendMessage(channelId, '✅ v2.1.0 deployed to production')
-```
-
-### Server Setup
-
-Create a thread for a project kickoff, invite members, and post an announcement.
-
-```typescript
-import { DiscordClient } from 'agent-messenger/discord'
-
-const client = await new DiscordClient().login({ token })
-
-// Create a thread for project coordination
-const thread = await client.createThread(channelId, 'Project Alpha — Kickoff', {
-  auto_archive_duration: 10080, // 1 week
+const client = await new DiscordClient().login()
+const { results } = await client.searchMessages(serverId, 'deploy OR rollout', {
+  channelId,
+  sortBy: 'timestamp',
+  sortOrder: 'desc',
+  limit: 10,
 })
 
-// Post welcome message in the thread
-await client.sendMessage(
-  thread.id,
-  [
-    '👋 Welcome to **Project Alpha**!',
-    '',
-    '📋 **Resources** — links and docs will be pinned here',
-    '🧵 **Discussions** — use threads to keep things organized',
-    '🚀 **Goal** — ship the MVP by end of Q1',
-  ].join('\n'),
-)
-
-// Look up team members and notify them
-const members = await client.searchMembers(serverId, 'alice')
-for (const member of members.slice(0, 3)) {
-  await client.sendMessage(thread.id, `Hey <@${member.user.id}>, you're on the Alpha team — see you here!`)
+for (const result of results) {
+  console.log(`${result.author.username}: ${result.content}`)
 }
 ```
 
-### Monitoring Alert
+### Server Context
 
-Watch for mentions, acknowledge them, and set a follow-up note.
+Collect channel and member context for a project kickoff.
 
 ```typescript
 import { DiscordClient } from 'agent-messenger/discord'
 
-const client = await new DiscordClient().login({ token })
+const client = await new DiscordClient().login()
+const channels = await client.listChannels(serverId)
+const kickoff = channels.find((channel) => channel.name?.includes('kickoff'))
+
+const members = await client.searchMembers(serverId, 'alice')
+console.log({ kickoff, members: members.slice(0, 3) })
+```
+
+### Monitoring Alert Context
+
+Watch for mentions and record local triage context.
+
+```typescript
+import { DiscordClient } from 'agent-messenger/discord'
+
+const client = await new DiscordClient().login()
 
 // Get recent mentions across all servers
 const mentions = await client.getMentions({ limit: 25 })
 
 for (const mention of mentions) {
-  // Acknowledge the mention with a reaction
-  await client.addReaction(mention.channel_id, mention.id, '👀')
-
-  // Reply with acknowledgment
-  await client.sendMessage(mention.channel_id, `Thanks for the ping <@${mention.author.id}> — on it!`)
-
-  // Set a note on the user for context
   const existing = await client.getUserNote(mention.author.id)
   const noteText = existing?.note
     ? `${existing.note}\n[${new Date().toISOString()}] Mentioned me: "${mention.content.slice(0, 80)}"`
@@ -466,12 +408,12 @@ for (const mention of mentions) {
 
 ### Search Triage
 
-Search for urgent messages, acknowledge with a reaction, and reply with a follow-up.
+Search for urgent messages and prepare local triage output.
 
 ```typescript
 import { DiscordClient } from 'agent-messenger/discord'
 
-const client = await new DiscordClient().login({ token })
+const client = await new DiscordClient().login()
 
 // Search for urgent messages in the server
 const { results, total } = await client.searchMessages(serverId, 'urgent OR blocker', {
@@ -483,46 +425,28 @@ const { results, total } = await client.searchMessages(serverId, 'urgent OR bloc
 console.log(`Found ${total} matching messages, reviewing top ${results.length}`)
 
 for (const result of results) {
-  // Acknowledge
-  await client.addReaction(result.channel_id, result.id, '👀')
-
-  // Reply with triage confirmation
-  await client.sendMessage(
-    result.channel_id,
-    `Flagged for review — will follow up shortly. (searching by <@${result.author.id}>'s message)`,
-  )
+  console.log(`[${result.channel_id}] ${result.author.username}: ${result.content}`)
 }
 ```
 
-### File Pipeline
+### File Inventory
 
-Collect files from one channel and re-upload them to an archive channel with a summary.
+Collect files from one channel and write a local inventory.
 
 ```typescript
 import { DiscordClient } from 'agent-messenger/discord'
 
-const client = await new DiscordClient().login({ token })
+const client = await new DiscordClient().login()
 
 // Get files from the source channel
 const files = await client.listFiles(sourceChannelId)
 
-for (const file of files.slice(0, 5)) {
-  // Fetch the file content
-  const response = await fetch(file.url)
-  const buffer = Buffer.from(await response.arrayBuffer())
+const inventory = files.slice(0, 20).map((file) => ({
+  filename: file.filename,
+  sizeKb: Math.round(file.size / 1024),
+  type: file.content_type ?? 'unknown',
+  url: file.url,
+}))
 
-  // Write to a temp file and re-upload to archive channel
-  const tmpPath = `/tmp/${file.filename}`
-  const fs = await import('node:fs/promises')
-  await fs.writeFile(tmpPath, buffer)
-  const uploaded = await client.uploadFile(archiveChannelId, tmpPath)
-
-  await client.sendMessage(
-    archiveChannelId,
-    [
-      `📎 Archived **${file.filename}**`,
-      `Size: ${(file.size / 1024).toFixed(0)} KB · Type: ${file.content_type ?? 'unknown'}`,
-    ].join('\n'),
-  )
-}
+console.table(inventory)
 ```

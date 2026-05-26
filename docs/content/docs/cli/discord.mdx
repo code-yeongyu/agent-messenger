@@ -14,8 +14,8 @@ agent-discord auth extract
 # 2. Get server snapshot
 agent-discord snapshot
 
-# 3. Send a message
-agent-discord message send <channel-id> "Hello from AI agent!"
+# 3. Use agent-discordbot for sending messages
+agent-discordbot message send <channel-id> "Hello from AI agent!"
 ```
 
 ## Authentication
@@ -38,6 +38,8 @@ This command:
 - Validates token against Discord API
 - Discovers ALL joined servers
 - Stores credentials securely in `~/.config/agent-messenger/`
+
+Extracted `agent-discord` credentials are readonly by default. Use `agent-discordbot` for message sends and replies.
 
 ### Authentication Commands
 
@@ -82,9 +84,9 @@ Output includes the authenticated user's identity information.
 ### Message Commands
 
 ```bash
-# Send a message
-agent-discord message send <channel-id> <content>
-agent-discord message send 123456789 "Hello world"
+# Send a message with bot tokens
+agent-discordbot message send <channel-id> <content>
+agent-discordbot message send 123456789 "Hello world"
 
 # List messages
 agent-discord message list <channel-id>
@@ -92,9 +94,6 @@ agent-discord message list 123456789 --limit 50
 
 # Get a specific message
 agent-discord message get <channel-id> <message-id>
-
-# Delete a message
-agent-discord message delete <channel-id> <message-id> --force
 
 # Search messages in current server
 agent-discord message search <query>
@@ -152,13 +151,6 @@ agent-discord user me
 ### Reaction Commands
 
 ```bash
-# Add reaction
-agent-discord reaction add <channel-id> <message-id> <emoji>
-agent-discord reaction add 123456789 987654321 thumbsup
-
-# Remove reaction
-agent-discord reaction remove <channel-id> <message-id> <emoji>
-
 # List reactions on a message
 agent-discord reaction list <channel-id> <message-id>
 ```
@@ -166,10 +158,6 @@ agent-discord reaction list <channel-id> <message-id>
 ### File Commands
 
 ```bash
-# Upload file to channel
-agent-discord file upload <channel-id> <path>
-agent-discord file upload 123456789 ./report.pdf
-
 # List files in channel
 agent-discord file list <channel-id>
 
@@ -214,21 +202,11 @@ With `--full`, returns comprehensive JSON with:
 ```bash
 # List DM channels
 agent-discord dm list
-
-# Create a DM channel with a user
-agent-discord dm create <user-id>
 ```
 
 ### Thread Commands
 
-```bash
-# Create a thread in a channel
-agent-discord thread create <channel-id> <name>
-agent-discord thread create 123456789 "Bug Discussion" --auto-archive-duration 1440
-
-# Archive a thread
-agent-discord thread archive <thread-id>
-```
+Thread writes are not documented for `agent-discord` because personal-token write actions are readonly by default. Use a Discord bot token and `agent-discordbot` for write automation.
 
 ### Mention Commands
 

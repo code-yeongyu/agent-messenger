@@ -68,6 +68,7 @@ describe('ensureDiscordAuth', () => {
         'server-1': { server_id: 'server-1', server_name: 'Server One' },
         'server-2': { server_id: 'server-2', server_name: 'Server Two' },
       },
+      readonly: true,
     })
   })
 

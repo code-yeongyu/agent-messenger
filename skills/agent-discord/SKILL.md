@@ -1,6 +1,6 @@
 ---
 name: agent-discord
-description: Interact with Discord servers - send messages, read channels, manage reactions
+description: Read Discord servers with personal tokens - inspect servers, channels, messages, members, mentions, files, snapshots, and readonly credentials. NEVER send messages or perform Discord write automation with agent-discord; use agent-discordbot for bot-token writes.
 version: 2.10.2
 allowed-tools: Bash(agent-discord:*)
 metadata:
@@ -16,16 +16,13 @@ metadata:
 
 # Agent Discord
 
-A TypeScript CLI tool that enables AI agents and humans to interact with Discord servers through a simple command interface. Features seamless token extraction from the Discord desktop app (with browser fallback) and multi-server support.
+A TypeScript CLI tool that enables AI agents and humans to inspect Discord servers through a simple command interface. Features seamless token extraction from the Discord desktop app (with browser fallback) and multi-server support.
 
 ## Quick Start
 
 ```bash
 # Get server snapshot (credentials are extracted automatically)
 agent-discord snapshot
-
-# Send a message
-agent-discord message send <channel-id> "Hello from AI agent!"
 
 # List channels
 agent-discord channel list
@@ -39,9 +36,9 @@ On macOS, the system may prompt for your Keychain password the first time (requi
 
 **IMPORTANT**: Always use `agent-discord auth extract` to obtain tokens. The CLI extracts from the desktop app first, falling back to Chromium browsers if the app isn't installed.
 
-**IMPORTANT**: Prefer `agent-discordbot` first for automation. Use `agent-discord` only when the bot cannot do the job and the user explicitly wants the personal Discord account surface.
+**IMPORTANT**: NEVER send Discord messages with `agent-discord`. It uses a personal Discord token and write attempts can damage the account/session. Use `agent-discordbot` for every send/reply automation path.
 
-**Readonly tokens**: If `~/.config/agent-messenger/discord-credentials.json` has `"readonly": true`, do not try to bypass it with direct Discord API write calls. That token is intentionally read-only for safety. Forcing write attempts with a personal Discord token can get the Discord account suspended.
+**Readonly tokens**: `agent-discord` stores extracted personal tokens as readonly by default. Do not try to bypass readonly with direct Discord API write calls. Forcing write attempts with a personal Discord token can get the Discord account suspended.
 
 ### Multi-Server Support
 
@@ -162,13 +159,9 @@ Output includes the authenticated user's identity information.
 ### Message Commands
 
 ```bash
-# Send a message
-agent-discord message send <channel-id> <content>
-agent-discord message send 1234567890123456789 "Hello world"
-
-# Reply to a message (inline reply via Discord's message_reference)
-agent-discord message reply <channel-id> <message-id> <content>
-agent-discord message reply 1234567890123456789 9876543210987654321 "Sounds good"
+# Send or reply to messages with bot tokens only
+agent-discordbot message send <channel-id> <content>
+agent-discordbot message send 1234567890123456789 "Hello world"
 
 # List messages
 agent-discord message list <channel-id>
@@ -177,12 +170,6 @@ agent-discord message list 1234567890123456789 --limit 50
 # Get a single message by ID
 agent-discord message get <channel-id> <message-id>
 agent-discord message get 1234567890123456789 9876543210987654321
-
-# Delete a message
-agent-discord message delete <channel-id> <message-id> --force
-
-# Acknowledge/mark a message as read
-agent-discord message ack <channel-id> <message-id>
 
 # Search messages in current server
 agent-discord message search <query>
@@ -238,9 +225,6 @@ agent-discord user me
 ```bash
 # List DM channels
 agent-discord dm list
-
-# Create a DM channel with a user
-agent-discord dm create <user-id>
 ```
 
 ### Mention Commands
@@ -287,25 +271,11 @@ agent-discord member search 1234567890123456789 "john" --limit 20
 
 ### Thread Commands
 
-```bash
-# Create a thread in a channel
-agent-discord thread create <channel-id> <name>
-agent-discord thread create 1234567890123456789 "Discussion" --auto-archive-duration 1440
-
-# Archive a thread
-agent-discord thread archive <thread-id>
-```
+Thread writes are intentionally not documented for `agent-discord`. Use `agent-discordbot` and a bot token for write automation.
 
 ### Reaction Commands
 
 ```bash
-# Add reaction (use emoji name without colons)
-agent-discord reaction add <channel-id> <message-id> <emoji>
-agent-discord reaction add 1234567890123456789 9876543210987654321 thumbsup
-
-# Remove reaction
-agent-discord reaction remove <channel-id> <message-id> <emoji>
-
 # List reactions on a message
 agent-discord reaction list <channel-id> <message-id>
 ```
@@ -313,10 +283,6 @@ agent-discord reaction list <channel-id> <message-id>
 ### File Commands
 
 ```bash
-# Upload file
-agent-discord file upload <channel-id> <path>
-agent-discord file upload 1234567890123456789 ./report.pdf
-
 # List files in channel
 agent-discord file list <channel-id>
 
@@ -399,7 +365,6 @@ See `references/common-patterns.md` for typical AI agent workflows.
 
 See `templates/` directory for runnable examples:
 
-- `post-message.sh` - Send messages with error handling
 - `monitor-channel.sh` - Monitor channel for new messages
 - `server-summary.sh` - Generate server summary
 
@@ -509,12 +474,6 @@ const client = await new DiscordClient().login({ token })
 ### Example
 
 ```typescript
-// Send a message
-const msg = await client.sendMessage(channelId, 'Hello from SDK!')
-
-// React to it
-await client.addReaction(channelId, msg.id, '👋')
-
 // Search messages
 const { results } = await client.searchMessages(serverId, 'deployment', {
   sortBy: 'timestamp',
@@ -522,9 +481,9 @@ const { results } = await client.searchMessages(serverId, 'deployment', {
   limit: 5,
 })
 
-// Create a thread
-const thread = await client.createThread(channelId, 'Discussion Topic')
-await client.sendMessage(thread.id, 'First message in thread')
+// Read recent messages
+const messages = await client.getMessages(channelId, 10)
+console.log({ results, messages })
 ```
 
 ### Real-Time Events (SDK)

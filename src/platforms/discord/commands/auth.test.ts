@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, spyOn, it } from 'bun:test'
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
 import { DiscordTokenExtractor } from '../token-extractor'
-import { getNoDiscordTokenFoundMessage } from './auth'
+import { extractAction, getNoDiscordTokenFoundMessage } from './auth'
 
 let extractorExtractSpy: ReturnType<typeof spyOn>
 let clientTestAuthSpy: ReturnType<typeof spyOn>
@@ -71,6 +71,26 @@ it('extract: discovers servers', async () => {
   const servers = await client.listServers()
   expect(servers).toHaveLength(2)
   expect(servers[0].id).toBe('server-1')
+})
+
+it('given extracted personal token, when auth extract saves credentials, then marks it readonly', async () => {
+  const consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {})
+
+  try {
+    await extractAction({ pretty: false })
+  } finally {
+    consoleLogSpy.mockRestore()
+  }
+
+  expect(credManagerSaveSpy).toHaveBeenCalledWith({
+    token: 'test-token-123',
+    current_server: 'server-1',
+    servers: {
+      'server-1': { server_id: 'server-1', server_name: 'Server One' },
+      'server-2': { server_id: 'server-2', server_name: 'Server Two' },
+    },
+    readonly: true,
+  })
 })
 
 it('logout: clears credentials', async () => {

@@ -103,7 +103,7 @@ export class DiscordCredentialManager {
   }
 
   isReadonly(config: DiscordConfig): boolean {
-    return config.readonly === true
+    return config.readonly !== false
   }
 
   async setReadonly(readonly: boolean): Promise<void> {
