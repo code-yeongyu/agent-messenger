@@ -2,6 +2,7 @@ import { Command } from 'commander'
 
 import { collectBrowserProfileOption } from '@/shared/chromium'
 import { handleError } from '@/shared/utils/error-handler'
+import { isInteractive } from '@/shared/utils/interactive'
 import { formatOutput } from '@/shared/utils/output'
 import { info, debug } from '@/shared/utils/stderr'
 
@@ -14,10 +15,6 @@ import { WebexError } from '../types'
 interface ResolvedCredentials {
   clientId: string
   clientSecret: string
-}
-
-function isInteractive(): boolean {
-  return Boolean(process.stdin.isTTY && process.stdout.isTTY)
 }
 
 async function openBrowser(url: string): Promise<void> {
