@@ -112,6 +112,48 @@ describe('message commands', () => {
         expect.any(Function),
       )
     })
+
+    it('resolves --reply-to from chat history and sends a quoted reply', async () => {
+      // given
+      mockGetMessages.mockImplementation(() =>
+        Promise.resolve([
+          { log_id: '10', type: 1, author_id: 5, author_name: null, message: 'earlier', attachment: null, sent_at: 1 },
+          { log_id: '42', type: 2, author_id: 7, author_name: null, message: 'target', attachment: null, sent_at: 2 },
+        ]),
+      )
+
+      // when
+      await messageCommand.parseAsync(['send', 'chat-123', 'replying', '--reply-to', '42'], { from: 'user' })
+
+      // then
+      expect(mockGetMessages).toHaveBeenCalledWith('chat-123', { count: 100 })
+      expect(mockSendMessage).toHaveBeenCalledWith('chat-123', 'replying', {
+        replyTo: { log_id: '42', author_id: 7, message: 'target', type: 2 },
+      })
+    })
+
+    it('errors when --reply-to log-id is not found in recent history', async () => {
+      // given
+      mockGetMessages.mockImplementation(() =>
+        Promise.resolve([
+          { log_id: '10', type: 1, author_id: 5, author_name: null, message: 'earlier', attachment: null, sent_at: 1 },
+        ]),
+      )
+      const exitSpy = mock((_code?: number): never => {
+        throw new Error('process.exit called')
+      })
+      process.exit = exitSpy as unknown as typeof process.exit
+
+      // when / then
+      try {
+        await messageCommand.parseAsync(['send', 'chat-123', 'replying', '--reply-to', '999'], { from: 'user' })
+      } catch {
+        // process.exit stub throws to abort the action
+      }
+
+      expect(mockSendMessage).not.toHaveBeenCalled()
+      expect(exitSpy).toHaveBeenCalled()
+    })
   })
 
   describe('mark-read', () => {

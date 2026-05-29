@@ -23,6 +23,8 @@ import {
   type KakaoMessage,
   type KakaoMultiPhotoExtra,
   type KakaoProfile,
+  type KakaoReplyExtra,
+  type KakaoReplyTarget,
   type KakaoSendResult,
 } from './types'
 
@@ -443,6 +445,19 @@ function formatMessages(
     attachment: parseAttachmentJson(log.attachment),
     sent_at: log.sendAt as number,
   }))
+}
+
+function buildReplyExtra(target: KakaoReplyTarget): KakaoReplyExtra {
+  return {
+    attach_only: false,
+    attach_type: target.type,
+    src_logId: target.log_id,
+    src_userId: target.author_id,
+    src_message: target.message,
+    src_type: target.type,
+    src_mentions: [],
+    mentions: [],
+  }
 }
 
 export class KakaoTalkClient {
@@ -883,10 +898,16 @@ export class KakaoTalkClient {
     })
   }
 
-  async sendMessage(chatId: string, text: string): Promise<KakaoSendResult> {
+  async sendMessage(chatId: string, text: string, options?: { replyTo?: KakaoReplyTarget }): Promise<KakaoSendResult> {
     return this.executeWithReconnect(async ({ session }) => {
       try {
-        const response = await session.sendMessage(parseLong(chatId), text)
+        const response = options?.replyTo
+          ? await session.sendReply(
+              parseLong(chatId),
+              text,
+              buildReplyExtra(options.replyTo) as unknown as Record<string, unknown>,
+            )
+          : await session.sendMessage(parseLong(chatId), text)
 
         return {
           success: response.statusCode === 0,
