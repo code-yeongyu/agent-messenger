@@ -3,6 +3,9 @@ import { afterEach, beforeEach, describe, expect, mock, spyOn, it } from 'bun:te
 const originalConsoleLog = console.log
 import type { Command } from 'commander'
 
+import { InstagramClient } from '../client'
+import * as sharedModule from './shared'
+
 const mockListChats = mock(() =>
   Promise.resolve([
     { id: 'thread-1', title: 'Alice', last_message: 'Hi' },
@@ -16,12 +19,6 @@ const mockClient = {
   listChats: mockListChats,
   searchChats: mockSearchChats,
 }
-
-mock.module('./shared', () => ({
-  withInstagramClient: async (_options: unknown, fn: (client: typeof mockClient) => Promise<unknown>) => {
-    return fn(mockClient)
-  },
-}))
 
 import { chatCommand } from './chat'
 
@@ -39,6 +36,7 @@ function resetCommandState(cmd: Command): void {
 describe('chat commands', () => {
   let consoleLogSpy: ReturnType<typeof mock>
   let processExitSpy: ReturnType<typeof spyOn>
+  let withInstagramClientSpy: ReturnType<typeof spyOn>
 
   beforeEach(() => {
     resetCommandState(chatCommand)
@@ -56,6 +54,9 @@ describe('chat commands', () => {
 
     consoleLogSpy = mock((..._args: unknown[]) => {})
     console.log = consoleLogSpy
+    withInstagramClientSpy = spyOn(sharedModule, 'withInstagramClient').mockImplementation(async (_options, fn) => {
+      return fn(Object.assign(Object.create(InstagramClient.prototype), mockClient) as InstagramClient)
+    })
     processExitSpy = spyOn(process, 'exit').mockImplementation(() => {
       throw new Error('process.exit called')
     })
@@ -63,6 +64,7 @@ describe('chat commands', () => {
 
   afterEach(() => {
     console.log = originalConsoleLog
+    withInstagramClientSpy.mockRestore()
     processExitSpy.mockRestore()
   })
 

@@ -3,6 +3,9 @@ import { afterEach, beforeEach, describe, expect, mock, spyOn, it } from 'bun:te
 const originalConsoleLog = console.log
 import type { Command } from 'commander'
 
+import { InstagramClient } from '../client'
+import * as sharedModule from './shared'
+
 const mockGetMessages = mock(() => Promise.resolve([{ id: 'msg-1', text: 'Hello' }]))
 const mockSendMessage = mock(() => Promise.resolve({ id: 'msg-2', text: 'Sent' }))
 const mockSendMessageToUser = mock(() => Promise.resolve({ id: 'msg-3', text: 'Sent to user' }))
@@ -16,12 +19,6 @@ const mockClient = {
   searchMessages: mockSearchMessages,
   searchUsers: mockSearchUsers,
 }
-
-mock.module('./shared', () => ({
-  withInstagramClient: async (_options: unknown, fn: (client: typeof mockClient) => Promise<unknown>) => {
-    return fn(mockClient)
-  },
-}))
 
 import { messageCommand } from './message'
 
@@ -39,6 +36,7 @@ function resetCommandState(cmd: Command): void {
 describe('message commands', () => {
   let consoleLogSpy: ReturnType<typeof mock>
   let processExitSpy: ReturnType<typeof spyOn>
+  let withInstagramClientSpy: ReturnType<typeof spyOn>
 
   beforeEach(() => {
     resetCommandState(messageCommand)
@@ -57,6 +55,9 @@ describe('message commands', () => {
 
     consoleLogSpy = mock((..._args: unknown[]) => {})
     console.log = consoleLogSpy
+    withInstagramClientSpy = spyOn(sharedModule, 'withInstagramClient').mockImplementation(async (_options, fn) => {
+      return fn(Object.assign(Object.create(InstagramClient.prototype), mockClient) as InstagramClient)
+    })
     processExitSpy = spyOn(process, 'exit').mockImplementation(() => {
       throw new Error('process.exit called')
     })
@@ -64,6 +65,7 @@ describe('message commands', () => {
 
   afterEach(() => {
     console.log = originalConsoleLog
+    withInstagramClientSpy.mockRestore()
     processExitSpy.mockRestore()
   })
 
