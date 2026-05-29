@@ -134,5 +134,6 @@ it('add: handles missing token gracefully', async () => {
     expect(exitSpy).toHaveBeenCalledWith(1)
   } finally {
     console.log = originalLog
+    exitSpy.mockRestore()
   }
 })

@@ -102,12 +102,12 @@ describe('dm commands', () => {
 
       try {
         await expect(listAction({ pretty: false })).rejects.toThrow(ProcessExit)
+        expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Not authenticated'))
+        expect(exitSpy).toHaveBeenCalledWith(1)
       } finally {
         console.log = originalLog
+        exitSpy.mockRestore()
       }
-
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Not authenticated'))
-      expect(exitSpy).toHaveBeenCalledWith(1)
     })
   })
 
@@ -142,12 +142,12 @@ describe('dm commands', () => {
 
       try {
         await expect(createAction('456', { pretty: false })).rejects.toThrow(ProcessExit)
+        expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Not authenticated'))
+        expect(exitSpy).toHaveBeenCalledWith(1)
       } finally {
         console.log = originalLog
+        exitSpy.mockRestore()
       }
-
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Not authenticated'))
-      expect(exitSpy).toHaveBeenCalledWith(1)
     })
   })
 })
