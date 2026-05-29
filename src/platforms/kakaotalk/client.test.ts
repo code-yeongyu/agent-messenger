@@ -13,6 +13,7 @@ const mockGetAllMembers = mock(() => Promise.resolve({}))
 const mockGetMembersByIds = mock(() => Promise.resolve({}))
 const mockSyncMessages = mock(() => Promise.resolve({}))
 const mockSendMessage = mock(() => Promise.resolve({}))
+const mockSendReply = mock(() => Promise.resolve({}))
 const mockMarkRead = mock(() => Promise.resolve({}))
 const mockClose = mock(() => {})
 const mockOnClose = mock((_handler: () => void) => {})
@@ -30,6 +31,7 @@ mock.module('./protocol/session', () => ({
     getMembersByIds = mockGetMembersByIds
     syncMessages = mockSyncMessages
     sendMessage = mockSendMessage
+    sendReply = mockSendReply
     markRead = mockMarkRead
     close = mockClose
     onClose = mockOnClose
@@ -52,6 +54,7 @@ function resetAllMocks() {
   mockGetMembersByIds.mockReset()
   mockSyncMessages.mockReset()
   mockSendMessage.mockReset()
+  mockSendReply.mockReset()
   mockMarkRead.mockReset()
   mockClose.mockReset()
   mockOnClose.mockReset()
@@ -969,6 +972,60 @@ describe('KakaoTalkClient', () => {
       } catch (e) {
         expect((e as KakaoTalkError).code).toBe('send_message_failed')
       }
+
+      client.close()
+    })
+
+    it('routes to sendReply with a built reply extra when replyTo is given', async () => {
+      // given
+      mockSendReply.mockResolvedValueOnce({ statusCode: 0, body: { logId: makeLong(50), sendAt: 1700000100 } })
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      // when
+      const result = await client.sendMessage('100', 'replying', {
+        replyTo: { log_id: '42', author_id: 7, message: 'original', type: 1 },
+      })
+
+      // then
+      expect(mockSendMessage).not.toHaveBeenCalled()
+      expect(mockSendReply).toHaveBeenCalledTimes(1)
+      const [, text, extra] = mockSendReply.mock.calls[0] as [unknown, string, Record<string, unknown>]
+      expect(text).toBe('replying')
+      expect(extra).toEqual({
+        attach_only: false,
+        attach_type: 1,
+        src_logId: '42',
+        src_userId: 7,
+        src_message: 'original',
+        src_type: 1,
+        src_mentions: [],
+        mentions: [],
+      })
+      expect(result).toEqual({
+        success: true,
+        status_code: 0,
+        chat_id: '100',
+        log_id: '50',
+        sent_at: 1700000100,
+      })
+
+      client.close()
+    })
+
+    it('mirrors the source message type into attach_type/src_type', async () => {
+      // given
+      mockSendReply.mockResolvedValueOnce({ statusCode: 0, body: { logId: makeLong(51), sendAt: 1700000101 } })
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      // when — replying to a photo (type 2)
+      await client.sendMessage('100', 'nice pic', {
+        replyTo: { log_id: '99', author_id: 3, message: 'photo', type: 2 },
+      })
+
+      // then
+      const [, , extra] = mockSendReply.mock.calls[0] as [unknown, string, Record<string, unknown>]
+      expect(extra.attach_type).toBe(2)
+      expect(extra.src_type).toBe(2)
 
       client.close()
     })
