@@ -126,6 +126,7 @@ export const KAKAO_MESSAGE_TYPE = {
   VIDEO: 3,
   AUDIO: 5,
   FILE: 18,
+  REPLY: 26,
   MULTIPHOTO: 27,
 } as const
 
@@ -174,6 +175,29 @@ export interface KakaoMultiPhotoExtra {
   thumbnailWidths?: number[]
   thumbnailHeights?: number[]
   expire?: number
+}
+
+// REPLY (type 26) extra. Field names verified against storycraft/node-kakao
+// (src/chat/attachment/reply.ts) and jhleekr/kakao.py: `Id` fields are
+// camelCase (src_logId, NOT src_log_id), and src_mentions/mentions are
+// required even when empty.
+export interface KakaoReplyExtra {
+  attach_only: boolean
+  attach_type: number
+  src_logId: string
+  src_userId: number
+  src_message: string
+  src_type: number
+  src_mentions: unknown[]
+  mentions: unknown[]
+  src_linkId?: string
+}
+
+export interface KakaoReplyTarget {
+  log_id: string
+  author_id: number
+  message: string
+  type: number
 }
 
 export interface KakaoMarkReadResult {
