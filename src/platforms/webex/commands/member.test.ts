@@ -1,14 +1,9 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, it } from 'bun:test'
 
+import * as errorHandler from '@/shared/utils/error-handler'
+
+import { WebexClient } from '../client'
 import { WebexError } from '../types'
-
-const mockHandleError = mock((err: Error) => {
-  throw err
-})
-
-mock.module('@/shared/utils/error-handler', () => ({
-  handleError: mockHandleError,
-}))
 
 const mockMembers = [
   {
@@ -32,30 +27,29 @@ const mockMembers = [
 ]
 
 const mockListMemberships = mock(() => Promise.resolve(mockMembers))
-const mockLogin = mock(() => Promise.resolve({ listMemberships: mockListMemberships }))
-
-mock.module('../client', () => ({
-  WebexClient: class {
-    login = mockLogin
-  },
-}))
 
 import { listAction } from './member'
 
 describe('member commands', () => {
   let consoleSpy: ReturnType<typeof spyOn>
+  let loginSpy: ReturnType<typeof spyOn>
+  let handleErrorSpy: ReturnType<typeof spyOn>
 
   beforeEach(() => {
     mockListMemberships.mockReset().mockImplementation(() => Promise.resolve(mockMembers))
-    mockLogin.mockReset().mockImplementation(() => Promise.resolve({ listMemberships: mockListMemberships }))
-    mockHandleError.mockReset().mockImplementation((err: Error) => {
+    handleErrorSpy = spyOn(errorHandler, 'handleError').mockImplementation((err: Error) => {
       throw err
     })
 
+    loginSpy = spyOn(WebexClient.prototype, 'login').mockResolvedValue(
+      Object.assign(new WebexClient(), { listMemberships: mockListMemberships }),
+    )
     consoleSpy = spyOn(console, 'log').mockImplementation(() => {})
   })
 
   afterEach(() => {
+    loginSpy.mockRestore()
+    handleErrorSpy.mockRestore()
     consoleSpy.mockRestore()
   })
 
@@ -92,13 +86,13 @@ describe('member commands', () => {
   })
 
   it('throws when not authenticated', async () => {
-    mockLogin.mockImplementation(async () => {
+    loginSpy.mockImplementation(async () => {
       throw new WebexError('No Webex credentials found.', 'no_credentials')
     })
 
     await expect(listAction('room-1', {})).rejects.toThrow('No Webex credentials found.')
 
-    expect(mockHandleError).toHaveBeenCalledWith(expect.any(WebexError))
+    expect(handleErrorSpy).toHaveBeenCalledWith(expect.any(WebexError))
   })
 
   it('throws on API error', async () => {
@@ -108,6 +102,6 @@ describe('member commands', () => {
 
     await expect(listAction('room-1', {})).rejects.toThrow('API failure')
 
-    expect(mockHandleError).toHaveBeenCalledWith(expect.any(Error))
+    expect(handleErrorSpy).toHaveBeenCalledWith(expect.any(Error))
   })
 })

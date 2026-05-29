@@ -1,14 +1,9 @@
 import { afterEach, beforeEach, expect, mock, spyOn, it } from 'bun:test'
 
+import * as errorHandler from '@/shared/utils/error-handler'
+
+import { WebexClient } from '../client'
 import { WebexError } from '../types'
-
-const mockHandleError = mock((err: Error) => {
-  throw err
-})
-
-mock.module('@/shared/utils/error-handler', () => ({
-  handleError: mockHandleError,
-}))
 
 const mockMessage = {
   id: 'msg_123',
@@ -46,17 +41,11 @@ const mockClient = {
   editMessage: mockEditMessage,
 }
 
-const mockLogin = mock(() => Promise.resolve(mockClient))
-
-mock.module('../client', () => ({
-  WebexClient: class {
-    login = mockLogin
-  },
-}))
-
 import { deleteAction, dmAction, editAction, getAction, listAction, sendAction } from './message'
 
 let consoleLogSpy: ReturnType<typeof spyOn>
+let loginSpy: ReturnType<typeof spyOn>
+let handleErrorSpy: ReturnType<typeof spyOn>
 
 beforeEach(() => {
   mockSendMessage.mockReset().mockImplementation(() => Promise.resolve(mockMessage))
@@ -65,15 +54,17 @@ beforeEach(() => {
   mockGetMessage.mockReset().mockImplementation(() => Promise.resolve(mockMessage))
   mockDeleteMessage.mockReset().mockImplementation(() => Promise.resolve(undefined))
   mockEditMessage.mockReset().mockImplementation(() => Promise.resolve({ ...mockMessage, text: 'Updated message' }))
-  mockLogin.mockReset().mockImplementation(() => Promise.resolve(mockClient))
-  mockHandleError.mockReset().mockImplementation((err: Error) => {
+  handleErrorSpy = spyOn(errorHandler, 'handleError').mockImplementation((err: Error) => {
     throw err
   })
 
+  loginSpy = spyOn(WebexClient.prototype, 'login').mockResolvedValue(Object.assign(new WebexClient(), mockClient))
   consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {})
 })
 
 afterEach(() => {
+  loginSpy.mockRestore()
+  handleErrorSpy.mockRestore()
   consoleLogSpy.mockRestore()
 })
 
@@ -97,13 +88,13 @@ it('passes markdown option when --markdown flag is set on send', async () => {
 })
 
 it('throws when not authenticated on send', async () => {
-  mockLogin.mockImplementation(async () => {
+  loginSpy.mockImplementation(async () => {
     throw new WebexError('No Webex credentials found.', 'no_credentials')
   })
 
   await expect(sendAction('space_456', 'Hello', { pretty: false })).rejects.toThrow('No Webex credentials found.')
 
-  expect(mockHandleError).toHaveBeenCalledWith(expect.any(WebexError))
+  expect(handleErrorSpy).toHaveBeenCalledWith(expect.any(WebexError))
 })
 
 it('calls sendDirectMessage with email and text', async () => {
