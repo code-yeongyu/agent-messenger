@@ -8,6 +8,7 @@ import { WebexCredentialManager } from './credential-manager'
 describe('WebexCredentialManager', () => {
   let tempDir: string
   let credManager: WebexCredentialManager
+  const realFetch = globalThis.fetch
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), 'webex-cred-test-'))
@@ -16,6 +17,8 @@ describe('WebexCredentialManager', () => {
 
   afterEach(async () => {
     await rm(tempDir, { recursive: true, force: true })
+    // Guarantee fetch restoration even if a test throws before its own restore line.
+    globalThis.fetch = realFetch
   })
 
   it('loadConfig returns null when no file exists', async () => {

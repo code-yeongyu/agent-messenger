@@ -17,6 +17,7 @@ describe('auth commands', () => {
   let consoleSpy: ReturnType<typeof spyOn>
   let consoleErrorSpy: ReturnType<typeof spyOn>
   let execSpy: ReturnType<typeof spyOn>
+  let stderrWriteSpy: ReturnType<typeof spyOn>
   const protoSpies: ReturnType<typeof spyOn>[] = []
   let originalStdinTTY: boolean | undefined
   let originalStdoutTTY: boolean | undefined
@@ -44,16 +45,23 @@ describe('auth commands', () => {
     consoleSpy = spyOn(console, 'log').mockImplementation(() => {})
     consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {})
     execSpy = spyOn(childProcess, 'exec').mockImplementation((() => {}) as any)
+    stderrWriteSpy = spyOn(process.stderr, 'write').mockImplementation(() => true)
     originalStdinTTY = process.stdin.isTTY
     originalStdoutTTY = process.stdout.isTTY
     // Default to interactive TTY for existing tests; non-interactive tests override.
     setTTY(true)
+    // Fail loudly instead of running the real 300s network polling loop; tests that
+    // exercise the Device Grant flow override this with a resolved value.
+    protoSpy(WebexCredentialManager.prototype, 'pollDeviceToken').mockImplementation(() => {
+      throw new Error('Unexpected real device polling in test')
+    })
   })
 
   afterEach(() => {
     consoleSpy.mockRestore()
     consoleErrorSpy.mockRestore()
     execSpy.mockRestore()
+    stderrWriteSpy.mockRestore()
     for (const s of protoSpies) s.mockRestore()
     protoSpies.length = 0
     setTTY(originalStdinTTY)
@@ -447,7 +455,6 @@ describe('auth commands', () => {
       protoSpy(WebexCredentialManager.prototype, 'refreshToken').mockResolvedValue(null)
       protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
       protoSpy(WebexClient.prototype, 'testAuth').mockRejectedValue(new Error('Network error'))
-      const stderrWriteSpy = protoSpy(process.stderr, 'write').mockImplementation(() => true)
       const exitSpy = protoSpy(process, 'exit').mockImplementation((code?: string | number | null) => {
         throw new ProcessExit(code)
       })
@@ -467,7 +474,6 @@ describe('auth commands', () => {
       })
       protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
       protoSpy(WebexClient.prototype, 'testAuth').mockRejectedValue(new Error('Network error'))
-      const stderrWriteSpy = protoSpy(process.stderr, 'write').mockImplementation(() => true)
       const exitSpy = protoSpy(process, 'exit').mockImplementation((code?: string | number | null) => {
         throw new ProcessExit(code)
       })
