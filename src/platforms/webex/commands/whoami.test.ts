@@ -23,7 +23,9 @@ let consoleLogSpy: ReturnType<typeof spyOn>
 let processExitSpy: ReturnType<typeof spyOn>
 
 beforeEach(() => {
-  loginSpy = spyOn(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
+  loginSpy = spyOn(WebexClient.prototype, 'login').mockImplementation(async function (this: WebexClient) {
+    return this
+  })
   testAuthSpy = spyOn(WebexClient.prototype, 'testAuth').mockResolvedValue(mockUser)
   consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {})
   processExitSpy = spyOn(process, 'exit').mockImplementation((_code?: number) => undefined as never)
