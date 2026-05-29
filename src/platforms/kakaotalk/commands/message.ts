@@ -6,6 +6,7 @@ import { Command } from 'commander'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
+import type { KakaoMessage, KakaoReplyTarget } from '../types'
 import { withKakaoClient } from './shared'
 
 async function listAction(
@@ -26,13 +27,42 @@ async function listAction(
 async function sendAction(
   chatId: string,
   text: string,
-  options: { account?: string; pretty?: boolean },
+  options: { account?: string; pretty?: boolean; replyTo?: string },
 ): Promise<void> {
   try {
-    const result = await withKakaoClient(options, (client) => client.sendMessage(chatId, text))
+    const result = await withKakaoClient(options, async (client) => {
+      if (options.replyTo === undefined) {
+        return client.sendMessage(chatId, text)
+      }
+
+      const target = await resolveReplyTarget(client, chatId, options.replyTo)
+      return client.sendMessage(chatId, text, { replyTo: target })
+    })
     console.log(formatOutput(result, options.pretty))
   } catch (error) {
     handleError(error as Error)
+  }
+}
+
+// A reply attachment needs the source message's author, text, and type — not
+// just its log_id — so we look it up in the chat's recent history.
+async function resolveReplyTarget(
+  client: {
+    getMessages: (chatId: string, opts: { count: number }) => Promise<KakaoMessage[]>
+  },
+  chatId: string,
+  logId: string,
+): Promise<KakaoReplyTarget> {
+  const messages = await client.getMessages(chatId, { count: 100 })
+  const source = messages.find((m) => m.log_id === logId)
+  if (!source) {
+    throw new Error(`Reply target log-id ${logId} not found in the latest 100 messages of chat ${chatId}`)
+  }
+  return {
+    log_id: source.log_id,
+    author_id: source.author_id,
+    message: source.message,
+    type: source.type,
   }
 }
 
@@ -122,6 +152,7 @@ export const messageCommand = new Command('message')
       .argument('<chat-id>', 'Chat room ID')
       .argument('<text>', 'Message text')
       .option('--account <id>', 'Use a specific KakaoTalk account')
+      .option('--reply-to <log-id>', 'Send as a quoted reply to this message log ID')
       .option('--pretty', 'Pretty print JSON output')
       .action(sendAction),
   )
