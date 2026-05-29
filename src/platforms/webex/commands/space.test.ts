@@ -1,15 +1,9 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, it } from 'bun:test'
 
+import * as errorHandler from '@/shared/utils/error-handler'
+
 import { WebexClient } from '../client'
 import { WebexError } from '../types'
-
-const mockHandleError = mock((err: Error) => {
-  throw err
-})
-
-mock.module('@/shared/utils/error-handler', () => ({
-  handleError: mockHandleError,
-}))
 
 const mockSpaces = [
   {
@@ -50,11 +44,12 @@ import { infoAction, listAction } from './space'
 
 let consoleLogSpy: ReturnType<typeof spyOn>
 let loginSpy: ReturnType<typeof spyOn>
+let handleErrorSpy: ReturnType<typeof spyOn>
 
 beforeEach(() => {
   mockListSpaces.mockReset().mockImplementation(() => Promise.resolve(mockSpaces))
   mockGetSpace.mockReset().mockImplementation(() => Promise.resolve(mockSpace))
-  mockHandleError.mockReset().mockImplementation((err: Error) => {
+  handleErrorSpy = spyOn(errorHandler, 'handleError').mockImplementation((err: Error) => {
     throw err
   })
 
@@ -66,6 +61,7 @@ beforeEach(() => {
 
 afterEach(() => {
   loginSpy.mockRestore()
+  handleErrorSpy.mockRestore()
   consoleLogSpy.mockRestore()
 })
 
@@ -141,7 +137,7 @@ describe('listAction', () => {
     await expect(listAction({})).rejects.toThrow('No Webex credentials found.')
 
     expect(mockListSpaces).not.toHaveBeenCalled()
-    expect(mockHandleError).toHaveBeenCalledWith(expect.any(WebexError))
+    expect(handleErrorSpy).toHaveBeenCalledWith(expect.any(WebexError))
   })
 })
 
@@ -197,13 +193,13 @@ describe('infoAction', () => {
   })
 
   it('throws when not authenticated', async () => {
-    mockLogin.mockImplementation(async () => {
+    loginSpy.mockImplementation(async () => {
       throw new WebexError('No Webex credentials found.', 'no_credentials')
     })
 
     await expect(infoAction('space-1', {})).rejects.toThrow('No Webex credentials found.')
 
     expect(mockGetSpace).not.toHaveBeenCalled()
-    expect(mockHandleError).toHaveBeenCalledWith(expect.any(WebexError))
+    expect(handleErrorSpy).toHaveBeenCalledWith(expect.any(WebexError))
   })
 })

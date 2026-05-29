@@ -1,15 +1,9 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, it } from 'bun:test'
 
+import * as errorHandler from '@/shared/utils/error-handler'
+
 import { WebexClient } from '../client'
 import { WebexError } from '../types'
-
-const mockHandleError = mock((err: Error) => {
-  throw err
-})
-
-mock.module('@/shared/utils/error-handler', () => ({
-  handleError: mockHandleError,
-}))
 
 const mockSpaces = [
   {
@@ -57,11 +51,12 @@ import { snapshotAction } from './snapshot'
 describe('snapshot command', () => {
   let consoleSpy: ReturnType<typeof spyOn>
   let loginSpy: ReturnType<typeof spyOn>
+  let handleErrorSpy: ReturnType<typeof spyOn>
 
   beforeEach(() => {
     mockListSpaces.mockReset().mockImplementation(() => Promise.resolve(mockSpaces as any))
     mockListMyMemberships.mockReset().mockImplementation(() => Promise.resolve(mockMyMemberships as any))
-    mockHandleError.mockReset().mockImplementation((err: Error) => {
+    handleErrorSpy = spyOn(errorHandler, 'handleError').mockImplementation((err: Error) => {
       throw err
     })
 
@@ -71,6 +66,7 @@ describe('snapshot command', () => {
 
   afterEach(() => {
     loginSpy.mockRestore()
+    handleErrorSpy.mockRestore()
     consoleSpy.mockRestore()
   })
 
@@ -114,6 +110,6 @@ describe('snapshot command', () => {
 
     await expect(snapshotAction({})).rejects.toThrow('No Webex credentials found.')
 
-    expect(mockHandleError).toHaveBeenCalledWith(expect.any(WebexError))
+    expect(handleErrorSpy).toHaveBeenCalledWith(expect.any(WebexError))
   })
 })

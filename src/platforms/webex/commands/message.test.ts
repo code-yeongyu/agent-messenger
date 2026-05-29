@@ -1,15 +1,9 @@
 import { afterEach, beforeEach, expect, mock, spyOn, it } from 'bun:test'
 
+import * as errorHandler from '@/shared/utils/error-handler'
+
 import { WebexClient } from '../client'
 import { WebexError } from '../types'
-
-const mockHandleError = mock((err: Error) => {
-  throw err
-})
-
-mock.module('@/shared/utils/error-handler', () => ({
-  handleError: mockHandleError,
-}))
 
 const mockMessage = {
   id: 'msg_123',
@@ -51,6 +45,7 @@ import { deleteAction, dmAction, editAction, getAction, listAction, sendAction }
 
 let consoleLogSpy: ReturnType<typeof spyOn>
 let loginSpy: ReturnType<typeof spyOn>
+let handleErrorSpy: ReturnType<typeof spyOn>
 
 beforeEach(() => {
   mockSendMessage.mockReset().mockImplementation(() => Promise.resolve(mockMessage))
@@ -59,7 +54,7 @@ beforeEach(() => {
   mockGetMessage.mockReset().mockImplementation(() => Promise.resolve(mockMessage))
   mockDeleteMessage.mockReset().mockImplementation(() => Promise.resolve(undefined))
   mockEditMessage.mockReset().mockImplementation(() => Promise.resolve({ ...mockMessage, text: 'Updated message' }))
-  mockHandleError.mockReset().mockImplementation((err: Error) => {
+  handleErrorSpy = spyOn(errorHandler, 'handleError').mockImplementation((err: Error) => {
     throw err
   })
 
@@ -69,6 +64,7 @@ beforeEach(() => {
 
 afterEach(() => {
   loginSpy.mockRestore()
+  handleErrorSpy.mockRestore()
   consoleLogSpy.mockRestore()
 })
 
@@ -98,7 +94,7 @@ it('throws when not authenticated on send', async () => {
 
   await expect(sendAction('space_456', 'Hello', { pretty: false })).rejects.toThrow('No Webex credentials found.')
 
-  expect(mockHandleError).toHaveBeenCalledWith(expect.any(WebexError))
+  expect(handleErrorSpy).toHaveBeenCalledWith(expect.any(WebexError))
 })
 
 it('calls sendDirectMessage with email and text', async () => {
