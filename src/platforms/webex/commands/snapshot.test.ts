@@ -1,6 +1,4 @@
-import { afterEach, beforeEach, describe, expect, mock, spyOn, it } from 'bun:test'
-
-import * as errorHandler from '@/shared/utils/error-handler'
+import { afterEach, beforeEach, describe, expect, spyOn, it } from 'bun:test'
 
 import { WebexClient } from '../client'
 import { WebexError } from '../types'
@@ -38,36 +36,39 @@ const mockMyMemberships = [
   },
 ]
 
-const mockListSpaces = mock(() => Promise.resolve(mockSpaces as any))
-const mockListMyMemberships = mock(() => Promise.resolve(mockMyMemberships as any))
-
-const mockClient = {
-  listSpaces: mockListSpaces,
-  listMyMemberships: mockListMyMemberships,
-}
-
 import { snapshotAction } from './snapshot'
 
 describe('snapshot command', () => {
+  let mockLogin: ReturnType<typeof spyOn>
   let consoleSpy: ReturnType<typeof spyOn>
-  let loginSpy: ReturnType<typeof spyOn>
-  let handleErrorSpy: ReturnType<typeof spyOn>
+  let consoleErrorSpy: ReturnType<typeof spyOn>
+  let processExitSpy: ReturnType<typeof spyOn>
+  const protoSpies: ReturnType<typeof spyOn>[] = []
+
+  function protoSpy(method: keyof WebexClient) {
+    const s = spyOn(WebexClient.prototype, method as never)
+    protoSpies.push(s)
+    return s
+  }
 
   beforeEach(() => {
-    mockListSpaces.mockReset().mockImplementation(() => Promise.resolve(mockSpaces as any))
-    mockListMyMemberships.mockReset().mockImplementation(() => Promise.resolve(mockMyMemberships as any))
-    handleErrorSpy = spyOn(errorHandler, 'handleError').mockImplementation((err: Error) => {
-      throw err
+    mockLogin = protoSpy('login').mockImplementation(async function (this: WebexClient) {
+      return this
     })
+    protoSpy('listSpaces').mockResolvedValue(mockSpaces as any)
+    protoSpy('listMyMemberships').mockResolvedValue(mockMyMemberships as any)
 
-    loginSpy = spyOn(WebexClient.prototype, 'login').mockResolvedValue(Object.assign(new WebexClient(), mockClient))
     consoleSpy = spyOn(console, 'log').mockImplementation(() => {})
+    consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {})
+    processExitSpy = spyOn(process, 'exit').mockImplementation((_code?: number) => undefined as never)
   })
 
   afterEach(() => {
-    loginSpy.mockRestore()
-    handleErrorSpy.mockRestore()
     consoleSpy.mockRestore()
+    consoleErrorSpy.mockRestore()
+    processExitSpy.mockRestore()
+    for (const s of protoSpies) s.mockRestore()
+    protoSpies.length = 0
   })
 
   it('returns spaces with id and title only in brief mode', async () => {
@@ -103,13 +104,11 @@ describe('snapshot command', () => {
     expect(output.spaces[0].id).toBe('space-1')
   })
 
-  it('throws when not authenticated', async () => {
-    loginSpy.mockImplementation(async () => {
-      throw new WebexError('No Webex credentials found.', 'no_credentials')
-    })
+  it('exits with code 1 when not authenticated', async () => {
+    mockLogin.mockRejectedValue(new WebexError('No Webex credentials found.', 'no_credentials'))
 
-    await expect(snapshotAction({})).rejects.toThrow('No Webex credentials found.')
+    await snapshotAction({})
 
-    expect(handleErrorSpy).toHaveBeenCalledWith(expect.any(WebexError))
+    expect(processExitSpy).toHaveBeenCalledWith(1)
   })
 })
