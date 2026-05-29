@@ -249,10 +249,17 @@ export class DiscordBotClient {
     return this.request<DiscordChannel>('GET', `/channels/${channelId}`)
   }
 
-  async sendMessage(channelId: string, content: string, options?: { thread_id?: string }): Promise<DiscordMessage> {
-    const body: Record<string, string> = { content }
+  async sendMessage(
+    channelId: string,
+    content: string,
+    options?: { thread_id?: string; reply_to?: string },
+  ): Promise<DiscordMessage> {
+    const body: Record<string, unknown> = { content }
     if (options?.thread_id) {
       body.thread_id = options.thread_id
+    }
+    if (options?.reply_to) {
+      body.message_reference = { message_id: options.reply_to }
     }
     return this.request<DiscordMessage>('POST', `/channels/${channelId}/messages`, body)
   }

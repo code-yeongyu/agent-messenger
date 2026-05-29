@@ -28,7 +28,7 @@ interface MessageResult {
 export async function sendAction(
   channel: string,
   text: string,
-  options: BotOption & { thread?: string },
+  options: BotOption & { thread?: string; reply?: string },
 ): Promise<MessageResult> {
   try {
     const client = await getClient(options)
@@ -36,6 +36,7 @@ export async function sendAction(
     const channelId = await client.resolveChannel(serverId, channel)
     const message = await client.sendMessage(channelId, text, {
       thread_id: options.thread,
+      reply_to: options.reply,
     })
 
     return {
@@ -173,10 +174,11 @@ export const messageCommand = new Command('message')
       .argument('<channel>', 'Channel ID or name')
       .argument('<text>', 'Message text')
       .option('--thread <id>', 'Thread ID for replies')
+      .option('--reply <message-id>', 'Reply to a message by ID')
       .option('--bot <id>', 'Use specific bot')
       .option('--server <id>', 'Server ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(async (channel: string, text: string, opts: BotOption & { thread?: string }) => {
+      .action(async (channel: string, text: string, opts: BotOption & { thread?: string; reply?: string }) => {
         cliOutput(await sendAction(channel, text, opts), opts.pretty)
       }),
   )
