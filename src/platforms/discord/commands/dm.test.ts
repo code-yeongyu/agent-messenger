@@ -5,6 +5,12 @@ import { DiscordCredentialManager } from '../credential-manager'
 import type { DiscordDMChannel } from '../types'
 import { createAction, listAction } from './dm'
 
+class ProcessExit extends Error {
+  constructor(readonly code?: string | number | null) {
+    super(`process.exit(${code})`)
+  }
+}
+
 let clientListDMChannelsSpy: ReturnType<typeof spyOn>
 let clientCreateDMSpy: ReturnType<typeof spyOn>
 let credManagerLoadSpy: ReturnType<typeof spyOn>
@@ -86,18 +92,19 @@ describe('dm commands', () => {
         servers: {},
       })
 
-      const exitSpy = mock(() => {})
-      const originalExit = process.exit
-      process.exit = exitSpy as any
+      const exitSpy = spyOn(process, 'exit').mockImplementation((code?: string | number | null) => {
+        throw new ProcessExit(code)
+      })
 
       const consoleSpy = mock(() => {})
       const originalLog = console.log
       console.log = consoleSpy
 
-      await listAction({ pretty: false })
-
-      console.log = originalLog
-      process.exit = originalExit
+      try {
+        await expect(listAction({ pretty: false })).rejects.toThrow(ProcessExit)
+      } finally {
+        console.log = originalLog
+      }
 
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Not authenticated'))
       expect(exitSpy).toHaveBeenCalledWith(1)
@@ -125,18 +132,19 @@ describe('dm commands', () => {
         servers: {},
       })
 
-      const exitSpy = mock(() => {})
-      const originalExit = process.exit
-      process.exit = exitSpy as any
+      const exitSpy = spyOn(process, 'exit').mockImplementation((code?: string | number | null) => {
+        throw new ProcessExit(code)
+      })
 
       const consoleSpy = mock(() => {})
       const originalLog = console.log
       console.log = consoleSpy
 
-      await createAction('456', { pretty: false })
-
-      console.log = originalLog
-      process.exit = originalExit
+      try {
+        await expect(createAction('456', { pretty: false })).rejects.toThrow(ProcessExit)
+      } finally {
+        console.log = originalLog
+      }
 
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Not authenticated'))
       expect(exitSpy).toHaveBeenCalledWith(1)

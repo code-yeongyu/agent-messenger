@@ -4,6 +4,12 @@ import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
 import { addAction, listAction, removeAction } from './reaction'
 
+class ProcessExit extends Error {
+  constructor(readonly code?: string | number | null) {
+    super(`process.exit(${code})`)
+  }
+}
+
 let clientAddReactionSpy: ReturnType<typeof spyOn>
 let clientRemoveReactionSpy: ReturnType<typeof spyOn>
 let clientGetMessageSpy: ReturnType<typeof spyOn>
@@ -114,21 +120,19 @@ it('add: handles missing token gracefully', async () => {
 
   const consoleSpy = mock((_msg: string) => {})
   const originalLog = console.log
-  const originalExit = process.exit
-  let _exitCode = 0
-  process.exit = mock((code: number) => {
-    _exitCode = code
-  }) as any
+  const exitSpy = spyOn(process, 'exit').mockImplementation((code?: string | number | null) => {
+    throw new ProcessExit(code)
+  })
 
   console.log = consoleSpy
 
   try {
-    await addAction('ch123', 'msg123', 'thumbsup', { pretty: false })
+    await expect(addAction('ch123', 'msg123', 'thumbsup', { pretty: false })).rejects.toThrow(ProcessExit)
     expect(consoleSpy).toHaveBeenCalled()
     const output = JSON.parse(consoleSpy.mock.calls[0][0])
     expect(output.error).toBeDefined()
+    expect(exitSpy).toHaveBeenCalledWith(1)
   } finally {
     console.log = originalLog
-    process.exit = originalExit
   }
 })

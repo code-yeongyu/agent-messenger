@@ -7,6 +7,12 @@ import { WebexTokenExtractor } from '../token-extractor'
 import { WebexError } from '../types'
 import { extractAction, loginAction, logoutAction, statusAction } from './auth'
 
+class ProcessExit extends Error {
+  constructor(readonly code?: string | number | null) {
+    super(`process.exit(${code})`)
+  }
+}
+
 describe('auth commands', () => {
   let consoleSpy: ReturnType<typeof spyOn>
   let consoleErrorSpy: ReturnType<typeof spyOn>
@@ -441,15 +447,17 @@ describe('auth commands', () => {
       protoSpy(WebexCredentialManager.prototype, 'refreshToken').mockResolvedValue(null)
       protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
       protoSpy(WebexClient.prototype, 'testAuth').mockRejectedValue(new Error('Network error'))
-      protoSpy(process, 'exit').mockImplementation(() => undefined as never)
+      const stderrWriteSpy = protoSpy(process.stderr, 'write').mockImplementation(() => true)
+      const exitSpy = protoSpy(process, 'exit').mockImplementation((code?: string | number | null) => {
+        throw new ProcessExit(code)
+      })
 
-      await extractAction({ pretty: false })
+      await expect(extractAction({ pretty: false })).rejects.toThrow(ProcessExit)
 
-      const lastCall = consoleErrorSpy.mock.calls[consoleErrorSpy.mock.calls.length - 1]?.[0] as string | undefined
-      if (lastCall) {
-        const output = JSON.parse(lastCall)
-        expect(output.error).toContain('Network error')
-      }
+      const lastCall = stderrWriteSpy.mock.calls[stderrWriteSpy.mock.calls.length - 1][0] as string
+      const output = JSON.parse(lastCall)
+      expect(output.error).toContain('Network error')
+      expect(exitSpy).toHaveBeenCalledWith(1)
     })
 
     it('rethrows non-expiry auth errors', async () => {
@@ -459,15 +467,17 @@ describe('auth commands', () => {
       })
       protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
       protoSpy(WebexClient.prototype, 'testAuth').mockRejectedValue(new Error('Network error'))
-      protoSpy(process, 'exit').mockImplementation(() => undefined as never)
+      const stderrWriteSpy = protoSpy(process.stderr, 'write').mockImplementation(() => true)
+      const exitSpy = protoSpy(process, 'exit').mockImplementation((code?: string | number | null) => {
+        throw new ProcessExit(code)
+      })
 
-      await extractAction({ pretty: false })
+      await expect(extractAction({ pretty: false })).rejects.toThrow(ProcessExit)
 
-      const lastCall = consoleErrorSpy.mock.calls[consoleErrorSpy.mock.calls.length - 1]?.[0] as string | undefined
-      if (lastCall) {
-        const output = JSON.parse(lastCall)
-        expect(output.error).toContain('Network error')
-      }
+      const lastCall = stderrWriteSpy.mock.calls[stderrWriteSpy.mock.calls.length - 1][0] as string
+      const output = JSON.parse(lastCall)
+      expect(output.error).toContain('Network error')
+      expect(exitSpy).toHaveBeenCalledWith(1)
     })
 
     it('outputs no token found when extract returns null', async () => {
