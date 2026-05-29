@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, mock, spyOn, it } from 'bun:test'
 
+import { WebexClient } from '../client'
 import { WebexError } from '../types'
 
 const mockHandleError = mock((err: Error) => {
@@ -46,17 +47,10 @@ const mockClient = {
   editMessage: mockEditMessage,
 }
 
-const mockLogin = mock(() => Promise.resolve(mockClient))
-
-mock.module('../client', () => ({
-  WebexClient: class {
-    login = mockLogin
-  },
-}))
-
 import { deleteAction, dmAction, editAction, getAction, listAction, sendAction } from './message'
 
 let consoleLogSpy: ReturnType<typeof spyOn>
+let loginSpy: ReturnType<typeof spyOn>
 
 beforeEach(() => {
   mockSendMessage.mockReset().mockImplementation(() => Promise.resolve(mockMessage))
@@ -65,15 +59,16 @@ beforeEach(() => {
   mockGetMessage.mockReset().mockImplementation(() => Promise.resolve(mockMessage))
   mockDeleteMessage.mockReset().mockImplementation(() => Promise.resolve(undefined))
   mockEditMessage.mockReset().mockImplementation(() => Promise.resolve({ ...mockMessage, text: 'Updated message' }))
-  mockLogin.mockReset().mockImplementation(() => Promise.resolve(mockClient))
   mockHandleError.mockReset().mockImplementation((err: Error) => {
     throw err
   })
 
+  loginSpy = spyOn(WebexClient.prototype, 'login').mockResolvedValue(Object.assign(new WebexClient(), mockClient))
   consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {})
 })
 
 afterEach(() => {
+  loginSpy.mockRestore()
   consoleLogSpy.mockRestore()
 })
 
@@ -97,7 +92,7 @@ it('passes markdown option when --markdown flag is set on send', async () => {
 })
 
 it('throws when not authenticated on send', async () => {
-  mockLogin.mockImplementation(async () => {
+  loginSpy.mockImplementation(async () => {
     throw new WebexError('No Webex credentials found.', 'no_credentials')
   })
 

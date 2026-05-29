@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, it } from 'bun:test'
 
+import { WebexClient } from '../client'
 import { WebexError } from '../types'
 
 const mockHandleError = mock((err: Error) => {
@@ -32,30 +33,27 @@ const mockMembers = [
 ]
 
 const mockListMemberships = mock(() => Promise.resolve(mockMembers))
-const mockLogin = mock(() => Promise.resolve({ listMemberships: mockListMemberships }))
-
-mock.module('../client', () => ({
-  WebexClient: class {
-    login = mockLogin
-  },
-}))
 
 import { listAction } from './member'
 
 describe('member commands', () => {
   let consoleSpy: ReturnType<typeof spyOn>
+  let loginSpy: ReturnType<typeof spyOn>
 
   beforeEach(() => {
     mockListMemberships.mockReset().mockImplementation(() => Promise.resolve(mockMembers))
-    mockLogin.mockReset().mockImplementation(() => Promise.resolve({ listMemberships: mockListMemberships }))
     mockHandleError.mockReset().mockImplementation((err: Error) => {
       throw err
     })
 
+    loginSpy = spyOn(WebexClient.prototype, 'login').mockResolvedValue(
+      Object.assign(new WebexClient(), { listMemberships: mockListMemberships }),
+    )
     consoleSpy = spyOn(console, 'log').mockImplementation(() => {})
   })
 
   afterEach(() => {
+    loginSpy.mockRestore()
     consoleSpy.mockRestore()
   })
 
@@ -92,7 +90,7 @@ describe('member commands', () => {
   })
 
   it('throws when not authenticated', async () => {
-    mockLogin.mockImplementation(async () => {
+    loginSpy.mockImplementation(async () => {
       throw new WebexError('No Webex credentials found.', 'no_credentials')
     })
 
