@@ -1,7 +1,7 @@
 ---
 name: agent-channeltalkbot
 description: Interact with Channel Talk workspaces using API credentials - send messages, read chats, manage groups and bots
-version: 2.18.0
+version: 2.19.0
 allowed-tools: Bash(agent-channeltalkbot:*)
 metadata:
   openclaw:
