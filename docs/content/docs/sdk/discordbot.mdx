@@ -80,6 +80,10 @@ const msg = await client.sendMessage(channelId, 'Hello world')
 const reply = await client.sendMessage(channelId, 'Reply', { thread_id: threadId })
 // → DiscordMessage { id, channel_id, author, content, timestamp }
 
+// Reply to a specific message
+const replyToMsg = await client.sendMessage(channelId, 'On it!', { reply_to: messageId })
+// → DiscordMessage { id, channel_id, author, content, timestamp }
+
 // Get recent messages from a channel (default limit: 50)
 const messages = await client.getMessages(channelId)
 const limited = await client.getMessages(channelId, 25)

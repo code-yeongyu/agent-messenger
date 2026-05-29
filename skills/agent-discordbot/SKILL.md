@@ -201,6 +201,14 @@ agent-discordbot server info <server-id>
 agent-discordbot message send <channel-id> <content>
 agent-discordbot message send 1234567890123456789 "Hello world"
 
+# Reply to a message
+agent-discordbot message send <channel-id> <content> --reply <message-id>
+agent-discordbot message send 1234567890123456789 "On it!" --reply 9876543210987654321
+
+# Send a message into a thread
+agent-discordbot message send <channel-id> <content> --thread <thread-id>
+agent-discordbot message send 1234567890123456789 "Hello world" --thread 9876543210987654321
+
 # List messages
 agent-discordbot message list <channel-id>
 agent-discordbot message list 1234567890123456789 --limit 50

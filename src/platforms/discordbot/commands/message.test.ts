@@ -4,14 +4,15 @@ import { mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const mockSendMessage = mock((_channelId: string, content: string, _options?: { thread_id?: string }) =>
-  Promise.resolve({
-    id: 'msg1',
-    channel_id: 'ch1',
-    content,
-    author: { id: 'bot1', username: 'testbot' },
-    timestamp: '2025-01-01T00:00:00.000Z',
-  }),
+const mockSendMessage = mock(
+  (_channelId: string, content: string, _options?: { thread_id?: string; reply_to?: string }) =>
+    Promise.resolve({
+      id: 'msg1',
+      channel_id: 'ch1',
+      content,
+      author: { id: 'bot1', username: 'testbot' },
+      timestamp: '2025-01-01T00:00:00.000Z',
+    }),
 )
 
 const mockGetMessages = mock((_channelId: string, _limit?: number) =>
@@ -127,7 +128,7 @@ describe('message commands', () => {
       expect(result.content).toBe('hello world')
       expect(result.author).toBe('testbot')
       expect(mockResolveChannel).toHaveBeenCalledWith('guild1', 'general')
-      expect(mockSendMessage).toHaveBeenCalledWith('ch1', 'hello world', { thread_id: undefined })
+      expect(mockSendMessage).toHaveBeenCalledWith('ch1', 'hello world', { thread_id: undefined, reply_to: undefined })
     })
 
     it('sends message to channel by ID', async () => {
@@ -135,7 +136,7 @@ describe('message commands', () => {
 
       expect(result.id).toBe('msg1')
       expect(mockResolveChannel).toHaveBeenCalledWith('guild1', '123456')
-      expect(mockSendMessage).toHaveBeenCalledWith('123456', 'hi', { thread_id: undefined })
+      expect(mockSendMessage).toHaveBeenCalledWith('123456', 'hi', { thread_id: undefined, reply_to: undefined })
     })
 
     it('sends message to thread', async () => {
@@ -145,7 +146,23 @@ describe('message commands', () => {
       })
 
       expect(result.id).toBe('msg1')
-      expect(mockSendMessage).toHaveBeenCalledWith('ch1', 'thread reply', { thread_id: 'thread123' })
+      expect(mockSendMessage).toHaveBeenCalledWith('ch1', 'thread reply', {
+        thread_id: 'thread123',
+        reply_to: undefined,
+      })
+    })
+
+    it('replies to a message', async () => {
+      const result = await sendAction('general', 'reply text', {
+        _credManager: manager,
+        reply: 'parent123',
+      })
+
+      expect(result.id).toBe('msg1')
+      expect(mockSendMessage).toHaveBeenCalledWith('ch1', 'reply text', {
+        thread_id: undefined,
+        reply_to: 'parent123',
+      })
     })
 
     it('returns error on channel not found', async () => {

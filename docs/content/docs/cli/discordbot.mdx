@@ -156,6 +156,12 @@ agent-discordbot server info <server-id>
 agent-discordbot message send <channel> <text>
 agent-discordbot message send general "Hello world"
 
+# Reply to a message
+agent-discordbot message send general "On it!" --reply 9876543210987654321
+
+# Send a message into a thread
+agent-discordbot message send general "Hello world" --thread 9876543210987654321
+
 # List messages
 agent-discordbot message list <channel>
 agent-discordbot message list general --limit 50

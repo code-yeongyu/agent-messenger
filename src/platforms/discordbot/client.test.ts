@@ -167,6 +167,23 @@ describe('DiscordBotClient', () => {
 
       expect(fetchCalls[0].options?.body).toBe(JSON.stringify({ content: 'Thread reply', thread_id: 'thread123' }))
     })
+
+    it('includes message_reference when reply_to is provided', async () => {
+      mockResponse({
+        id: 'msg1',
+        channel_id: 'ch1',
+        author: { id: '123', username: 'bot' },
+        content: 'Reply text',
+        timestamp: '2024-01-01T00:00:00.000Z',
+      })
+
+      const client = await new DiscordBotClient().login({ token: 'bot-token' })
+      await client.sendMessage('ch1', 'Reply text', { reply_to: 'parent123' })
+
+      expect(fetchCalls[0].options?.body).toBe(
+        JSON.stringify({ content: 'Reply text', message_reference: { message_id: 'parent123' } }),
+      )
+    })
   })
 
   describe('editMessage', () => {
