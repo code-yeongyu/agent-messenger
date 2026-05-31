@@ -428,6 +428,54 @@ function formatMember(member: Record<string, unknown>): KakaoMember {
   }
 }
 
+function memberIdKey(member: Record<string, unknown>): string | null {
+  if (member.userId === undefined || member.userId === null) return null
+  const key = longToString(member.userId)
+  return key === '0' ? null : key
+}
+
+function mergeMemberRecords(
+  primaryMembers: Array<Record<string, unknown>>,
+  fallbackMembers: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  const merged: Array<Record<string, unknown>> = []
+  const indexByUserId = new Map<string, number>()
+
+  const upsert = (member: Record<string, unknown>) => {
+    const userId = memberIdKey(member)
+    if (!userId) return
+
+    const existingIndex = indexByUserId.get(userId)
+    if (existingIndex === undefined) {
+      indexByUserId.set(userId, merged.length)
+      merged.push(member)
+      return
+    }
+
+    merged[existingIndex] = { ...member, ...merged[existingIndex] }
+  }
+
+  for (const member of primaryMembers) upsert(member)
+  for (const member of fallbackMembers) upsert(member)
+
+  return merged
+}
+
+function extractChatInfoMembers(body: unknown): Array<Record<string, unknown>> {
+  if (!body || typeof body !== 'object') return []
+
+  const record = body as Record<string, unknown>
+  if (Array.isArray(record.m)) {
+    return record.m as Array<Record<string, unknown>>
+  }
+
+  const chatInfo = record.chatInfo
+  if (!chatInfo || typeof chatInfo !== 'object') return []
+
+  const displayMembers = (chatInfo as Record<string, unknown>).displayMembers
+  return Array.isArray(displayMembers) ? (displayMembers as Array<Record<string, unknown>>) : []
+}
+
 function formatMessages(
   logs: Array<Record<string, unknown>>,
   count: number,
@@ -875,7 +923,17 @@ export class KakaoTalkClient {
         const response = await session.getAllMembers(parsedChatId)
         assertLocoOk(response, 'GETMEM')
         const members = (response.body.members ?? []) as Array<Record<string, unknown>>
-        return members.map(formatMember)
+        let fallbackMembers: Array<Record<string, unknown>> = []
+        try {
+          // Some KakaoTalk rooms return only a subset from GETMEM even though
+          // CHATONROOM carries the full active member list in `m`.
+          const chatInfo = await session.getChatInfo(parsedChatId)
+          fallbackMembers = extractChatInfoMembers(chatInfo.body)
+        } catch {
+          fallbackMembers = []
+        }
+
+        return mergeMemberRecords(members, fallbackMembers).map(formatMember)
       } catch (error) {
         throw wrapError(error, 'get_members_failed')
       }

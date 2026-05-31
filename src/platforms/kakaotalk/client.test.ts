@@ -1265,6 +1265,45 @@ describe('KakaoTalkClient', () => {
       client.close()
     })
 
+    it('merges CHATONROOM members when GETMEM returns a partial member list', async () => {
+      mockGetAllMembers.mockResolvedValueOnce({
+        statusCode: 0,
+        body: {
+          members: [
+            {
+              userId: makeLong(42),
+              nickName: 'Alice',
+              type: 100,
+              profileImageUrl: 'https://kakao.com/p/alice.jpg',
+            },
+          ],
+          token: 0,
+        },
+      })
+      mockGetChatInfo.mockResolvedValueOnce({
+        statusCode: 0,
+        body: {
+          status: 0,
+          m: [
+            { userId: makeLong(42), nickName: 'Alice From Room', type: 100 },
+            { userId: makeLong(43), nickName: 'Bob', type: 100 },
+            { userId: makeLong(44), nickName: 'Carol', type: 100 },
+          ],
+        },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const members = await client.getMembers('100')
+
+      expect(members.map((member) => member.user_id)).toEqual(['42', '43', '44'])
+      expect(members[0].nickname).toBe('Alice')
+      expect(members[0].profile_image_url).toBe('https://kakao.com/p/alice.jpg')
+      expect(members[1].nickname).toBe('Bob')
+      expect(members[2].nickname).toBe('Carol')
+
+      client.close()
+    })
+
     it('returns empty array when GETMEM returns no members', async () => {
       mockGetAllMembers.mockResolvedValueOnce({ statusCode: 0, body: {} })
 
