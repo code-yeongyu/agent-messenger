@@ -353,7 +353,12 @@ export class LineClient {
     const polling = client.base.createPolling()
     const selfMid = client.base.profile?.mid
 
-    for await (const op of polling._listenTalkEvents({ signal })) {
+    for await (const op of polling._listenTalkEvents({
+      signal,
+      onError: (error) => {
+        throw error instanceof Error ? error : new Error(String(error))
+      },
+    })) {
       yield { kind: 'event', op }
       if (op.type === 'SEND_MESSAGE' || op.type === 'RECEIVE_MESSAGE') {
         const raw = await client.base.e2ee.decryptE2EEMessage(op.message)

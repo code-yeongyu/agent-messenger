@@ -61,6 +61,7 @@ export class LineListener {
       if (!this.running) return
 
       const profile = await this.lineClient.getProfile()
+      if (!this.running) return
       this.abortController = new AbortController()
       this.reconnectAttempts = 0
       this.emitter.emit('connected', { account_id: profile.mid })
