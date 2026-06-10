@@ -225,6 +225,44 @@ describe('LineClient', () => {
 
       await expect(collect(client)).rejects.toThrow('sync failed')
     })
+
+    it('swallows empty long-poll errors so the connection is not torn down', async () => {
+      const client = new LineClient()
+      ;(client as any).client = {
+        base: {
+          profile: { mid: 'me' },
+          createPolling: () => ({
+            async *_listenTalkEvents(opts: { onError?: (e: unknown) => void }) {
+              // given: an idle long-poll returns an empty body, then a real op arrives
+              opts.onError?.(new Error('Request internal failed: Invalid response buffer <>'))
+              yield { type: 'NOTIFIED_READ_MESSAGE' }
+            },
+          }),
+          e2ee: { decryptE2EEMessage: async (m: unknown) => m },
+        },
+      }
+
+      const events = await collect(client)
+      expect(events.map((e) => e.kind)).toEqual(['event'])
+    })
+
+    it('propagates non-empty malformed buffer errors', async () => {
+      const client = new LineClient()
+      ;(client as any).client = {
+        base: {
+          profile: { mid: 'me' },
+          createPolling: () => ({
+            async *_listenTalkEvents(opts: { onError?: (e: unknown) => void }) {
+              opts.onError?.(new Error('Request internal failed: Invalid response buffer <de ad be ef>'))
+              yield undefined as never
+            },
+          }),
+          e2ee: { decryptE2EEMessage: async (m: unknown) => m },
+        },
+      }
+
+      await expect(collect(client)).rejects.toThrow('Invalid response buffer <de ad be ef>')
+    })
   })
 
   describe('login() without credentials', () => {

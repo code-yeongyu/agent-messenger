@@ -51,6 +51,13 @@ function requiresEncryption(message: string): boolean {
   return /RETRY_ENCRYPT|can not send using plain mode|cannot send using plain mode/i.test(message)
 }
 
+// An idle long-poll returning zero bytes is normal, but the vendored Thrift reader
+// throws "Invalid response buffer <>" (empty brackets = empty body). Match only that
+// empty case so the poll loop continues; a non-empty malformed buffer still propagates.
+function isEmptyLongPollError(message: string): boolean {
+  return /Invalid response buffer <>/.test(message)
+}
+
 // Writes to stderr so partial-result degradation stays visible without
 // corrupting the JSON the CLI prints to stdout.
 function warnDegraded(action: string, error: unknown): void {
@@ -398,7 +405,9 @@ export class LineClient {
     for await (const op of polling._listenTalkEvents({
       signal,
       onError: (error) => {
-        throw error instanceof Error ? error : new Error(String(error))
+        const message = error instanceof Error ? error.message : String(error)
+        if (isEmptyLongPollError(message)) return
+        throw error instanceof Error ? error : new Error(message)
       },
     })) {
       yield { kind: 'event', op }
