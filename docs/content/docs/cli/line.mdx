@@ -9,14 +9,14 @@ description: Complete reference for the agent-line CLI.
 
 Before diving in, a few things about LINE's architecture:
 
-| Term                      | Description                                                                                                      |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| **MID**                   | LINE's unique identifier for users, chats, and rooms. Prefixed with `u` (user), `c` (group chat), or `r` (room). |
-| **QR code login**         | The primary authentication method. Scan a QR code with the LINE mobile app to authorize the CLI.                 |
-| **ANDROIDSECONDARY**      | The default device type. Registers as a secondary Android device so your phone and desktop sessions stay active. |
-| **E2EE (Letter Sealing)** | LINE's end-to-end encryption. The CLI attempts E2EE first and falls back to plaintext if keys aren't available.  |
-| **Device types**          | Controls which device slot the CLI occupies. Secondary devices coexist with your other sessions.                 |
-| **PIN verification**      | During login, LINE may display a PIN that you confirm on your phone to authorize the new device.                 |
+| Term                      | Description                                                                                                                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **MID**                   | LINE's unique identifier for users, chats, and rooms. Prefixed with `u` (user), `c` (group chat), or `r` (room).                                                                           |
+| **QR code login**         | The primary authentication method. Scan a QR code with the LINE mobile app to authorize the CLI.                                                                                           |
+| **ANDROIDSECONDARY**      | The default device type. Registers as a secondary Android device so your phone and desktop sessions stay active.                                                                           |
+| **E2EE (Letter Sealing)** | LINE's end-to-end encryption. The CLI attempts E2EE first and falls back to plaintext if keys aren't available. Chats that require E2EE reject the fallback and fail with `e2ee_required`. |
+| **Device types**          | Controls which device slot the CLI occupies. Secondary devices coexist with your other sessions.                                                                                           |
+| **PIN verification**      | During login, LINE may display a PIN that you confirm on your phone to authorize the new device.                                                                                           |
 
 ## Quick Start
 
@@ -230,6 +230,7 @@ agent-line message list c7a8b9c0d1e2f3a4b5c6d7e8 -n 200
 - No message editing or deletion
 - No search across chats
 - Plain text messages only (no photos, videos, or rich content)
+- Sending to chats that **require** E2EE (Letter Sealing) is not supported on auth-token sessions; such sends fail with `e2ee_required`
 - Chat IDs are MID strings, not human-readable — use `chat list` to discover them
 
 ## Troubleshooting
@@ -266,7 +267,7 @@ If the QR code doesn't open in your browser:
 
 ### E2EE errors
 
-The CLI tries E2EE (Letter Sealing) first and falls back automatically. If you see E2EE-related warnings, messages are still sent successfully without encryption.
+The CLI tries E2EE (Letter Sealing) first and falls back to plaintext when possible, so most messages still send. Chats that **require** E2EE reject the plaintext fallback, and the send fails with `e2ee_required` — auth-token sessions have no local E2EE key and cannot encrypt for those chats.
 
 ### PIN verification timeout
 

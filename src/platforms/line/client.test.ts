@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, mock } from 'bun:test'
 
 import { LineClient } from './client'
 import { LineError } from './types'
@@ -103,6 +103,57 @@ describe('LineClient', () => {
       expect(requestedCount).toBe(2)
       expect(result.map((m) => m.message_id)).toEqual(['30', '20'])
       expect(result.map((m) => m.text)).toEqual(['c', 'b'])
+    })
+  })
+
+  describe('sendMessage()', () => {
+    function clientWithTalk(talk: Record<string, unknown>): LineClient {
+      const client = new LineClient()
+      ;(client as any).client = { base: { talk } }
+      return client
+    }
+
+    it('sends with E2EE when available', async () => {
+      const sendMessage = mock(async () => ({ id: '1', createdTime: 1700000000000 }))
+      const client = clientWithTalk({ sendMessage })
+      const result = await client.sendMessage('chat1', 'hi')
+
+      expect(result.success).toBe(true)
+      expect(result.message_id).toBe('1')
+      expect(sendMessage.mock.calls[0][0]).toMatchObject({ e2ee: true })
+    })
+
+    it('falls back to plain text when E2EE key is unavailable', async () => {
+      let call = 0
+      const sendMessage = mock(async () => {
+        call++
+        if (call === 1) throw new Error('E2EE Key has not been saved')
+        return { id: '2', createdTime: 1700000001000 }
+      })
+      const client = clientWithTalk({ sendMessage })
+      const result = await client.sendMessage('chat1', 'hi')
+
+      expect(result.message_id).toBe('2')
+      expect(sendMessage.mock.calls[1][0]).toMatchObject({ e2ee: false })
+    })
+
+    it('throws e2ee_required when the chat mandates encryption and plain is rejected', async () => {
+      const sendMessage = mock(async (args: { e2ee: boolean }) => {
+        if (args.e2ee) throw new Error('E2EE Key has not been saved')
+        throw new Error('{"code":"E2EE_RETRY_ENCRYPT","reason":"can not send using plain mode"}')
+      })
+      const client = clientWithTalk({ sendMessage })
+
+      await expect(client.sendMessage('chat1', 'hi')).rejects.toMatchObject({ code: 'e2ee_required' })
+    })
+
+    it('rethrows non-E2EE send errors unchanged', async () => {
+      const sendMessage = mock(async () => {
+        throw new Error('rate limited')
+      })
+      const client = clientWithTalk({ sendMessage })
+
+      await expect(client.sendMessage('chat1', 'hi')).rejects.toMatchObject({ code: 'send_message_failed' })
     })
   })
 

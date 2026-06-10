@@ -43,6 +43,14 @@ function wrapError(error: unknown, code: string): LineError {
   return new LineError(code, message)
 }
 
+function isE2EEUnavailableError(message: string): boolean {
+  return /E2EE|e2ee|KeyNotFound|saveE2EE/.test(message)
+}
+
+function requiresEncryption(message: string): boolean {
+  return /RETRY_ENCRYPT|can not send using plain mode|cannot send using plain mode/i.test(message)
+}
+
 function mapChatType(rawType: unknown): 'user' | 'group' | 'room' | 'square' {
   if (rawType === 'GROUP' || rawType === 0) return 'group'
   if (rawType === 'ROOM' || rawType === 1) return 'room'
@@ -330,10 +338,22 @@ export class LineClient {
         sent = await client.base.talk.sendMessage({ to: chatId, text, e2ee: true })
       } catch (e2eeError) {
         const msg = e2eeError instanceof Error ? e2eeError.message : String(e2eeError)
-        if (msg.includes('E2EE') || msg.includes('e2ee') || msg.includes('KeyNotFound') || msg.includes('saveE2EE')) {
+        if (!isE2EEUnavailableError(msg)) throw e2eeError
+
+        try {
           sent = await client.base.talk.sendMessage({ to: chatId, text, e2ee: false })
-        } else {
-          throw e2eeError
+        } catch (plainError) {
+          const plainMsg = plainError instanceof Error ? plainError.message : String(plainError)
+          // Some chats force Letter Sealing and reject plain mode. This session
+          // authenticated via auth token and has no local E2EE private key, so it
+          // cannot encrypt. Surface a clear error and keep the original cause.
+          if (requiresEncryption(plainMsg)) {
+            throw new LineError(
+              'e2ee_required',
+              `This chat requires end-to-end encryption (Letter Sealing), which this auth-token session cannot provide. Original error: ${msg}`,
+            )
+          }
+          throw plainError
         }
       }
 
