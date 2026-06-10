@@ -54,6 +54,68 @@ describe('LineClient', () => {
     })
   })
 
+  describe('getMessages()', () => {
+    function clientWithTalk(talk: Record<string, unknown>): LineClient {
+      const client = new LineClient()
+      ;(client as any).client = { base: { talk } }
+      return client
+    }
+
+    it('returns empty when the message box has no messages', async () => {
+      const client = clientWithTalk({
+        getMessageBoxes: async () => ({ messageBoxes: [{ id: 'chat1', lastMessages: [] }] }),
+      })
+      expect(await client.getMessages('chat1')).toEqual([])
+    })
+
+    it('returns empty when the chat is not in any message box', async () => {
+      const client = clientWithTalk({
+        getMessageBoxes: async () => ({ messageBoxes: [{ id: 'other', lastMessages: [{ id: '5' }] }] }),
+      })
+      expect(await client.getMessages('chat1')).toEqual([])
+    })
+
+    it('anchors on the latest message and returns newest-first, deduplicated', async () => {
+      const latest = {
+        id: '30',
+        from: 'u1',
+        text: 'c',
+        contentType: 'NONE',
+        createdTime: 1700000003000,
+        deliveredTime: 1700000003000,
+      }
+      const older = [
+        { id: '30', from: 'u1', text: 'c', contentType: 'NONE', createdTime: 1700000003000 },
+        { id: '10', from: 'u1', text: 'a', contentType: 'NONE', createdTime: 1700000001000 },
+        { id: '20', from: 'u1', text: 'b', contentType: 'NONE', createdTime: 1700000002000 },
+      ]
+      const client = clientWithTalk({
+        getMessageBoxes: async () => ({ messageBoxes: [{ id: 'chat1', lastMessages: [latest] }] }),
+        getPreviousMessagesV2WithRequest: async () => older,
+      })
+
+      const result = await client.getMessages('chat1', { count: 10 })
+      expect(result.map((m) => m.message_id)).toEqual(['30', '20', '10'])
+      expect(result.map((m) => m.text)).toEqual(['c', 'b', 'a'])
+    })
+
+    it('respects the count limit', async () => {
+      const latest = { id: '30', from: 'u1', text: 'c', contentType: 'NONE', createdTime: 3 }
+      const older = [
+        { id: '30', from: 'u1', text: 'c', contentType: 'NONE', createdTime: 3 },
+        { id: '20', from: 'u1', text: 'b', contentType: 'NONE', createdTime: 2 },
+        { id: '10', from: 'u1', text: 'a', contentType: 'NONE', createdTime: 1 },
+      ]
+      const client = clientWithTalk({
+        getMessageBoxes: async () => ({ messageBoxes: [{ id: 'chat1', lastMessages: [latest] }] }),
+        getPreviousMessagesV2WithRequest: async () => older,
+      })
+
+      const result = await client.getMessages('chat1', { count: 2 })
+      expect(result.map((m) => m.message_id)).toEqual(['30', '20'])
+    })
+  })
+
   describe('login() without credentials', () => {
     it('throws LineError when no saved credentials exist', async () => {
       const { LineCredentialManager } = require('./credential-manager')
