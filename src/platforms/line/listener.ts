@@ -100,13 +100,14 @@ export class LineListener {
       const isGroupOrRoom = toType === 'GROUP' || toType === 'ROOM' || toType === 0 || toType === 1
       const chatId = isGroupOrRoom ? msg.to.id : msg.isMyMessage ? msg.to.id : msg.from.id
 
+      const contentType = String(msg.raw.contentType ?? 'NONE')
       const event: LinePushMessageEvent = {
         type: 'message',
         chat_id: chatId,
         message_id: String(msg.raw.id),
         author_id: msg.from.id,
-        text: msg.text ?? null,
-        content_type: String(msg.raw.contentType ?? 'NONE'),
+        text: getMessageText(msg.text, msg.raw, contentType),
+        content_type: contentType,
         content_metadata: normalizeContentMetadata(msg.raw.contentMetadata),
         sent_at: new Date(Number(msg.raw.createdTime)).toISOString(),
       }
@@ -150,4 +151,22 @@ function normalizeContentMetadata(raw: unknown): Record<string, string> {
     if (value !== null && value !== undefined) result[key] = String(value)
   }
   return result
+}
+
+function getMessageText(text: unknown, raw: unknown, contentType: string): string | null {
+  const direct = normalizeText(text)
+  if (direct !== null) return direct
+  if (!isTextContentType(contentType)) return null
+
+  if (!raw || typeof raw !== 'object') return null
+  return normalizeText((raw as Record<string, unknown>).text)
+}
+
+function normalizeText(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  return value.length > 0 ? value : null
+}
+
+function isTextContentType(contentType: string): boolean {
+  return contentType === 'NONE' || contentType === '0'
 }
