@@ -1,7 +1,7 @@
 ---
 name: agent-telegrambot
 description: Interact with Telegram using bot tokens - send messages, read chats, manage reactions
-version: 2.19.2
+version: 2.19.3
 allowed-tools: Bash(agent-telegrambot:*)
 metadata:
   openclaw:
