@@ -429,6 +429,7 @@ See the [LINE SDK documentation](https://agent-messenger.dev/docs/sdk/line) for 
 
 - No auto-extraction of credentials (requires interactive login via QR code or email/password)
 - E2EE (Letter Sealing) may prevent reading some message content
+- Sending to chats that **require** E2EE (Letter Sealing) is not supported on auth-token sessions; such sends fail with `e2ee_required`
 - No file upload support yet
 - No sticker or rich message sending (text only)
 - No group creation or management
