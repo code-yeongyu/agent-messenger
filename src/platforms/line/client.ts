@@ -51,6 +51,13 @@ function requiresEncryption(message: string): boolean {
   return /RETRY_ENCRYPT|can not send using plain mode|cannot send using plain mode/i.test(message)
 }
 
+// Writes to stderr so partial-result degradation stays visible without
+// corrupting the JSON the CLI prints to stdout.
+function warnDegraded(action: string, error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error)
+  console.warn(`[line] could not ${action}: ${message}`)
+}
+
 function mapChatType(rawType: unknown): 'user' | 'group' | 'room' | 'square' {
   if (rawType === 'GROUP' || rawType === 0) return 'group'
   if (rawType === 'ROOM' || rawType === 1) return 'room'
@@ -231,7 +238,10 @@ export class LineClient {
           },
           syncReason: 'INTERNAL',
         }),
-        client.fetchJoinedChats().catch(() => []),
+        client.fetchJoinedChats().catch((error: unknown) => {
+          warnDegraded('fetch joined group/room chats', error)
+          return []
+        }),
       ])
 
       for (const chat of joinedChats) {
@@ -261,7 +271,9 @@ export class LineClient {
           for (const c of contacts ?? []) {
             nameMap.set(c.mid, { name: c.displayName, type: 'user' })
           }
-        } catch {}
+        } catch (error) {
+          warnDegraded('resolve user display names', error)
+        }
       }
 
       if (groupMids.length > 0) {
@@ -275,7 +287,9 @@ export class LineClient {
               memberCount: memberMids ? Object.keys(memberMids).length : undefined,
             })
           }
-        } catch {}
+        } catch (error) {
+          warnDegraded('resolve group/room names', error)
+        }
       }
 
       for (const box of messageBoxes) {
@@ -389,7 +403,18 @@ export class LineClient {
     })) {
       yield { kind: 'event', op }
       if (op.type === 'SEND_MESSAGE' || op.type === 'RECEIVE_MESSAGE') {
-        const raw = await client.base.e2ee.decryptE2EEMessage(op.message)
+        // A single undecryptable message must not kill the stream: the failing
+        // op stays in the sync window and would be re-fetched every poll, causing
+        // an endless decrypt-fail -> reconnect loop. Fall back to the raw op and
+        // surface the message with null text, since its text is unreadable.
+        let raw = op.message
+        let decrypted = true
+        try {
+          raw = await client.base.e2ee.decryptE2EEMessage(op.message)
+        } catch {
+          raw = op.message
+          decrypted = false
+        }
         yield {
           kind: 'message',
           message: {
@@ -397,7 +422,7 @@ export class LineClient {
             to: { id: raw.to },
             from: { id: raw.from },
             isMyMessage: selfMid === raw.from,
-            text: raw.text ?? null,
+            text: decrypted ? (raw.text ?? null) : null,
           },
         }
       }
