@@ -1,6 +1,8 @@
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
+import type { Operation as LineOperation } from '@jsr/evex__linejs-types'
+
 import { getConfigDir } from '@/shared/utils/config-dir'
 import { FileStorage } from '@/vendor/linejs/base/storage/mod.js'
 import {
@@ -22,6 +24,16 @@ import type {
   LineSendResult,
 } from './types'
 import { LineError } from './types'
+
+export interface LineRawMessage {
+  raw: { id: unknown; contentType?: unknown; createdTime?: unknown; toType?: unknown; to?: unknown; from?: unknown }
+  to: { id: unknown }
+  from: { id: unknown }
+  isMyMessage: boolean
+  text: string | null
+}
+
+export type LineRawEvent = { kind: 'message'; message: LineRawMessage } | { kind: 'event'; op: LineOperation }
 
 function wrapError(error: unknown, code: string): LineError {
   if (error instanceof LineError) return error
@@ -328,6 +340,34 @@ export class LineClient {
       }
     } catch (error) {
       throw wrapError(error, 'send_message_failed')
+    }
+  }
+
+  // Drives the vendor polling generator (talk.sync()) instead of Client.listen().
+  // Client.listen() uses a LEGY HTTP/2 push connection (duplex:'half' streaming
+  // fetch) that yields zero bytes under Bun and dies immediately, so no events
+  // ever arrive (oven-sh/bun#7206, evex-dev/linejs#117). Polling works on any
+  // runtime. Messages are decrypted and normalized like Client.listen() does.
+  async *streamEvents(signal: AbortSignal): AsyncGenerator<LineRawEvent, void, unknown> {
+    const client = this.ensureClient()
+    const polling = client.base.createPolling()
+    const selfMid = client.base.profile?.mid
+
+    for await (const op of polling._listenTalkEvents({ signal })) {
+      yield { kind: 'event', op }
+      if (op.type === 'SEND_MESSAGE' || op.type === 'RECEIVE_MESSAGE') {
+        const raw = await client.base.e2ee.decryptE2EEMessage(op.message)
+        yield {
+          kind: 'message',
+          message: {
+            raw,
+            to: { id: raw.to },
+            from: { id: raw.from },
+            isMyMessage: selfMid === raw.from,
+            text: raw.text ?? null,
+          },
+        }
+      }
     }
   }
 
