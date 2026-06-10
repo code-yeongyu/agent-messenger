@@ -54,6 +54,58 @@ describe('LineClient', () => {
     })
   })
 
+  describe('getMessages()', () => {
+    function clientWithTalk(talk: Record<string, unknown>): LineClient {
+      const client = new LineClient()
+      ;(client as any).client = { base: { talk } }
+      return client
+    }
+
+    it('returns empty when the chat has no messages', async () => {
+      const client = clientWithTalk({
+        getServerTime: async () => 1700000000000,
+        getPreviousMessagesV2WithRequest: async () => [],
+      })
+      expect(await client.getMessages('chat1')).toEqual([])
+    })
+
+    it('queries from the latest message regardless of message-box position', async () => {
+      let request: any
+      const client = clientWithTalk({
+        getServerTime: async () => 1700000000000,
+        getPreviousMessagesV2WithRequest: async (args: any) => {
+          request = args.request
+          return [{ id: '30', from: 'u1', text: 'c', contentType: 'NONE', createdTime: 3 }]
+        },
+      })
+
+      const result = await client.getMessages('chat-not-in-top-boxes', { count: 10 })
+      expect(request.messageBoxId).toBe('chat-not-in-top-boxes')
+      expect(request.endMessageId.messageId).toBe(9223372036854775807n)
+      expect(result.map((m) => m.message_id)).toEqual(['30'])
+    })
+
+    it('maps vendor fields and preserves order/count from the request', async () => {
+      const raw = [
+        { id: '30', from: 'u1', text: 'c', contentType: 'NONE', createdTime: 1700000003000 },
+        { id: '20', from: 'u1', text: 'b', contentType: 'NONE', createdTime: 1700000002000 },
+      ]
+      let requestedCount: number | undefined
+      const client = clientWithTalk({
+        getServerTime: async () => 1700000000000,
+        getPreviousMessagesV2WithRequest: async (args: any) => {
+          requestedCount = args.request.messagesCount
+          return raw
+        },
+      })
+
+      const result = await client.getMessages('chat1', { count: 2 })
+      expect(requestedCount).toBe(2)
+      expect(result.map((m) => m.message_id)).toEqual(['30', '20'])
+      expect(result.map((m) => m.text)).toEqual(['c', 'b'])
+    })
+  })
+
   describe('login() without credentials', () => {
     it('throws LineError when no saved credentials exist', async () => {
       const { LineCredentialManager } = require('./credential-manager')

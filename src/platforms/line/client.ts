@@ -35,6 +35,8 @@ export interface LineRawMessage {
 
 export type LineRawEvent = { kind: 'message'; message: LineRawMessage } | { kind: 'event'; op: LineOperation }
 
+const MAX_MESSAGE_ID = 9223372036854775807n
+
 function wrapError(error: unknown, code: string): LineError {
   if (error instanceof LineError) return error
   const message = error instanceof Error ? error.message : String(error)
@@ -291,13 +293,16 @@ export class LineClient {
       const client = this.ensureClient()
       const count = options?.count ?? 20
 
+      // getPreviousMessagesV2WithRequest pages backward from endMessageId. A
+      // messageId:0 sentinel returns nothing; the max int64 id acts as "from the
+      // latest message" and works for any chat regardless of message-box position.
       const serverTime = await client.base.talk.getServerTime()
       const rawMessages = await client.base.talk.getPreviousMessagesV2WithRequest({
         request: {
           messageBoxId: chatId,
           endMessageId: {
             deliveredTime: BigInt(serverTime),
-            messageId: BigInt(0),
+            messageId: MAX_MESSAGE_ID,
           },
           messagesCount: count,
         },
