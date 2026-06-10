@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, mock, it } from 'bun:test'
+import { afterAll, beforeEach, describe, expect, mock, spyOn, it } from 'bun:test'
 import { mkdirSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -13,6 +13,16 @@ import { type ExtractedWorkspace, TokenExtractor } from '@/platforms/slack/token
 
 const testConfigDir = join(import.meta.dir, '.test-auth-config')
 const testSlackDir = join(import.meta.dir, '.test-slack-data')
+
+async function extractWithoutBrowserFallback(extractor: TokenExtractor): Promise<ExtractedWorkspace[]> {
+  const extractFromBrowsersSpy = spyOn(TokenExtractor.prototype, 'extractFromBrowsers').mockResolvedValue([])
+
+  try {
+    return await extractor.extract()
+  } finally {
+    extractFromBrowsersSpy.mockRestore()
+  }
+}
 
 describe('TokenExtractor', () => {
   let extractor: TokenExtractor
@@ -85,7 +95,7 @@ describe('TokenExtractor', () => {
       extractor = new TokenExtractor('darwin', nonExistentPath)
 
       // when
-      const result = await extractor.extract()
+      const result = await extractWithoutBrowserFallback(extractor)
 
       // then
       expect(result).toEqual([])
@@ -97,7 +107,7 @@ describe('TokenExtractor', () => {
       extractor = new TokenExtractor('darwin', testSlackDir)
 
       // When: extract is called
-      const result = await extractor.extract()
+      const result = await extractWithoutBrowserFallback(extractor)
 
       // Then: Should return empty array
       expect(result).toEqual([])
@@ -463,7 +473,7 @@ describe('Error Handling', () => {
     const extractor = new TokenExtractor('darwin', nonExistentPath)
 
     // when/then — falls back to browser profiles, returns empty array
-    const result = await extractor.extract()
+    const result = await extractWithoutBrowserFallback(extractor)
     expect(result).toEqual([])
   })
 
@@ -472,7 +482,7 @@ describe('Error Handling', () => {
     const extractor = new TokenExtractor('darwin', testSlackDir)
 
     // When: Trying to extract from empty directory
-    const result = await extractor.extract()
+    const result = await extractWithoutBrowserFallback(extractor)
 
     // Then: Should return empty array
     expect(result).toEqual([])
@@ -484,7 +494,7 @@ describe('Error Handling', () => {
     const extractor = new TokenExtractor('darwin', testSlackDir)
 
     // When: Trying to extract
-    const result = await extractor.extract()
+    const result = await extractWithoutBrowserFallback(extractor)
 
     // Then: Should return empty array (no tokens found)
     expect(result).toEqual([])
