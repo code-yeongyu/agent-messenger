@@ -346,8 +346,11 @@ export class LineClient {
   // Drives the vendor polling generator (talk.sync()) instead of Client.listen().
   // Client.listen() uses a LEGY HTTP/2 push connection (duplex:'half' streaming
   // fetch) that yields zero bytes under Bun and dies immediately, so no events
-  // ever arrive (oven-sh/bun#7206, evex-dev/linejs#117). Polling works on any
-  // runtime. Messages are decrypted and normalized like Client.listen() does.
+  // ever arrive (evex-dev/linejs#117). The upstream "fix" (linejs#134, v2.7.0+)
+  // only adds an undici+allowH2 path for Node.js and explicitly skips Bun
+  // ("Bun" in globalThis -> return false), falling back to Bun's native fetch,
+  // which still can't stream duplex:'half' HTTP/2 (oven-sh/bun#30342, #31881).
+  // Polling works on every runtime. Messages are normalized like Client.listen().
   async *streamEvents(signal: AbortSignal): AsyncGenerator<LineRawEvent, void, unknown> {
     const client = this.ensureClient()
     const polling = client.base.createPolling()
