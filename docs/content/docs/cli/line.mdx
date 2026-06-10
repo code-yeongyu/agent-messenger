@@ -9,14 +9,14 @@ description: Complete reference for the agent-line CLI.
 
 Before diving in, a few things about LINE's architecture:
 
-| Term                      | Description                                                                                                      |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| **MID**                   | LINE's unique identifier for users, chats, and rooms. Prefixed with `u` (user), `c` (group chat), or `r` (room). |
-| **QR code login**         | The primary authentication method. Scan a QR code with the LINE mobile app to authorize the CLI.                 |
-| **ANDROIDSECONDARY**      | The default device type. Registers as a secondary Android device so your phone and desktop sessions stay active. |
-| **E2EE (Letter Sealing)** | LINE's end-to-end encryption. The CLI attempts E2EE first and falls back to plaintext if keys aren't available. Chats that require E2EE reject the fallback and fail with `e2ee_required`.  |
-| **Device types**          | Controls which device slot the CLI occupies. Secondary devices coexist with your other sessions.                 |
-| **PIN verification**      | During login, LINE may display a PIN that you confirm on your phone to authorize the new device.                 |
+| Term                      | Description                                                                                                                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **MID**                   | LINE's unique identifier for users, chats, and rooms. Prefixed with `u` (user), `c` (group chat), or `r` (room).                                                                           |
+| **QR code login**         | The primary authentication method. Scan a QR code with the LINE mobile app to authorize the CLI.                                                                                           |
+| **ANDROIDSECONDARY**      | The default device type. Registers as a secondary Android device so your phone and desktop sessions stay active.                                                                           |
+| **E2EE (Letter Sealing)** | LINE's end-to-end encryption. The CLI attempts E2EE first and falls back to plaintext if keys aren't available. Chats that require E2EE reject the fallback and fail with `e2ee_required`. |
+| **Device types**          | Controls which device slot the CLI occupies. Secondary devices coexist with your other sessions.                                                                                           |
+| **PIN verification**      | During login, LINE may display a PIN that you confirm on your phone to authorize the new device.                                                                                           |
 
 ## Quick Start
 
