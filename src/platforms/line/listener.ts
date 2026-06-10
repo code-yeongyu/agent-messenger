@@ -107,6 +107,7 @@ export class LineListener {
         author_id: msg.from.id,
         text: msg.text ?? null,
         content_type: String(msg.raw.contentType ?? 'NONE'),
+        content_metadata: normalizeContentMetadata(msg.raw.contentMetadata),
         sent_at: new Date(Number(msg.raw.createdTime)).toISOString(),
       }
       this.emitter.emit('message', event)
@@ -140,4 +141,13 @@ export class LineListener {
       this.reconnectTimer = null
     }
   }
+}
+
+function normalizeContentMetadata(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object') return {}
+  const result: Record<string, string> = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (value !== null && value !== undefined) result[key] = String(value)
+  }
+  return result
 }

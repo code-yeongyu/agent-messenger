@@ -172,6 +172,64 @@ describe('LineListener', () => {
       expect(messages[0].author_id).toBe('u456')
       expect(messages[0].text).toBe('hello world')
       expect(messages[0].content_type).toBe('NONE')
+      expect(messages[0].content_metadata).toEqual({})
+    })
+
+    it('forwards contentMetadata for non-text messages', async () => {
+      const client = createMockLineClient()
+      listener = new LineListener(client)
+
+      const messages: LinePushMessageEvent[] = []
+      listener.on('message', (event) => messages.push(event))
+
+      await listener.start()
+      mockInternalClientInstance.simulateMessage({
+        isMyMessage: false,
+        from: { type: 'USER', id: 'u456' },
+        to: { type: 'USER', id: 'u123' },
+        text: null,
+        raw: {
+          id: 'msg010',
+          contentType: 'STICKER',
+          createdTime: 1700000007000,
+          contentMetadata: { STKID: '123', STKPKGID: '456', STKVER: '1' },
+        },
+      })
+      await flush()
+
+      expect(messages.length).toBe(1)
+      expect(messages[0].text).toBeNull()
+      expect(messages[0].content_type).toBe('STICKER')
+      expect(messages[0].content_metadata).toEqual({ STKID: '123', STKPKGID: '456', STKVER: '1' })
+    })
+
+    it('coerces non-string contentMetadata values to strings', async () => {
+      const client = createMockLineClient()
+      listener = new LineListener(client)
+
+      const messages: LinePushMessageEvent[] = []
+      listener.on('message', (event) => messages.push(event))
+
+      await listener.start()
+      mockInternalClientInstance.simulateMessage({
+        isMyMessage: false,
+        from: { type: 'USER', id: 'u456' },
+        to: { type: 'USER', id: 'u123' },
+        text: null,
+        raw: {
+          id: 'msg011',
+          contentType: 'IMAGE',
+          createdTime: 1700000008000,
+          contentMetadata: { FILE_SIZE: 2048, PREVIEW_URL: 'https://example.com/p.jpg', EMPTY: null },
+        },
+      })
+      await flush()
+
+      expect(messages.length).toBe(1)
+      expect(messages[0].content_metadata).toEqual({
+        FILE_SIZE: '2048',
+        PREVIEW_URL: 'https://example.com/p.jpg',
+      })
     })
 
     it('uses to.id as chat_id for own messages', async () => {
