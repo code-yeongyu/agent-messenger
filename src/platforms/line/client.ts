@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
-import type { Message as LineRawMessageData, Operation as LineOperation } from '@jsr/evex__linejs-types'
+import type { Operation as LineOperation } from '@jsr/evex__linejs-types'
 
 import { getConfigDir } from '@/shared/utils/config-dir'
 import { FileStorage } from '@/vendor/linejs/base/storage/mod.js'
@@ -34,6 +34,8 @@ export interface LineRawMessage {
 }
 
 export type LineRawEvent = { kind: 'message'; message: LineRawMessage } | { kind: 'event'; op: LineOperation }
+
+const MAX_MESSAGE_ID = 9223372036854775807n
 
 function wrapError(error: unknown, code: string): LineError {
   if (error instanceof LineError) return error
@@ -291,28 +293,22 @@ export class LineClient {
       const client = this.ensureClient()
       const count = options?.count ?? 20
 
-      const latest = await this.getLatestMessage(chatId)
-      if (!latest) return []
-
-      // getPreviousMessagesV2WithRequest pages backward from a real endMessageId.
-      // A messageId:0 sentinel returns nothing, so anchor on the latest message
-      // and include it in the result.
-      const older = await client.base.talk.getPreviousMessagesV2WithRequest({
+      // getPreviousMessagesV2WithRequest pages backward from endMessageId. A
+      // messageId:0 sentinel returns nothing; the max int64 id acts as "from the
+      // latest message" and works for any chat regardless of message-box position.
+      const serverTime = await client.base.talk.getServerTime()
+      const rawMessages = await client.base.talk.getPreviousMessagesV2WithRequest({
         request: {
           messageBoxId: chatId,
           endMessageId: {
-            deliveredTime: BigInt(latest.deliveredTime ?? latest.createdTime ?? 0),
-            messageId: BigInt(latest.id),
+            deliveredTime: BigInt(serverTime),
+            messageId: MAX_MESSAGE_ID,
           },
           messagesCount: count,
         },
       })
 
-      const byId = new Map<string, (typeof older)[number]>()
-      for (const msg of [latest, ...(older ?? [])]) byId.set(String(msg.id), msg)
-      const merged = [...byId.values()].sort((a, b) => Number(BigInt(b.id) - BigInt(a.id))).slice(0, count)
-
-      return merged.map((msg) => ({
+      return (rawMessages ?? []).map((msg) => ({
         message_id: String(msg.id),
         chat_id: chatId,
         author_id: String(msg.from ?? ''),
@@ -323,18 +319,6 @@ export class LineClient {
     } catch (error) {
       throw wrapError(error, 'get_messages_failed')
     }
-  }
-
-  private async getLatestMessage(chatId: string): Promise<LineRawMessageData | null> {
-    const client = this.ensureClient()
-    const boxes = await client.base.talk.getMessageBoxes({
-      messageBoxListRequest: { messageBoxCountLimit: 50, lastMessagesPerMessageBoxCount: 1 },
-      syncReason: 'INTERNAL',
-    })
-    const box = (boxes?.messageBoxes ?? []).find((b) => b.id === chatId)
-    const messages = box?.lastMessages ?? []
-    if (messages.length === 0) return null
-    return messages.reduce((latest, msg) => (BigInt(msg.id) > BigInt(latest.id) ? msg : latest))
   }
 
   async sendMessage(chatId: string, text: string): Promise<LineSendResult> {

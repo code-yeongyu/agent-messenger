@@ -61,58 +61,48 @@ describe('LineClient', () => {
       return client
     }
 
-    it('returns empty when the message box has no messages', async () => {
+    it('returns empty when the chat has no messages', async () => {
       const client = clientWithTalk({
-        getMessageBoxes: async () => ({ messageBoxes: [{ id: 'chat1', lastMessages: [] }] }),
+        getServerTime: async () => 1700000000000,
+        getPreviousMessagesV2WithRequest: async () => [],
       })
       expect(await client.getMessages('chat1')).toEqual([])
     })
 
-    it('returns empty when the chat is not in any message box', async () => {
+    it('queries from the latest message regardless of message-box position', async () => {
+      let request: any
       const client = clientWithTalk({
-        getMessageBoxes: async () => ({ messageBoxes: [{ id: 'other', lastMessages: [{ id: '5' }] }] }),
+        getServerTime: async () => 1700000000000,
+        getPreviousMessagesV2WithRequest: async (args: any) => {
+          request = args.request
+          return [{ id: '30', from: 'u1', text: 'c', contentType: 'NONE', createdTime: 3 }]
+        },
       })
-      expect(await client.getMessages('chat1')).toEqual([])
+
+      const result = await client.getMessages('chat-not-in-top-boxes', { count: 10 })
+      expect(request.messageBoxId).toBe('chat-not-in-top-boxes')
+      expect(request.endMessageId.messageId).toBe(9223372036854775807n)
+      expect(result.map((m) => m.message_id)).toEqual(['30'])
     })
 
-    it('anchors on the latest message and returns newest-first, deduplicated', async () => {
-      const latest = {
-        id: '30',
-        from: 'u1',
-        text: 'c',
-        contentType: 'NONE',
-        createdTime: 1700000003000,
-        deliveredTime: 1700000003000,
-      }
-      const older = [
+    it('maps vendor fields and preserves order/count from the request', async () => {
+      const raw = [
         { id: '30', from: 'u1', text: 'c', contentType: 'NONE', createdTime: 1700000003000 },
-        { id: '10', from: 'u1', text: 'a', contentType: 'NONE', createdTime: 1700000001000 },
         { id: '20', from: 'u1', text: 'b', contentType: 'NONE', createdTime: 1700000002000 },
       ]
+      let requestedCount: number | undefined
       const client = clientWithTalk({
-        getMessageBoxes: async () => ({ messageBoxes: [{ id: 'chat1', lastMessages: [latest] }] }),
-        getPreviousMessagesV2WithRequest: async () => older,
-      })
-
-      const result = await client.getMessages('chat1', { count: 10 })
-      expect(result.map((m) => m.message_id)).toEqual(['30', '20', '10'])
-      expect(result.map((m) => m.text)).toEqual(['c', 'b', 'a'])
-    })
-
-    it('respects the count limit', async () => {
-      const latest = { id: '30', from: 'u1', text: 'c', contentType: 'NONE', createdTime: 3 }
-      const older = [
-        { id: '30', from: 'u1', text: 'c', contentType: 'NONE', createdTime: 3 },
-        { id: '20', from: 'u1', text: 'b', contentType: 'NONE', createdTime: 2 },
-        { id: '10', from: 'u1', text: 'a', contentType: 'NONE', createdTime: 1 },
-      ]
-      const client = clientWithTalk({
-        getMessageBoxes: async () => ({ messageBoxes: [{ id: 'chat1', lastMessages: [latest] }] }),
-        getPreviousMessagesV2WithRequest: async () => older,
+        getServerTime: async () => 1700000000000,
+        getPreviousMessagesV2WithRequest: async (args: any) => {
+          requestedCount = args.request.messagesCount
+          return raw
+        },
       })
 
       const result = await client.getMessages('chat1', { count: 2 })
+      expect(requestedCount).toBe(2)
       expect(result.map((m) => m.message_id)).toEqual(['30', '20'])
+      expect(result.map((m) => m.text)).toEqual(['c', 'b'])
     })
   })
 
