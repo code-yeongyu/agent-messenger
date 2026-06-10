@@ -17,6 +17,7 @@ import type {
   LineAccountCredentials,
   LineChat,
   LineDevice,
+  LineDecryptionError,
   LineFriend,
   LineLoginResult,
   LineMessage,
@@ -26,11 +27,23 @@ import type {
 import { LineError } from './types'
 
 export interface LineRawMessage {
-  raw: { id: unknown; contentType?: unknown; createdTime?: unknown; toType?: unknown; to?: unknown; from?: unknown }
+  raw: {
+    id: unknown
+    contentType?: unknown
+    contentMetadata?: unknown
+    createdTime?: unknown
+    toType?: unknown
+    to?: unknown
+    from?: unknown
+    text?: unknown
+    chunks?: unknown
+    metadata?: unknown
+  }
   to: { id: unknown }
   from: { id: unknown }
   isMyMessage: boolean
   text: string | null
+  decryption_error?: LineDecryptionError
 }
 
 export type LineRawEvent = { kind: 'message'; message: LineRawMessage } | { kind: 'event'; op: LineOperation }
@@ -337,14 +350,18 @@ export class LineClient {
         },
       })
 
-      return (rawMessages ?? []).map((msg) => ({
-        message_id: String(msg.id),
-        chat_id: chatId,
-        author_id: String(msg.from ?? ''),
-        text: msg.text || null,
-        content_type: String(msg.contentType ?? 'NONE'),
-        sent_at: new Date(Number(msg.createdTime)).toISOString(),
-      }))
+      return (rawMessages ?? []).map((msg) => {
+        const decryptionError = getUndecryptableMessageError(msg)
+        return {
+          message_id: String(msg.id),
+          chat_id: chatId,
+          author_id: String(msg.from ?? ''),
+          text: msg.text || null,
+          ...(decryptionError && { decryption_error: decryptionError }),
+          content_type: String(msg.contentType ?? 'NONE'),
+          sent_at: new Date(Number(msg.createdTime)).toISOString(),
+        }
+      })
     } catch (error) {
       throw wrapError(error, 'get_messages_failed')
     }
@@ -418,12 +435,15 @@ export class LineClient {
         // surface the message with null text, since its text is unreadable.
         let raw = op.message
         let decrypted = true
+        let decryptionError: LineDecryptionError | undefined
         try {
           raw = await client.base.e2ee.decryptE2EEMessage(op.message)
-        } catch {
+        } catch (error) {
           raw = op.message
           decrypted = false
+          decryptionError = getDecryptionError(error)
         }
+        decryptionError ??= getUndecryptableMessageError(raw)
         yield {
           kind: 'message',
           message: {
@@ -432,6 +452,7 @@ export class LineClient {
             from: { id: raw.from },
             isMyMessage: selfMid === raw.from,
             text: decrypted ? (raw.text ?? null) : null,
+            ...(decryptionError && { decryption_error: decryptionError }),
           },
         }
       }
@@ -448,4 +469,39 @@ export class LineClient {
     }
     return this.client
   }
+}
+
+function getUndecryptableMessageError(raw: unknown): LineDecryptionError | undefined {
+  if (!isEncryptedChunkMessage(raw) || hasPlainText(raw)) return undefined
+  return {
+    code: 'missing_e2ee_key',
+    message: 'LINE message is encrypted with Letter Sealing, but this session has no saved E2EE key material.',
+  }
+}
+
+function getDecryptionError(error: unknown): LineDecryptionError {
+  const message = error instanceof Error ? error.message : String(error)
+  return {
+    code: /NoE2EEKey|E2EE Key has not been saved|saveE2EE/i.test(message) ? 'missing_e2ee_key' : 'decrypt_failed',
+    message,
+  }
+}
+
+function hasPlainText(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object') return false
+  const text = (raw as { text?: unknown }).text
+  return typeof text === 'string' && text.length > 0
+}
+
+function isEncryptedChunkMessage(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object') return false
+  const message = raw as { chunks?: unknown; contentMetadata?: unknown; metadata?: unknown }
+  if (!Array.isArray(message.chunks) || message.chunks.length === 0) return false
+  return hasE2EEMetadata(message.contentMetadata) || hasE2EEMetadata(message.metadata)
+}
+
+function hasE2EEMetadata(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object') return false
+  const metadata = raw as { e2eeMark?: unknown; e2eeVersion?: unknown }
+  return metadata.e2eeMark !== undefined || metadata.e2eeVersion !== undefined
 }
