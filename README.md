@@ -10,6 +10,9 @@
 
 One CLI for Slack, Discord, Teams, Webex, Telegram, WhatsApp, LINE, Instagram, KakaoTalk, and Channel Talk. Credentials extracted from desktop apps and browsers, or authenticated in seconds — no API keys, no OAuth, no admin approval. TypeScript SDK included.
 
+> [!TIP]
+> 🎉 Agent Messenger powers multi-channel messaging in [TypeClaw](https://github.com/typeclaw/typeclaw), a TypeScript-native agent runtime.
+
 ## Table of Contents
 
 - [Why Agent Messenger?](#why-agent-messenger)
