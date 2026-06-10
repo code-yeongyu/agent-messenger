@@ -1,6 +1,7 @@
 import { describe, expect, it, mock } from 'bun:test'
 
 import { LineClient } from './client'
+import type { LineRawEvent } from './client'
 import { LineError } from './types'
 import type { LineChat, LineDevice, LineLoginResult, LineMessage, LineSendResult } from './types'
 
@@ -154,6 +155,75 @@ describe('LineClient', () => {
       const client = clientWithTalk({ sendMessage })
 
       await expect(client.sendMessage('chat1', 'hi')).rejects.toMatchObject({ code: 'send_message_failed' })
+    })
+  })
+
+  describe('streamEvents()', () => {
+    function clientWithStream(ops: unknown[], decrypt: (m: unknown) => Promise<unknown>): LineClient {
+      const client = new LineClient()
+      ;(client as any).client = {
+        base: {
+          profile: { mid: 'me' },
+          createPolling: () => ({
+            // eslint-disable-next-line require-yield
+            async *_listenTalkEvents() {
+              for (const op of ops) yield op
+            },
+          }),
+          e2ee: { decryptE2EEMessage: decrypt },
+        },
+      }
+      return client
+    }
+
+    async function collect(client: LineClient): Promise<LineRawEvent[]> {
+      const out: LineRawEvent[] = []
+      for await (const e of client.streamEvents(new AbortController().signal)) out.push(e)
+      return out
+    }
+
+    it('decrypts messages and emits event + message', async () => {
+      const op = { type: 'RECEIVE_MESSAGE', message: { id: '1', from: 'u1', to: 'me' } }
+      const client = clientWithStream([op], async () => ({ id: '1', from: 'u1', to: 'me', text: 'hello' }))
+
+      const events = await collect(client)
+      expect(events.map((e) => e.kind)).toEqual(['event', 'message'])
+      const msg = events[1] as Extract<LineRawEvent, { kind: 'message' }>
+      expect(msg.message.text).toBe('hello')
+    })
+
+    it('keeps streaming when E2EE decryption fails (no reconnect loop)', async () => {
+      const ops = [
+        { type: 'RECEIVE_MESSAGE', message: { id: '1', from: 'u1', to: 'me', text: 'plain-on-raw' } },
+        { type: 'NOTIFIED_READ_MESSAGE' },
+      ]
+      const client = clientWithStream(ops, async () => {
+        throw new Error('E2EE decrypt failed')
+      })
+
+      const events = await collect(client)
+      expect(events.map((e) => e.kind)).toEqual(['event', 'message', 'event'])
+      const msg = events[1] as Extract<LineRawEvent, { kind: 'message' }>
+      expect(msg.message.from.id).toBe('u1')
+      expect(msg.message.text).toBe('plain-on-raw')
+    })
+
+    it('propagates polling errors so the listener can reconnect', async () => {
+      const client = new LineClient()
+      ;(client as any).client = {
+        base: {
+          profile: { mid: 'me' },
+          createPolling: () => ({
+            async *_listenTalkEvents(opts: { onError?: (e: unknown) => void }) {
+              opts.onError?.(new Error('sync failed'))
+              yield undefined as never
+            },
+          }),
+          e2ee: { decryptE2EEMessage: async (m: unknown) => m },
+        },
+      }
+
+      await expect(collect(client)).rejects.toThrow('sync failed')
     })
   })
 
