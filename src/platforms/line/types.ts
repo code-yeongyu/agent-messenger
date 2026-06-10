@@ -138,6 +138,8 @@ export interface LinePushMessageEvent {
   author_id: string
   text: string | null
   content_type: string
+  // Raw LINE contentMetadata (sticker IDs, file name/size, media URLs); empty for plain text.
+  content_metadata: Record<string, string>
   sent_at: string
 }
 
