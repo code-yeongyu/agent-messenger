@@ -203,6 +203,33 @@ describe('LineListener', () => {
       expect(messages[0].content_metadata).toEqual({ STKID: '123', STKPKGID: '456', STKVER: '1' })
     })
 
+    it('falls back to raw text when text is empty for contentType NONE messages', async () => {
+      const client = createMockLineClient()
+      listener = new LineListener(client)
+
+      const messages: LinePushMessageEvent[] = []
+      listener.on('message', (event) => messages.push(event))
+
+      await listener.start()
+      mockInternalClientInstance.simulateMessage({
+        isMyMessage: false,
+        from: { type: 'USER', id: 'u456' },
+        to: { type: 'USER', id: 'u123' },
+        text: '',
+        raw: {
+          id: 'msg012',
+          contentType: 'NONE',
+          text: 'actual text from raw',
+          createdTime: 1700000009000,
+        },
+      })
+      await flush()
+
+      expect(messages.length).toBe(1)
+      expect(messages[0].text).toBe('actual text from raw')
+      expect(messages[0].content_type).toBe('NONE')
+    })
+
     it('coerces non-string contentMetadata values to strings', async () => {
       const client = createMockLineClient()
       listener = new LineListener(client)
