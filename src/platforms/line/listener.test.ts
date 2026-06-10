@@ -230,6 +230,38 @@ describe('LineListener', () => {
       expect(messages[0].content_type).toBe('NONE')
     })
 
+    it('forwards LINE decryption errors on message events', async () => {
+      const client = createMockLineClient()
+      listener = new LineListener(client)
+
+      const messages: LinePushMessageEvent[] = []
+      listener.on('message', (event) => messages.push(event))
+
+      await listener.start()
+      mockInternalClientInstance.simulateMessage({
+        isMyMessage: false,
+        from: { type: 'USER', id: 'u456' },
+        to: { type: 'USER', id: 'u123' },
+        text: null,
+        decryption_error: {
+          code: 'missing_e2ee_key',
+          message: 'LINE message is encrypted with Letter Sealing, but this session has no saved E2EE key material.',
+        },
+        raw: {
+          id: 'msg013',
+          contentType: 'NONE',
+          createdTime: 1700000010000,
+          chunks: ['a', 'b'],
+          metadata: { e2eeMark: '2', e2eeVersion: '2' },
+        },
+      })
+      await flush()
+
+      expect(messages.length).toBe(1)
+      expect(messages[0].text).toBeNull()
+      expect(messages[0].decryption_error?.code).toBe('missing_e2ee_key')
+    })
+
     it('coerces non-string contentMetadata values to strings', async () => {
       const client = createMockLineClient()
       listener = new LineListener(client)
