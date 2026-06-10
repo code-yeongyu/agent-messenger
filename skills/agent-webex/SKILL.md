@@ -1,7 +1,7 @@
 ---
 name: agent-webex
 description: Interact with Cisco Webex - send messages, read spaces, manage memberships
-version: 2.19.3
+version: 2.19.4
 allowed-tools: Bash(agent-webex:*)
 metadata:
   openclaw:
