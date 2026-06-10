@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type { Operation as LineOperation } from '@jsr/evex__linejs-types'
@@ -92,7 +92,14 @@ function getDefaultDevice(): LineDevice {
 function createStorage(accountId?: string): FileStorage {
   const dir = join(getConfigDir(), 'line-storage')
   mkdirSync(dir, { recursive: true })
-  return new FileStorage(join(dir, `${accountId ?? 'default'}.json`))
+  const defaultPath = join(dir, 'default.json')
+  if (!accountId) return new FileStorage(defaultPath)
+
+  const accountPath = join(dir, `${accountId}.json`)
+  if (!existsSync(accountPath) && existsSync(defaultPath)) {
+    copyFileSync(defaultPath, accountPath)
+  }
+  return new FileStorage(accountPath)
 }
 
 export class LineClient {
@@ -123,6 +130,7 @@ export class LineClient {
       this.client = client
 
       const profile = await client.base.talk.getProfile()
+      createStorage(profile.mid)
       const now = new Date().toISOString()
 
       await this.credManager.setAccount({
@@ -159,6 +167,7 @@ export class LineClient {
         {
           email: options.email,
           password: options.password,
+          e2ee: true,
           onPincodeRequest: (pin) => options.onPincode(pin),
         },
         { device, storage },
@@ -167,6 +176,7 @@ export class LineClient {
       this.client = client
 
       const profile = await client.base.talk.getProfile()
+      createStorage(profile.mid)
       const now = new Date().toISOString()
 
       await this.credManager.setAccount({
@@ -201,7 +211,7 @@ export class LineClient {
       }
 
       const device: LineDevice = creds.device ?? getDefaultDevice()
-      const storage = createStorage()
+      const storage = createStorage(creds.account_id)
 
       this.client = await linejsLoginWithAuthToken(creds.auth_token, { device, storage })
       return this

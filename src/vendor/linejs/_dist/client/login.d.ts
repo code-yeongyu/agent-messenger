@@ -34,6 +34,7 @@ export interface WithPasswordOptions {
   email: string;
   password: string;
   /** @default 114514 */ pincode?: string;
+  /** @default true */ e2ee?: boolean;
   onPincodeRequest(pin: string): void | Promise<void>;
 }
 export declare const loginWithPassword: (opts: WithPasswordOptions, init: InitOptions) => Promise<Client>;

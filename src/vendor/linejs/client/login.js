@@ -22,7 +22,8 @@ export const loginWithPassword = async (opts, init)=>{
   await base.loginProcess.withPassword({
     email: opts.email,
     password: opts.password,
-    pincode: opts.pincode
+    pincode: opts.pincode,
+    e2ee: opts.e2ee
   });
   await base.loginProcess.ready();
   return new Client(base);
