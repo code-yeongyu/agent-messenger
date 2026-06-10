@@ -406,12 +406,14 @@ export class LineClient {
         // A single undecryptable message must not kill the stream: the failing
         // op stays in the sync window and would be re-fetched every poll, causing
         // an endless decrypt-fail -> reconnect loop. Fall back to the raw op and
-        // surface the message with null text instead.
+        // surface the message with null text, since its text is unreadable.
         let raw = op.message
+        let decrypted = true
         try {
           raw = await client.base.e2ee.decryptE2EEMessage(op.message)
         } catch {
           raw = op.message
+          decrypted = false
         }
         yield {
           kind: 'message',
@@ -420,7 +422,7 @@ export class LineClient {
             to: { id: raw.to },
             from: { id: raw.from },
             isMyMessage: selfMid === raw.from,
-            text: raw.text ?? null,
+            text: decrypted ? (raw.text ?? null) : null,
           },
         }
       }

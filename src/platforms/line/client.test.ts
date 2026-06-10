@@ -205,7 +205,7 @@ describe('LineClient', () => {
       expect(events.map((e) => e.kind)).toEqual(['event', 'message', 'event'])
       const msg = events[1] as Extract<LineRawEvent, { kind: 'message' }>
       expect(msg.message.from.id).toBe('u1')
-      expect(msg.message.text).toBe('plain-on-raw')
+      expect(msg.message.text).toBeNull()
     })
 
     it('propagates polling errors so the listener can reconnect', async () => {
