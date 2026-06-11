@@ -71,11 +71,14 @@ MESSAGES=$(agent-line message list "$CHAT_ID" -n 50)
 MSG_COUNT=$(echo "$MESSAGES" | jq 'length')
 echo "Found $MSG_COUNT messages"
 
-# Show messages; encrypted Letter Sealing messages may include decryption_error.
-echo "$MESSAGES" | jq -r '.[] | "\(.author_id): \(.text // .decryption_error.message // "[non-text]")"'
+# Show messages by display name; Letter Sealing messages are decrypted when E2EE
+# key material is available, otherwise decryption_error explains why text is null.
+echo "$MESSAGES" | jq -r '.[] | "\(.author_name // .author_id): \(.text // .decryption_error.message // "[non-text]")"'
 ```
 
 **When to use**: Context gathering, summarizing conversations, catching up on missed messages.
+
+**E2EE note**: `message list` decrypts Letter Sealing (E2EE) messages when key material is available — restored from a prior QR/email login. When keys are missing, `text` is `null` and `decryption_error.code` is `missing_e2ee_key`; re-run `agent-line auth login` (QR) to provision keys.
 
 ## Pattern 4: Monitor for New Messages
 
