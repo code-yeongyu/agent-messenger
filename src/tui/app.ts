@@ -748,6 +748,10 @@ export async function createApp(): Promise<void> {
           p.adapter
             .switchWorkspace(workspace.id)
             .then(() => {
+              if (p.listening) {
+                p.adapter.stopListening?.()
+                p.listening = false
+              }
               p.channels = null
               p.workspaces = null
               renderHeader()
