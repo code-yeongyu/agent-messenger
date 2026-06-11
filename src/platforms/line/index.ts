@@ -6,6 +6,7 @@ export type {
   LineAccountCredentials,
   LineChat,
   LineConfig,
+  LineDecryptionError,
   LineDevice,
   LineFriend,
   LineListenerEventMap,
