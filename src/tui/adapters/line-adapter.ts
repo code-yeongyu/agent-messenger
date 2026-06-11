@@ -1,5 +1,7 @@
 import { LineClient } from '@/platforms/line/client'
 import { LineCredentialManager } from '@/platforms/line/credential-manager'
+import { LineListener } from '@/platforms/line/listener'
+import type { LinePushMessageEvent } from '@/platforms/line/types'
 
 import type { AuthHint, AuthIO, PlatformAdapter, UnifiedChannel, UnifiedMessage, Workspace } from './types'
 
@@ -7,6 +9,7 @@ export class LineAdapter implements PlatformAdapter {
   readonly name = 'LINE'
 
   private client: LineClient | null = null
+  private listener: LineListener | null = null
   private credManager = new LineCredentialManager()
   private currentAccount: Workspace | null = null
 
@@ -48,6 +51,28 @@ export class LineAdapter implements PlatformAdapter {
     await client.sendMessage(channelId, text)
   }
 
+  async startListening(onMessage: (msg: UnifiedMessage) => void): Promise<void> {
+    const client = this.ensureClient()
+    const listener = new LineListener(client)
+    await listener.start()
+    listener.on('message', (event: LinePushMessageEvent) => {
+      if (event.text === null) return
+      onMessage({
+        id: event.message_id,
+        channelId: event.chat_id,
+        author: event.author_id || 'unknown',
+        content: event.text,
+        timestamp: event.sent_at,
+      })
+    })
+    this.listener = listener
+  }
+
+  stopListening(): void {
+    this.listener?.stop()
+    this.listener = null
+  }
+
   async getWorkspaces(): Promise<Workspace[]> {
     const accounts = await this.credManager.listAccounts()
     return accounts.map((acct) => ({
@@ -62,6 +87,9 @@ export class LineAdapter implements PlatformAdapter {
 
     const client = new LineClient()
     await client.login(creds)
+    // Persist the selected account so the listener's credential-less reconnects
+    // resolve this account instead of a stale current_account.
+    await this.credManager.setCurrentAccount(accountId)
     this.client = client
     this.currentAccount = { id: creds.account_id, name: creds.display_name ?? creds.account_id }
   }
