@@ -358,8 +358,17 @@ describe('LineClient', () => {
       return out
     }
 
-    it('decrypts messages and emits event + message', async () => {
-      const op = { type: 'RECEIVE_MESSAGE', message: { id: '1', from: 'u1', to: 'me' } }
+    it('decrypts Letter-Sealing chunk messages and emits event + message', async () => {
+      const op = {
+        type: 'RECEIVE_MESSAGE',
+        message: {
+          id: '1',
+          from: 'u1',
+          to: 'me',
+          chunks: ['a', 'b'],
+          contentMetadata: { e2eeMark: '2', e2eeVersion: '2' },
+        },
+      }
       const client = clientWithStream([op], async () => ({ id: '1', from: 'u1', to: 'me', text: 'hello' }))
 
       const events = await collect(client)
@@ -368,9 +377,48 @@ describe('LineClient', () => {
       expect(msg.message.text).toBe('hello')
     })
 
+    it('normalizes metadata-only E2EE messages to contentMetadata before decrypting', async () => {
+      // given: an encrypted message whose E2EE metadata lives under `metadata`
+      // (not `contentMetadata`); the vendor decryptor reads contentMetadata
+      // unconditionally, so it must be normalized first — same as the history path
+      const op = {
+        type: 'RECEIVE_MESSAGE',
+        message: { id: '1', from: 'u1', to: 'me', chunks: ['a', 'b'], metadata: { e2eeMark: '2', e2eeVersion: '2' } },
+      }
+      const client = clientWithStream([op], async (m) => {
+        const meta = (m as { contentMetadata?: { e2eeVersion?: string } }).contentMetadata
+        return { id: '1', from: 'u1', to: 'me', text: `v${meta?.e2eeVersion}` }
+      })
+
+      const events = await collect(client)
+      const msg = events[1] as Extract<LineRawEvent, { kind: 'message' }>
+      expect(msg.message.text).toBe('v2')
+      expect(msg.message.decryption_error).toBeUndefined()
+    })
+
+    it('keeps a plain message text without decrypting it', async () => {
+      // given: a plain (non-Letter-Sealing) message that already carries text and
+      // has no E2EE chunks — decrypt MUST NOT run, mirroring the history path
+      const op = { type: 'RECEIVE_MESSAGE', message: { id: '1', from: 'u1', to: 'me', text: 'plain hi' } }
+      let decryptCalls = 0
+      const client = clientWithStream([op], async (m) => {
+        decryptCalls++
+        return m
+      })
+
+      const events = await collect(client)
+      const msg = events[1] as Extract<LineRawEvent, { kind: 'message' }>
+      expect(decryptCalls).toBe(0)
+      expect(msg.message.text).toBe('plain hi')
+      expect(msg.message.decryption_error).toBeUndefined()
+    })
+
     it('keeps streaming when E2EE decryption fails (no reconnect loop)', async () => {
       const ops = [
-        { type: 'RECEIVE_MESSAGE', message: { id: '1', from: 'u1', to: 'me', text: 'plain-on-raw' } },
+        {
+          type: 'RECEIVE_MESSAGE',
+          message: { id: '1', from: 'u1', to: 'me', chunks: ['a', 'b'], metadata: { e2eeMark: '2', e2eeVersion: '2' } },
+        },
         { type: 'NOTIFIED_READ_MESSAGE' },
       ]
       const client = clientWithStream(ops, async () => {
@@ -386,7 +434,10 @@ describe('LineClient', () => {
     })
 
     it('marks missing E2EE key failures explicitly', async () => {
-      const op = { type: 'RECEIVE_MESSAGE', message: { id: '1', from: 'u1', to: 'me' } }
+      const op = {
+        type: 'RECEIVE_MESSAGE',
+        message: { id: '1', from: 'u1', to: 'me', chunks: ['a', 'b'], metadata: { e2eeMark: '2', e2eeVersion: '2' } },
+      }
       const client = clientWithStream([op], async () => {
         throw new Error('NoE2EEKey: E2EE Key has not been saved')
       })
