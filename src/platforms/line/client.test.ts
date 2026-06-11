@@ -56,9 +56,10 @@ describe('LineClient', () => {
   })
 
   describe('getMessages()', () => {
-    function clientWithTalk(talk: Record<string, unknown>): LineClient {
+    function clientWithTalk(talk: Record<string, unknown>, e2ee?: Record<string, unknown>): LineClient {
       const client = new LineClient()
-      ;(client as any).client = { base: { talk } }
+      const { profile, ...talkMethods } = talk
+      ;(client as any).client = { base: { talk: talkMethods, profile, e2ee: e2ee ?? {} } }
       return client
     }
 
@@ -106,28 +107,179 @@ describe('LineClient', () => {
       expect(result.map((m) => m.text)).toEqual(['c', 'b'])
     })
 
-    it('marks encrypted chunk messages without text as missing E2EE keys', async () => {
+    it('resolves author MIDs to display names via getContacts', async () => {
       const client = clientWithTalk({
+        profile: { mid: 'me' },
         getServerTime: async () => 1700000000000,
         getPreviousMessagesV2WithRequest: async () => [
-          {
-            id: '40',
-            from: 'u1',
-            text: null,
-            contentType: 'NONE',
-            createdTime: 1700000004000,
-            chunks: ['a', 'b'],
-            metadata: { e2eeMark: '2', e2eeVersion: '2' },
-          },
+          { id: '10', from: 'u1', text: 'hi', contentType: 'NONE', createdTime: 1700000001000 },
+          { id: '11', from: 'u2', text: 'yo', contentType: 'NONE', createdTime: 1700000002000 },
         ],
+        getContacts: async ({ mids }: { mids: string[] }) =>
+          mids.map((mid) => ({ mid, displayName: mid === 'u1' ? 'Alice' : 'Bob' })),
+      })
+
+      const result = await client.getMessages('chat1', { count: 2 })
+      expect(result.map((m) => m.author_name)).toEqual(['Alice', 'Bob'])
+    })
+
+    it('batch-resolves unique authors in a single getContacts call', async () => {
+      let contactCalls = 0
+      const client = clientWithTalk({
+        profile: { mid: 'me' },
+        getServerTime: async () => 1700000000000,
+        getPreviousMessagesV2WithRequest: async () => [
+          { id: '10', from: 'u1', text: 'a', contentType: 'NONE', createdTime: 1700000001000 },
+          { id: '11', from: 'u1', text: 'b', contentType: 'NONE', createdTime: 1700000002000 },
+          { id: '12', from: 'u2', text: 'c', contentType: 'NONE', createdTime: 1700000003000 },
+        ],
+        getContacts: async ({ mids }: { mids: string[] }) => {
+          contactCalls++
+          expect([...mids].sort()).toEqual(['u1', 'u2'])
+          return mids.map((mid) => ({ mid, displayName: mid.toUpperCase() }))
+        },
+      })
+
+      const result = await client.getMessages('chat1', { count: 3 })
+      expect(contactCalls).toBe(1)
+      expect(result.map((m) => m.author_name)).toEqual(['U1', 'U1', 'U2'])
+    })
+
+    it('resolves the current user via getProfile since getContacts omits self', async () => {
+      const client = clientWithTalk({
+        profile: { mid: 'me' },
+        getServerTime: async () => 1700000000000,
+        getPreviousMessagesV2WithRequest: async () => [
+          { id: '10', from: 'me', text: 'mine', contentType: 'NONE', createdTime: 1700000001000 },
+        ],
+        getContacts: async () => [],
+        getProfile: async () => ({ mid: 'me', displayName: 'My Name' }),
       })
 
       const result = await client.getMessages('chat1', { count: 1 })
-      expect(result[0].text).toBeNull()
-      expect(result[0].decryption_error).toEqual({
-        code: 'missing_e2ee_key',
-        message: 'LINE message is encrypted with Letter Sealing, but this session has no saved E2EE key material.',
+      expect(result[0].author_name).toBe('My Name')
+    })
+
+    it('falls back to bare author_id when name resolution fails', async () => {
+      const client = clientWithTalk({
+        profile: { mid: 'me' },
+        getServerTime: async () => 1700000000000,
+        getPreviousMessagesV2WithRequest: async () => [
+          { id: '10', from: 'u1', text: 'hi', contentType: 'NONE', createdTime: 1700000001000 },
+        ],
+        getContacts: async () => {
+          throw new Error('network down')
+        },
       })
+
+      const result = await client.getMessages('chat1', { count: 1 })
+      expect(result[0].author_name).toBeUndefined()
+      expect(result[0].author_id).toBe('u1')
+    })
+
+    it('decrypts Letter-Sealing chunk messages via decryptE2EEMessage', async () => {
+      const encrypted = {
+        id: '40',
+        from: 'u1',
+        text: null,
+        contentType: 'NONE',
+        createdTime: 1700000004000,
+        chunks: ['a', 'b'],
+        metadata: { e2eeMark: '2', e2eeVersion: '2' },
+      }
+      const client = clientWithTalk(
+        {
+          getServerTime: async () => 1700000000000,
+          getPreviousMessagesV2WithRequest: async () => [encrypted],
+        },
+        { decryptE2EEMessage: async (m: { id: string }) => ({ ...m, text: 'decrypted secret' }) },
+      )
+
+      const result = await client.getMessages('chat1', { count: 1 })
+      expect(result[0].text).toBe('decrypted secret')
+      expect(result[0].decryption_error).toBeUndefined()
+    })
+
+    it('normalizes metadata-shaped history messages to contentMetadata before decrypting', async () => {
+      let received: { contentMetadata?: unknown } | undefined
+      const client = clientWithTalk(
+        {
+          getServerTime: async () => 1700000000000,
+          getPreviousMessagesV2WithRequest: async () => [
+            {
+              id: '40',
+              from: 'u1',
+              text: null,
+              contentType: 'NONE',
+              createdTime: 1700000004000,
+              chunks: ['a', 'b'],
+              metadata: { e2eeMark: '2', e2eeVersion: '2' },
+            },
+          ],
+        },
+        {
+          decryptE2EEMessage: async (m: { contentMetadata?: unknown }) => {
+            received = m
+            // mirror the vendor decryptor: it reads contentMetadata.e2eeVersion
+            const meta = m.contentMetadata as { e2eeVersion?: string }
+            return { text: `v${meta.e2eeVersion}` }
+          },
+        },
+      )
+
+      const result = await client.getMessages('chat1', { count: 1 })
+      expect((received?.contentMetadata as { e2eeVersion?: string })?.e2eeVersion).toBe('2')
+      expect(result[0].text).toBe('v2')
+    })
+
+    it('surfaces missing_e2ee_key when decryption fails for lack of keys', async () => {
+      const client = clientWithTalk(
+        {
+          getServerTime: async () => 1700000000000,
+          getPreviousMessagesV2WithRequest: async () => [
+            {
+              id: '40',
+              from: 'u1',
+              text: null,
+              contentType: 'NONE',
+              createdTime: 1700000004000,
+              chunks: ['a', 'b'],
+              metadata: { e2eeMark: '2', e2eeVersion: '2' },
+            },
+          ],
+        },
+        {
+          decryptE2EEMessage: async () => {
+            throw new Error('NoE2EEKey: E2EE Key has not been saved')
+          },
+        },
+      )
+
+      const result = await client.getMessages('chat1', { count: 1 })
+      expect(result[0].text).toBeNull()
+      expect(result[0].decryption_error?.code).toBe('missing_e2ee_key')
+    })
+
+    it('does not decrypt plain messages that already carry text', async () => {
+      let decryptCalls = 0
+      const client = clientWithTalk(
+        {
+          getServerTime: async () => 1700000000000,
+          getPreviousMessagesV2WithRequest: async () => [
+            { id: '50', from: 'u1', text: 'plain hello', contentType: 'NONE', createdTime: 1700000005000 },
+          ],
+        },
+        {
+          decryptE2EEMessage: async () => {
+            decryptCalls++
+            return { text: 'should-not-run' }
+          },
+        },
+      )
+
+      const result = await client.getMessages('chat1', { count: 1 })
+      expect(result[0].text).toBe('plain hello')
+      expect(decryptCalls).toBe(0)
     })
   })
 

@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type { Operation as LineOperation } from '@jsr/evex__linejs-types'
@@ -13,6 +13,7 @@ import {
 } from '@/vendor/linejs/client/mod.js'
 
 import { LineCredentialManager } from './credential-manager'
+import { ensureSelfKeyForMid, migrateOwnE2EEKeys } from './e2ee-storage'
 import type {
   LineAccountCredentials,
   LineChat,
@@ -47,6 +48,8 @@ export interface LineRawMessage {
 }
 
 export type LineRawEvent = { kind: 'message'; message: LineRawMessage } | { kind: 'event'; op: LineOperation }
+
+type VendorMessage = Parameters<Client['base']['e2ee']['decryptE2EEMessage']>[0]
 
 const MAX_MESSAGE_ID = 9223372036854775807n
 
@@ -89,17 +92,19 @@ function getDefaultDevice(): LineDevice {
   return 'ANDROIDSECONDARY'
 }
 
-function createStorage(accountId?: string): FileStorage {
+function lineStorageDir(): string {
   const dir = join(getConfigDir(), 'line-storage')
   mkdirSync(dir, { recursive: true })
-  const defaultPath = join(dir, 'default.json')
-  if (!accountId) return new FileStorage(defaultPath)
+  return dir
+}
 
-  const accountPath = join(dir, `${accountId}.json`)
-  if (!existsSync(accountPath) && existsSync(defaultPath)) {
-    copyFileSync(defaultPath, accountPath)
-  }
-  return new FileStorage(accountPath)
+// Per-account stores stay isolated: blindly cloning default.json would copy another
+// account's E2EE private keys into this account's file. E2EE key material is migrated
+// explicitly via migrateOwnE2EEKeys after login resolves the account MID.
+function createStorage(accountId?: string): FileStorage {
+  const dir = lineStorageDir()
+  const fileName = accountId ? `${accountId}.json` : 'default.json'
+  return new FileStorage(join(dir, fileName))
 }
 
 export class LineClient {
@@ -130,7 +135,7 @@ export class LineClient {
       this.client = client
 
       const profile = await client.base.talk.getProfile()
-      createStorage(profile.mid)
+      await this.persistAccountE2EEKeys(client, profile.mid)
       const now = new Date().toISOString()
 
       await this.credManager.setAccount({
@@ -176,7 +181,7 @@ export class LineClient {
       this.client = client
 
       const profile = await client.base.talk.getProfile()
-      createStorage(profile.mid)
+      await this.persistAccountE2EEKeys(client, profile.mid)
       const now = new Date().toISOString()
 
       await this.credManager.setAccount({
@@ -214,9 +219,35 @@ export class LineClient {
       const storage = createStorage(creds.account_id)
 
       this.client = await linejsLoginWithAuthToken(creds.auth_token, { device, storage })
+      await this.repairSelfE2EEKey(this.client, creds.account_id)
       return this
     } catch (error) {
       throw wrapError(error, 'login_failed')
+    }
+  }
+
+  // A fresh QR/email login writes E2EE keys into the shared default store. Copy only
+  // this account's verified key material into its isolated per-account store so token
+  // logins (which read the per-account store) can later encrypt for E2EE chats.
+  private async persistAccountE2EEKeys(client: Client, mid: string): Promise<void> {
+    try {
+      const advertised = await client.base.talk.getE2EEPublicKeys().catch(() => undefined)
+      const target = createStorage(mid)
+      await migrateOwnE2EEKeys(client.base.storage, target, mid, advertised)
+    } catch (error) {
+      warnDegraded('persist account E2EE keys', error)
+    }
+  }
+
+  // Token sessions don't perform an E2EE handshake, so getE2EESelfKeyData can't find
+  // a key under the account MID even when the keyId-addressed key already exists in
+  // storage. Promote it to the MID address, trusting only server-advertised keyIds.
+  private async repairSelfE2EEKey(client: Client, mid: string): Promise<void> {
+    try {
+      const advertised = await client.base.talk.getE2EEPublicKeys().catch(() => undefined)
+      await ensureSelfKeyForMid(client.base.storage, mid, advertised)
+    } catch (error) {
+      warnDegraded('repair self E2EE key', error)
     }
   }
 
@@ -360,21 +391,84 @@ export class LineClient {
         },
       })
 
-      return (rawMessages ?? []).map((msg) => {
-        const decryptionError = getUndecryptableMessageError(msg)
-        return {
-          message_id: String(msg.id),
-          chat_id: chatId,
-          author_id: String(msg.from ?? ''),
-          text: msg.text || null,
-          ...(decryptionError && { decryption_error: decryptionError }),
-          content_type: String(msg.contentType ?? 'NONE'),
-          sent_at: new Date(Number(msg.createdTime)).toISOString(),
-        }
-      })
+      const messages = rawMessages ?? []
+      const authorNames = await this.resolveAuthorNames(client, messages)
+
+      return await Promise.all(
+        messages.map(async (msg) => {
+          const { text, decryptionError } = await this.decryptMessageText(client, msg)
+          const authorId = String(msg.from ?? '')
+          const authorName = authorNames.get(authorId)
+          return {
+            message_id: String(msg.id),
+            chat_id: chatId,
+            author_id: authorId,
+            ...(authorName && { author_name: authorName }),
+            text,
+            ...(decryptionError && { decryption_error: decryptionError }),
+            content_type: String(msg.contentType ?? 'NONE'),
+            sent_at: new Date(Number(msg.createdTime)).toISOString(),
+          }
+        }),
+      )
     } catch (error) {
       throw wrapError(error, 'get_messages_failed')
     }
+  }
+
+  // getPreviousMessagesV2WithRequest returns Letter-Sealing messages as encrypted
+  // chunks with null text, so they must be decrypted with the same path streamEvents
+  // uses. Plain messages already carry text and skip decryption.
+  private async decryptMessageText(
+    client: Client,
+    msg: VendorMessage,
+  ): Promise<{ text: string | null; decryptionError?: LineDecryptionError }> {
+    if (!isEncryptedChunkMessage(msg)) {
+      return { text: msg.text || null }
+    }
+
+    try {
+      const decrypted = await client.base.e2ee.decryptE2EEMessage(normalizeE2EEMetadata(msg))
+      return { text: decrypted.text ?? null }
+    } catch (error) {
+      return { text: null, decryptionError: getDecryptionError(error) }
+    }
+  }
+
+  // getContacts doesn't return the current user, so self-authored messages need
+  // getProfile separately. Lookups degrade to bare MIDs rather than failing.
+  private async resolveAuthorNames(
+    client: Client,
+    messages: ReadonlyArray<{ from?: unknown }>,
+  ): Promise<Map<string, string>> {
+    const names = new Map<string, string>()
+    const authorMids = [...new Set(messages.map((m) => String(m.from ?? '')).filter((mid) => mid.length > 0))]
+    if (authorMids.length === 0) return names
+
+    const selfMid = client.base.profile?.mid
+    const contactMids = authorMids.filter((mid) => mid !== selfMid)
+
+    if (contactMids.length > 0) {
+      try {
+        const contacts = await client.base.talk.getContacts({ mids: contactMids })
+        for (const contact of contacts ?? []) {
+          if (contact.displayName) names.set(contact.mid, contact.displayName)
+        }
+      } catch (error) {
+        warnDegraded('resolve message author names', error)
+      }
+    }
+
+    if (selfMid && authorMids.includes(selfMid) && !names.has(selfMid)) {
+      try {
+        const profile = await client.base.talk.getProfile()
+        if (profile.displayName) names.set(selfMid, profile.displayName)
+      } catch (error) {
+        warnDegraded('resolve own display name', error)
+      }
+    }
+
+    return names
   }
 
   async sendMessage(chatId: string, text: string): Promise<LineSendResult> {
@@ -508,6 +602,16 @@ function isEncryptedChunkMessage(raw: unknown): boolean {
   const message = raw as { chunks?: unknown; contentMetadata?: unknown; metadata?: unknown }
   if (!Array.isArray(message.chunks) || message.chunks.length === 0) return false
   return hasE2EEMetadata(message.contentMetadata) || hasE2EEMetadata(message.metadata)
+}
+
+// decryptE2EEMessage reads messageObj.contentMetadata.e2eeVersion unconditionally.
+// History messages from getPreviousMessagesV2WithRequest may carry E2EE metadata
+// only under `metadata`, which would crash the decryptor on undefined.e2eeVersion.
+function normalizeE2EEMetadata<T extends VendorMessage>(msg: T): T {
+  const m = msg as { contentMetadata?: unknown; metadata?: unknown }
+  if (hasE2EEMetadata(m.contentMetadata)) return msg
+  if (!hasE2EEMetadata(m.metadata)) return msg
+  return { ...msg, contentMetadata: m.metadata }
 }
 
 function hasE2EEMetadata(raw: unknown): boolean {
