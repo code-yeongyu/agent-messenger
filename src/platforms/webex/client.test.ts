@@ -714,6 +714,31 @@ describe('WebexClient', () => {
         expect(body.object.content).toBe('Edited text')
       })
 
+      it('plain text edit HTML-escapes content so bare URLs do not become sparkBase markup', async () => {
+        mockResponse(mockEditActivity('https://example.com/a?x=1&y=2'))
+
+        const client = await createExtractedClient()
+        await client.editMessage('activity-123', TEST_ROOM_ID, 'https://example.com/a?x=1&y=2')
+
+        const body = JSON.parse(fetchCalls[0].options?.body as string)
+        expect(body.object.displayName).toBe('https://example.com/a?x=1&y=2')
+        expect(body.object.content).toBe('https://example.com/a?x=1&amp;y=2')
+        expect(body.object.content).not.toContain('&amp;amp;')
+        expect(body.object.content).not.toContain('<a ')
+        expect(body.object.content).not.toContain('onClick')
+        expect(body.object.content).not.toContain('sparkBase')
+      })
+
+      it('plain text edit escapes angle brackets and quotes in content', async () => {
+        mockResponse(mockEditActivity('a <b> "c" \'d\' & e'))
+
+        const client = await createExtractedClient()
+        await client.editMessage('activity-123', TEST_ROOM_ID, 'a <b> "c" \'d\' & e')
+
+        const body = JSON.parse(fetchCalls[0].options?.body as string)
+        expect(body.object.content).toBe('a &lt;b&gt; &quot;c&quot; &#39;d&#39; &amp; e')
+      })
+
       it('clientTempId uses -edit suffix to match Webex web client format', async () => {
         mockResponse(mockEditActivity('Edited text'))
 

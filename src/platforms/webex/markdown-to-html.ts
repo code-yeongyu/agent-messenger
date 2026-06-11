@@ -184,7 +184,7 @@ function isSafeUrl(url: string): boolean {
   return SAFE_URL_PATTERN.test(url.trim())
 }
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
