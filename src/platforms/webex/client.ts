@@ -1,6 +1,6 @@
 import { WebexCredentialManager } from './credential-manager'
 import { WebexEncryptionService } from './encryption'
-import { markdownToHtml, stripMarkdown } from './markdown-to-html'
+import { escapeHtml, markdownToHtml, stripMarkdown } from './markdown-to-html'
 import type { WebexMembership, WebexMessage, WebexPerson, WebexSpace } from './types'
 import { WebexError } from './types'
 
@@ -276,7 +276,7 @@ export class WebexClient {
     if (options?.markdown) {
       content = markdownToHtml(text)
     } else if (options?.forEdit) {
-      content = text
+      content = escapeHtml(text)
     }
 
     if (this.encryption) {
