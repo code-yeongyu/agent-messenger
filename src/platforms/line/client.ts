@@ -533,6 +533,12 @@ export class LineClient {
     })) {
       yield { kind: 'event', op }
       if (op.type === 'SEND_MESSAGE' || op.type === 'RECEIVE_MESSAGE') {
+        // Plain messages already carry their text and must skip decryption, same
+        // as the history path (decryptMessageText). Force-decrypting a plain op
+        // returns an object without `.text`, silently dropping the message to
+        // null text with no decryption_error — indistinguishable from an empty
+        // message downstream.
+        //
         // A single undecryptable message must not kill the stream: the failing
         // op stays in the sync window and would be re-fetched every poll, causing
         // an endless decrypt-fail -> reconnect loop. Fall back to the raw op and
@@ -540,12 +546,14 @@ export class LineClient {
         let raw = op.message
         let decrypted = true
         let decryptionError: LineDecryptionError | undefined
-        try {
-          raw = await client.base.e2ee.decryptE2EEMessage(op.message)
-        } catch (error) {
-          raw = op.message
-          decrypted = false
-          decryptionError = getDecryptionError(error)
+        if (isEncryptedChunkMessage(op.message)) {
+          try {
+            raw = await client.base.e2ee.decryptE2EEMessage(op.message)
+          } catch (error) {
+            raw = op.message
+            decrypted = false
+            decryptionError = getDecryptionError(error)
+          }
         }
         decryptionError ??= getUndecryptableMessageError(raw)
         yield {
