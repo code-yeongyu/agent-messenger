@@ -37,7 +37,7 @@ export class LineAdapter implements PlatformAdapter {
     return messages.map((msg) => ({
       id: msg.message_id,
       channelId,
-      author: msg.author_id ?? 'unknown',
+      author: msg.author_name ?? msg.author_id ?? 'unknown',
       content: msg.text ?? '',
       timestamp: msg.sent_at,
     }))
