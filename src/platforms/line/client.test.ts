@@ -361,7 +361,13 @@ describe('LineClient', () => {
     it('decrypts Letter-Sealing chunk messages and emits event + message', async () => {
       const op = {
         type: 'RECEIVE_MESSAGE',
-        message: { id: '1', from: 'u1', to: 'me', chunks: ['a', 'b'], metadata: { e2eeMark: '2', e2eeVersion: '2' } },
+        message: {
+          id: '1',
+          from: 'u1',
+          to: 'me',
+          chunks: ['a', 'b'],
+          contentMetadata: { e2eeMark: '2', e2eeVersion: '2' },
+        },
       }
       const client = clientWithStream([op], async () => ({ id: '1', from: 'u1', to: 'me', text: 'hello' }))
 
@@ -369,6 +375,25 @@ describe('LineClient', () => {
       expect(events.map((e) => e.kind)).toEqual(['event', 'message'])
       const msg = events[1] as Extract<LineRawEvent, { kind: 'message' }>
       expect(msg.message.text).toBe('hello')
+    })
+
+    it('normalizes metadata-only E2EE messages to contentMetadata before decrypting', async () => {
+      // given: an encrypted message whose E2EE metadata lives under `metadata`
+      // (not `contentMetadata`); the vendor decryptor reads contentMetadata
+      // unconditionally, so it must be normalized first — same as the history path
+      const op = {
+        type: 'RECEIVE_MESSAGE',
+        message: { id: '1', from: 'u1', to: 'me', chunks: ['a', 'b'], metadata: { e2eeMark: '2', e2eeVersion: '2' } },
+      }
+      const client = clientWithStream([op], async (m) => {
+        const meta = (m as { contentMetadata?: { e2eeVersion?: string } }).contentMetadata
+        return { id: '1', from: 'u1', to: 'me', text: `v${meta?.e2eeVersion}` }
+      })
+
+      const events = await collect(client)
+      const msg = events[1] as Extract<LineRawEvent, { kind: 'message' }>
+      expect(msg.message.text).toBe('v2')
+      expect(msg.message.decryption_error).toBeUndefined()
     })
 
     it('keeps a plain message text without decrypting it', async () => {

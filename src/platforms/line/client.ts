@@ -548,7 +548,7 @@ export class LineClient {
         let decryptionError: LineDecryptionError | undefined
         if (isEncryptedChunkMessage(op.message)) {
           try {
-            raw = await client.base.e2ee.decryptE2EEMessage(op.message)
+            raw = await client.base.e2ee.decryptE2EEMessage(normalizeE2EEMetadata(op.message))
           } catch (error) {
             raw = op.message
             decrypted = false
