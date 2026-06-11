@@ -82,12 +82,14 @@ export class LineAdapter implements PlatformAdapter {
   }
 
   async switchWorkspace(accountId: string): Promise<void> {
-    this.stopListening()
     const creds = await this.credManager.getAccount(accountId)
     if (!creds) throw new Error(`Account ${accountId} not found`)
 
     const client = new LineClient()
     await client.login(creds)
+    // Persist the selected account so the listener's credential-less reconnects
+    // resolve this account instead of a stale current_account.
+    await this.credManager.setCurrentAccount(accountId)
     this.client = client
     this.currentAccount = { id: creds.account_id, name: creds.display_name ?? creds.account_id }
   }
