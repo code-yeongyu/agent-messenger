@@ -222,7 +222,7 @@ agent-teams chat history <chat-id> --limit 100
 agent-teams chat send <chat-id> "Hello"
 ```
 
-Chat IDs look like `19:guid1_guid2@unq.gbl.spaces` (1:1) or `19:guid@thread.tacv2` (group). Get them from `chat list`.
+Chat IDs look like `19:guid1_guid2@unq.gbl.spaces` (1:1) or `19:guid@thread.tacv2` (group). Get them from `chat list`. The `48:notes` chat (`type: self`) is your personal "to me" notes thread.
 
 ### Team Commands
 

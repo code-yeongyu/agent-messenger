@@ -170,12 +170,17 @@ describe('TeamsClient', () => {
   })
 
   describe('listChats', () => {
-    it('returns only chat conversations, excluding teams', async () => {
+    it('classifies chats and excludes teams', async () => {
       mockResponse({
         conversations: [
           {
             id: '19:team@thread.tacv2',
             threadProperties: { groupId: '111', spaceThreadTopic: 'Team One', threadType: 'space' },
+          },
+          {
+            id: '48:notes',
+            threadProperties: { threadType: 'streamofnotes', productThreadType: 'StreamOfNotes' },
+            lastMessage: { content: 'Hi', composetime: '2024-01-03T00:00:00.000Z' },
           },
           {
             id: '19:1on1@unq.gbl.spaces',
@@ -192,13 +197,10 @@ describe('TeamsClient', () => {
       const client = await new TeamsClient().login({ token: 'test-token', accountType: 'personal' })
       const chats = await client.listChats()
 
-      expect(chats).toHaveLength(2)
-      expect(chats[0].id).toBe('19:1on1@unq.gbl.spaces')
-      expect(chats[0].type).toBe('oneOnOne')
-      expect(chats[0].last_message).toBe('Hi there')
-      expect(chats[1].id).toBe('19:group@thread.tacv2')
-      expect(chats[1].type).toBe('group')
-      expect(chats[1].topic).toBe('Group Chat')
+      expect(chats).toHaveLength(3)
+      expect(chats[0]).toMatchObject({ id: '48:notes', type: 'self', last_message: 'Hi' })
+      expect(chats[1]).toMatchObject({ id: '19:1on1@unq.gbl.spaces', type: 'oneOnOne', last_message: 'Hi there' })
+      expect(chats[2]).toMatchObject({ id: '19:group@thread.tacv2', type: 'group', topic: 'Group Chat' })
       expect(fetchCalls[0].url).toBe(
         'https://msgapi.teams.live.com/v1/users/ME/conversations?view=msnp24Equivalent&pageSize=500',
       )

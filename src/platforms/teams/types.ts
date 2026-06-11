@@ -35,7 +35,7 @@ export interface TeamsUser {
   userPrincipalName?: string
 }
 
-export type TeamsChatType = 'oneOnOne' | 'group'
+export type TeamsChatType = 'oneOnOne' | 'group' | 'self'
 
 export interface TeamsChat {
   id: string
@@ -134,7 +134,7 @@ export const TeamsUserSchema = z.object({
   userPrincipalName: z.string().optional(),
 })
 
-export const TeamsChatTypeSchema = z.enum(['oneOnOne', 'group'])
+export const TeamsChatTypeSchema = z.enum(['oneOnOne', 'group', 'self'])
 
 export const TeamsChatSchema = z.object({
   id: z.string(),

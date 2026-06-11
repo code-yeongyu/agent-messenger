@@ -6,6 +6,7 @@ import type {
   TeamsAccountType,
   TeamsChannel,
   TeamsChat,
+  TeamsChatType,
   TeamsFile,
   TeamsMessage,
   TeamsRegion,
@@ -46,6 +47,19 @@ function escapeHtml(value: string): string {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;')
+}
+
+// groupId => Teams/channel thread (handled by listTeams). "48:notes"/
+// streamofnotes => the user's self ("to me") chat. Anything else without a
+// non-chat threadType is a normal 1:1 (no topic) or group (has topic) chat.
+function classifyChat(
+  id: string,
+  tp?: { topic?: string; threadType?: string; groupId?: string },
+): TeamsChatType | null {
+  if (tp?.groupId) return null
+  if (id === '48:notes' || tp?.threadType === 'streamofnotes') return 'self'
+  if (tp?.threadType && tp.threadType !== 'chat') return null
+  return tp?.topic ? 'group' : 'oneOnOne'
 }
 
 export class TeamsClient {
@@ -372,17 +386,13 @@ export class TeamsClient {
 
     const chats: TeamsChat[] = []
     for (const conv of data.conversations ?? []) {
-      const tp = conv.threadProperties
-      // The conversations endpoint mixes Teams/channel threads (which carry a
-      // groupId) with personal chats; skip the former so they stay in listTeams().
-      if (tp?.groupId) continue
-      if (tp?.threadType && tp.threadType !== 'chat') continue
+      const type = classifyChat(conv.id, conv.threadProperties)
+      if (!type) continue
 
-      const isGroup = Boolean(tp?.topic)
       chats.push({
         id: conv.id,
-        type: isGroup ? 'group' : 'oneOnOne',
-        topic: tp?.topic,
+        type,
+        topic: conv.threadProperties?.topic,
         last_message: stripHtml(conv.lastMessage?.content),
         last_message_at: conv.lastMessage?.composetime ?? conv.lastMessage?.originalarrivaltime,
       })
