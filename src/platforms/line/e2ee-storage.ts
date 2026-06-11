@@ -34,6 +34,13 @@ function parseKeyData(raw: unknown): E2EEKeyData | null {
   }
 }
 
+// The stored payload carries its own keyId. Requiring it to equal the slot it was
+// read from rejects entries mislabeled under an advertised keyId, so only a payload
+// genuinely belonging to that keyId is ever trusted.
+function keyDataMatchesSlot(data: E2EEKeyData, keyId: number | string): boolean {
+  return String(data.keyId) === String(keyId)
+}
+
 function keyIdOf(key: E2EEPublicKey): number | string | undefined {
   if (Array.isArray(key)) {
     const id = key[2]
@@ -71,7 +78,7 @@ export async function ensureSelfKeyForMid(
 
   for (const keyId of advertisedKeyIds(advertisedKeys)) {
     const candidate = parseKeyData(await storage.get(selfKey(keyId)))
-    if (candidate) {
+    if (candidate && keyDataMatchesSlot(candidate, keyId)) {
       await storage.set(selfKey(mid), JSON.stringify(candidate))
       return true
     }
@@ -101,7 +108,7 @@ export async function migrateOwnE2EEKeys(
 
   for (const keyId of advertisedKeyIds(advertisedKeys)) {
     const data = parseKeyData(await source.get(selfKey(keyId)))
-    if (!data) continue
+    if (!data || !keyDataMatchesSlot(data, keyId)) continue
     await target.set(selfKey(keyId), JSON.stringify(data))
     migrated++
     const publicKey = await source.get(`e2eePublicKeys:${keyId}`)

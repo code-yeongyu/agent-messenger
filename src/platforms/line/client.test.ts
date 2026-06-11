@@ -200,6 +200,38 @@ describe('LineClient', () => {
       expect(result[0].decryption_error).toBeUndefined()
     })
 
+    it('normalizes metadata-shaped history messages to contentMetadata before decrypting', async () => {
+      let received: { contentMetadata?: unknown } | undefined
+      const client = clientWithTalk(
+        {
+          getServerTime: async () => 1700000000000,
+          getPreviousMessagesV2WithRequest: async () => [
+            {
+              id: '40',
+              from: 'u1',
+              text: null,
+              contentType: 'NONE',
+              createdTime: 1700000004000,
+              chunks: ['a', 'b'],
+              metadata: { e2eeMark: '2', e2eeVersion: '2' },
+            },
+          ],
+        },
+        {
+          decryptE2EEMessage: async (m: { contentMetadata?: unknown }) => {
+            received = m
+            // mirror the vendor decryptor: it reads contentMetadata.e2eeVersion
+            const meta = m.contentMetadata as { e2eeVersion?: string }
+            return { text: `v${meta.e2eeVersion}` }
+          },
+        },
+      )
+
+      const result = await client.getMessages('chat1', { count: 1 })
+      expect((received?.contentMetadata as { e2eeVersion?: string })?.e2eeVersion).toBe('2')
+      expect(result[0].text).toBe('v2')
+    })
+
     it('surfaces missing_e2ee_key when decryption fails for lack of keys', async () => {
       const client = clientWithTalk(
         {

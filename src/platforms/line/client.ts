@@ -428,7 +428,7 @@ export class LineClient {
     }
 
     try {
-      const decrypted = await client.base.e2ee.decryptE2EEMessage(msg)
+      const decrypted = await client.base.e2ee.decryptE2EEMessage(normalizeE2EEMetadata(msg))
       return { text: decrypted.text ?? null }
     } catch (error) {
       return { text: null, decryptionError: getDecryptionError(error) }
@@ -602,6 +602,16 @@ function isEncryptedChunkMessage(raw: unknown): boolean {
   const message = raw as { chunks?: unknown; contentMetadata?: unknown; metadata?: unknown }
   if (!Array.isArray(message.chunks) || message.chunks.length === 0) return false
   return hasE2EEMetadata(message.contentMetadata) || hasE2EEMetadata(message.metadata)
+}
+
+// decryptE2EEMessage reads messageObj.contentMetadata.e2eeVersion unconditionally.
+// History messages from getPreviousMessagesV2WithRequest may carry E2EE metadata
+// only under `metadata`, which would crash the decryptor on undefined.e2eeVersion.
+function normalizeE2EEMetadata<T extends VendorMessage>(msg: T): T {
+  const m = msg as { contentMetadata?: unknown; metadata?: unknown }
+  if (hasE2EEMetadata(m.contentMetadata)) return msg
+  if (!hasE2EEMetadata(m.metadata)) return msg
+  return { ...msg, contentMetadata: m.metadata }
 }
 
 function hasE2EEMetadata(raw: unknown): boolean {

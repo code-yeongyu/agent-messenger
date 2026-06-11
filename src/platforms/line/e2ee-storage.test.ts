@@ -69,6 +69,17 @@ describe('ensureSelfKeyForMid', () => {
     expect(store.data['e2eeKeys:midA']).toBeUndefined()
   })
 
+  it('rejects a payload whose own keyId does not match the advertised slot', async () => {
+    // given: the slot e2eeKeys:100 holds a payload that claims keyId 999
+    const mislabeled = { keyId: 999, privKey: 'privX', pubKey: 'pubX', e2eeVersion: 2 }
+    const store = memStore({ 'e2eeKeys:100': JSON.stringify(mislabeled) })
+
+    const ok = await ensureSelfKeyForMid(store, 'midA', [{ keyId: 100 }])
+
+    expect(ok).toBe(false)
+    expect(store.data['e2eeKeys:midA']).toBeUndefined()
+  })
+
   it('returns false when no keys exist', async () => {
     const store = memStore()
     expect(await ensureSelfKeyForMid(store, 'midA', [{ keyId: 100 }])).toBe(false)
@@ -118,6 +129,18 @@ describe('migrateOwnE2EEKeys', () => {
 
     expect(count).toBe(0)
     expect(Object.keys(target.data)).toHaveLength(0)
+  })
+
+  it('skips a payload whose own keyId does not match the advertised slot', async () => {
+    const mislabeled = { keyId: 999, privKey: 'privX', pubKey: 'pubX', e2eeVersion: 2 }
+    const source = memStore({ 'e2eeKeys:100': JSON.stringify(mislabeled), 'e2eePublicKeys:100': 'blob' })
+    const target = memStore()
+
+    const count = await migrateOwnE2EEKeys(source, target, 'midA', [{ keyId: 100 }])
+
+    expect(count).toBe(0)
+    expect(target.data['e2eeKeys:100']).toBeUndefined()
+    expect(target.data['e2eePublicKeys:100']).toBeUndefined()
   })
 
   it('ignores malformed key entries', async () => {
