@@ -35,6 +35,16 @@ export interface TeamsUser {
   userPrincipalName?: string
 }
 
+export type TeamsChatType = 'oneOnOne' | 'group'
+
+export interface TeamsChat {
+  id: string
+  type: TeamsChatType
+  topic?: string
+  last_message?: string
+  last_message_at?: string
+}
+
 export interface TeamsReaction {
   emoji: string
   count: number
@@ -122,6 +132,16 @@ export const TeamsUserSchema = z.object({
   displayName: z.string(),
   email: z.string().optional(),
   userPrincipalName: z.string().optional(),
+})
+
+export const TeamsChatTypeSchema = z.enum(['oneOnOne', 'group'])
+
+export const TeamsChatSchema = z.object({
+  id: z.string(),
+  type: TeamsChatTypeSchema,
+  topic: z.string().optional(),
+  last_message: z.string().optional(),
+  last_message_at: z.string().optional(),
 })
 
 export const TeamsReactionSchema = z.object({
