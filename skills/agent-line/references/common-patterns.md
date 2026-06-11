@@ -71,8 +71,8 @@ MESSAGES=$(agent-line message list "$CHAT_ID" -n 50)
 MSG_COUNT=$(echo "$MESSAGES" | jq 'length')
 echo "Found $MSG_COUNT messages"
 
-# Show messages
-echo "$MESSAGES" | jq -r '.[] | "\(.author_id): \(.text // "[non-text]")"'
+# Show messages; encrypted Letter Sealing messages may include decryption_error.
+echo "$MESSAGES" | jq -r '.[] | "\(.author_id): \(.text // .decryption_error.message // "[non-text]")"'
 ```
 
 **When to use**: Context gathering, summarizing conversations, catching up on missed messages.
@@ -130,7 +130,8 @@ listener.on('connected', (info) => {
 })
 
 listener.on('message', (event) => {
-  console.log(`[${event.chat_id}] ${event.author_id}: ${event.text}`)
+  const content = event.text ?? event.decryption_error?.message ?? '[non-text]'
+  console.log(`[${event.chat_id}] ${event.author_id}: ${content}`)
 })
 
 listener.on('error', (error) => {
@@ -151,6 +152,8 @@ await listener.start()
 **When to use**: Building bots, automations, or real-time integrations that need instant message delivery.
 
 **Features**: Auto-reconnects with exponential backoff, typed events, AbortController-based clean shutdown.
+
+**E2EE note**: For LINE Letter Sealing messages that cannot be decrypted in the current session, `text` stays `null` and `decryption_error` explains whether E2EE key material is missing or decryption failed.
 
 ## Pattern 5: Get User Profile
 
