@@ -79,6 +79,15 @@ it('history: returns array of messages', async () => {
   expect(output).toContain('Alice')
 })
 
+it('history: falls back to default limit when given a non-positive value', async () => {
+  const consoleSpy = mock((_msg: string) => {})
+  console.log = consoleSpy
+
+  await historyAction('19:1on1@unq.gbl.spaces', { limit: -5, pretty: false })
+
+  expect(clientGetChatMessagesSpy).toHaveBeenCalledWith('19:1on1@unq.gbl.spaces', 50)
+})
+
 it('send: returns sent message', async () => {
   const consoleSpy = mock((_msg: string) => {})
   console.log = consoleSpy

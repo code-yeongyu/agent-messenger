@@ -209,10 +209,10 @@ agent-teams channel history <team-id> <channel-id> --limit 100
 
 ### Chat Commands
 
-For personal accounts (`@outlook.com` / `teams.live.com`) that have no teams or channels — only 1:1 and group chat threads. Work accounts can use these too for their 1:1 and group chats.
+For personal Microsoft accounts (`@outlook.com` / `@live.com`) that have no teams or channels — only 1:1, group, and self chat threads. Work accounts can use these too for their 1:1 and group chats.
 
 ```bash
-# List 1:1 and group chats
+# List 1:1, group, and self chats
 agent-teams chat list
 
 # Get chat message history

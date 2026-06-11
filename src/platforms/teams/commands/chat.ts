@@ -54,7 +54,8 @@ export async function historyAction(chatId: string, options: { limit?: number; p
       accountType: cred.accountType,
       region: cred.region,
     })
-    const messages = await client.getChatMessages(chatId, options.limit || 50)
+    const limit = options.limit && options.limit > 0 ? options.limit : 50
+    const messages = await client.getChatMessages(chatId, limit)
 
     const output = messages.map((msg) => ({
       id: msg.id,
@@ -100,10 +101,10 @@ export async function sendAction(chatId: string, content: string, options: { pre
 }
 
 export const chatCommand = new Command('chat')
-  .description('Personal chat commands (1:1 and group chats)')
+  .description('Chat commands (1:1, group, and self chats)')
   .addCommand(
     new Command('list')
-      .description('List 1:1 and group chats')
+      .description('List 1:1, group, and self chats')
       .option('--pretty', 'Pretty print JSON output')
       .action(listAction),
   )
