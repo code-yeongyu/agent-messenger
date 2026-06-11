@@ -43,8 +43,14 @@ export interface LineMessage {
   author_id: string
   author_name?: string
   text: string | null
+  decryption_error?: LineDecryptionError
   content_type: string
   sent_at: string
+}
+
+export interface LineDecryptionError {
+  code: 'missing_e2ee_key' | 'decrypt_failed'
+  message: string
 }
 
 export interface LineSendResult {
@@ -106,6 +112,12 @@ export const LineMessageSchema = z.object({
   author_id: z.string(),
   author_name: z.string().optional(),
   text: z.string().nullable(),
+  decryption_error: z
+    .object({
+      code: z.enum(['missing_e2ee_key', 'decrypt_failed']),
+      message: z.string(),
+    })
+    .optional(),
   content_type: z.string(),
   sent_at: z.string(),
 })
@@ -137,6 +149,7 @@ export interface LinePushMessageEvent {
   message_id: string
   author_id: string
   text: string | null
+  decryption_error?: LineDecryptionError
   content_type: string
   // Raw LINE contentMetadata (sticker IDs, file name/size, media URLs); empty for plain text.
   content_metadata: Record<string, string>

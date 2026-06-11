@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events'
 
-import type { LineClient } from './client'
+import type { LineClient, LineRawMessage } from './client'
 import type { LineListenerEventMap, LinePushGenericEvent, LinePushMessageEvent } from './types'
 
 const RECONNECT_BASE_DELAY = 1_000
@@ -94,19 +94,20 @@ export class LineListener {
     }
   }
 
-  private emitMessage(msg: any): void {
+  private emitMessage(msg: LineRawMessage): void {
     try {
       const toType = msg.raw.toType
       const isGroupOrRoom = toType === 'GROUP' || toType === 'ROOM' || toType === 0 || toType === 1
-      const chatId = isGroupOrRoom ? msg.to.id : msg.isMyMessage ? msg.to.id : msg.from.id
+      const chatId = String(isGroupOrRoom ? msg.to.id : msg.isMyMessage ? msg.to.id : msg.from.id)
 
       const contentType = String(msg.raw.contentType ?? 'NONE')
       const event: LinePushMessageEvent = {
         type: 'message',
         chat_id: chatId,
         message_id: String(msg.raw.id),
-        author_id: msg.from.id,
+        author_id: String(msg.from.id),
         text: getMessageText(msg.text, msg.raw, contentType),
+        ...(msg.decryption_error && { decryption_error: msg.decryption_error }),
         content_type: contentType,
         content_metadata: normalizeContentMetadata(msg.raw.contentMetadata),
         sent_at: new Date(Number(msg.raw.createdTime)).toISOString(),

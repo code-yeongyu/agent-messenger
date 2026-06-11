@@ -87,6 +87,23 @@ describe('LineMessageSchema', () => {
     expect(result.text).toBeNull()
   })
 
+  it('parses message with decryption error', () => {
+    const data = {
+      message_id: 'msg789',
+      chat_id: 'u1234567890abcdef',
+      author_id: 'u9876543210fedcba',
+      text: null,
+      decryption_error: {
+        code: 'missing_e2ee_key',
+        message: 'LINE message is encrypted with Letter Sealing, but this session has no saved E2EE key material.',
+      },
+      content_type: 'NONE',
+      sent_at: '2026-03-29T00:00:00.000Z',
+    }
+    const result = LineMessageSchema.parse(data)
+    expect(result.decryption_error?.code).toBe('missing_e2ee_key')
+  })
+
   it('rejects missing required fields', () => {
     expect(() => LineMessageSchema.parse({ message_id: 'msg123' })).toThrow()
   })

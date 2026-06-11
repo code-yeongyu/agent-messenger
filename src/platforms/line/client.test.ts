@@ -105,6 +105,30 @@ describe('LineClient', () => {
       expect(result.map((m) => m.message_id)).toEqual(['30', '20'])
       expect(result.map((m) => m.text)).toEqual(['c', 'b'])
     })
+
+    it('marks encrypted chunk messages without text as missing E2EE keys', async () => {
+      const client = clientWithTalk({
+        getServerTime: async () => 1700000000000,
+        getPreviousMessagesV2WithRequest: async () => [
+          {
+            id: '40',
+            from: 'u1',
+            text: null,
+            contentType: 'NONE',
+            createdTime: 1700000004000,
+            chunks: ['a', 'b'],
+            metadata: { e2eeMark: '2', e2eeVersion: '2' },
+          },
+        ],
+      })
+
+      const result = await client.getMessages('chat1', { count: 1 })
+      expect(result[0].text).toBeNull()
+      expect(result[0].decryption_error).toEqual({
+        code: 'missing_e2ee_key',
+        message: 'LINE message is encrypted with Letter Sealing, but this session has no saved E2EE key material.',
+      })
+    })
   })
 
   describe('sendMessage()', () => {
@@ -206,6 +230,18 @@ describe('LineClient', () => {
       const msg = events[1] as Extract<LineRawEvent, { kind: 'message' }>
       expect(msg.message.from.id).toBe('u1')
       expect(msg.message.text).toBeNull()
+      expect(msg.message.decryption_error).toEqual({ code: 'decrypt_failed', message: 'E2EE decrypt failed' })
+    })
+
+    it('marks missing E2EE key failures explicitly', async () => {
+      const op = { type: 'RECEIVE_MESSAGE', message: { id: '1', from: 'u1', to: 'me' } }
+      const client = clientWithStream([op], async () => {
+        throw new Error('NoE2EEKey: E2EE Key has not been saved')
+      })
+
+      const events = await collect(client)
+      const msg = events[1] as Extract<LineRawEvent, { kind: 'message' }>
+      expect(msg.message.decryption_error?.code).toBe('missing_e2ee_key')
     })
 
     it('propagates polling errors so the listener can reconnect', async () => {
