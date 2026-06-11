@@ -1,7 +1,7 @@
 ---
 name: agent-channeltalk
 description: Interact with Channel Talk using extracted desktop app or browser credentials - read chats, send messages, search messages, manage groups
-version: 2.19.5
+version: 2.20.0
 allowed-tools: Bash(agent-channeltalk:*)
 metadata:
   openclaw:
