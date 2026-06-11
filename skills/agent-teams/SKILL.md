@@ -207,6 +207,23 @@ agent-teams channel info <team-id> 19:abc123@thread.tacv2
 agent-teams channel history <team-id> <channel-id> --limit 100
 ```
 
+### Chat Commands
+
+For personal accounts (`@outlook.com` / `teams.live.com`) that have no teams or channels — only 1:1 and group chat threads. Work accounts can use these too for their 1:1 and group chats.
+
+```bash
+# List 1:1 and group chats
+agent-teams chat list
+
+# Get chat message history
+agent-teams chat history <chat-id> --limit 100
+
+# Send a message to a chat
+agent-teams chat send <chat-id> "Hello"
+```
+
+Chat IDs look like `19:guid1_guid2@unq.gbl.spaces` (1:1) or `19:guid@thread.tacv2` (group). Get them from `chat list`.
+
 ### Team Commands
 
 ```bash
@@ -357,7 +374,7 @@ Common errors:
 
 - `Not authenticated`: No valid token (auto-extraction failed — see Troubleshooting)
 - `Token expired`: Token has expired and auto-refresh failed — see Troubleshooting
-- `No current team set`: Run `team switch <id>` first
+- `No current team set`: Run `team switch <id>` first. Personal accounts have no teams — use `chat list` / `chat history` / `chat send` instead
 - `Message not found`: Invalid message ID
 - `Channel not found`: Invalid channel ID
 - `401 Unauthorized`: Token expired and auto-refresh failed — see Troubleshooting
@@ -419,6 +436,7 @@ See the [Teams SDK documentation](https://agent-messenger.dev/docs/sdk/teams) fo
 - No real-time events / WebSocket connection
 - No voice/video channel support
 - No team management (create/delete channels, roles)
+- Personal accounts: chats only (no teams/channels); use the `chat` commands
 - No meeting support
 - No webhook support
 - Plain text messages only (no adaptive cards in v1)

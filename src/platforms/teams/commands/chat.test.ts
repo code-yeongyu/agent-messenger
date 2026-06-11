@@ -1,0 +1,91 @@
+import { afterEach, beforeEach, expect, mock, spyOn, it } from 'bun:test'
+
+import { TeamsClient } from '../client'
+import { TeamsCredentialManager } from '../credential-manager'
+import { historyAction, listAction, sendAction } from './chat'
+
+let clientListChatsSpy: ReturnType<typeof spyOn>
+let clientGetChatMessagesSpy: ReturnType<typeof spyOn>
+let clientSendChatMessageSpy: ReturnType<typeof spyOn>
+let credManagerLoadSpy: ReturnType<typeof spyOn>
+const originalConsoleLog = console.log
+
+beforeEach(() => {
+  clientListChatsSpy = spyOn(TeamsClient.prototype, 'listChats').mockResolvedValue([
+    { id: '19:1on1@unq.gbl.spaces', type: 'oneOnOne', last_message: 'Hi', last_message_at: '2025-01-29T10:00:00Z' },
+    { id: '19:group@thread.tacv2', type: 'group', topic: 'Group Chat' },
+  ])
+
+  clientGetChatMessagesSpy = spyOn(TeamsClient.prototype, 'getChatMessages').mockResolvedValue([
+    {
+      id: 'msg_123',
+      channel_id: '19:1on1@unq.gbl.spaces',
+      author: { id: 'user_789', displayName: 'Alice' },
+      content: 'Hello world',
+      timestamp: '2025-01-29T10:00:00Z',
+    },
+  ])
+
+  clientSendChatMessageSpy = spyOn(TeamsClient.prototype, 'sendChatMessage').mockResolvedValue({
+    id: '1704067200000',
+    channel_id: '19:1on1@unq.gbl.spaces',
+    author: { id: 'ME', displayName: 'Me' },
+    content: 'Hello world',
+    timestamp: '2025-01-29T10:00:00Z',
+  })
+
+  credManagerLoadSpy = spyOn(TeamsCredentialManager.prototype, 'loadConfig').mockResolvedValue({
+    current_account: 'personal',
+    accounts: {
+      personal: {
+        token: 'test_token',
+        account_type: 'personal' as const,
+        current_team: null,
+        teams: {},
+      },
+    },
+  })
+})
+
+afterEach(() => {
+  clientListChatsSpy?.mockRestore()
+  clientGetChatMessagesSpy?.mockRestore()
+  clientSendChatMessageSpy?.mockRestore()
+  credManagerLoadSpy?.mockRestore()
+  console.log = originalConsoleLog
+})
+
+it('list: returns array of chats', async () => {
+  const consoleSpy = mock((_msg: string) => {})
+  console.log = consoleSpy
+
+  await listAction({ pretty: false })
+
+  expect(consoleSpy).toHaveBeenCalled()
+  const output = consoleSpy.mock.calls[0][0]
+  expect(output).toContain('19:1on1@unq.gbl.spaces')
+  expect(output).toContain('19:group@thread.tacv2')
+})
+
+it('history: returns array of messages', async () => {
+  const consoleSpy = mock((_msg: string) => {})
+  console.log = consoleSpy
+
+  await historyAction('19:1on1@unq.gbl.spaces', { limit: 50, pretty: false })
+
+  expect(consoleSpy).toHaveBeenCalled()
+  const output = consoleSpy.mock.calls[0][0]
+  expect(output).toContain('msg_123')
+  expect(output).toContain('Alice')
+})
+
+it('send: returns sent message', async () => {
+  const consoleSpy = mock((_msg: string) => {})
+  console.log = consoleSpy
+
+  await sendAction('19:1on1@unq.gbl.spaces', 'Hello world', { pretty: false })
+
+  expect(consoleSpy).toHaveBeenCalled()
+  const output = consoleSpy.mock.calls[0][0]
+  expect(output).toContain('Hello world')
+})
