@@ -123,7 +123,9 @@ export async function dmAction(
   options: { markdown?: boolean; pretty?: boolean },
 ): Promise<void> {
   try {
-    const message = await withWebexClient((client) => client.sendDirectMessage(email, text, { markdown: options.markdown }))
+    const message = await withWebexClient((client) =>
+      client.sendDirectMessage(email, text, { markdown: options.markdown }),
+    )
 
     const output = {
       id: message.id,

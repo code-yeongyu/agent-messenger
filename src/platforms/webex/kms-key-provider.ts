@@ -1,5 +1,5 @@
-import WebSocket from 'ws'
 import { DeviceManager, KmsClient, MercurySocket, noopLogger } from 'webex-message-handler'
+import WebSocket from 'ws'
 
 interface KmsKeyProviderOptions {
   token: string
@@ -74,7 +74,7 @@ export class KmsKeyProvider {
     }
     const wsFactory = (url: string) => new WebSocket(url) as never
     const dm = new DeviceManager({ logger: noopLogger, httpDo })
-    const reg = await dm.register(this.token) as Registration
+    const reg = (await dm.register(this.token)) as Registration
     const mercury = new MercurySocket({ logger: noopLogger, wsFactory })
     const kms = new KmsClient({
       token: this.token,

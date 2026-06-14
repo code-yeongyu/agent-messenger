@@ -28,7 +28,7 @@ export class WebexEncryptionService {
 
     let raw = this.rawKeys.get(keyUri)
     if (!raw && this.keyProvider) {
-      raw = await this.keyProvider.fetchKey(keyUri) ?? undefined
+      raw = (await this.keyProvider.fetchKey(keyUri)) ?? undefined
     }
     if (!raw) return null
 
