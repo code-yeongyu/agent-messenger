@@ -86,8 +86,14 @@ export class KmsKeyProvider {
     })
     mercury.on('kms:response', (data: unknown) => kms.handleKmsMessage(data))
     await mercury.connect(reg.webSocketUrl, this.token)
-    await kms.initialize()
     this.mercury = mercury
+    try {
+      await kms.initialize()
+    } catch (error) {
+      await mercury.disconnect().catch(() => undefined)
+      this.mercury = null
+      throw error
+    }
     this.kms = kms
   }
 }
