@@ -32,6 +32,7 @@ let mockGetMessage: ReturnType<typeof spyOn>
 let mockDeleteMessage: ReturnType<typeof spyOn>
 let mockEditMessage: ReturnType<typeof spyOn>
 let mockLogin: ReturnType<typeof spyOn>
+let mockDispose: ReturnType<typeof spyOn>
 let consoleLogSpy: ReturnType<typeof spyOn>
 let consoleErrorSpy: ReturnType<typeof spyOn>
 let processExitSpy: ReturnType<typeof spyOn>
@@ -47,6 +48,7 @@ beforeEach(() => {
   mockLogin = protoSpy('login').mockImplementation(async function (this: WebexClient) {
     return this
   })
+  mockDispose = protoSpy('dispose').mockResolvedValue(undefined)
   mockSendMessage = protoSpy('sendMessage').mockResolvedValue(mockMessage)
   mockSendDirectMessage = protoSpy('sendDirectMessage').mockResolvedValue(mockMessage)
   mockListMessages = protoSpy('listMessages').mockResolvedValue([mockMessage, mockMessage2])
@@ -78,12 +80,21 @@ it('calls sendMessage with correct args and outputs result', async () => {
   expect(output).toContain('msg_123')
   expect(output).toContain('space_456')
   expect(output).toContain('user@example.com')
+  expect(mockDispose).toHaveBeenCalled()
 })
 
 it('passes markdown option when --markdown flag is set on send', async () => {
   await sendAction('space_456', '**bold**', { markdown: true, pretty: false })
 
   expect(mockSendMessage).toHaveBeenCalledWith('space_456', '**bold**', { markdown: true })
+})
+
+it('disposes the client when send fails', async () => {
+  mockSendMessage.mockRejectedValue(new WebexError('Send failed', 'send_failed'))
+
+  await sendAction('space_456', 'Hello world', { pretty: false })
+
+  expect(mockDispose).toHaveBeenCalled()
 })
 
 it('exits with code 1 when not authenticated on send', async () => {
@@ -166,6 +177,7 @@ it('calls editMessage with roomId in args and outputs result', async () => {
   const output = consoleLogSpy.mock.calls[0][0]
   expect(output).toContain('msg_123')
   expect(output).toContain('Updated message')
+  expect(mockDispose).toHaveBeenCalled()
 })
 
 it('passes markdown option to editMessage when --markdown flag is set', async () => {

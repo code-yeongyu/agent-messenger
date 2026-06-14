@@ -19,7 +19,7 @@ Extracts your first-party Webex session token from a Chromium-based browser wher
 - **Supported browsers**: Chrome, Chrome Canary, Edge, Arc, Brave, Vivaldi, Chromium
 - **Token lifetime**: Depends on Webex session policy (typically hours to days). Re-extract when expired.
 - **Auto-extraction**: The CLI attempts browser extraction automatically when no valid token is stored, so you often don't need to run `auth extract` manually.
-- **End-to-end encryption**: When encryption keys are found in the browser's cache, messages are encrypted client-side (JWE with AES-256-GCM) before sending via the internal conversation API. This ensures messages appear as encrypted in the Webex client. If no keys are found (e.g., the conversation hasn't been opened in the browser), messages fall back to plaintext.
+- **End-to-end encryption**: Messages are encrypted client-side (JWE with AES-256-GCM) before sending via the internal conversation API, so they appear as encrypted in the Webex client. Keys cached from the browser are used directly; for an end-to-end encrypted conversation whose key was not cached at extract time, the key is fetched on demand over the Mercury websocket + KMS flow and persisted for reuse. Only non-encrypted conversations are sent as plaintext.
 - **Best for**: Interactive use, sending messages as yourself without the "via" label
 
 ```bash

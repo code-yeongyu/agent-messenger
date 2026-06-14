@@ -40,7 +40,7 @@ This command:
 - Supported browsers: Chrome, Chrome Canary, Edge, Arc, Brave, Vivaldi, Chromium
 - Supports `--browser-profile <path>` for agent-browser profiles, custom Chrome user data dirs, or portable browser profiles; repeatable and comma-separated values are accepted
 - Auto-extraction runs when no valid token is stored, so manual extraction is rarely needed
-- Messages are encrypted client-side (JWE/AES-256-GCM) when encryption keys are available; falls back to plaintext otherwise. Re-run `auth extract` to refresh keys for new conversations.
+- Messages are encrypted client-side (JWE/AES-256-GCM). Encryption keys are cached at extract time; for end-to-end encrypted conversations whose key is not cached, the key is fetched on demand (Mercury + KMS) and persisted for reuse. Non-encrypted conversations send as plaintext.
 
 ### OAuth Device Grant (Fallback)
 
