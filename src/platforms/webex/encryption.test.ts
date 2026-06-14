@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, mock } from 'bun:test'
 
 import * as jose from 'node-jose'
 
@@ -11,12 +11,16 @@ const decodeJweHeader = (jwe: string): Record<string, unknown> => {
   return JSON.parse(json) as Record<string, unknown>
 }
 
-const createKeyring = async (keyUri: string) => {
+const createSerializedKey = async (keyUri: string) => {
   const keystore = jose.JWK.createKeyStore()
   const key = await keystore.generate('oct', 256, { alg: 'A256GCM' })
   const jwk = key.toJSON(true)
+  return JSON.stringify({ uri: keyUri, jwk })
+}
+
+const createKeyring = async (keyUri: string) => {
   const rawKeys = new Map<string, string>()
-  rawKeys.set(keyUri, JSON.stringify({ jwk }))
+  rawKeys.set(keyUri, await createSerializedKey(keyUri))
   return new WebexEncryptionService(rawKeys)
 }
 
@@ -50,5 +54,56 @@ describe('WebexEncryptionService', () => {
     const plaintext = await service.decryptText(keyUri, jwe as string)
 
     expect(plaintext).toBe('round trip')
+  })
+
+  it('getKey returns cached key without calling provider when key is present', async () => {
+    const service = await createKeyring(keyUri)
+    const provider = { fetchKey: mock(async () => null as string | null) }
+    service.setKeyProvider(provider)
+
+    const key = await service.getKey(keyUri)
+
+    expect(key).not.toBeNull()
+    expect(provider.fetchKey).not.toHaveBeenCalled()
+  })
+
+  it('getKey calls provider and returns key when key is missing', async () => {
+    const missingKeyUri = 'kms://kms-aore.wbx2.com/keys/0d7a0dfb-0464-40ce-8f3d-e65a33b61561'
+    const serializedKey = await createSerializedKey(missingKeyUri)
+    const service = new WebexEncryptionService(new Map())
+    const provider = { fetchKey: mock(async () => serializedKey) }
+    service.setKeyProvider(provider)
+
+    const key = await service.getKey(missingKeyUri)
+
+    expect(key).not.toBeNull()
+    expect(provider.fetchKey).toHaveBeenCalledWith(missingKeyUri)
+  })
+
+  it('getKey returns null when provider returns null', async () => {
+    const missingKeyUri = 'kms://kms-aore.wbx2.com/keys/13d6256d-f7f1-4b98-8102-4d3d87b2834a'
+    const service = new WebexEncryptionService(new Map())
+    const provider = { fetchKey: mock(async () => null as string | null) }
+    service.setKeyProvider(provider)
+
+    const key = await service.getKey(missingKeyUri)
+
+    expect(key).toBeNull()
+    expect(provider.fetchKey).toHaveBeenCalledWith(missingKeyUri)
+  })
+
+  it('getKey reuses provider result from raw keys after first fetch', async () => {
+    const missingKeyUri = 'kms://kms-aore.wbx2.com/keys/84afb005-5ba5-49c8-bd46-0c5d7ddf1c30'
+    const serializedKey = await createSerializedKey(missingKeyUri)
+    const service = new WebexEncryptionService(new Map())
+    const provider = { fetchKey: mock(async () => serializedKey) }
+    service.setKeyProvider(provider)
+
+    await service.getKey(missingKeyUri)
+    ;(service as unknown as { keyCache: Map<string, jose.JWK.Key> }).keyCache.clear()
+    const key = await service.getKey(missingKeyUri)
+
+    expect(key).not.toBeNull()
+    expect(provider.fetchKey).toHaveBeenCalledTimes(1)
   })
 })
