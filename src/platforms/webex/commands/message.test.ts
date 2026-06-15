@@ -49,7 +49,10 @@ beforeEach(() => {
   mockListMessages = spyOn(WebexClient.prototype, 'listMessages').mockResolvedValue([mockMessage, mockMessage2])
   mockGetMessage = spyOn(WebexClient.prototype, 'getMessage').mockResolvedValue(mockMessage)
   mockDeleteMessage = spyOn(WebexClient.prototype, 'deleteMessage').mockResolvedValue(undefined)
-  mockEditMessage = spyOn(WebexClient.prototype, 'editMessage').mockResolvedValue({ ...mockMessage, text: 'Updated message' })
+  mockEditMessage = spyOn(WebexClient.prototype, 'editMessage').mockResolvedValue({
+    ...mockMessage,
+    text: 'Updated message',
+  })
 
   consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {})
   stderrWriteSpy = spyOn(process.stderr, 'write').mockImplementation(() => true)
