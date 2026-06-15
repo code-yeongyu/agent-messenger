@@ -7,6 +7,7 @@ import pkg from '../../../package.json' with { type: 'json' }
 import {
   authCommand,
   channelCommand,
+  chatCommand,
   fileCommand,
   messageCommand,
   reactionCommand,
@@ -49,6 +50,7 @@ program.hook('preAction', async (_thisCommand, actionCommand) => {
 program.addCommand(authCommand)
 program.addCommand(teamCommand)
 program.addCommand(channelCommand)
+program.addCommand(chatCommand)
 program.addCommand(fileCommand)
 program.addCommand(messageCommand)
 program.addCommand(reactionCommand)

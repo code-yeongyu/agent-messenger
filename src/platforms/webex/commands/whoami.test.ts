@@ -1,12 +1,8 @@
-import { afterEach, beforeEach, describe, expect, mock, spyOn, it } from 'bun:test'
+import { afterEach, beforeEach, expect, spyOn, it } from 'bun:test'
 
+import { WebexClient } from '../client'
 import { WebexError } from '../types'
-
-mock.module('@/shared/utils/error-handler', () => ({
-  handleError: (_err: Error) => {
-    process.exit(1)
-  },
-}))
+import { whoamiCommand } from './whoami'
 
 const mockUser = {
   id: 'person-123',
@@ -21,50 +17,66 @@ const mockUser = {
   created: '2024-01-01T00:00:00.000Z',
 }
 
-const mockTestAuth = mock(() => Promise.resolve(mockUser))
-const mockLogin = mock(() => Promise.resolve({ testAuth: mockTestAuth }))
+let loginSpy: ReturnType<typeof spyOn>
+let testAuthSpy: ReturnType<typeof spyOn>
+let consoleLogSpy: ReturnType<typeof spyOn>
+let stderrWriteSpy: ReturnType<typeof spyOn>
+let processExitSpy: ReturnType<typeof spyOn>
 
-mock.module('../client', () => ({
-  WebexClient: class {
-    login = mockLogin
-  },
-}))
-
-import { whoamiCommand } from './whoami'
-
-describe('whoami command', () => {
-  let consoleLogSpy: ReturnType<typeof spyOn>
-  let processExitSpy: ReturnType<typeof spyOn>
-
-  beforeEach(() => {
-    mockTestAuth.mockReset().mockImplementation(() => Promise.resolve(mockUser))
-    mockLogin.mockReset().mockImplementation(() => Promise.resolve({ testAuth: mockTestAuth }))
-    consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {})
-    processExitSpy = spyOn(process, 'exit').mockImplementation((_code?: number) => undefined as never)
+beforeEach(() => {
+  loginSpy = spyOn(WebexClient.prototype, 'login').mockImplementation(async function (this: WebexClient) {
+    return this
   })
+  testAuthSpy = spyOn(WebexClient.prototype, 'testAuth').mockResolvedValue(mockUser)
+  consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {})
+  stderrWriteSpy = spyOn(process.stderr, 'write').mockImplementation(() => true)
+  processExitSpy = spyOn(process, 'exit').mockImplementation((_code?: number) => undefined as never)
+})
 
-  afterEach(() => {
-    consoleLogSpy.mockRestore()
-    processExitSpy.mockRestore()
-  })
+afterEach(() => {
+  loginSpy.mockRestore()
+  testAuthSpy.mockRestore()
+  consoleLogSpy.mockRestore()
+  stderrWriteSpy.mockRestore()
+  processExitSpy.mockRestore()
+})
 
-  it('whoami command is defined with correct name and description', () => {
-    expect(whoamiCommand).toBeDefined()
-    expect(whoamiCommand.name()).toBe('whoami')
-    expect(whoamiCommand.description()).toBe('Show current authenticated user')
-  })
+it('whoami command is defined with correct name and description', () => {
+  expect(whoamiCommand).toBeDefined()
+  expect(whoamiCommand.name()).toBe('whoami')
+  expect(whoamiCommand.description()).toBe('Show current authenticated user')
+})
 
-  it('whoami command has --pretty option', () => {
-    const options = whoamiCommand.options
-    const hasPretty = options.some((opt: { long?: string }) => opt.long === '--pretty')
-    expect(hasPretty).toBe(true)
-  })
+it('whoami command has --pretty option', () => {
+  const options = whoamiCommand.options
+  const hasPretty = options.some((opt: { long?: string }) => opt.long === '--pretty')
+  expect(hasPretty).toBe(true)
+})
 
-  it('whoami calls testAuth and outputs user fields', async () => {
-    await whoamiCommand.parseAsync([], { from: 'user' })
+it('whoami calls testAuth and outputs user fields', async () => {
+  await whoamiCommand.parseAsync([], { from: 'user' })
 
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      JSON.stringify({
+  expect(consoleLogSpy).toHaveBeenCalledWith(
+    JSON.stringify({
+      id: 'person-123',
+      emails: ['test@example.com'],
+      displayName: 'Test User',
+      nickName: 'Testy',
+      firstName: 'Test',
+      lastName: 'User',
+      avatar: 'https://example.com/avatar.jpg',
+      orgId: 'org-123',
+      type: 'person',
+    }),
+  )
+})
+
+it('whoami outputs pretty-printed JSON when --pretty flag is passed', async () => {
+  await whoamiCommand.parseAsync(['--pretty'], { from: 'user' })
+
+  expect(consoleLogSpy).toHaveBeenCalledWith(
+    JSON.stringify(
+      {
         id: 'person-123',
         emails: ['test@example.com'],
         displayName: 'Test User',
@@ -74,39 +86,18 @@ describe('whoami command', () => {
         avatar: 'https://example.com/avatar.jpg',
         orgId: 'org-123',
         type: 'person',
-      }),
-    )
-  })
+      },
+      null,
+      2,
+    ),
+  )
+})
 
-  it('whoami outputs pretty-printed JSON when --pretty flag is passed', async () => {
-    await whoamiCommand.parseAsync(['--pretty'], { from: 'user' })
+it('whoami exits with code 1 when not authenticated', async () => {
+  loginSpy.mockRejectedValue(new WebexError('No Webex credentials found.', 'no_credentials'))
 
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      JSON.stringify(
-        {
-          id: 'person-123',
-          emails: ['test@example.com'],
-          displayName: 'Test User',
-          nickName: 'Testy',
-          firstName: 'Test',
-          lastName: 'User',
-          avatar: 'https://example.com/avatar.jpg',
-          orgId: 'org-123',
-          type: 'person',
-        },
-        null,
-        2,
-      ),
-    )
-  })
+  await whoamiCommand.parseAsync([], { from: 'user' })
 
-  it('whoami exits with code 1 when not authenticated', async () => {
-    mockLogin.mockImplementation(async () => {
-      throw new WebexError('No Webex credentials found.', 'no_credentials')
-    })
-
-    await whoamiCommand.parseAsync([], { from: 'user' })
-
-    expect(processExitSpy).toHaveBeenCalledWith(1)
-  })
+  expect(testAuthSpy).not.toHaveBeenCalled()
+  expect(processExitSpy).toHaveBeenCalledWith(1)
 })

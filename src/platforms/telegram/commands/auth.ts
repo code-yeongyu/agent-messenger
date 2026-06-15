@@ -2,6 +2,7 @@ import { Writable } from 'node:stream'
 
 import { Command } from 'commander'
 
+import { isInteractive } from '@/shared/utils/interactive'
 import { info, error as stderrError } from '@/shared/utils/stderr'
 
 import { handleError } from '../../../shared/utils/error-handler'
@@ -57,10 +58,6 @@ function parseApiId(apiId?: string): number | undefined {
   return parsed
 }
 
-function isInteractiveSession(): boolean {
-  return Boolean(process.stdin.isTTY && process.stdout.isTTY)
-}
-
 async function promptLine(message: string): Promise<string | undefined> {
   const { createInterface } = await import('node:readline/promises')
   const rl = createInterface({
@@ -107,7 +104,7 @@ async function promptHidden(message: string): Promise<string | undefined> {
 }
 
 function shouldUseInteractivePrompts(): boolean {
-  return isInteractiveSession()
+  return isInteractive()
 }
 
 async function fillMissingBootstrappingInputs(
@@ -168,7 +165,7 @@ async function fillMissingBootstrappingInputs(
   }
 
   if (!resolved.apiHash && !existing?.api_hash) {
-    if (!isInteractiveSession()) {
+    if (!isInteractive()) {
       console.log(formatOutput({ error: 'missing_credentials', message: 'Provide --api-hash flag.' }, options.pretty))
       process.exit(1)
     }
@@ -176,7 +173,7 @@ async function fillMissingBootstrappingInputs(
   }
 
   if (!existing && !resolved.phone) {
-    if (!isInteractiveSession()) {
+    if (!isInteractive()) {
       console.log(formatOutput({ next_action: 'provide_phone', message: 'Provide --phone flag.' }, options.pretty))
       process.exit(0)
     }
@@ -288,7 +285,7 @@ export async function promptNextLoginInput(
   result: { next_action?: string },
   options: AuthOptions,
 ): Promise<AuthOptions | null> {
-  if (!isInteractiveSession() && result.next_action) {
+  if (!isInteractive() && result.next_action) {
     return null
   }
 

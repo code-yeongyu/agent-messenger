@@ -1,60 +1,95 @@
 import { afterEach, describe, expect, mock, it } from 'bun:test'
 
+import type { LineRawEvent } from '@/platforms/line/client'
 import { LineListener } from '@/platforms/line/listener'
 import type { LinePushGenericEvent, LinePushMessageEvent } from '@/platforms/line/types'
 
-const mockGetProfile = mock(() => Promise.resolve({ mid: 'u123', displayName: 'Test User' }))
+const mockGetProfile = mock(() => Promise.resolve({ mid: 'u123', display_name: 'Test User' }))
 
-let mockInternalClientInstance: MockInternalClient
+let mockInternalClientInstance: MockEventSource
 
-class MockInternalClient {
-  handlers: Record<string, ((...args: any[]) => void)[]> = {}
-  private listenReject: ((e: Error) => void) | null = null
+class MockEventSource {
+  private queue: LineRawEvent[] = []
+  private resolveNext: ((value: IteratorResult<LineRawEvent>) => void) | null = null
+  private streamError: Error | null = null
+  private done = false
 
-  on(event: string, handler: (...args: any[]) => void): void {
-    if (!this.handlers[event]) this.handlers[event] = []
-    this.handlers[event].push(handler)
-  }
-
-  listen(opts: { signal?: AbortSignal } = {}): Promise<void> {
-    return new Promise((_resolve, reject) => {
-      this.listenReject = reject
-      opts.signal?.addEventListener('abort', () => {
-        const err = new Error('The operation was aborted')
-        err.name = 'AbortError'
-        reject(err)
-      })
+  async *streamEvents(signal: AbortSignal): AsyncGenerator<LineRawEvent, void, unknown> {
+    signal.addEventListener('abort', () => {
+      const err = new Error('The operation was aborted')
+      err.name = 'AbortError'
+      this.fail(err)
     })
+
+    while (!this.done) {
+      if (this.streamError) {
+        const err = this.streamError
+        this.streamError = null
+        throw err
+      }
+      if (this.queue.length > 0) {
+        yield this.queue.shift()!
+        continue
+      }
+      const next = await new Promise<IteratorResult<LineRawEvent>>((resolve) => {
+        this.resolveNext = resolve
+      })
+      if (next.done) return
+      if (this.streamError) {
+        const err = this.streamError
+        this.streamError = null
+        throw err
+      }
+      yield next.value
+    }
   }
 
-  simulateMessage(msg: unknown): void {
-    this.handlers['message']?.forEach((h) => h(msg))
+  private push(event: LineRawEvent): void {
+    if (this.resolveNext) {
+      const resolve = this.resolveNext
+      this.resolveNext = null
+      resolve({ value: event, done: false })
+    } else {
+      this.queue.push(event)
+    }
+  }
+
+  private fail(error: Error): void {
+    this.streamError = error
+    if (this.resolveNext) {
+      const resolve = this.resolveNext
+      this.resolveNext = null
+      resolve({ value: undefined as never, done: false })
+    }
+  }
+
+  simulateMessage(message: unknown): void {
+    this.push({ kind: 'message', message: message as never })
   }
 
   simulateEvent(op: unknown): void {
-    this.handlers['event']?.forEach((h) => h(op))
+    this.push({ kind: 'event', op: op as never })
   }
 
   simulateListenError(error: Error): void {
-    this.listenReject?.(error)
-  }
-
-  base = {
-    talk: { getProfile: mockGetProfile },
+    this.fail(error)
   }
 }
 
+function flush(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
 const mockLogin = mock((): Promise<void> => {
-  mockInternalClientInstance = new MockInternalClient()
+  mockInternalClientInstance = new MockEventSource()
   return Promise.resolve()
 })
 
 function createMockLineClient() {
   return {
     login: mockLogin,
-    get client() {
-      return mockInternalClientInstance
-    },
+    getProfile: mockGetProfile,
+    streamEvents: (signal: AbortSignal) => mockInternalClientInstance.streamEvents(signal),
   } as any
 }
 
@@ -65,11 +100,11 @@ describe('LineListener', () => {
     listener?.stop()
     mockLogin.mockReset()
     mockLogin.mockImplementation((): Promise<void> => {
-      mockInternalClientInstance = new MockInternalClient()
+      mockInternalClientInstance = new MockEventSource()
       return Promise.resolve()
     })
     mockGetProfile.mockReset()
-    mockGetProfile.mockResolvedValue({ mid: 'u123', displayName: 'Test User' })
+    mockGetProfile.mockResolvedValue({ mid: 'u123', display_name: 'Test User' })
   })
 
   describe('start', () => {
@@ -128,6 +163,7 @@ describe('LineListener', () => {
           createdTime: 1700000000000,
         },
       })
+      await flush()
 
       expect(messages.length).toBe(1)
       expect(messages[0].type).toBe('message')
@@ -136,6 +172,123 @@ describe('LineListener', () => {
       expect(messages[0].author_id).toBe('u456')
       expect(messages[0].text).toBe('hello world')
       expect(messages[0].content_type).toBe('NONE')
+      expect(messages[0].content_metadata).toEqual({})
+    })
+
+    it('forwards contentMetadata for non-text messages', async () => {
+      const client = createMockLineClient()
+      listener = new LineListener(client)
+
+      const messages: LinePushMessageEvent[] = []
+      listener.on('message', (event) => messages.push(event))
+
+      await listener.start()
+      mockInternalClientInstance.simulateMessage({
+        isMyMessage: false,
+        from: { type: 'USER', id: 'u456' },
+        to: { type: 'USER', id: 'u123' },
+        text: null,
+        raw: {
+          id: 'msg010',
+          contentType: 'STICKER',
+          createdTime: 1700000007000,
+          contentMetadata: { STKID: '123', STKPKGID: '456', STKVER: '1' },
+        },
+      })
+      await flush()
+
+      expect(messages.length).toBe(1)
+      expect(messages[0].text).toBeNull()
+      expect(messages[0].content_type).toBe('STICKER')
+      expect(messages[0].content_metadata).toEqual({ STKID: '123', STKPKGID: '456', STKVER: '1' })
+    })
+
+    it('falls back to raw text when text is empty for contentType NONE messages', async () => {
+      const client = createMockLineClient()
+      listener = new LineListener(client)
+
+      const messages: LinePushMessageEvent[] = []
+      listener.on('message', (event) => messages.push(event))
+
+      await listener.start()
+      mockInternalClientInstance.simulateMessage({
+        isMyMessage: false,
+        from: { type: 'USER', id: 'u456' },
+        to: { type: 'USER', id: 'u123' },
+        text: '',
+        raw: {
+          id: 'msg012',
+          contentType: 'NONE',
+          text: 'actual text from raw',
+          createdTime: 1700000009000,
+        },
+      })
+      await flush()
+
+      expect(messages.length).toBe(1)
+      expect(messages[0].text).toBe('actual text from raw')
+      expect(messages[0].content_type).toBe('NONE')
+    })
+
+    it('forwards LINE decryption errors on message events', async () => {
+      const client = createMockLineClient()
+      listener = new LineListener(client)
+
+      const messages: LinePushMessageEvent[] = []
+      listener.on('message', (event) => messages.push(event))
+
+      await listener.start()
+      mockInternalClientInstance.simulateMessage({
+        isMyMessage: false,
+        from: { type: 'USER', id: 'u456' },
+        to: { type: 'USER', id: 'u123' },
+        text: null,
+        decryption_error: {
+          code: 'missing_e2ee_key',
+          message: 'LINE message is encrypted with Letter Sealing, but this session has no saved E2EE key material.',
+        },
+        raw: {
+          id: 'msg013',
+          contentType: 'NONE',
+          createdTime: 1700000010000,
+          chunks: ['a', 'b'],
+          metadata: { e2eeMark: '2', e2eeVersion: '2' },
+        },
+      })
+      await flush()
+
+      expect(messages.length).toBe(1)
+      expect(messages[0].text).toBeNull()
+      expect(messages[0].decryption_error?.code).toBe('missing_e2ee_key')
+    })
+
+    it('coerces non-string contentMetadata values to strings', async () => {
+      const client = createMockLineClient()
+      listener = new LineListener(client)
+
+      const messages: LinePushMessageEvent[] = []
+      listener.on('message', (event) => messages.push(event))
+
+      await listener.start()
+      mockInternalClientInstance.simulateMessage({
+        isMyMessage: false,
+        from: { type: 'USER', id: 'u456' },
+        to: { type: 'USER', id: 'u123' },
+        text: null,
+        raw: {
+          id: 'msg011',
+          contentType: 'IMAGE',
+          createdTime: 1700000008000,
+          contentMetadata: { FILE_SIZE: 2048, PREVIEW_URL: 'https://example.com/p.jpg', EMPTY: null },
+        },
+      })
+      await flush()
+
+      expect(messages.length).toBe(1)
+      expect(messages[0].content_metadata).toEqual({
+        FILE_SIZE: '2048',
+        PREVIEW_URL: 'https://example.com/p.jpg',
+      })
     })
 
     it('uses to.id as chat_id for own messages', async () => {
@@ -153,6 +306,7 @@ describe('LineListener', () => {
         text: 'sent by me',
         raw: { id: 'msg002', contentType: 'NONE', createdTime: 1700000001000 },
       })
+      await flush()
 
       expect(messages.length).toBe(1)
       expect(messages[0].chat_id).toBe('u456')
@@ -175,6 +329,7 @@ describe('LineListener', () => {
         text: 'hi',
         raw: { id: 'msg003', contentType: 'NONE', createdTime: 1700000002000 },
       })
+      await flush()
 
       expect(events.length).toBe(1)
       expect(events[0].type).toBe('message')
@@ -189,6 +344,7 @@ describe('LineListener', () => {
 
       await listener.start()
       mockInternalClientInstance.simulateEvent({ type: 'NOTIFIED_READ_MESSAGE', revision: 42 })
+      await flush()
 
       expect(events.length).toBe(1)
       expect(events[0].type).toBe('NOTIFIED_READ_MESSAGE')
@@ -233,7 +389,7 @@ describe('LineListener', () => {
       mockLogin.mockImplementation((): Promise<void> => {
         callCount++
         if (callCount === 1) return Promise.reject(new Error('network_error'))
-        mockInternalClientInstance = new MockInternalClient()
+        mockInternalClientInstance = new MockEventSource()
         return Promise.resolve()
       })
 
@@ -283,6 +439,7 @@ describe('LineListener', () => {
         text: 'first',
         raw: { id: 'msg004', contentType: 'NONE', createdTime: 1700000003000 },
       })
+      await flush()
 
       listener.off('message', handler)
       mockInternalClientInstance.simulateMessage({
@@ -292,6 +449,7 @@ describe('LineListener', () => {
         text: 'second',
         raw: { id: 'msg005', contentType: 'NONE', createdTime: 1700000004000 },
       })
+      await flush()
 
       expect(messages.length).toBe(1)
       expect(messages[0].text).toBe('first')
@@ -319,6 +477,7 @@ describe('LineListener', () => {
         text: 'second',
         raw: { id: 'msg007', contentType: 'NONE', createdTime: 1700000006000 },
       })
+      await flush()
 
       expect(messages.length).toBe(1)
       expect(messages[0].text).toBe('first')
@@ -336,6 +495,39 @@ describe('LineListener', () => {
 
       await listener.start()
       expect((listener as any).reconnectAttempts).toBe(0)
+    })
+  })
+
+  describe('event source consumption', () => {
+    it('consumes streamEvents and stops pumping after abort', async () => {
+      const streamCalls: AbortSignal[] = []
+      const client = {
+        login: mockLogin,
+        getProfile: mockGetProfile,
+        streamEvents: (signal: AbortSignal) => {
+          streamCalls.push(signal)
+          return mockInternalClientInstance.streamEvents(signal)
+        },
+      } as any
+      listener = new LineListener(client)
+
+      const messages: LinePushMessageEvent[] = []
+      listener.on('message', (event) => messages.push(event))
+
+      await listener.start()
+      expect(streamCalls.length).toBe(1)
+
+      listener.stop()
+      mockInternalClientInstance.simulateMessage({
+        isMyMessage: false,
+        from: { type: 'USER', id: 'u456' },
+        to: { type: 'USER', id: 'u123' },
+        text: 'after stop',
+        raw: { id: 'msg100', contentType: 'NONE', createdTime: 1700000010000 },
+      })
+      await flush()
+
+      expect(messages.length).toBe(0)
     })
   })
 })

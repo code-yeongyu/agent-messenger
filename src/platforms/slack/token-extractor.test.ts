@@ -12,6 +12,7 @@ import { ExtractedWorkspace, TokenExtractor } from './token-extractor'
 
 const tempDirs: string[] = []
 const originalAgentBrowserProfile = process.env.AGENT_BROWSER_PROFILE
+const originalLocalAppData = process.env.LOCALAPPDATA
 
 afterEach(() => {
   if (originalAgentBrowserProfile) {
@@ -20,11 +21,33 @@ afterEach(() => {
     delete process.env.AGENT_BROWSER_PROFILE
   }
 
+  if (originalLocalAppData) {
+    process.env.LOCALAPPDATA = originalLocalAppData
+  } else {
+    delete process.env.LOCALAPPDATA
+  }
+
   for (const dir of tempDirs) {
     rmSync(dir, { recursive: true, force: true })
   }
   tempDirs.length = 0
 })
+
+async function extractDesktopOnly(extractor: TokenExtractor): Promise<ExtractedWorkspace[]> {
+  const extractFromBrowsersSpy = spyOn(TokenExtractor.prototype, 'extractFromBrowsers').mockResolvedValue([])
+
+  try {
+    return await extractor.extract()
+  } finally {
+    extractFromBrowsersSpy.mockRestore()
+  }
+}
+
+function useEmptyWindowsBrowserRoot(): void {
+  const browserRoot = mkdtempSync(join(tmpdir(), 'empty-browser-root-'))
+  tempDirs.push(browserRoot)
+  process.env.LOCALAPPDATA = browserRoot
+}
 
 function createCookiesDb(
   dbPath: string,
@@ -60,7 +83,7 @@ describe('TokenExtractor token deduplication', () => {
 
     // when
     const extractor = new TokenExtractor('darwin', slackDir)
-    const result = await extractor.extract()
+    const result = await extractDesktopOnly(extractor)
 
     // then — first token wins, but team name is upgraded
     expect(result.length).toBe(1)
@@ -383,7 +406,7 @@ describe('TokenExtractor debug logging', () => {
 
     // when
     const extractor = new TokenExtractor('darwin', slackDir, undefined, debugLog)
-    await extractor.extract()
+    await extractDesktopOnly(extractor)
 
     // then — should have emitted debug messages
     expect(messages.length).toBeGreaterThan(0)
@@ -397,7 +420,7 @@ describe('TokenExtractor debug logging', () => {
 
     // when — then — should not throw
     const extractor = new TokenExtractor('darwin', slackDir)
-    const result = await extractor.extract()
+    const result = await extractDesktopOnly(extractor)
     expect(result).toEqual([])
   })
 })
@@ -576,7 +599,7 @@ describe('TokenExtractor Windows DPAPI', () => {
 
     // when
     const extractor = new TestTokenExtractor('win32', slackDir)
-    const result = await extractor.extract()
+    const result = await extractDesktopOnly(extractor)
 
     // then
     expect(result).toEqual([
@@ -711,7 +734,7 @@ describe('TokenExtractor IndexedDB blob files', () => {
 
     // when
     const extractor = new TokenExtractor('darwin', slackDir)
-    const result = await extractor.extract()
+    const result = await extractDesktopOnly(extractor)
 
     // then
     expect(result.length).toBe(0)
@@ -802,17 +825,21 @@ describe('TokenExtractor getWorkspaceDomains', () => {
 
 describe('TokenExtractor browser fallback', () => {
   it('extractFromBrowsers returns empty array when no browser profiles have tokens', async () => {
+    useEmptyWindowsBrowserRoot()
+
     const slackDir = mkdtempSync(join(tmpdir(), 'slack-nonexistent-'))
     tempDirs.push(slackDir)
     rmSync(slackDir, { recursive: true, force: true })
 
-    const extractor = new TokenExtractor('darwin', slackDir)
+    const extractor = new TokenExtractor('win32', slackDir)
     const result = await extractor.extractFromBrowsers()
     expect(result).toEqual([])
   })
 
   it('resolves Local State from agent-browser profile root for encrypted cookies', async () => {
     // given
+    useEmptyWindowsBrowserRoot()
+
     const agentBrowserProfile = mkdtempSync(join(tmpdir(), 'agent-browser-slack-profile-'))
     tempDirs.push(agentBrowserProfile)
     process.env.AGENT_BROWSER_PROFILE = agentBrowserProfile
@@ -839,7 +866,7 @@ describe('TokenExtractor browser fallback', () => {
 
     try {
       // when
-      const extractor = new TokenExtractor('darwin', join(agentBrowserProfile, 'missing-desktop'))
+      const extractor = new TokenExtractor('win32', join(agentBrowserProfile, 'missing-desktop'))
       const result = await extractor.extractFromBrowsers()
 
       // then

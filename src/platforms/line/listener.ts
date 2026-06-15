@@ -1,8 +1,7 @@
 import { EventEmitter } from 'events'
 
-import type { LineClient } from './client'
+import type { LineClient, LineRawMessage } from './client'
 import type { LineListenerEventMap, LinePushGenericEvent, LinePushMessageEvent } from './types'
-import { LineError } from './types'
 
 const RECONNECT_BASE_DELAY = 1_000
 const RECONNECT_MAX_DELAY = 30_000
@@ -61,65 +60,74 @@ export class LineListener {
       await this.lineClient.login()
       if (!this.running) return
 
-      const internalClient = (this.lineClient as any).client
-      if (!internalClient) {
-        throw new LineError('not_connected', 'Failed to get internal LINE client')
-      }
-
+      const profile = await this.lineClient.getProfile()
+      if (!this.running) return
       this.abortController = new AbortController()
-
-      internalClient.on('message', (msg: any) => {
-        try {
-          const toType = msg.raw.toType
-          const isGroupOrRoom = toType === 'GROUP' || toType === 'ROOM' || toType === 0 || toType === 1
-          const chatId = isGroupOrRoom ? msg.to.id : msg.isMyMessage ? msg.to.id : msg.from.id
-
-          const event: LinePushMessageEvent = {
-            type: 'message',
-            chat_id: chatId,
-            message_id: String(msg.raw.id),
-            author_id: msg.from.id,
-            text: msg.text ?? null,
-            content_type: String(msg.raw.contentType ?? 'NONE'),
-            sent_at: new Date(Number(msg.raw.createdTime)).toISOString(),
-          }
-          this.emitter.emit('message', event)
-          this.emitter.emit('line_event', { ...event })
-        } catch (error) {
-          this.emitter.emit('error', error instanceof Error ? error : new Error(String(error)))
-        }
-      })
-
-      internalClient.on('event', (op: any) => {
-        const event: LinePushGenericEvent = {
-          type: String(op.type ?? 'unknown'),
-          ...(op.revision !== undefined && { revision: String(op.revision) }),
-          ...(op.createdTime !== undefined && {
-            created_time: new Date(Number(op.createdTime)).toISOString(),
-          }),
-        }
-        this.emitter.emit('line_event', event)
-      })
-
-      internalClient.listen({ signal: this.abortController.signal })?.catch((error: unknown) => {
-        if (!this.running) return
-        const err = error instanceof Error ? error : new Error(String(error))
-        if (err.name === 'AbortError') return
-        this.emitter.emit('error', err)
-        this.emitter.emit('disconnected')
-        this.scheduleReconnect()
-      })
-
       this.reconnectAttempts = 0
-
-      const profile = await internalClient.base.talk.getProfile()
       this.emitter.emit('connected', { account_id: profile.mid })
+
+      void this.pump(this.abortController.signal)
     } catch (error) {
       this.emitter.emit('error', error instanceof Error ? error : new Error(String(error)))
       if (this.running) {
         this.scheduleReconnect()
       }
     }
+  }
+
+  private async pump(signal: AbortSignal): Promise<void> {
+    try {
+      for await (const event of this.lineClient.streamEvents(signal)) {
+        if (event.kind === 'message') {
+          this.emitMessage(event.message)
+        } else {
+          this.emitOperation(event.op)
+        }
+      }
+    } catch (error) {
+      if (!this.running || signal.aborted) return
+      const err = error instanceof Error ? error : new Error(String(error))
+      if (err.name === 'AbortError') return
+      this.emitter.emit('error', err)
+      this.emitter.emit('disconnected')
+      this.scheduleReconnect()
+    }
+  }
+
+  private emitMessage(msg: LineRawMessage): void {
+    try {
+      const toType = msg.raw.toType
+      const isGroupOrRoom = toType === 'GROUP' || toType === 'ROOM' || toType === 0 || toType === 1
+      const chatId = String(isGroupOrRoom ? msg.to.id : msg.isMyMessage ? msg.to.id : msg.from.id)
+
+      const contentType = String(msg.raw.contentType ?? 'NONE')
+      const event: LinePushMessageEvent = {
+        type: 'message',
+        chat_id: chatId,
+        message_id: String(msg.raw.id),
+        author_id: String(msg.from.id),
+        text: getMessageText(msg.text, msg.raw, contentType),
+        ...(msg.decryption_error && { decryption_error: msg.decryption_error }),
+        content_type: contentType,
+        content_metadata: normalizeContentMetadata(msg.raw.contentMetadata),
+        sent_at: new Date(Number(msg.raw.createdTime)).toISOString(),
+      }
+      this.emitter.emit('message', event)
+      this.emitter.emit('line_event', { ...event })
+    } catch (error) {
+      this.emitter.emit('error', error instanceof Error ? error : new Error(String(error)))
+    }
+  }
+
+  private emitOperation(op: any): void {
+    const event: LinePushGenericEvent = {
+      type: String(op.type ?? 'unknown'),
+      ...(op.revision !== undefined && { revision: String(op.revision) }),
+      ...(op.createdTime !== undefined && {
+        created_time: new Date(Number(op.createdTime)).toISOString(),
+      }),
+    }
+    this.emitter.emit('line_event', event)
   }
 
   private scheduleReconnect(): void {
@@ -135,4 +143,31 @@ export class LineListener {
       this.reconnectTimer = null
     }
   }
+}
+
+function normalizeContentMetadata(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object') return {}
+  const result: Record<string, string> = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (value !== null && value !== undefined) result[key] = String(value)
+  }
+  return result
+}
+
+function getMessageText(text: unknown, raw: unknown, contentType: string): string | null {
+  const direct = normalizeText(text)
+  if (direct !== null) return direct
+  if (!isTextContentType(contentType)) return null
+
+  if (!raw || typeof raw !== 'object') return null
+  return normalizeText((raw as Record<string, unknown>).text)
+}
+
+function normalizeText(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  return value.length > 0 ? value : null
+}
+
+function isTextContentType(contentType: string): boolean {
+  return contentType === 'NONE' || contentType === '0'
 }

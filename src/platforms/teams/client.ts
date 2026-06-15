@@ -5,6 +5,8 @@ import { TeamsCredentialManager } from './credential-manager'
 import type {
   TeamsAccountType,
   TeamsChannel,
+  TeamsChat,
+  TeamsChatType,
   TeamsFile,
   TeamsMessage,
   TeamsRegion,
@@ -24,6 +26,41 @@ const MAX_RETRIES = 3
 const BASE_BACKOFF_MS = 100
 const DEFAULT_REGION: TeamsRegion = 'amer'
 const REGIONS: TeamsRegion[] = ['amer', 'emea', 'apac']
+
+function stripHtml(content: string | undefined): string | undefined {
+  if (content === undefined) return undefined
+  const stripped = content.replace(/<[^>]*>/g, '')
+  return stripped
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+// groupId => Teams/channel thread (handled by listTeams). "48:notes"/
+// streamofnotes => the user's self ("to me") chat. Anything else without a
+// non-chat threadType is a normal 1:1 (no topic) or group (has topic) chat.
+function classifyChat(
+  id: string,
+  tp?: { topic?: string; threadType?: string; groupId?: string },
+): TeamsChatType | null {
+  if (tp?.groupId) return null
+  if (id === '48:notes' || tp?.threadType === 'streamofnotes') return 'self'
+  if (tp?.threadType && tp.threadType !== 'chat') return null
+  return tp?.topic ? 'group' : 'oneOnOne'
+}
 
 export class TeamsClient {
   private token: string | null = null
@@ -322,6 +359,102 @@ export class TeamsClient {
     }
 
     return Array.from(teamsMap.values())
+  }
+
+  async listChats(): Promise<TeamsChat[]> {
+    interface ConversationMessage {
+      content?: string
+      composetime?: string
+      originalarrivaltime?: string
+    }
+    interface Conversation {
+      id: string
+      threadProperties?: {
+        topic?: string
+        threadType?: string
+        groupId?: string
+      }
+      lastMessage?: ConversationMessage
+    }
+    interface ConversationsResponse {
+      conversations: Conversation[]
+    }
+    const data = await this.request<ConversationsResponse>(
+      'GET',
+      '/users/ME/conversations?view=msnp24Equivalent&pageSize=500',
+    )
+
+    const chats: TeamsChat[] = []
+    for (const conv of data.conversations ?? []) {
+      const type = classifyChat(conv.id, conv.threadProperties)
+      if (!type) continue
+
+      chats.push({
+        id: conv.id,
+        type,
+        topic: conv.threadProperties?.topic,
+        last_message: stripHtml(conv.lastMessage?.content),
+        last_message_at: conv.lastMessage?.composetime ?? conv.lastMessage?.originalarrivaltime,
+      })
+    }
+
+    return chats
+  }
+
+  async getChatMessages(chatId: string, limit: number = 50): Promise<TeamsMessage[]> {
+    interface ChatMessage {
+      id: string
+      content?: string
+      from?: string
+      imdisplayname?: string
+      composetime?: string
+      originalarrivaltime?: string
+      messagetype?: string
+    }
+    interface MessagesResponse {
+      messages: ChatMessage[]
+    }
+    const encodedChatId = encodeURIComponent(chatId)
+    const data = await this.request<MessagesResponse>(
+      'GET',
+      `/users/ME/conversations/${encodedChatId}/messages?startTime=0&view=msnp24Equivalent&pageSize=${limit}`,
+    )
+
+    const userMessageTypes = new Set(['Text', 'RichText/Html', 'RichText/Media_CallRecording'])
+    return (data.messages ?? [])
+      .filter((msg) => !msg.messagetype || userMessageTypes.has(msg.messagetype))
+      .slice(0, limit)
+      .map((msg) => ({
+        id: msg.id,
+        channel_id: chatId,
+        author: {
+          id: msg.from ?? '',
+          displayName: msg.imdisplayname ?? 'Unknown',
+        },
+        content: stripHtml(msg.content) ?? '',
+        timestamp: msg.composetime ?? msg.originalarrivaltime ?? '',
+      }))
+  }
+
+  async sendChatMessage(chatId: string, content: string): Promise<TeamsMessage> {
+    interface SendResponse {
+      OriginalArrivalTime?: number
+    }
+    const encodedChatId = encodeURIComponent(chatId)
+    const response = await this.request<SendResponse>('POST', `/users/ME/conversations/${encodedChatId}/messages`, {
+      content: escapeHtml(content),
+      messagetype: 'RichText/Html',
+      contenttype: 'text',
+    })
+
+    const arrivalTime = response?.OriginalArrivalTime
+    return {
+      id: arrivalTime ? String(arrivalTime) : '',
+      channel_id: chatId,
+      author: { id: 'ME', displayName: 'Me' },
+      content,
+      timestamp: arrivalTime ? new Date(arrivalTime).toISOString() : new Date().toISOString(),
+    }
   }
 
   async getTeam(teamId: string): Promise<TeamsTeam> {

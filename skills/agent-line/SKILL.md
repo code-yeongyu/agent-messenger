@@ -1,7 +1,7 @@
 ---
 name: agent-line
 description: Interact with LINE - send messages, read chats, manage conversations
-version: 2.17.0
+version: 2.20.3
 allowed-tools: Bash(agent-line:*)
 metadata:
   openclaw:
@@ -301,7 +301,9 @@ Each message includes:
 - `message_id` - unique message identifier
 - `type` - message type (text, image, sticker, etc.)
 - `author_id` - sender's MID
-- `text` - message text content
+- `author_name` - sender's display name, resolved from contacts (omitted when unresolved)
+- `text` - message text content (E2EE messages are decrypted automatically when key material is available; null when undecryptable)
+- `decryption_error` - present only for E2EE messages that couldn't be decrypted (`code`: `missing_e2ee_key` or `decrypt_failed`)
 - `sent_at` - Unix timestamp (milliseconds)
 
 ## Output Format
@@ -431,7 +433,8 @@ See the [LINE SDK documentation](https://agent-messenger.dev/docs/sdk/line) for 
 ## Limitations
 
 - No auto-extraction of credentials (requires interactive login via QR code or email/password)
-- E2EE (Letter Sealing) may prevent reading some message content
+- E2EE (Letter Sealing) messages are decrypted automatically when key material is available (restored from a prior QR/email login); without keys, content may be unreadable
+- Sending to chats that **require** E2EE (Letter Sealing) needs E2EE key material from a prior QR/email login; without it such sends fail with `e2ee_required`
 - No file upload support yet
 - No sticker or rich message sending (text only)
 - No group creation or management
@@ -481,7 +484,7 @@ If commands start failing with `not_authenticated` or `invalid_token`:
 
 ### E2EE messages unreadable
 
-Some chats with Letter Sealing enabled may return empty or encrypted message content. This is a known limitation. The CLI cannot decrypt E2EE messages.
+The CLI decrypts Letter Sealing (E2EE) messages when E2EE key material is available. Keys are provisioned by a QR or email/password login and reused on later sessions. If a message comes back with `text: null` and a `decryption_error` of `missing_e2ee_key`, the session has no usable key — re-run `agent-line auth login` (QR) to provision E2EE keys.
 
 ## References
 

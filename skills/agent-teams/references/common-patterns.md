@@ -438,6 +438,34 @@ SNAPSHOT=$(teams_cmd agent-teams snapshot)
 
 **When to use**: Any script that runs for more than a few minutes.
 
+## Pattern 12: Personal Account Chats (No Teams)
+
+**Use case**: Message from a personal Microsoft account (`@outlook.com` / `@live.com`), which has no teams or channels — only 1:1, group, and self ("to me") chats
+
+```bash
+#!/bin/bash
+
+# Personal accounts have no teams, so `team list` is empty and team/channel
+# commands fail with "No current team set". Use the `chat` commands instead.
+
+agent-teams auth extract 2>/dev/null || true
+
+# List chats (type is oneOnOne, group, or self)
+CHATS=$(agent-teams chat list)
+echo "$CHATS" | jq -r '.[] | "  \(.type): \(.id) — \(.topic // .last_message // "")"'
+
+# Pick a chat ID (here: the self "to me" notes thread)
+CHAT_ID=$(echo "$CHATS" | jq -r '.[] | select(.type=="self") | .id')
+
+# Read history and send a message
+agent-teams chat history "$CHAT_ID" --limit 20
+agent-teams chat send "$CHAT_ID" "Reminder: stand-up at 10am"
+```
+
+**When to use**: Any workflow on a personal/consumer Teams account. Get chat IDs from `chat list` — they look like `19:guid1_guid2@unq.gbl.spaces` (1:1), `19:guid@thread.tacv2` (group), or `48:notes` (self).
+
+**Note**: Work accounts also have 1:1 and group chats and can use these same `chat` commands.
+
 ## Best Practices
 
 ### 1. Always Handle Token Expiry

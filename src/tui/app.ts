@@ -647,6 +647,10 @@ export async function createApp(): Promise<void> {
         const ws = p.workspaces[selectedIndex]
         try {
           await p.adapter.switchWorkspace?.(ws.id)
+          if (p.listening) {
+            p.adapter.stopListening?.()
+            p.listening = false
+          }
           p.channels = null
           renderHeader()
         } catch {}
@@ -744,6 +748,10 @@ export async function createApp(): Promise<void> {
           p.adapter
             .switchWorkspace(workspace.id)
             .then(() => {
+              if (p.listening) {
+                p.adapter.stopListening?.()
+                p.listening = false
+              }
               p.channels = null
               p.workspaces = null
               renderHeader()

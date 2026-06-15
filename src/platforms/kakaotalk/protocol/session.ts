@@ -1,6 +1,6 @@
 import { Binary, Long } from 'bson'
 
-import type { KakaoDeviceType } from '../types'
+import { KAKAO_MESSAGE_TYPE, type KakaoDeviceType } from '../types'
 import {
   BOOKING_HOST,
   BOOKING_PORT,
@@ -142,7 +142,6 @@ export class LocoSession {
     text: string,
     parent: { srcLogId: Long; srcUserId: Long; srcMessage?: string; srcType?: number },
   ): Promise<LocoPacket> {
-    if (!this.connection) throw new Error('Not connected')
     const extra = {
       attach_only: false,
       attach_type: parent.srcType ?? 1,
@@ -153,10 +152,18 @@ export class LocoSession {
       src_type: parent.srcType ?? 1,
       src_userId: longToJsonNumber(parent.srcUserId),
     }
+    return this.sendReply(chatId, text, extra)
+  }
+
+  // Quoted reply — a WRITE with message_type 26 (REPLY) whose `extra` JSON
+  // carries the source-message reference. The reply semantics ride entirely on
+  // `type` + `extra`; no extra top-level WRITE fields are needed.
+  async sendReply(chatId: Long, text: string, extra: Record<string, unknown>): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
     return this.connection.sendPacket('WRITE', {
       chatId,
       msg: text,
-      type: 26,
+      type: KAKAO_MESSAGE_TYPE.REPLY,
       noSeen: false,
       extra: JSON.stringify(extra),
     })

@@ -6,14 +6,23 @@ import { formatOutput } from '@/shared/utils/output'
 import { WebexClient } from '../client'
 import type { WebexMessage } from '../types'
 
+async function withWebexClient<T>(run: (client: WebexClient) => Promise<T>): Promise<T> {
+  const client = new WebexClient()
+  try {
+    await client.login()
+    return await run(client)
+  } finally {
+    await client.dispose()
+  }
+}
+
 export async function sendAction(
   spaceId: string,
   text: string,
   options: { markdown?: boolean; pretty?: boolean },
 ): Promise<void> {
   try {
-    const client = await new WebexClient().login()
-    const message = await client.sendMessage(spaceId, text, { markdown: options.markdown })
+    const message = await withWebexClient((client) => client.sendMessage(spaceId, text, { markdown: options.markdown }))
 
     const output = {
       id: message.id,
@@ -31,9 +40,8 @@ export async function sendAction(
 
 export async function listAction(spaceId: string, options: { limit?: number; pretty?: boolean }): Promise<void> {
   try {
-    const client = await new WebexClient().login()
     const limit = options.limit ?? 50
-    const messages = await client.listMessages(spaceId, { max: limit })
+    const messages = await withWebexClient((client) => client.listMessages(spaceId, { max: limit }))
 
     const output = messages.map((msg: WebexMessage) => ({
       id: msg.id,
@@ -51,8 +59,7 @@ export async function listAction(spaceId: string, options: { limit?: number; pre
 
 export async function getAction(messageId: string, options: { pretty?: boolean }): Promise<void> {
   try {
-    const client = await new WebexClient().login()
-    const message = await client.getMessage(messageId)
+    const message = await withWebexClient((client) => client.getMessage(messageId))
 
     const output = {
       id: message.id,
@@ -75,8 +82,7 @@ export async function deleteAction(messageId: string, options: { force?: boolean
       return process.exit(0)
     }
 
-    const client = await new WebexClient().login()
-    await client.deleteMessage(messageId)
+    await withWebexClient((client) => client.deleteMessage(messageId))
 
     console.log(formatOutput({ deleted: messageId }, options.pretty))
   } catch (error) {
@@ -91,10 +97,11 @@ export async function editAction(
   options: { markdown?: boolean; pretty?: boolean },
 ): Promise<void> {
   try {
-    const client = await new WebexClient().login()
-    const message = await client.editMessage(messageId, spaceId, text, {
-      markdown: options.markdown,
-    })
+    const message = await withWebexClient((client) =>
+      client.editMessage(messageId, spaceId, text, {
+        markdown: options.markdown,
+      }),
+    )
 
     const output = {
       id: message.id,
@@ -141,8 +148,9 @@ export async function dmAction(
   options: { markdown?: boolean; pretty?: boolean },
 ): Promise<void> {
   try {
-    const client = await new WebexClient().login()
-    const message = await client.sendDirectMessage(email, text, { markdown: options.markdown })
+    const message = await withWebexClient((client) =>
+      client.sendDirectMessage(email, text, { markdown: options.markdown }),
+    )
 
     const output = {
       id: message.id,

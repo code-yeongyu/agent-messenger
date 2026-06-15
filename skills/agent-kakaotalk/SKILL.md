@@ -1,7 +1,7 @@
 ---
 name: agent-kakaotalk
 description: Interact with KakaoTalk - send messages, read chats, manage conversations
-version: 2.17.0
+version: 2.20.3
 allowed-tools: Bash(agent-kakaotalk:*)
 metadata:
   openclaw:
@@ -335,6 +335,9 @@ agent-kakaotalk message list <chat-id> --pretty
 agent-kakaotalk message send <chat-id> "Hello world"
 agent-kakaotalk message send <chat-id> "Hello world" --pretty
 
+# Send a quoted reply by looking up a recent log_id from `message list`
+agent-kakaotalk message send <chat-id> "Replying to this" --reply-to <log-id>
+
 # Reply to a message (LOCO type=26 reply attachment).
 # Pull <src-log-id> and <src-user-id> from `message list` output for
 # the message you are replying to. Pass the original text via
@@ -368,6 +371,20 @@ agent-kakaotalk message reply <chat-id> <src-log-id> <src-user-id> "Hello" --acc
 agent-kakaotalk message upload <chat-id> ./photo.jpg --account <account-id>
 agent-kakaotalk message mark-read <chat-id> <log-id> --account <account-id>
 ```
+
+#### Replying to a Message
+
+`--reply-to <log-id>` sends the text as a quoted reply that references an existing message. Get the `log_id` from `message list` output. The CLI looks up the target in the chat's recent history (latest 100 messages) to build the quote, so the target must be reasonably recent.
+
+```bash
+# Find the message you want to reply to
+agent-kakaotalk message list <chat-id> -n 50
+
+# Reply to it by its log_id
+agent-kakaotalk message send <chat-id> "Good point!" --reply-to 1234567890
+```
+
+If the `log_id` is not found in the latest 100 messages, the command errors out without sending.
 
 #### Sending Attachments
 
@@ -595,6 +612,12 @@ try {
 
   // Read messages
   const messages = await client.getMessages(chatId, { count: 50 })
+
+  // Reply to a message by quoting it
+  const target = messages[messages.length - 1]
+  await client.sendMessage(chatId, 'Replying to your last message', {
+    replyTo: { log_id: target.log_id, author_id: target.author_id, message: target.message, type: target.type },
+  })
 } finally {
   // Always close when done (LOCO TCP connection)
   client.close()

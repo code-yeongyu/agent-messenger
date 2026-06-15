@@ -3,6 +3,7 @@ import { Writable } from 'node:stream'
 import { Command } from 'commander'
 
 import { handleError } from '@/shared/utils/error-handler'
+import { hasTTY, isInteractive } from '@/shared/utils/interactive'
 import { formatOutput } from '@/shared/utils/output'
 import { info, error, debug } from '@/shared/utils/stderr'
 
@@ -10,23 +11,6 @@ import { loginFlow } from '../auth/kakao-login'
 import { CredentialManager } from '../credential-manager'
 import { KakaoTokenExtractor } from '../token-extractor'
 import { KAKAO_NEXT_ACTIONS, type KakaoAuthOptions, type KakaoDeviceType, type KakaoLoginResult } from '../types'
-
-function isInteractiveSession(): boolean {
-  return Boolean(process.stdin.isTTY && process.stdout.isTTY)
-}
-
-function hasTTY(): boolean {
-  try {
-    const { openSync, closeSync } = require('node:fs') as typeof import('node:fs')
-    // CONIN$ is the Windows console input device; /dev/tty is the Unix equivalent
-    const ttyDevice = process.platform === 'win32' ? 'CONIN$' : '/dev/tty'
-    const fd = openSync(ttyDevice, 'r')
-    closeSync(fd)
-    return true
-  } catch {
-    return false
-  }
-}
 
 async function promptPasswordGUI(email?: string): Promise<string | undefined> {
   const { execSync } = require('node:child_process') as typeof import('node:child_process')
@@ -233,7 +217,7 @@ async function promptHiddenTTY(message: string): Promise<string | undefined> {
 async function loginAction(options: KakaoAuthOptions): Promise<void> {
   try {
     const credManager = new CredentialManager()
-    const interactive = isInteractiveSession()
+    const interactive = isInteractive()
 
     let { email, password, deviceType, force } = options
 

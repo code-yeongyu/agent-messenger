@@ -20,6 +20,8 @@ export type {
   KakaoMultiPhotoExtra,
   KakaoPhotoExtra,
   KakaoProfile,
+  KakaoReplyExtra,
+  KakaoReplyTarget,
   KakaoSendResult,
   KakaoTalkListenerEventMap,
   KakaoTalkPushEmoticonEvent,

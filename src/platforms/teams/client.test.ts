@@ -169,6 +169,102 @@ describe('TeamsClient', () => {
     })
   })
 
+  describe('listChats', () => {
+    it('classifies chats and excludes teams', async () => {
+      mockResponse({
+        conversations: [
+          {
+            id: '19:team@thread.tacv2',
+            threadProperties: { groupId: '111', spaceThreadTopic: 'Team One', threadType: 'space' },
+          },
+          {
+            id: '48:notes',
+            threadProperties: { threadType: 'streamofnotes', productThreadType: 'StreamOfNotes' },
+            lastMessage: { content: 'Hi', composetime: '2024-01-03T00:00:00.000Z' },
+          },
+          {
+            id: '19:1on1@unq.gbl.spaces',
+            lastMessage: { content: '<p>Hi there</p>', composetime: '2024-01-01T00:00:00.000Z' },
+          },
+          {
+            id: '19:group@thread.tacv2',
+            threadProperties: { topic: 'Group Chat', threadType: 'chat' },
+            lastMessage: { content: 'Hello group', composetime: '2024-01-02T00:00:00.000Z' },
+          },
+        ],
+      })
+
+      const client = await new TeamsClient().login({ token: 'test-token', accountType: 'personal' })
+      const chats = await client.listChats()
+
+      expect(chats).toHaveLength(3)
+      expect(chats[0]).toMatchObject({ id: '48:notes', type: 'self', last_message: 'Hi' })
+      expect(chats[1]).toMatchObject({ id: '19:1on1@unq.gbl.spaces', type: 'oneOnOne', last_message: 'Hi there' })
+      expect(chats[2]).toMatchObject({ id: '19:group@thread.tacv2', type: 'group', topic: 'Group Chat' })
+      expect(fetchCalls[0].url).toBe(
+        'https://msgapi.teams.live.com/v1/users/ME/conversations?view=msnp24Equivalent&pageSize=500',
+      )
+    })
+  })
+
+  describe('getChatMessages', () => {
+    it('returns user messages and filters system events', async () => {
+      mockResponse({
+        messages: [
+          {
+            id: 'm1',
+            content: '<p>Hello</p>',
+            from: 'host/users/ME/contacts/8:alice',
+            imdisplayname: 'Alice',
+            composetime: '2024-01-01T00:00:00.000Z',
+            messagetype: 'RichText/Html',
+          },
+          {
+            id: 'm2',
+            content: 'Bob joined',
+            imdisplayname: 'System',
+            composetime: '2024-01-01T00:01:00.000Z',
+            messagetype: 'ThreadActivity/AddMember',
+          },
+        ],
+      })
+
+      const client = await new TeamsClient().login({ token: 'test-token', accountType: 'personal' })
+      const messages = await client.getChatMessages('19:1on1@unq.gbl.spaces', 30)
+
+      expect(messages).toHaveLength(1)
+      expect(messages[0].id).toBe('m1')
+      expect(messages[0].content).toBe('Hello')
+      expect(messages[0].author.displayName).toBe('Alice')
+      expect(messages[0].channel_id).toBe('19:1on1@unq.gbl.spaces')
+      expect(fetchCalls[0].url).toBe(
+        'https://msgapi.teams.live.com/v1/users/ME/conversations/19%3A1on1%40unq.gbl.spaces/messages?startTime=0&view=msnp24Equivalent&pageSize=30',
+      )
+    })
+  })
+
+  describe('sendChatMessage', () => {
+    it('sends an HTML-escaped message to a chat', async () => {
+      mockResponse({ OriginalArrivalTime: 1704067200000 })
+
+      const client = await new TeamsClient().login({ token: 'test-token', accountType: 'personal' })
+      const message = await client.sendChatMessage('19:1on1@unq.gbl.spaces', 'a <b> & c')
+
+      expect(message.content).toBe('a <b> & c')
+      expect(fetchCalls[0].url).toBe(
+        'https://msgapi.teams.live.com/v1/users/ME/conversations/19%3A1on1%40unq.gbl.spaces/messages',
+      )
+      expect(fetchCalls[0].options?.method).toBe('POST')
+      expect(fetchCalls[0].options?.body).toBe(
+        JSON.stringify({
+          content: 'a &lt;b&gt; &amp; c',
+          messagetype: 'RichText/Html',
+          contenttype: 'text',
+        }),
+      )
+    })
+  })
+
   describe('getTeam', () => {
     it('returns team info', async () => {
       mockResponse({ id: '111', name: 'Test Team', description: 'A test team' })

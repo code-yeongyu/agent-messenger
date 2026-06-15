@@ -11,6 +11,12 @@ import {
   LineMessageSchema,
   LineSendResultSchema,
 } from '@/platforms/line/index'
+import type { LineDecryptionError } from '@/platforms/line/index'
+
+const lineDecryptionError: LineDecryptionError = {
+  code: 'missing_e2ee_key',
+  message: 'E2EE key material is missing',
+}
 
 it('LineClient is exported from barrel', () => {
   expect(typeof LineClient).toBe('function')
@@ -46,4 +52,8 @@ it('LineAccountCredentialsSchema is exported from barrel', () => {
 
 it('LineConfigSchema is exported from barrel', () => {
   expect(typeof LineConfigSchema.parse).toBe('function')
+})
+
+it('LineDecryptionError type is exported from barrel', () => {
+  expect(lineDecryptionError.code).toBe('missing_e2ee_key')
 })

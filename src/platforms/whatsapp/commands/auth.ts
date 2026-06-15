@@ -3,6 +3,7 @@ import { rm } from 'node:fs/promises'
 import { Command } from 'commander'
 
 import { handleError } from '@/shared/utils/error-handler'
+import { isInteractive } from '@/shared/utils/interactive'
 import { formatOutput } from '@/shared/utils/output'
 import { displayQR } from '@/shared/utils/qr'
 import { info } from '@/shared/utils/stderr'
@@ -20,10 +21,6 @@ interface LoginOptions {
 interface StatusOptions {
   account?: string
   pretty?: boolean
-}
-
-function isInteractiveSession(): boolean {
-  return Boolean(process.stdin.isTTY && process.stdout.isTTY)
 }
 
 async function loginWithPairingCode(options: LoginOptions & { phone: string }): Promise<void> {
@@ -95,7 +92,7 @@ async function loginWithQR(options: LoginOptions): Promise<void> {
   await rm(existingPaths.auth_dir, { recursive: true, force: true })
   const paths = await manager.ensureAccountPaths(accountId)
   const client = await new WhatsAppClient().login({ authDir: paths.auth_dir })
-  const interactive = isInteractiveSession()
+  const interactive = isInteractive()
 
   let waitForAuth: () => Promise<void>
   let browserOpened = false

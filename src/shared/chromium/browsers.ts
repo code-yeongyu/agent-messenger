@@ -75,7 +75,7 @@ export function discoverBrowserProfileDirs(browserBase: string): string[] {
   dirs.push(join(browserBase, 'Default'))
   if (!existsSync(browserBase)) return dirs
   try {
-    const entries = readdirSync(browserBase, { withFileTypes: true })
+    const entries = readdirSync(browserBase, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
       if (!/^Profile \d+$/i.test(entry.name)) continue

@@ -1,7 +1,8 @@
 import { WebexCredentialManager } from './credential-manager'
 import { WebexEncryptionService } from './encryption'
-import { markdownToHtml, stripMarkdown } from './markdown-to-html'
-import type { WebexMembership, WebexMessage, WebexPerson, WebexSpace } from './types'
+import { KmsKeyProvider } from './kms-key-provider'
+import { escapeHtml, markdownToHtml, stripMarkdown } from './markdown-to-html'
+import type { WebexConfig, WebexMembership, WebexMessage, WebexPerson, WebexSpace } from './types'
 import { WebexError } from './types'
 
 const BASE_URL = 'https://webexapis.com/v1'
@@ -44,14 +45,38 @@ export class WebexClient {
     this.tokenType = config?.tokenType ?? null
     await this.login({ token })
 
-    if (this.tokenType === 'extracted' && config?.encryptionKeys) {
-      const keysMap = new Map(Object.entries(config.encryptionKeys))
-      if (keysMap.size > 0) {
-        this.encryption = new WebexEncryptionService(keysMap)
-      }
+    if (this.tokenType === 'extracted') {
+      const keysMap = new Map(Object.entries(config?.encryptionKeys ?? {}))
+      this.encryption = new WebexEncryptionService(keysMap)
+      const kmsProvider = new KmsKeyProvider({ token })
+      this.encryption.setKeyProvider({
+        fetchKey: async (keyUri: string) => {
+          const serializedKey = await kmsProvider.fetchKey(keyUri)
+          if (serializedKey) {
+            await this.persistEncryptionKey(credManager, keyUri, serializedKey)
+          }
+          return serializedKey
+        },
+        close: () => kmsProvider.close(),
+      })
     }
 
     return this
+  }
+
+  async dispose(): Promise<void> {
+    await this.encryption?.close()
+  }
+
+  private async persistEncryptionKey(
+    credManager: WebexCredentialManager,
+    keyUri: string,
+    serializedKey: string,
+  ): Promise<void> {
+    const latestConfig = await credManager.loadConfig()
+    if (!latestConfig) return
+    const encryptionKeys = { ...latestConfig.encryptionKeys, [keyUri]: serializedKey }
+    await credManager.saveConfig({ ...latestConfig, encryptionKeys } satisfies WebexConfig)
   }
 
   private ensureAuth(): string {
@@ -290,7 +315,7 @@ export class WebexClient {
     if (options?.markdown) {
       content = markdownToHtml(text)
     } else if (options?.forEdit) {
-      content = text
+      content = escapeHtml(text)
     }
 
     if (this.encryption) {
@@ -301,6 +326,9 @@ export class WebexClient {
       if (keyUri) {
         const encryptedDisplayName = await this.encryption.encryptText(keyUri, displayName)
         const encryptedContent = content ? await this.encryption.encryptText(keyUri, content) : undefined
+        if (content && !encryptedContent) {
+          throw new WebexError('Cannot encrypt message for Webex E2E conversation', 'encryption_failed')
+        }
         if (encryptedDisplayName) {
           const object: Record<string, string> = {
             objectType: 'comment',
@@ -311,6 +339,7 @@ export class WebexClient {
           }
           return { object, encryptionKeyUrl: keyUri }
         }
+        throw new WebexError('Cannot encrypt message for Webex E2E conversation', 'encryption_failed')
       }
     }
 

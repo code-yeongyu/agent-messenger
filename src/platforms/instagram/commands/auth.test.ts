@@ -3,19 +3,12 @@ import { afterEach, beforeEach, describe, expect, mock, spyOn, it } from 'bun:te
 const originalConsoleLog = console.log
 import type { Command } from 'commander'
 
+import { InstagramCredentialManager } from '../credential-manager'
+
 const mockGetAccount = mock(() => Promise.resolve(null))
 const mockListAccounts = mock(() => Promise.resolve([]))
 const mockSetCurrent = mock(() => Promise.resolve(true))
 const mockRemoveAccount = mock(() => Promise.resolve(true))
-
-mock.module('../credential-manager', () => ({
-  InstagramCredentialManager: class {
-    getAccount = mockGetAccount
-    listAccounts = mockListAccounts
-    setCurrent = mockSetCurrent
-    removeAccount = mockRemoveAccount
-  },
-}))
 
 import { authCommand } from './auth'
 
@@ -33,6 +26,7 @@ function resetCommandState(cmd: Command): void {
 describe('auth commands', () => {
   let consoleLogSpy: ReturnType<typeof mock>
   let processExitSpy: ReturnType<typeof spyOn>
+  const managerSpies: ReturnType<typeof spyOn>[] = []
 
   beforeEach(() => {
     resetCommandState(authCommand)
@@ -41,6 +35,13 @@ describe('auth commands', () => {
     mockListAccounts.mockReset()
     mockSetCurrent.mockReset()
     mockRemoveAccount.mockReset()
+
+    managerSpies.push(
+      spyOn(InstagramCredentialManager.prototype, 'getAccount').mockImplementation(mockGetAccount),
+      spyOn(InstagramCredentialManager.prototype, 'listAccounts').mockImplementation(mockListAccounts),
+      spyOn(InstagramCredentialManager.prototype, 'setCurrent').mockImplementation(mockSetCurrent),
+      spyOn(InstagramCredentialManager.prototype, 'removeAccount').mockImplementation(mockRemoveAccount),
+    )
 
     consoleLogSpy = mock((..._args: unknown[]) => {})
     console.log = consoleLogSpy
@@ -51,6 +52,7 @@ describe('auth commands', () => {
 
   afterEach(() => {
     console.log = originalConsoleLog
+    for (const spy of managerSpies.splice(0)) spy.mockRestore()
     processExitSpy.mockRestore()
   })
 
