@@ -8,6 +8,7 @@ const mockMessage = {
   roomId: 'space_456',
   roomType: 'group' as const,
   text: 'Hello world',
+  html: '<p>Hello <a href="https://example.com">world</a></p>',
   personId: 'person_789',
   personEmail: 'user@example.com',
   created: '2025-01-29T10:00:00.000Z',
@@ -18,6 +19,7 @@ const mockMessage2 = {
   roomId: 'space_456',
   roomType: 'group' as const,
   text: 'Second message',
+  html: '<p>Second message</p>',
   personId: 'person_789',
   personEmail: 'user@example.com',
   created: '2025-01-29T10:01:00.000Z',
@@ -133,6 +135,7 @@ it('calls listMessages with limit and outputs array', async () => {
   const output = consoleLogSpy.mock.calls[0][0]
   expect(output).toContain('msg_123')
   expect(output).toContain('msg_124')
+  expect(output).toContain('https://example.com')
 })
 
 it('calls getMessage with correct id and outputs result', async () => {
@@ -143,6 +146,7 @@ it('calls getMessage with correct id and outputs result', async () => {
   const output = consoleLogSpy.mock.calls[0][0]
   expect(output).toContain('msg_123')
   expect(output).toContain('user@example.com')
+  expect(output).toContain('https://example.com')
 })
 
 it('calls deleteMessage and outputs deleted id when --force flag is set', async () => {
