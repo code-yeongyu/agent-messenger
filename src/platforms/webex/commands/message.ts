@@ -6,6 +6,17 @@ import { formatOutput } from '@/shared/utils/output'
 import { WebexClient } from '../client'
 import type { WebexMessage } from '../types'
 
+function formatMessageOutput(message: WebexMessage) {
+  return {
+    id: message.id,
+    roomId: message.roomId,
+    text: message.text,
+    html: message.html,
+    personEmail: message.personEmail,
+    created: message.created,
+  }
+}
+
 async function withWebexClient<T>(run: (client: WebexClient) => Promise<T>): Promise<T> {
   const client = new WebexClient()
   try {
@@ -24,15 +35,7 @@ export async function sendAction(
   try {
     const message = await withWebexClient((client) => client.sendMessage(spaceId, text, { markdown: options.markdown }))
 
-    const output = {
-      id: message.id,
-      roomId: message.roomId,
-      text: message.text,
-      personEmail: message.personEmail,
-      created: message.created,
-    }
-
-    console.log(formatOutput(output, options.pretty))
+    console.log(formatOutput(formatMessageOutput(message), options.pretty))
   } catch (error) {
     handleError(error as Error)
   }
@@ -43,13 +46,7 @@ export async function listAction(spaceId: string, options: { limit?: number; pre
     const limit = options.limit ?? 50
     const messages = await withWebexClient((client) => client.listMessages(spaceId, { max: limit }))
 
-    const output = messages.map((msg: WebexMessage) => ({
-      id: msg.id,
-      roomId: msg.roomId,
-      text: msg.text,
-      personEmail: msg.personEmail,
-      created: msg.created,
-    }))
+    const output = messages.map(formatMessageOutput)
 
     console.log(formatOutput(output, options.pretty))
   } catch (error) {
@@ -61,15 +58,7 @@ export async function getAction(messageId: string, options: { pretty?: boolean }
   try {
     const message = await withWebexClient((client) => client.getMessage(messageId))
 
-    const output = {
-      id: message.id,
-      roomId: message.roomId,
-      text: message.text,
-      personEmail: message.personEmail,
-      created: message.created,
-    }
-
-    console.log(formatOutput(output, options.pretty))
+    console.log(formatOutput(formatMessageOutput(message), options.pretty))
   } catch (error) {
     handleError(error as Error)
   }
@@ -103,15 +92,7 @@ export async function editAction(
       }),
     )
 
-    const output = {
-      id: message.id,
-      roomId: message.roomId,
-      text: message.text,
-      personEmail: message.personEmail,
-      created: message.created,
-    }
-
-    console.log(formatOutput(output, options.pretty))
+    console.log(formatOutput(formatMessageOutput(message), options.pretty))
   } catch (error) {
     handleError(error as Error)
   }
@@ -152,15 +133,7 @@ export async function dmAction(
       client.sendDirectMessage(email, text, { markdown: options.markdown }),
     )
 
-    const output = {
-      id: message.id,
-      roomId: message.roomId,
-      text: message.text,
-      personEmail: message.personEmail,
-      created: message.created,
-    }
-
-    console.log(formatOutput(output, options.pretty))
+    console.log(formatOutput(formatMessageOutput(message), options.pretty))
   } catch (error) {
     handleError(error as Error)
   }
