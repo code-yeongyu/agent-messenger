@@ -5,10 +5,13 @@ import { Command } from 'commander'
 import pkg from '../../../package.json' with { type: 'json' }
 import {
   authCommand,
+  fileCommand,
   listenCommand,
   memberCommand,
   messageCommand,
+  snapshotCommand,
   spaceCommand,
+  userCommand,
   whoamiCommand,
 } from './commands/index'
 
@@ -35,6 +38,9 @@ program.addCommand(whoamiCommand)
 program.addCommand(messageCommand)
 program.addCommand(spaceCommand)
 program.addCommand(memberCommand)
+program.addCommand(userCommand)
+program.addCommand(fileCommand)
+program.addCommand(snapshotCommand)
 program.addCommand(listenCommand)
 
 program.parseAsync(process.argv)
