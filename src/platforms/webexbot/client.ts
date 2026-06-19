@@ -53,7 +53,9 @@ export class WebexBotClient {
   }
 
   async listMessages(roomId: string, options?: { max?: number }): Promise<WebexMessage[]> {
-    return this.client.listMessages(roomId, options)
+    const space = await this.client.getSpace(roomId)
+    const messageOptions = space.type === 'group' ? { ...options, mentionedPeople: 'me' } : options
+    return this.client.listMessages(roomId, messageOptions)
   }
 
   async getMessage(messageId: string): Promise<WebexMessage> {

@@ -387,7 +387,7 @@ export class WebexClient {
     return null
   }
 
-  async listMessages(roomId: string, options?: { max?: number }): Promise<WebexMessage[]> {
+  async listMessages(roomId: string, options?: { max?: number; mentionedPeople?: string }): Promise<WebexMessage[]> {
     if (this.useInternalAPI) {
       const convUuid = this.decodeConvUuid(roomId)
       const max = options?.max ?? 50
@@ -400,6 +400,7 @@ export class WebexClient {
     const params = new URLSearchParams()
     params.set('roomId', roomId)
     params.set('max', String(options?.max ?? 50))
+    if (options?.mentionedPeople) params.set('mentionedPeople', options.mentionedPeople)
     const data = await this.request<{ items: WebexMessage[] }>('GET', `/messages?${params}`)
     return data.items
   }
