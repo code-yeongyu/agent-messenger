@@ -131,6 +131,14 @@ export class WebexClient {
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+    return (await this.requestWithLink<T>(method, path, body)).data
+  }
+
+  private async requestWithLink<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+  ): Promise<{ data: T; nextPath: string | null }> {
     const url = `${BASE_URL}${path}`
     const bucketKey = this.getBucketKey(method, path)
 
@@ -179,10 +187,11 @@ export class WebexClient {
       }
 
       if (response.status === 204) {
-        return undefined as T
+        return { data: undefined as T, nextPath: null }
       }
 
-      return response.json() as Promise<T>
+      const data = (await response.json()) as T
+      return { data, nextPath: parseNextPath(response.headers.get('Link')) }
     }
 
     throw new WebexError('Request failed after retries', 'max_retries')
@@ -218,6 +227,18 @@ export class WebexClient {
     const query = params.toString()
     const data = await this.request<{ items: WebexSpace[] }>('GET', `/rooms?${query}`)
     return data.items
+  }
+
+  async *iterateSpaces(options?: { type?: string; max?: number }): AsyncGenerator<WebexSpace> {
+    const params = new URLSearchParams()
+    if (options?.type) params.set('type', options.type)
+    params.set('max', String(options?.max ?? 100))
+    let path: string | null = `/rooms?${params.toString()}`
+    while (path) {
+      const page: { data: { items: WebexSpace[] }; nextPath: string | null } = await this.requestWithLink('GET', path)
+      yield* page.data.items
+      path = page.nextPath
+    }
   }
 
   async getSpace(spaceId: string): Promise<WebexSpace> {
@@ -593,6 +614,16 @@ export class WebexClient {
     }
     return parsed.toString()
   }
+}
+
+// Webex paginates List endpoints via an RFC 5988 `Link` header
+// (`<https://webexapis.com/v1/rooms?...&before=cursor>; rel="next"`). Return the
+// next page as a BASE_URL-relative path, or null when there is no next page.
+function parseNextPath(linkHeader: string | null): string | null {
+  if (!linkHeader) return null
+  const next = linkHeader.match(/<([^>]+)>\s*;\s*rel="next"/i)
+  if (!next) return null
+  return next[1].startsWith(BASE_URL) ? next[1].slice(BASE_URL.length) : null
 }
 
 function sanitizeFilename(name: string | undefined): string | undefined {
