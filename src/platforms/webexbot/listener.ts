@@ -6,14 +6,17 @@ import type {
   DecryptedMessage,
   DeletedMessage,
   HandlerStatus,
+  InjectedWebSocket,
   MembershipActivity,
   RoomActivity,
   WebexMessageHandlerConfig,
   WebexMessageHandlerEvents,
 } from 'webex-message-handler'
+import WebSocket from 'ws'
 
 import type { WebexBotClient } from './client'
 import type { WebexBotListenerEventMap } from './types'
+import { createWdmRewriteFetch, discoverWdmDevicesUrl } from './wdm-discovery'
 
 type EventKey = keyof WebexBotListenerEventMap
 type WebexBotClientLike = Pick<WebexBotClient, 'getToken'>
@@ -59,13 +62,19 @@ export class WebexBotListener {
     this.running = true
     const generation = ++this.generation
 
-    const handler = this.createHandler()
-    this.handler = handler
-    this.detachHandler = this.wireHandler(handler, generation)
-
     let startPromise!: Promise<void>
     startPromise = (async () => {
+      let handler: WebexMessageHandlerLike | null = null
       try {
+        handler = await this.createHandler()
+
+        if (!this.running || this.generation !== generation) {
+          await handler.disconnect().catch(() => undefined)
+          return
+        }
+        this.handler = handler
+        this.detachHandler = this.wireHandler(handler, generation)
+
         await handler.connect()
 
         if (!this.running || this.handler !== handler || this.generation !== generation) {
@@ -77,9 +86,11 @@ export class WebexBotListener {
           this.detachHandler?.()
           this.detachHandler = null
           this.handler = null
+        }
+        if (this.generation === generation) {
           this.running = false
         }
-        await handler.disconnect().catch(() => undefined)
+        await handler?.disconnect().catch(() => undefined)
         throw error
       } finally {
         if (this.startPromise === startPromise) {
@@ -142,14 +153,24 @@ export class WebexBotListener {
     }
   }
 
-  private createHandler(): WebexMessageHandlerLike {
-    const config: WebexMessageHandlerConfig = { token: this.client.getToken() }
+  private async createHandler(): Promise<WebexMessageHandlerLike> {
+    const token = this.client.getToken()
+    const config: WebexMessageHandlerConfig = { token }
     if (this.options.ignoreSelfMessages !== undefined) config.ignoreSelfMessages = this.options.ignoreSelfMessages
     if (this.options.pingInterval !== undefined) config.pingInterval = this.options.pingInterval
     if (this.options.pongTimeout !== undefined) config.pongTimeout = this.options.pongTimeout
     if (this.options.reconnectBackoffMax !== undefined) config.reconnectBackoffMax = this.options.reconnectBackoffMax
     if (this.options.maxReconnectAttempts !== undefined) config.maxReconnectAttempts = this.options.maxReconnectAttempts
-    return this.options._handlerFactory?.(config) ?? new WebexMessageHandler(config)
+
+    if (this.options._handlerFactory) {
+      return this.options._handlerFactory(config)
+    }
+
+    const wdmDevicesUrl = await discoverWdmDevicesUrl(token)
+    config.mode = 'injected'
+    config.fetch = createWdmRewriteFetch(wdmDevicesUrl)
+    config.webSocketFactory = (url: string) => new WebSocket(url) as unknown as InjectedWebSocket
+    return new WebexMessageHandler(config)
   }
 
   private wireHandler(handler: WebexMessageHandlerLike, generation: number): () => void {

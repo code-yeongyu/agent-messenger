@@ -108,7 +108,7 @@ const byName = await client.listPeople({ displayName: 'Alice', max: 10 })
 
 A real-time event listener using the Mercury WebSocket protocol. No public URL required — works behind firewalls and in CI/CD environments. Analogous to Slack Socket Mode or Discord Gateway.
 
-Under the hood, the listener uses `webex-message-handler` which handles WDM device registration, Mercury WebSocket connection, KMS key decryption, and auto-reconnect with exponential backoff.
+Under the hood, the listener uses `webex-message-handler` which handles WDM device registration, Mercury WebSocket connection, KMS key decryption, and auto-reconnect with exponential backoff. The bot's Webex cluster is auto-discovered from the U2C catalog at startup, so the listener works regardless of the org's home region.
 
 The bot's own messages are filtered by default (`ignoreSelfMessages` defaults to `true`), preventing echo loops.
 
