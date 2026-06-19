@@ -1,0 +1,340 @@
+---
+title: Webex Bot
+description: TypeScript SDK reference for Webex Bot — client, real-time Mercury WebSocket listener, credential management, and types.
+---
+
+## Installation
+
+```bash
+npm install agent-messenger
+```
+
+```typescript
+import { WebexBotClient, WebexBotCredentialManager, WebexBotListener } from 'agent-messenger/webexbot'
+```
+
+## WebexBotClient
+
+The main client for interacting with the Webex REST API using a bot token. Delegates to the same underlying HTTP layer as `WebexClient`, with automatic rate-limit handling and exponential backoff on server errors.
+
+Bot tokens never expire, so no refresh logic is needed.
+
+```typescript
+const client = await new WebexBotClient().login({ token: 'YOUR_BOT_TOKEN' })
+```
+
+Or use stored credentials — read from `~/.config/agent-messenger/webexbot-credentials.json` (managed by `agent-webexbot auth set`):
+
+```typescript
+const client = await new WebexBotClient().login()
+```
+
+### Authentication
+
+```typescript
+// Verify credentials and get bot identity
+const me = await client.testAuth()
+// → WebexPerson { id, displayName, emails, orgId, type }
+```
+
+### Spaces
+
+```typescript
+// List spaces the bot is a member of (default limit: 50)
+const spaces = await client.listSpaces()
+const grouped = await client.listSpaces({ type: 'group', max: 20 })
+// → WebexSpace[]
+
+// Get a specific space by ID
+const space = await client.getSpace(spaceId)
+// → WebexSpace { id, title, type, isLocked, lastActivity, created, creatorId }
+```
+
+### Messages
+
+```typescript
+// Send a message to a space
+const msg = await client.sendMessage(roomId, 'Hello world')
+// → WebexMessage { id, roomId, roomType, text, personId, personEmail, created }
+
+// Send a markdown message
+await client.sendMessage(roomId, '**Bold** and _italic_', { markdown: true })
+
+// Send a direct message by email
+const dm = await client.sendDirectMessage('alice@example.com', 'Hey!')
+await client.sendDirectMessage('alice@example.com', '**Important**', { markdown: true })
+
+// List messages in a space (default limit: 50)
+const messages = await client.listMessages(roomId)
+const limited = await client.listMessages(roomId, { max: 25 })
+// → WebexMessage[]
+
+// Get a single message by ID
+const message = await client.getMessage(messageId)
+// → WebexMessage
+
+// Edit a message (bot's own messages only)
+const updated = await client.editMessage(messageId, roomId, 'Updated text')
+await client.editMessage(messageId, roomId, '**Updated**', { markdown: true })
+// → WebexMessage
+
+// Delete a message
+await client.deleteMessage(messageId)
+```
+
+### Memberships
+
+```typescript
+// List members of a space
+const members = await client.listMemberships(roomId)
+const limited = await client.listMemberships(roomId, { max: 100 })
+// → WebexMembership[]
+
+// List all spaces the bot belongs to
+const mySpaces = await client.listMyMemberships()
+// → WebexMembership[]
+```
+
+### People
+
+```typescript
+// Search people by email or display name
+const people = await client.listPeople({ email: 'alice@example.com' })
+const byName = await client.listPeople({ displayName: 'Alice', max: 10 })
+// → WebexPerson[]
+```
+
+## WebexBotListener
+
+A real-time event listener using the Mercury WebSocket protocol. No public URL required — works behind firewalls and in CI/CD environments. Analogous to Slack Socket Mode or Discord Gateway.
+
+Under the hood, the listener uses `webex-message-handler` which handles WDM device registration, Mercury WebSocket connection, KMS key decryption, and auto-reconnect with exponential backoff.
+
+The bot's own messages are filtered by default (`ignoreSelfMessages` defaults to `true`), preventing echo loops.
+
+```typescript
+import { WebexBotClient, WebexBotListener } from 'agent-messenger/webexbot'
+
+const client = await new WebexBotClient().login({ token: 'YOUR_BOT_TOKEN' })
+const listener = new WebexBotListener(client)
+
+listener.on('connected', ({ connected, status }) => {
+  console.log(`Connected (${connected}, state: ${status.status})`)
+})
+
+listener.on('message_created', (event) => {
+  console.log(`New message in ${event.roomId}: ${event.text}`)
+})
+
+listener.on('membership_created', (event) => {
+  console.log(`Bot added to space: ${event.roomId}`)
+})
+
+listener.on('disconnected', (reason) => {
+  console.log(`Disconnected: ${reason} — will reconnect`)
+})
+
+listener.on('error', (error) => {
+  console.error('Fatal error:', error)
+})
+
+await listener.start()
+```
+
+### Constructor Options
+
+```typescript
+const listener = new WebexBotListener(client, {
+  ignoreSelfMessages: true, // Filter bot's own messages (default: true)
+  pingInterval: 15000, // WebSocket ping interval in ms
+  pongTimeout: 5000, // Pong response timeout in ms
+  reconnectBackoffMax: 30000, // Max reconnect delay in ms
+  maxReconnectAttempts: 10, // Max reconnect attempts before giving up
+})
+```
+
+### Lifecycle
+
+- `start()` — Registers a WDM device, opens the Mercury WebSocket, and begins streaming events.
+- `stop()` — Closes the WebSocket and cleans up listeners. Safe to call multiple times.
+
+### Events
+
+| Event                | Payload                  | Notes                                                  |
+| -------------------- | ------------------------ | ------------------------------------------------------ |
+| `message_created`    | `DecryptedMessage`       | New message in a space the bot is in                   |
+| `message_updated`    | `DecryptedMessage`       | Existing message edited                                |
+| `message_deleted`    | `DeletedMessage`         | Message deleted                                        |
+| `membership_created` | `MembershipActivity`     | Bot added to a new space                               |
+| `attachment_action`  | `AttachmentAction`       | Adaptive card button clicked                           |
+| `room_created`       | `RoomActivity`           | New space created                                      |
+| `room_updated`       | `RoomActivity`           | Space details changed                                  |
+| `webex_event`        | (any of the above)       | Catch-all — every content event                        |
+| `connected`          | `{ connected, status }`  | Once after `start()` succeeds                          |
+| `reconnecting`       | `number` (attempt count) | Reconnect attempt in progress                          |
+| `disconnected`       | `string` (reason)        | Connection dropped; listener will auto-reconnect       |
+| `error`              | `Error`                  | Fatal error (max reconnects exceeded). Listener stops. |
+
+### Reconnection
+
+On transient failures (network drops, 5xx), the listener emits `disconnected` and retries with exponential backoff up to `reconnectBackoffMax`. After `maxReconnectAttempts` consecutive failures, it emits `error` and stops.
+
+## WebexBotCredentialManager
+
+```typescript
+const manager = new WebexBotCredentialManager()
+
+// Store credentials (sets this bot as current)
+await manager.setCredentials({ token, bot_id: 'deploy', bot_name: 'Deploy Bot' })
+
+// Retrieve current bot credentials
+const creds = await manager.getCredentials()
+// → { token, bot_id, bot_name } | null
+
+// Retrieve a specific bot
+const creds = await manager.getCredentials('deploy')
+
+// Multi-bot support
+const all = await manager.listAll()
+// → Array<{ bot_id, bot_name, is_current }>
+
+await manager.setCurrent('deploy')
+await manager.removeBot('alert')
+await manager.clearCredentials()
+```
+
+Credentials are stored under `~/.config/agent-messenger/webexbot-credentials.json` with `0600` file permissions. Override the directory with the `AGENT_MESSENGER_CONFIG_DIR` environment variable, or pass `new WebexBotCredentialManager(customDir)`.
+
+## Types
+
+```typescript
+import type {
+  WebexSpace,
+  WebexMessage,
+  WebexPerson,
+  WebexMembership,
+  WebexBotConfig,
+  WebexBotCredentials,
+  WebexBotListenerOptions,
+  WebexBotListenerEventMap,
+} from 'agent-messenger/webexbot'
+```
+
+### Zod Schemas
+
+Runtime-validated schemas are also exported:
+
+```typescript
+import {
+  WebexSpaceSchema,
+  WebexMessageSchema,
+  WebexPersonSchema,
+  WebexMembershipSchema,
+  WebexBotConfigSchema,
+  WebexBotCredentialsSchema,
+} from 'agent-messenger/webexbot'
+```
+
+## Real-time Events (Webex Bot)
+
+Stream messages and membership events over the Mercury WebSocket — no public HTTP endpoint required.
+
+```typescript
+import { WebexBotClient, WebexBotListener } from 'agent-messenger/webexbot'
+
+const client = await new WebexBotClient().login({ token: 'YOUR_BOT_TOKEN' })
+const listener = new WebexBotListener(client)
+
+listener.on('message_created', (event) => {
+  console.log(`New message in ${event.roomId}: ${event.text}`)
+})
+
+listener.on('membership_created', (event) => {
+  console.log(`Bot added to space: ${event.roomId}`)
+})
+
+await listener.start()
+```
+
+## Examples
+
+### Deploy Notifier
+
+Post a deployment message, then update it when done.
+
+```typescript
+import { WebexBotClient } from 'agent-messenger/webexbot'
+
+const client = await new WebexBotClient().login()
+
+// Post initial status
+const msg = await client.sendMessage(spaceId, 'Deploying v2.1.0 to production...')
+
+// Stream progress
+await client.sendMessage(spaceId, 'Building application...')
+await client.sendMessage(spaceId, 'Running tests (142 passed)...')
+await client.sendMessage(spaceId, 'Rolling out to 3 regions...')
+
+// Update original message with final status
+await client.editMessage(msg.id, spaceId, 'Deployed v2.1.0 to production')
+```
+
+### Reactive Bot
+
+Listen for messages and respond to keywords.
+
+```typescript
+import { WebexBotClient, WebexBotListener } from 'agent-messenger/webexbot'
+
+const client = await new WebexBotClient().login({ token: 'YOUR_BOT_TOKEN' })
+const listener = new WebexBotListener(client)
+
+listener.on('message_created', async (event) => {
+  const text = event.text?.toLowerCase() ?? ''
+
+  if (text.includes('status')) {
+    await client.sendMessage(event.roomId, 'All systems operational.')
+  }
+
+  if (text.includes('help')) {
+    await client.sendMessage(event.roomId, 'Available commands: `status`, `help`')
+  }
+})
+
+await listener.start()
+```
+
+### Multi-Space Broadcast
+
+Send a message to every space the bot is in.
+
+```typescript
+import { WebexBotClient } from 'agent-messenger/webexbot'
+
+const client = await new WebexBotClient().login()
+
+const spaces = await client.listSpaces({ type: 'group' })
+
+for (const space of spaces) {
+  await client.sendMessage(space.id, 'Maintenance window starts in 30 minutes.')
+  // Respect rate limits
+  await new Promise((r) => setTimeout(r, 200))
+}
+```
+
+### Direct Message Pipeline
+
+Send a DM to multiple people by email.
+
+```typescript
+import { WebexBotClient } from 'agent-messenger/webexbot'
+
+const client = await new WebexBotClient().login()
+
+const recipients = ['alice@example.com', 'bob@example.com', 'carol@example.com']
+
+for (const email of recipients) {
+  await client.sendDirectMessage(email, 'Reminder: standup in 5 minutes')
+  await new Promise((r) => setTimeout(r, 200))
+}
+```
