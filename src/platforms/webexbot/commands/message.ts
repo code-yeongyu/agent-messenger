@@ -40,13 +40,53 @@ function formatMessage(message: WebexMessage): MessageResult {
 export async function sendAction(
   space: string,
   text: string,
+  options: BotOption & { markdown?: boolean; parent?: string },
+): Promise<MessageResult> {
+  try {
+    const client = await getClient(options)
+    const message = await client.sendMessage(space, text, { markdown: options.markdown, parentId: options.parent })
+
+    return formatMessage(message)
+  } catch (error) {
+    return { error: (error as Error).message }
+  }
+}
+
+export async function replyAction(
+  space: string,
+  parentId: string,
+  text: string,
   options: BotOption & { markdown?: boolean },
 ): Promise<MessageResult> {
   try {
     const client = await getClient(options)
-    const message = await client.sendMessage(space, text, { markdown: options.markdown })
+    const message = await client.sendMessage(space, text, { markdown: options.markdown, parentId })
 
     return formatMessage(message)
+  } catch (error) {
+    return { error: (error as Error).message }
+  }
+}
+
+export async function repliesAction(
+  space: string,
+  parentId: string,
+  options: BotOption & { max?: string },
+): Promise<MessageResult> {
+  try {
+    const client = await getClient(options)
+    const max = options.max ? parseInt(options.max, 10) : 50
+    const messages = await client.listReplies(space, parentId, { max })
+
+    return {
+      messages: messages.map((msg) => ({
+        id: msg.id,
+        roomId: msg.roomId,
+        text: msg.text,
+        personEmail: msg.personEmail,
+        created: msg.created,
+      })),
+    }
   } catch (error) {
     return { error: (error as Error).message }
   }
@@ -133,10 +173,36 @@ export const messageCommand = new Command('message')
       .argument('<space>', 'Space/Room ID')
       .argument('<text>', 'Message text')
       .option('--markdown', 'Send as markdown')
+      .option('--parent <id>', 'Reply within a thread (parent message ID)')
       .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
-      .action(async (space: string, text: string, opts: BotOption & { markdown?: boolean }) => {
+      .action(async (space: string, text: string, opts: BotOption & { markdown?: boolean; parent?: string }) => {
         cliOutput(await sendAction(space, text, opts), opts.pretty)
+      }),
+  )
+  .addCommand(
+    new Command('reply')
+      .description('Reply to a message in a thread')
+      .argument('<space>', 'Space/Room ID')
+      .argument('<parent>', 'Parent message ID')
+      .argument('<text>', 'Reply text')
+      .option('--markdown', 'Send as markdown')
+      .option('--bot <id>', 'Use specific bot')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(async (space: string, parent: string, text: string, opts: BotOption & { markdown?: boolean }) => {
+        cliOutput(await replyAction(space, parent, text, opts), opts.pretty)
+      }),
+  )
+  .addCommand(
+    new Command('replies')
+      .description('List replies in a thread')
+      .argument('<space>', 'Space/Room ID')
+      .argument('<parent>', 'Parent message ID')
+      .option('--max <n>', 'Number of replies to fetch', '50')
+      .option('--bot <id>', 'Use specific bot')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(async (space: string, parent: string, opts: BotOption & { max?: string }) => {
+        cliOutput(await repliesAction(space, parent, opts), opts.pretty)
       }),
   )
   .addCommand(
