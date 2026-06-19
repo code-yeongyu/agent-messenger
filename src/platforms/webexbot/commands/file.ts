@@ -54,7 +54,8 @@ export async function downloadAction(
   try {
     const client = await getClient(options)
     const { data, filename, contentType } = await client.downloadContent(contentRef)
-    const outputPath = resolve(output ?? filename)
+    // When no explicit output is given, confine the server-provided name to cwd.
+    const outputPath = output ? resolve(output) : resolve(process.cwd(), basename(filename))
     await writeFile(outputPath, Buffer.from(data))
 
     return {

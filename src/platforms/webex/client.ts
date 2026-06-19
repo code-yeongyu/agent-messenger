@@ -6,6 +6,7 @@ import type { WebexConfig, WebexMembership, WebexMessage, WebexPerson, WebexSpac
 import { WebexError } from './types'
 
 const BASE_URL = 'https://webexapis.com/v1'
+const CONTENT_HOST = 'webexapis.com'
 const MAX_RETRIES = 3
 const BASE_BACKOFF_MS = 100
 
@@ -552,8 +553,7 @@ export class WebexClient {
   }
 
   async downloadContent(contentRef: string): Promise<{ data: ArrayBuffer; filename: string; contentType: string }> {
-    // Accepts either a full file URL from message.files or a bare content ID.
-    const url = contentRef.startsWith('http') ? contentRef : `${BASE_URL}/contents/${contentRef}`
+    const url = this.resolveContentUrl(contentRef)
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${this.ensureAuth()}` },
     })
@@ -565,11 +565,42 @@ export class WebexClient {
 
     const disposition = response.headers.get('Content-Disposition') ?? ''
     const match = disposition.match(/filename="?([^"]+)"?/)
-    const filename = match?.[1] ?? contentRef.split('/').pop() ?? 'download'
+    const filename = sanitizeFilename(match?.[1]) ?? sanitizeFilename(contentRef.split('/').pop()) ?? 'download'
     const contentType = response.headers.get('Content-Type') ?? 'application/octet-stream'
     const data = await response.arrayBuffer()
     return { data, filename, contentType }
   }
+
+  private resolveContentUrl(contentRef: string): string {
+    // A bare content id never contains a scheme or path separators.
+    if (!contentRef.includes('://') && !contentRef.includes('/')) {
+      return `${BASE_URL}/contents/${encodeURIComponent(contentRef)}`
+    }
+
+    // Only attach the bearer token to HTTPS Webex content URLs to avoid
+    // leaking credentials to attacker-controlled hosts (SSRF/token exfiltration).
+    let parsed: URL
+    try {
+      parsed = new URL(contentRef)
+    } catch {
+      throw new WebexError(`Invalid content reference: ${contentRef}`, 'invalid_content_ref')
+    }
+    if (parsed.protocol !== 'https:' || parsed.host !== CONTENT_HOST || !parsed.pathname.startsWith('/v1/contents/')) {
+      throw new WebexError(
+        `Refusing to download from untrusted location: ${parsed.origin}${parsed.pathname}`,
+        'untrusted_content_url',
+      )
+    }
+    return parsed.toString()
+  }
+}
+
+function sanitizeFilename(name: string | undefined): string | undefined {
+  if (!name) return undefined
+  // Strip any path components so a server-supplied name cannot escape the target directory.
+  const base = name.replace(/\\/g, '/').split('/').pop()
+  if (!base || base === '.' || base === '..') return undefined
+  return base
 }
 
 interface InternalActivity {
