@@ -274,6 +274,16 @@ describe('WebexClient', () => {
 
       expect(fetchCalls[0].url).toContain('max=10')
     })
+
+    it('passes mentionedPeople when requested', async () => {
+      mockResponse({ items: [] })
+
+      const client = await new WebexClient().login({ token: 'test-token' })
+      await client.listMessages('room1', { max: 10, mentionedPeople: 'me' })
+
+      const url = new URL(fetchCalls[0].url)
+      expect(url.searchParams.get('mentionedPeople')).toBe('me')
+    })
   })
 
   describe('getMessage', () => {
