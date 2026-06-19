@@ -41,6 +41,18 @@ describe('toRestId / fromRestId', () => {
     )
   })
 
+  it('emits unpadded base64url ids matching the Webex REST API', () => {
+    // 36-char UUID -> 59-byte URI, which exposes the padding bug; a URI length
+    // that is a multiple of 3 produces no padding and would hide the regression.
+    const uuid = '12345678-1234-1234-1234-1234567890ab'
+    const restId = toRestId(uuid, 'PEOPLE')
+
+    expect(restId).toBe(Buffer.from(`ciscospark://us/PEOPLE/${uuid}`).toString('base64url'))
+    expect(restId).not.toContain('=')
+    expect(restId).not.toMatch(/[+/]/)
+    expect(fromRestId(restId)).toBe(uuid)
+  })
+
   it('returns empty input unchanged', () => {
     expect(toRestId('', 'MESSAGE')).toBe('')
   })
