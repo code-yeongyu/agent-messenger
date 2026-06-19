@@ -177,6 +177,22 @@ const listener = new WebexBotListener(client, {
 | `disconnected`       | `string` (reason)        | Connection dropped; listener will auto-reconnect       |
 | `error`              | `Error`                  | Fatal error (max reconnects exceeded). Listener stops. |
 
+### ID format
+
+Every REST-resource ID on emitted events — person IDs (`personId`, `actorId`, `mentionedPeople`), room IDs (`roomId`), message IDs (`id`, `parentId`, `messageId`), and `AttachmentAction.id` — is in **Webex REST ID format** (`ciscospark://...` base64), directly comparable with IDs returned by `WebexBotClient` (e.g. `getMessage`, `listSpaces`, `listPeople`). The two Mercury-only activity IDs that have no REST resource — `MembershipActivity.id` and `RoomActivity.id` — stay as raw Mercury UUIDs. The original Mercury payload (with raw UUIDs) is preserved under `.raw` on every event except `message_deleted`, whose upstream Mercury event does not include the full activity.
+
+```typescript
+import { WebexBotClient, WebexBotListener, fromRestId } from 'agent-messenger/webexbot'
+
+listener.on('message_created', async (event) => {
+  // event.roomId is a REST ID — compare it directly with REST results
+  const space = await client.getSpace(event.roomId)
+
+  // Recover the raw Mercury UUID when needed
+  const personUuid = fromRestId(event.personId)
+})
+```
+
 ### Reconnection
 
 On transient failures (network drops, 5xx), the listener emits `disconnected` and retries with exponential backoff up to `reconnectBackoffMax`. After `maxReconnectAttempts` consecutive failures, it emits `error` and stops.

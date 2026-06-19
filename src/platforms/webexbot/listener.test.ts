@@ -9,6 +9,7 @@ import type {
   WebexMessageHandlerEvents,
 } from 'webex-message-handler'
 
+import { toRestId } from './id-normalizer'
 import { WebexBotListener } from './listener'
 
 const STATUS: HandlerStatus = {
@@ -78,8 +79,16 @@ describe('WebexBotListener', () => {
     await listener.start()
     handler.emit('message:created', MESSAGE)
 
-    expect(messageCreated).toHaveBeenCalledWith(MESSAGE)
-    expect(webexEvent).toHaveBeenCalledWith(MESSAGE)
+    const expected = expect.objectContaining({
+      id: toRestId('message-123', 'MESSAGE'),
+      roomId: toRestId('room-123', 'ROOM'),
+      personId: toRestId('person-123', 'PEOPLE'),
+      personEmail: 'user@example.com',
+      text: 'hello',
+      raw: RAW_ACTIVITY,
+    })
+    expect(messageCreated).toHaveBeenCalledWith(expected)
+    expect(webexEvent).toHaveBeenCalledWith(expected)
   })
 
   it('stop calls handler disconnect', async () => {

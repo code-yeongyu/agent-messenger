@@ -281,6 +281,8 @@ Output is NDJSON — one JSON object per line:
 {"type":"message_created","payload":{"id":"Y2lz...","text":"Hello bot!","personEmail":"alice@example.com","roomId":"Y2lz..."}}
 ```
 
+Event IDs (`id`, `parentId`, `messageId`, `roomId`, `personId`, `actorId`, `mentionedPeople`) are emitted as Webex REST IDs (`ciscospark://...` base64), so they compare directly with IDs returned by other `agent-webexbot` commands (`message get`, `space list`, `user list`). The Mercury-only activity IDs `membership_created.id` and `room_created`/`room_updated.id` stay as raw UUIDs; the raw Mercury payload is preserved under `payload.raw` (except for `message_deleted`, whose Mercury event does not carry the full payload).
+
 ## Output Format
 
 ### JSON (Default)

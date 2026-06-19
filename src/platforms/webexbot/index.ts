@@ -1,5 +1,7 @@
 export { WebexBotClient } from './client'
 export { WebexBotCredentialManager } from './credential-manager'
+export { fromRestId, toRestId } from './id-normalizer'
+export type { WebexRestIdType } from './id-normalizer'
 export { WebexBotListener } from './listener'
 export type { WebexBotListenerOptions } from './listener'
 export type { WebexBotConfig, WebexBotCredentials, WebexBotEntry, WebexBotListenerEventMap } from './types'
