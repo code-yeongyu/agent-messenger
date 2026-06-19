@@ -223,11 +223,19 @@ export class WebexClient {
     return this.request<WebexSpace>('GET', `/rooms/${spaceId}`)
   }
 
-  async sendMessage(roomId: string, text: string, options?: { markdown?: boolean }): Promise<WebexMessage> {
+  async sendMessage(
+    roomId: string,
+    text: string,
+    options?: { markdown?: boolean; parentId?: string; files?: string[] },
+  ): Promise<WebexMessage> {
     if (this.useInternalAPI) {
       return this.sendMessageInternal(roomId, text, options)
     }
-    const body = options?.markdown ? { roomId, markdown: text } : { roomId, text }
+    const body: Record<string, unknown> = { roomId }
+    if (options?.markdown) body.markdown = text
+    else body.text = text
+    if (options?.parentId) body.parentId = options.parentId
+    if (options?.files?.length) body.files = options.files
     return this.request<WebexMessage>('POST', '/messages', body)
   }
 
@@ -387,7 +395,10 @@ export class WebexClient {
     return null
   }
 
-  async listMessages(roomId: string, options?: { max?: number; mentionedPeople?: string }): Promise<WebexMessage[]> {
+  async listMessages(
+    roomId: string,
+    options?: { max?: number; mentionedPeople?: string; parentId?: string },
+  ): Promise<WebexMessage[]> {
     if (this.useInternalAPI) {
       const convUuid = this.decodeConvUuid(roomId)
       const max = options?.max ?? 50
@@ -401,6 +412,7 @@ export class WebexClient {
     params.set('roomId', roomId)
     params.set('max', String(options?.max ?? 50))
     if (options?.mentionedPeople) params.set('mentionedPeople', options.mentionedPeople)
+    if (options?.parentId) params.set('parentId', options.parentId)
     const data = await this.request<{ items: WebexMessage[] }>('GET', `/messages?${params}`)
     return data.items
   }
@@ -494,6 +506,10 @@ export class WebexClient {
     return data.items
   }
 
+  async getPerson(personId: string): Promise<WebexPerson> {
+    return this.request<WebexPerson>('GET', `/people/${personId}`)
+  }
+
   async listMyMemberships(options?: { max?: number }): Promise<WebexMembership[]> {
     const params = new URLSearchParams()
     params.set('max', String(options?.max ?? 100))
@@ -507,6 +523,52 @@ export class WebexClient {
     if (options?.max) params.set('max', String(options.max))
     const data = await this.request<{ items: WebexMembership[] }>('GET', `/memberships?${params}`)
     return data.items
+  }
+
+  async uploadFile(
+    roomId: string,
+    file: { content: Blob; filename: string },
+    options?: { text?: string; markdown?: boolean; parentId?: string },
+  ): Promise<WebexMessage> {
+    const form = new FormData()
+    form.set('roomId', roomId)
+    if (options?.text) {
+      form.set(options.markdown ? 'markdown' : 'text', options.text)
+    }
+    if (options?.parentId) form.set('parentId', options.parentId)
+    form.set('files', file.content, file.filename)
+
+    const response = await fetch(`${BASE_URL}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.ensureAuth()}` },
+      body: form,
+    })
+
+    if (!response.ok) {
+      const errorBody = (await response.json().catch(() => null)) as { message?: string } | null
+      throw new WebexError(errorBody?.message ?? `HTTP ${response.status}`, `http_${response.status}`)
+    }
+    return response.json() as Promise<WebexMessage>
+  }
+
+  async downloadContent(contentRef: string): Promise<{ data: ArrayBuffer; filename: string; contentType: string }> {
+    // Accepts either a full file URL from message.files or a bare content ID.
+    const url = contentRef.startsWith('http') ? contentRef : `${BASE_URL}/contents/${contentRef}`
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${this.ensureAuth()}` },
+    })
+
+    if (!response.ok) {
+      const errorBody = (await response.json().catch(() => null)) as { message?: string } | null
+      throw new WebexError(errorBody?.message ?? `HTTP ${response.status}`, `http_${response.status}`)
+    }
+
+    const disposition = response.headers.get('Content-Disposition') ?? ''
+    const match = disposition.match(/filename="?([^"]+)"?/)
+    const filename = match?.[1] ?? contentRef.split('/').pop() ?? 'download'
+    const contentType = response.headers.get('Content-Type') ?? 'application/octet-stream'
+    const data = await response.arrayBuffer()
+    return { data, filename, contentType }
   }
 }
 

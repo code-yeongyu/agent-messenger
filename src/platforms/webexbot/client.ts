@@ -44,7 +44,11 @@ export class WebexBotClient {
     return this.client.getSpace(spaceId)
   }
 
-  async sendMessage(roomId: string, text: string, options?: { markdown?: boolean }): Promise<WebexMessage> {
+  async sendMessage(
+    roomId: string,
+    text: string,
+    options?: { markdown?: boolean; parentId?: string; files?: string[] },
+  ): Promise<WebexMessage> {
     return this.client.sendMessage(roomId, text, options)
   }
 
@@ -52,10 +56,14 @@ export class WebexBotClient {
     return this.client.sendDirectMessage(personEmail, text, options)
   }
 
-  async listMessages(roomId: string, options?: { max?: number }): Promise<WebexMessage[]> {
+  async listMessages(roomId: string, options?: { max?: number; parentId?: string }): Promise<WebexMessage[]> {
     const space = await this.client.getSpace(roomId)
     const messageOptions = space.type === 'group' ? { ...options, mentionedPeople: 'me' } : options
     return this.client.listMessages(roomId, messageOptions)
+  }
+
+  async listReplies(roomId: string, parentId: string, options?: { max?: number }): Promise<WebexMessage[]> {
+    return this.client.listMessages(roomId, { ...options, parentId })
   }
 
   async getMessage(messageId: string): Promise<WebexMessage> {
@@ -79,11 +87,27 @@ export class WebexBotClient {
     return this.client.listPeople(options)
   }
 
+  async getPerson(personId: string): Promise<WebexPerson> {
+    return this.client.getPerson(personId)
+  }
+
   async listMyMemberships(options?: { max?: number }): Promise<WebexMembership[]> {
     return this.client.listMyMemberships(options)
   }
 
   async listMemberships(roomId: string, options?: { max?: number }): Promise<WebexMembership[]> {
     return this.client.listMemberships(roomId, options)
+  }
+
+  async uploadFile(
+    roomId: string,
+    file: { content: Blob; filename: string },
+    options?: { text?: string; markdown?: boolean; parentId?: string },
+  ): Promise<WebexMessage> {
+    return this.client.uploadFile(roomId, file, options)
+  }
+
+  async downloadContent(contentRef: string): Promise<{ data: ArrayBuffer; filename: string; contentType: string }> {
+    return this.client.downloadContent(contentRef)
   }
 }
