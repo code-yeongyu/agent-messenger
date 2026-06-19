@@ -1,7 +1,7 @@
 ---
 name: agent-webexbot
 description: Interact with Cisco Webex using bot tokens - send messages, read spaces, manage memberships, stream real-time events
-version: 2.20.5
+version: 2.21.0
 allowed-tools: Bash(agent-webexbot:*)
 metadata:
   openclaw:
