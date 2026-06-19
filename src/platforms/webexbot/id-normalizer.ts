@@ -14,13 +14,16 @@ export { fromRestId }
 export type WebexRestIdType = 'MESSAGE' | 'PEOPLE' | 'ROOM' | 'ATTACHMENT_ACTION'
 
 /**
- * Encode a raw Mercury UUID as a base64 `ciscospark://us/{TYPE}/{uuid}` Webex
- * REST ID. Empty input is returned unchanged so an absent ID never becomes a
- * bogus `ciscospark://us/{TYPE}/` value.
+ * Encode a raw Mercury UUID as a Webex REST ID. Empty input is returned unchanged
+ * so an absent ID never becomes a bogus `ciscospark://us/{TYPE}/` value.
+ *
+ * Webex REST IDs are unpadded base64url. Padded base64 (trailing `=`) would not
+ * equal the ID the REST API returns for the same resource (e.g. the bot's own
+ * `/people/me` id), silently breaking equality checks such as mention detection.
  */
 export function toRestId(uuid: string, type: WebexRestIdType): string {
   if (!uuid) return uuid
-  return Buffer.from(`ciscospark://us/${type}/${uuid}`).toString('base64')
+  return Buffer.from(`ciscospark://us/${type}/${uuid}`).toString('base64url')
 }
 
 export function normalizeMessage(message: DecryptedMessage): DecryptedMessage {
