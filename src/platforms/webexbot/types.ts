@@ -56,6 +56,15 @@ export const WebexBotCredentialsSchema = z.object({
   bot_name: z.string(),
 })
 
+/**
+ * ID contract: every REST-resource ID on these events (person, room, message,
+ * and attachment-action IDs) is emitted in Webex REST ID format, directly
+ * comparable with IDs returned by `WebexBotClient`. Mercury-only activity IDs
+ * (`MembershipActivity.id`, `RoomActivity.id`) stay raw, and the original
+ * Mercury payload is preserved under `.raw` (except `DeletedMessage`, whose
+ * upstream Mercury event omits the full activity). Decode any REST ID with
+ * {@link fromRestId}.
+ */
 export interface WebexBotListenerEventMap {
   message_created: [event: DecryptedMessage]
   message_updated: [event: DecryptedMessage]

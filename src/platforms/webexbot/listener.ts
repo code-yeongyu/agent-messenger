@@ -15,6 +15,13 @@ import type {
 import WebSocket from 'ws'
 
 import type { WebexBotClient } from './client'
+import {
+  normalizeAttachmentAction,
+  normalizeDeletedMessage,
+  normalizeMembership,
+  normalizeMessage,
+  normalizeRoomActivity,
+} from './id-normalizer'
 import type { WebexBotListenerEventMap } from './types'
 import { createWdmRewriteFetch, discoverWdmDevicesUrl } from './wdm-discovery'
 
@@ -176,38 +183,45 @@ export class WebexBotListener {
   private wireHandler(handler: WebexMessageHandlerLike, generation: number): () => void {
     const onMessageCreated = (event: DecryptedMessage) => {
       if (!this.isCurrent(handler, generation)) return
-      this.emitter.emit('message_created', event)
-      this.emitter.emit('webex_event', event)
+      const normalized = normalizeMessage(event)
+      this.emitter.emit('message_created', normalized)
+      this.emitter.emit('webex_event', normalized)
     }
     const onMessageUpdated = (event: DecryptedMessage) => {
       if (!this.isCurrent(handler, generation)) return
-      this.emitter.emit('message_updated', event)
-      this.emitter.emit('webex_event', event)
+      const normalized = normalizeMessage(event)
+      this.emitter.emit('message_updated', normalized)
+      this.emitter.emit('webex_event', normalized)
     }
     const onMessageDeleted = (event: DeletedMessage) => {
       if (!this.isCurrent(handler, generation)) return
-      this.emitter.emit('message_deleted', event)
-      this.emitter.emit('webex_event', event)
+      const normalized = normalizeDeletedMessage(event)
+      this.emitter.emit('message_deleted', normalized)
+      this.emitter.emit('webex_event', normalized)
     }
     const onMembershipCreated = (event: MembershipActivity) => {
       if (!this.isCurrent(handler, generation)) return
-      this.emitter.emit('membership_created', event)
-      this.emitter.emit('webex_event', event)
+      const normalized = normalizeMembership(event)
+      this.emitter.emit('membership_created', normalized)
+      this.emitter.emit('webex_event', normalized)
     }
     const onAttachmentAction = (event: AttachmentAction) => {
       if (!this.isCurrent(handler, generation)) return
-      this.emitter.emit('attachment_action', event)
-      this.emitter.emit('webex_event', event)
+      const normalized = normalizeAttachmentAction(event)
+      this.emitter.emit('attachment_action', normalized)
+      this.emitter.emit('webex_event', normalized)
     }
     const onRoomCreated = (event: RoomActivity) => {
       if (!this.isCurrent(handler, generation)) return
-      this.emitter.emit('room_created', event)
-      this.emitter.emit('webex_event', event)
+      const normalized = normalizeRoomActivity(event)
+      this.emitter.emit('room_created', normalized)
+      this.emitter.emit('webex_event', normalized)
     }
     const onRoomUpdated = (event: RoomActivity) => {
       if (!this.isCurrent(handler, generation)) return
-      this.emitter.emit('room_updated', event)
-      this.emitter.emit('webex_event', event)
+      const normalized = normalizeRoomActivity(event)
+      this.emitter.emit('room_updated', normalized)
+      this.emitter.emit('webex_event', normalized)
     }
     const onConnected = () => {
       if (!this.isCurrent(handler, generation)) return
