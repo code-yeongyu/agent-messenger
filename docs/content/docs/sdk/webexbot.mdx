@@ -65,6 +65,8 @@ const dm = await client.sendDirectMessage('alice@example.com', 'Hey!')
 await client.sendDirectMessage('alice@example.com', '**Important**', { markdown: true })
 
 // List messages in a space (default limit: 50)
+// In group spaces, Webex only returns messages that mention the bot.
+// Direct-space history is returned normally.
 const messages = await client.listMessages(roomId)
 const limited = await client.listMessages(roomId, { max: 25 })
 // → WebexMessage[]

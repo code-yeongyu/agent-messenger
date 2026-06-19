@@ -109,6 +109,8 @@ agent-webexbot message dm alice@example.com "Hey, quick question"
 agent-webexbot message dm alice@example.com "**Build failed**" --markdown
 
 # List messages in a space
+# In group spaces, Webex only returns messages that mention the bot.
+# Direct-space history is returned normally.
 agent-webexbot message list <space-id>
 agent-webexbot message list <space-id> --max 50
 
