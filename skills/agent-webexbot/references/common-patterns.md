@@ -220,6 +220,124 @@ MESSAGE_ID="Y2lzY29zcGFyazovL..."
 agent-webexbot message delete "$MESSAGE_ID"
 ```
 
+## Thread Patterns
+
+### Pattern 12a: Reply in a Thread
+
+**Use case**: Keep a conversation organized under a parent message
+
+```bash
+#!/bin/bash
+
+SPACE_ID="Y2lzY29zcGFyazovL..."
+
+# Send a parent message and capture its ID
+PARENT=$(agent-webexbot message send "$SPACE_ID" "Deploy started" | jq -r '.id')
+
+# Reply within the thread
+agent-webexbot message reply "$SPACE_ID" "$PARENT" "Step 1 complete"
+
+# Equivalent using send --parent
+agent-webexbot message send "$SPACE_ID" "Step 2 complete" --parent "$PARENT"
+```
+
+### Pattern 12b: Read Thread Replies
+
+**Use case**: Fetch all replies under a parent message
+
+```bash
+#!/bin/bash
+
+SPACE_ID="Y2lzY29zcGFyazovL..."
+PARENT_ID="Y2lzY29zcGFyazovL..."
+
+agent-webexbot message replies "$SPACE_ID" "$PARENT_ID" --max 20 \
+  | jq -r '.messages[] | "[\(.created)] \(.personEmail): \(.text)"'
+```
+
+## File Patterns
+
+### Pattern 12c: Upload a File
+
+**Use case**: Attach a local file (report, log, image) to a space
+
+```bash
+#!/bin/bash
+
+SPACE_ID="Y2lzY29zcGFyazovL..."
+
+# Upload with an accompanying message
+agent-webexbot file upload "$SPACE_ID" ./coverage.html --text "Latest coverage report"
+
+# Upload as a threaded reply
+agent-webexbot file upload "$SPACE_ID" ./build.log --parent "$PARENT_ID"
+```
+
+**Note**: Max file size is 100 MB, one file per message.
+
+### Pattern 12d: Download an Attachment
+
+**Use case**: Save a file someone shared in a space
+
+```bash
+#!/bin/bash
+
+SPACE_ID="Y2lzY29zcGFyazovL..."
+
+# Get the content URL from a message's "files" array
+CONTENT_URL=$(agent-webexbot message list "$SPACE_ID" --max 20 \
+  | jq -r 'first(.messages[].files[]? // empty)')
+
+# Download (defaults to the original filename in the current directory)
+agent-webexbot file download "$CONTENT_URL"
+
+# Or choose an output path explicitly
+agent-webexbot file download "$CONTENT_URL" ./downloaded-report.html
+```
+
+**Security note**: Downloads are restricted to `https://webexapis.com/v1/contents/*` URLs — the bot token is never sent to other hosts. Server-provided filenames are reduced to their base name, so the default output always stays in the current directory.
+
+## People Patterns
+
+### Pattern 12e: Look Up a Person by Email
+
+**Use case**: Resolve a person ID or display name from an email address
+
+```bash
+#!/bin/bash
+
+agent-webexbot user list --email alice@example.com \
+  | jq -r '.users[] | "\(.displayName) — \(.id)"'
+```
+
+### Pattern 12f: Get Person Details
+
+**Use case**: Fetch full profile details for a known person ID
+
+```bash
+#!/bin/bash
+
+PERSON_ID="Y2lzY29zcGFyazovL..."
+
+agent-webexbot user info "$PERSON_ID" | jq '{displayName, emails, type}'
+```
+
+## Snapshot Patterns
+
+### Pattern 12g: Workspace Overview
+
+**Use case**: Give an AI agent a quick picture of the bot's workspace
+
+```bash
+#!/bin/bash
+
+# Brief: bot identity + space IDs/titles
+agent-webexbot snapshot
+
+# Full: includes space type and last activity
+agent-webexbot snapshot --full --max 50
+```
+
 ## Member Patterns
 
 ### Pattern 13: List Space Members
