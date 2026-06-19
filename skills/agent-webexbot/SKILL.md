@@ -1,6 +1,6 @@
 ---
 name: agent-webexbot
-description: Interact with Cisco Webex using bot tokens - send messages, read spaces, manage memberships, stream real-time events
+description: Interact with Cisco Webex using bot tokens - send messages, reply in threads, upload and download files, look up people, read spaces, manage memberships, stream real-time events
 version: 2.21.0
 allowed-tools: Bash(agent-webexbot:*)
 metadata:
@@ -172,6 +172,14 @@ agent-webexbot message send <space-id> "Hello world"
 # Send a markdown message
 agent-webexbot message send <space-id> "**Bold** and _italic_" --markdown
 
+# Reply within a thread (parent message ID)
+agent-webexbot message send <space-id> "Threaded reply" --parent <message-id>
+agent-webexbot message reply <space-id> <parent-message-id> "Threaded reply"
+
+# List replies in a thread
+agent-webexbot message replies <space-id> <parent-message-id>
+agent-webexbot message replies <space-id> <parent-message-id> --max 20
+
 # Send a direct message by email
 agent-webexbot message dm alice@example.com "Hey, quick question"
 agent-webexbot message dm alice@example.com "**Build failed**" --markdown
@@ -199,6 +207,51 @@ agent-webexbot message delete <message-id>
 # List members of a space
 agent-webexbot member list <space-id>
 agent-webexbot member list <space-id> --max 100
+```
+
+### User Commands
+
+Search the Webex people directory and look up person details.
+
+```bash
+# Search people by email (exact) or display name (prefix)
+agent-webexbot user list --email alice@example.com
+agent-webexbot user list --display-name "Alice"
+agent-webexbot user list --display-name "Al" --max 20
+
+# Get details for a specific person
+agent-webexbot user info <person-id>
+```
+
+### File Commands
+
+Upload local files to a space and download attachments. Max file size is 100 MB; one file per message.
+
+```bash
+# Upload a local file
+agent-webexbot file upload <space-id> ./report.pdf
+agent-webexbot file upload <space-id> ./report.pdf --text "Latest report"
+agent-webexbot file upload <space-id> ./report.pdf --text "**Done**" --markdown
+
+# Upload a file as a threaded reply
+agent-webexbot file upload <space-id> ./report.pdf --parent <message-id>
+
+# Download an attachment (content URL comes from a message's "files" array)
+agent-webexbot file download <content-url-or-id>
+agent-webexbot file download <content-url-or-id> ./downloaded-report.pdf
+```
+
+### Snapshot Command
+
+Get a workspace overview for AI agents.
+
+```bash
+# Brief snapshot (bot identity + space IDs/titles)
+agent-webexbot snapshot
+
+# Full snapshot (includes space type and last activity)
+agent-webexbot snapshot --full
+agent-webexbot snapshot --full --max 50
 ```
 
 ### Listen Command
@@ -314,9 +367,7 @@ Credentials stored in `~/.config/agent-messenger/webexbot-credentials.json` (060
 
 - Bot can only interact with spaces it has been added to
 - Bot can only edit/delete its own messages
-- No file upload or download
-- No reactions / emoji support
-- No thread support
+- No reactions / emoji support — the Webex public REST API does not expose a reactions endpoint, and reaction events are not delivered to bot webhooks
 - No message search
 - No voice/video or meeting support
 - No space management (create/delete spaces, roles)
