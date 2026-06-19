@@ -1,0 +1,290 @@
+---
+title: Webex Bot
+description: Complete reference for the agent-webexbot CLI.
+---
+
+> **Tip**: `agent-webexbot` is a shortcut for `agent-messenger webexbot`.
+
+## Overview
+
+`agent-webexbot` wraps the Webex REST API using **bot tokens** issued at [developer.webex.com](https://developer.webex.com). It's designed for server-side and CI/CD integrations where you want a persistent bot identity rather than a user session.
+
+For acting as a real user account (browser token extraction or OAuth Device Grant), use [`agent-webex`](./webex) instead.
+
+## Requirements
+
+- A bot token from [developer.webex.com](https://developer.webex.com/my-apps/new/bot)
+- Node.js 18+ or Bun runtime
+
+## Quick Start
+
+```bash
+# 1. Set your bot token (validates against Webex)
+agent-webexbot auth set YOUR_BOT_TOKEN
+
+# 2. Verify auth
+agent-webexbot whoami
+
+# 3. Send a message
+agent-webexbot message send <space-id> "Hello from the bot!"
+
+# 4. Stream real-time events
+agent-webexbot listen
+```
+
+## Authentication
+
+### Bot Token Setup
+
+Create a bot at [developer.webex.com → My Webex Apps → Create a Bot](https://developer.webex.com/my-apps/new/bot). The token is shown once at creation time — save it immediately. Bot tokens never expire.
+
+```bash
+# Set bot token (validates against Webex API before saving)
+agent-webexbot auth set YOUR_BOT_TOKEN
+
+# Set with a custom bot identifier for multi-bot setups
+agent-webexbot auth set YOUR_BOT_TOKEN --bot deploy
+
+# Check auth status
+agent-webexbot auth status
+
+# Clear all stored credentials
+agent-webexbot auth clear
+```
+
+Credentials are stored in `~/.config/agent-messenger/webexbot-credentials.json` (0600 permissions).
+
+### Multi-Bot Support
+
+```bash
+# List all configured bots
+agent-webexbot auth list
+
+# Switch active bot
+agent-webexbot auth use <bot-id>
+
+# Remove a stored bot
+agent-webexbot auth remove <bot-id>
+
+# Use a specific bot for a single command
+agent-webexbot --bot deploy message send <space-id> "Deploy succeeded"
+```
+
+## Commands
+
+### Whoami Command
+
+```bash
+# Show current authenticated bot
+agent-webexbot whoami
+agent-webexbot whoami --pretty
+```
+
+Output includes the bot's identity information from the Webex API.
+
+### Space Commands
+
+```bash
+# List spaces the bot is a member of
+agent-webexbot space list
+agent-webexbot space list --type group
+agent-webexbot space list --type direct
+agent-webexbot space list --max 20
+
+# Get space details
+agent-webexbot space info <space-id>
+```
+
+### Message Commands
+
+```bash
+# Send a message to a space
+agent-webexbot message send <space-id> "Hello world"
+
+# Send a markdown message
+agent-webexbot message send <space-id> "**Bold** and _italic_" --markdown
+
+# Send a direct message by email
+agent-webexbot message dm alice@example.com "Hey, quick question"
+agent-webexbot message dm alice@example.com "**Build failed**" --markdown
+
+# List messages in a space
+agent-webexbot message list <space-id>
+agent-webexbot message list <space-id> --max 50
+
+# Get a specific message
+agent-webexbot message get <message-id>
+
+# Edit a message (bot's own messages only)
+agent-webexbot message edit <message-id> <space-id> "Updated text"
+agent-webexbot message edit <message-id> <space-id> "**Updated**" --markdown
+
+# Delete a message
+agent-webexbot message delete <message-id>
+```
+
+### Member Commands
+
+```bash
+# List members of a space
+agent-webexbot member list <space-id>
+agent-webexbot member list <space-id> --max 100
+```
+
+### Listen Command
+
+Stream real-time Webex events over the Mercury WebSocket. No public URL required — works behind firewalls and in CI/CD environments.
+
+```bash
+# Listen for all default events (NDJSON output)
+agent-webexbot listen
+
+# Filter to specific events
+agent-webexbot listen --events message_created,membership_created
+
+# Pretty-print each event
+agent-webexbot listen --pretty
+
+# Use a specific bot
+agent-webexbot listen --bot deploy
+```
+
+Supported events:
+
+| Event                | Description                                 |
+| -------------------- | ------------------------------------------- |
+| `message_created`    | New message posted in a space the bot is in |
+| `message_updated`    | Existing message edited                     |
+| `message_deleted`    | Message deleted                             |
+| `membership_created` | Bot added to a new space                    |
+| `attachment_action`  | Adaptive card button clicked                |
+| `room_created`       | New space created                           |
+| `room_updated`       | Space details changed                       |
+| `webex_event`        | Catch-all — every content event             |
+| `connected`          | WebSocket connection established            |
+| `reconnecting`       | Reconnect attempt in progress               |
+| `disconnected`       | Connection dropped (will auto-reconnect)    |
+| `error`              | Connection error (auto-reconnect continues) |
+
+Default events (when `--events` is omitted): `message_created`, `message_updated`, `message_deleted`, `membership_created`, `attachment_action`, `connected`, `reconnecting`, `disconnected`, `error`.
+
+Output is NDJSON — one JSON object per line:
+
+```json
+{"type":"connected","payload":{"connected":true,"status":{"status":"connected","webSocketOpen":true,"kmsInitialized":true,"deviceRegistered":true,"reconnectAttempt":0}}}
+{"type":"message_created","payload":{"id":"Y2lz...","text":"Hello bot!","personEmail":"alice@example.com"}}
+```
+
+The listener filters the bot's own messages by default (`ignoreSelfMessages` defaults to `true`), preventing echo loops.
+
+## Global Options
+
+All commands support these options:
+
+```bash
+--pretty        # Pretty-print JSON output (default is compact JSON)
+--bot <id>      # Use a specific bot for this command
+```
+
+## Key Differences: Webex Bot vs Webex User
+
+| Feature            | agent-webex (user)                 | agent-webexbot (bot)            |
+| ------------------ | ---------------------------------- | ------------------------------- |
+| Token type         | Browser session / OAuth / PAT      | Bot token (developer.webex.com) |
+| Auth method        | Browser extraction or Device Grant | `auth set <token>` (manual)     |
+| Token lifetime     | Session-based or 14-day OAuth      | Never expires                   |
+| Messages appear as | You (your name)                    | Bot identity                    |
+| Real-time events   | No                                 | Yes (Mercury WebSocket)         |
+| CI/CD friendly     | Possible (bot token via `--token`) | Yes (designed for it)           |
+| Initiate DMs       | Yes                                | Yes (by email)                  |
+
+## Troubleshooting
+
+### "No credentials configured"
+
+No bot token stored. Set one first:
+
+```bash
+agent-webexbot auth set YOUR_BOT_TOKEN
+```
+
+### "Token is not a bot token"
+
+The token you provided belongs to a user account, not a bot. Use `agent-webex` for user tokens, or create a bot at [developer.webex.com](https://developer.webex.com/my-apps/new/bot) to get a proper bot token.
+
+### "401 Unauthorized"
+
+Bot tokens don't expire, so a 401 usually means the token was copied incorrectly or the bot was deleted. Double-check the full token, then re-run:
+
+```bash
+agent-webexbot auth set YOUR_BOT_TOKEN
+```
+
+### Bot can't see a space
+
+The bot must be added to each space it needs to interact with. Invite the bot from the Webex app, then retry.
+
+### Rate Limiting (429 Too Many Requests)
+
+Webex allows roughly 600 API calls per minute. Add delays between bulk operations:
+
+```bash
+sleep 1
+```
+
+### Space or Message Not Found
+
+Webex uses opaque Base64-encoded IDs. Always get IDs from `space list` first:
+
+```bash
+agent-webexbot space list --pretty
+```
+
+### `agent-webexbot: command not found`
+
+The npm package is `agent-messenger`, not `agent-webexbot`:
+
+```bash
+npm install -g agent-messenger
+```
+
+## AI Agent Integration
+
+See [`skills/agent-webexbot/`](https://github.com/agent-messenger/agent-messenger/tree/main/skills/agent-webexbot) for:
+
+- Complete skill documentation
+- Common patterns and runnable templates
+
+### Example: CI/CD Notifier
+
+```bash
+#!/bin/bash
+# Post build status to a Webex space
+
+SPACE_ID="Y2lzY29zcGFyazovL..."
+
+# Send initial status
+RESULT=$(agent-webexbot message send "$SPACE_ID" "Deploying v2.1.0...")
+MSG_ID=$(echo "$RESULT" | jq -r '.id')
+
+# ... do work ...
+
+# Update with final status
+agent-webexbot message edit "$MSG_ID" "$SPACE_ID" "Deployed v2.1.0 successfully!"
+```
+
+### Example: Real-Time Event Handler
+
+```bash
+#!/bin/bash
+# Stream events and react to messages
+
+agent-webexbot listen --events message_created | while read -r line; do
+  TEXT=$(echo "$line" | jq -r '.payload.text // ""')
+  SPACE=$(echo "$line" | jq -r '.payload.roomId // ""')
+
+  if echo "$TEXT" | grep -qi "status"; then
+    agent-webexbot message send "$SPACE" "All systems operational."
+  fi
+done
+```

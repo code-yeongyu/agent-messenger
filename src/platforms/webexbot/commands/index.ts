@@ -1,0 +1,6 @@
+export { authCommand } from './auth'
+export { listenCommand } from './listen'
+export { memberCommand } from './member'
+export { messageCommand } from './message'
+export { spaceCommand } from './space'
+export { whoamiCommand } from './whoami'
