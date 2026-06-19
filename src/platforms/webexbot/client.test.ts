@@ -1,6 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test'
 
 import { WebexBotClient } from './client'
+import { toRestId } from './id-normalizer'
 
 describe('WebexBotClient', () => {
   const originalFetch = globalThis.fetch
@@ -193,6 +194,129 @@ describe('WebexBotClient', () => {
       const result = await client.downloadContent('https://webexapis.com/v1/contents/c1')
 
       expect(result.filename).toBe('passwd')
+    })
+  })
+
+  describe('room cluster resolution', () => {
+    const roomUuid = '12345678-1234-1234-1234-1234567890ab'
+    const usRoomId = toRestId(roomUuid, 'ROOM')
+    const clusteredRoomId = Buffer.from(`ciscospark://urn:TEAM:us-west-2_r/ROOM/${roomUuid}`).toString('base64url')
+
+    const isRoomsList = (url: string) => new URL(url).pathname === '/v1/rooms'
+
+    const clusteredId = (uuid: string) =>
+      Buffer.from(`ciscospark://urn:TEAM:us-west-2_r/ROOM/${uuid}`).toString('base64url')
+
+    const mockRoomsPage = (items: unknown[], nextCursor?: string) => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (nextCursor) headers.Link = `<https://webexapis.com/v1/rooms?max=1000&before=${nextCursor}>; rel="next"`
+      fetchResponses.push(new Response(JSON.stringify({ items }), { status: 200, headers }))
+    }
+
+    it('rewrites a us-cluster roomId to the real urn:TEAM id before sending', async () => {
+      // given a non-default-cluster room only reachable via its clustered id
+      mockResponse({ items: [{ id: clusteredRoomId, title: 'Team', type: 'group' }] })
+      mockResponse({ id: 'msg-1', roomId: clusteredRoomId, roomType: 'group' })
+
+      // when sending to the us-flattened id the listener emitted
+      const client = await new WebexBotClient().login({ token: 'bot-token' })
+      await client.sendMessage(usRoomId, 'hello')
+
+      // then the lookup runs and the send targets the corrected clustered id
+      expect(isRoomsList(fetchCalls[0].url)).toBe(true)
+      const body = JSON.parse(fetchCalls[1].options?.body as string)
+      expect(body.roomId).toBe(clusteredRoomId)
+    })
+
+    it('routes listMemberships through the corrected clustered id', async () => {
+      mockResponse({ items: [{ id: clusteredRoomId, type: 'group' }] })
+      mockResponse({ items: [{ id: 'm1', roomId: clusteredRoomId, personId: 'p1' }] })
+
+      const client = await new WebexBotClient().login({ token: 'bot-token' })
+      await client.listMemberships(usRoomId)
+
+      const membershipsUrl = new URL(fetchCalls[1].url)
+      expect(membershipsUrl.pathname).toBe('/v1/memberships')
+      expect(membershipsUrl.searchParams.get('roomId')).toBe(clusteredRoomId)
+    })
+
+    it('routes listMessages and its space lookup through the corrected clustered id', async () => {
+      mockResponse({ items: [{ id: clusteredRoomId, type: 'group' }] })
+      mockResponse({ id: clusteredRoomId, title: 'Team', type: 'group' })
+      mockResponse({ items: [{ id: 'msg-1', roomId: clusteredRoomId, roomType: 'group' }] })
+
+      const client = await new WebexBotClient().login({ token: 'bot-token' })
+      await client.listMessages(usRoomId, { max: 5 })
+
+      expect(fetchCalls[1].url).toBe(`https://webexapis.com/v1/rooms/${clusteredRoomId}`)
+      const messagesUrl = new URL(fetchCalls[2].url)
+      expect(messagesUrl.searchParams.get('roomId')).toBe(clusteredRoomId)
+    })
+
+    it('passes an already-clustered roomId through without a lookup', async () => {
+      mockResponse({ id: 'msg-1', roomId: clusteredRoomId, roomType: 'group' })
+
+      const client = await new WebexBotClient().login({ token: 'bot-token' })
+      await client.sendMessage(clusteredRoomId, 'hi')
+
+      expect(fetchCalls).toHaveLength(1)
+      expect(new URL(fetchCalls[0].url).pathname).toBe('/v1/messages')
+      expect(JSON.parse(fetchCalls[0].options?.body as string).roomId).toBe(clusteredRoomId)
+    })
+
+    it('caches the resolution so repeated calls trigger one room lookup', async () => {
+      mockResponse({ items: [{ id: clusteredRoomId, type: 'group' }] })
+      mockResponse({ id: 'msg-1', roomId: clusteredRoomId })
+      mockResponse({ id: 'msg-2', roomId: clusteredRoomId })
+
+      const client = await new WebexBotClient().login({ token: 'bot-token' })
+      await client.sendMessage(usRoomId, 'a')
+      await client.sendMessage(usRoomId, 'b')
+
+      expect(fetchCalls.filter((c) => isRoomsList(c.url))).toHaveLength(1)
+    })
+
+    it('follows Link pages until the room is found on a later page', async () => {
+      // given the matching room is only on the second page
+      mockRoomsPage([{ id: clusteredId('00000000-0000-0000-0000-000000000000'), type: 'group' }], 'cursor1')
+      mockRoomsPage([{ id: clusteredRoomId, type: 'group' }])
+      mockResponse({ id: 'msg-1', roomId: clusteredRoomId, roomType: 'group' })
+
+      // when sending to a room not present on the first page
+      const client = await new WebexBotClient().login({ token: 'bot-token' })
+      await client.sendMessage(usRoomId, 'hi')
+
+      // then the second page is fetched via the Link cursor and the send targets the match
+      expect(isRoomsList(fetchCalls[0].url)).toBe(true)
+      expect(isRoomsList(fetchCalls[1].url)).toBe(true)
+      expect(fetchCalls[1].url).toContain('before=cursor1')
+      expect(JSON.parse(fetchCalls[2].options?.body as string).roomId).toBe(clusteredRoomId)
+    })
+
+    it('stops paging once the room is found and does not fetch later pages', async () => {
+      // given a first page that already contains the match but still advertises a next page
+      mockRoomsPage([{ id: clusteredRoomId, type: 'group' }], 'cursor1')
+      mockResponse({ id: 'msg-1', roomId: clusteredRoomId, roomType: 'group' })
+
+      const client = await new WebexBotClient().login({ token: 'bot-token' })
+      await client.sendMessage(usRoomId, 'hi')
+
+      // then only the first page is fetched (a second page fetch would hit the unmocked response and throw)
+      expect(fetchCalls.filter((c) => isRoomsList(c.url))).toHaveLength(1)
+      expect(JSON.parse(fetchCalls[1].options?.body as string).roomId).toBe(clusteredRoomId)
+    })
+
+    it('fails open to the un-clustered id and warns when no room matches', async () => {
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+      mockResponse({ items: [] })
+      mockResponse({ id: 'msg-1', roomId: usRoomId })
+
+      const client = await new WebexBotClient().login({ token: 'bot-token' })
+      await expect(client.sendMessage(usRoomId, 'x')).resolves.toBeDefined()
+
+      expect(JSON.parse(fetchCalls[1].options?.body as string).roomId).toBe(usRoomId)
+      expect(warnSpy).toHaveBeenCalled()
+      warnSpy.mockRestore()
     })
   })
 })
