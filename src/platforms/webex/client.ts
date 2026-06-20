@@ -46,7 +46,7 @@ export class WebexClient {
     this.tokenType = config?.tokenType ?? null
     await this.login({ token })
 
-    if (this.tokenType === 'extracted') {
+    if (this.tokenType === 'extracted' || this.tokenType === 'password') {
       const keysMap = new Map(Object.entries(config?.encryptionKeys ?? {}))
       this.encryption = new WebexEncryptionService(keysMap)
       const kmsProvider = new KmsKeyProvider({ token })
@@ -262,7 +262,7 @@ export class WebexClient {
   }
 
   private get useInternalAPI(): boolean {
-    return this.tokenType === 'extracted' && this.deviceUrl !== null
+    return (this.tokenType === 'extracted' || this.tokenType === 'password') && this.deviceUrl !== null
   }
 
   private get convBaseUrl(): string {

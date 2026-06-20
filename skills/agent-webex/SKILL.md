@@ -16,13 +16,16 @@ metadata:
 
 # Agent Webex
 
-A TypeScript CLI tool that enables AI agents and humans to interact with Cisco Webex through a simple command interface. Supports browser token extraction (zero-config, sends as you) and OAuth Device Grant flow.
+A TypeScript CLI tool that enables AI agents and humans to interact with Cisco Webex through a simple command interface. Supports browser token extraction (zero-config, sends as you), headless password login, and OAuth Device Grant flow.
 
 ## Quick Start
 
 ```bash
 # Extract token from browser (Chrome, Edge, Arc, Brave) — messages appear as you
 agent-webex auth extract
+
+# Or: Headless login with email/password — messages appear as you
+printf '%s' '<password>' | agent-webex auth login --email <email> --password-stdin
 
 # Or: Log in via OAuth Device Grant (opens browser, messages show "via agent-messenger")
 agent-webex auth login
@@ -39,10 +42,11 @@ agent-webex space list
 
 ## Authentication
 
-Webex supports two authentication methods:
+Webex supports three authentication methods:
 
 1. **Browser token extraction** (recommended): Extracts your first-party token from a Chromium browser where you're logged into web.webex.com. Messages appear as you — no "via" label.
-2. **OAuth Device Grant**: Opens a browser for you to authorize. Messages show "via agent-messenger" label.
+2. **Headless password login**: Exchanges Webex email/password for a first-party web token without opening a browser. Messages appear as you. Not supported for SSO/MFA accounts.
+3. **OAuth Device Grant**: Opens a browser for you to authorize. Messages show "via agent-messenger" label.
 
 ### Browser Token Extraction (Recommended)
 
@@ -67,6 +71,16 @@ agent-webex auth extract --browser-profile ~/work-profile --browser-profile ~/pe
 **How it works**: The Webex web client stores its authentication token in the browser's localStorage. This CLI reads it directly from the browser's LevelDB files — no browser automation, no password prompts. The token is stored locally in `~/.config/agent-messenger/`.
 
 **When to re-extract**: Browser tokens expire. When your token expires, re-run `agent-webex auth extract` or let auto-extraction handle it (the CLI attempts extraction automatically on each run).
+
+### Headless Password Login
+
+Use email/password login when no browser profile is available and the account does not require SSO or MFA.
+
+```bash
+printf '%s' '<password>' | agent-webex auth login --email <email> --password-stdin
+```
+
+This stores a refreshable first-party web token locally and supports encrypted messaging through the internal Webex API.
 
 ### OAuth Device Grant (Fallback)
 
@@ -105,6 +119,7 @@ If you passed `--client-id` / `--client-secret` (custom Webex Integration) on Ca
 Alternatives that skip the Device Grant flow entirely:
 
 - `agent-webex auth login --token <bot-or-personal-access-token>` — fully unattended, no human required.
+- `agent-webex auth login --email <email> --password-stdin` — headless first-party login for non-SSO, non-MFA accounts.
 - `agent-webex auth extract` — read an existing browser session token (no auth flow at all).
 
 Env vars `AGENT_WEBEX_CLIENT_ID` / `AGENT_WEBEX_CLIENT_SECRET` can also override the built-in credentials.
@@ -119,6 +134,9 @@ agent-webex auth login --client-id <id> --client-secret <secret>
 # Log in with a bot token
 agent-webex auth login --token <token>
 
+# Headless email/password login
+printf '%s' '<password>' | agent-webex auth login --email <email> --password-stdin
+
 # Check auth status
 agent-webex auth status
 
@@ -129,6 +147,7 @@ agent-webex auth logout
 ### Token Types
 
 - **Extracted (browser)**: First-party token from web.webex.com. Messages appear as you. Requires re-extraction when expired.
+- **Password**: First-party web token from headless email/password login. Messages appear as you. Not supported for SSO/MFA accounts.
 - **OAuth Device Grant**: Zero-config login. Access token auto-refreshes. Messages show "via agent-messenger".
 - **Bot Token**: Pass via `--token` flag. Never expires. Best for CI/CD.
 - **Custom Integration**: Pass `--client-id` + `--client-secret` or set env vars for your own Webex Integration.

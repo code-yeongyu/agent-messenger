@@ -2,12 +2,13 @@
 
 ## Overview
 
-agent-webex supports four authentication methods against the Webex REST API (`https://webexapis.com/v1`):
+agent-webex supports five authentication methods against the Webex REST API (`https://webexapis.com/v1`):
 
 1. **Browser Token Extraction**: Extracts your first-party token and cached encryption keys from a Chromium browser where you're logged into web.webex.com. Supports all operations including encrypted messaging via the internal API. Zero-config.
-2. **OAuth Device Grant** (recommended for messaging): Zero-config. Run `auth login`, approve in browser, done. Tokens refresh automatically. Supports all operations including sending messages (shows "via agent-messenger").
-3. **Bot Token**: Pass via `auth login --token`. Never expires. Best for CI/CD.
-4. **Personal Access Token (PAT)**: Pass via `auth login --token`. Expires in 12 hours. For quick testing.
+2. **Headless Password Login**: Exchanges email/password for a first-party web token without opening a browser. Supports encrypted messaging via the internal API. Not supported for SSO/MFA accounts.
+3. **OAuth Device Grant** (recommended for messaging): Zero-config. Run `auth login`, approve in browser, done. Tokens refresh automatically. Supports all operations including sending messages (shows "via agent-messenger").
+4. **Bot Token**: Pass via `auth login --token`. Never expires. Best for CI/CD.
+5. **Personal Access Token (PAT)**: Pass via `auth login --token`. Expires in 12 hours. For quick testing.
 
 ## Token Types
 
@@ -39,6 +40,19 @@ agent-webex auth extract --browser-profile "$HOME/work-profile,$HOME/personal-pr
 Use `--browser-profile <path>` for agent-browser profiles, custom Chrome user data dirs, or portable browser profiles. The option can be repeated or given comma-separated paths.
 
 **Limitations**: Direct messages (`message dm`) require an existing conversation with the recipient. The extracted token cannot create new 1:1 conversations — start one from the Webex app first, then use the CLI.
+
+### Headless Password Login
+
+Use this when a browser profile is unavailable and the Webex account accepts direct email/password login.
+
+- **How it works**: Run `agent-webex auth login --email <email> --password-stdin`. The CLI performs the Webex web OAuth + PKCE flow headlessly, registers a Webex device, and stores refreshable credentials.
+- **Auto-refresh**: The CLI refreshes expired access tokens using the stored web refresh token.
+- **End-to-end encryption**: Uses the internal Webex API with KMS key fetching, so messages appear as you without the "via" label.
+- **Limitations**: SSO and MFA accounts are not supported by this headless flow.
+
+```bash
+printf '%s' '<password>' | agent-webex auth login --email <email> --password-stdin
+```
 
 ### OAuth Device Grant
 
@@ -88,6 +102,9 @@ agent-webex auth login --token "YOUR_PAT_HERE"
 ```bash
 # Browser extraction (recommended — messages appear as you)
 agent-webex auth extract
+
+# Headless email/password login (messages appear as you)
+printf '%s' '<password>' | agent-webex auth login --email <email> --password-stdin
 
 # Device Grant (fallback — messages show "via agent-messenger")
 agent-webex auth login
@@ -174,6 +191,22 @@ OAuth credentials (from Device Grant):
   "clientId": "...",
   "clientSecret": "...",
   "tokenType": "oauth"
+}
+```
+
+Password credentials (from `auth login --email`):
+
+```json
+{
+  "accessToken": "...",
+  "refreshToken": "...",
+  "expiresAt": 1234567890,
+  "clientId": "...",
+  "clientSecret": "...",
+  "tokenType": "password",
+  "deviceUrl": "...",
+  "userId": "...",
+  "encryptionKeys": {}
 }
 ```
 

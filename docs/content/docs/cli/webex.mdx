@@ -59,6 +59,19 @@ This command:
 - Stores access and refresh tokens securely in `~/.config/agent-messenger/`
 - Auto-refreshes expired access tokens (14-day access, 90-day refresh)
 
+### Headless Email/Password (Server-side)
+
+Logs in with a Webex email and password — no browser. Useful for servers and CI/CD that need a real user token (e.g. for the real-time listener, which receives all space messages without an @mention). Pipe the password via stdin to keep it out of shell history.
+
+```bash
+printf '%s' "$WEBEX_PASSWORD" | agent-webex auth login --email you@example.com --password-stdin
+```
+
+- Discovers the user's Webex region, performs OAuth2 Authorization Code + PKCE against Cisco IdBroker, and stores access/refresh tokens in `~/.config/agent-messenger/`
+- Produces a KMS-scoped user token (client-side JWE/AES-256-GCM encryption works)
+- `--idbroker-host <host>` overrides region auto-discovery if needed
+- Accounts protected by SSO/IdP or MFA are not supported and fail with a clear error
+
 ### How Login Works
 
 1. Run `agent-webex auth extract` (recommended) or `agent-webex auth login` (fallback)
@@ -72,6 +85,7 @@ This command:
 | -------------------------------- | -------------------------------------------- | ------------------------------------ |
 | Browser Extraction (recommended) | Session-based (re-extract when expired)      | Interactive use, sending as yourself |
 | OAuth Device Grant               | 14-day access, 90-day refresh (auto-refresh) | Fallback when no browser session     |
+| Email/Password (headless)        | Access + refresh (auto-refresh)              | Server-side/CI without a browser     |
 | Bot Token                        | Never expires                                | CI/CD, long-running automation       |
 | Personal Access Token (PAT)      | 12 hours                                     | Quick testing                        |
 
@@ -86,6 +100,9 @@ agent-webex auth login
 
 # Log in with custom Integration credentials
 agent-webex auth login --client-id <id> --client-secret <secret>
+
+# Log in headlessly with an email and password (read from stdin)
+printf '%s' "$WEBEX_PASSWORD" | agent-webex auth login --email you@example.com --password-stdin
 
 # Log in with a bot token (never expires)
 agent-webex auth login --token <bot-token>

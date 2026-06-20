@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import { Command } from 'commander'
 
 import { collectBrowserProfileOption } from '@/shared/chromium'
@@ -9,6 +11,7 @@ import { info, debug } from '@/shared/utils/stderr'
 import { getWebexAppCredentials } from '../app-config'
 import { WebexClient } from '../client'
 import { WebexCredentialManager } from '../credential-manager'
+import { loginWithPassword, WEB_CLIENT_ID, WEB_CLIENT_SECRET } from '../password-login'
 import { WebexTokenExtractor } from '../token-extractor'
 import { WebexError } from '../types'
 
@@ -49,6 +52,10 @@ interface LoginOptions {
   deviceCode?: string
   clientId?: string
   clientSecret?: string
+  email?: string
+  password?: string
+  passwordStdin?: boolean
+  idbrokerHost?: string
   pretty?: boolean
 }
 
@@ -79,6 +86,11 @@ export async function loginAction(options: LoginOptions): Promise<void> {
 
     if (options.deviceCode) {
       await finishDeviceGrant(credManager, options)
+      return
+    }
+
+    if (options.email) {
+      await loginWithEmailPassword(credManager, options)
       return
     }
 
@@ -122,6 +134,45 @@ export async function loginAction(options: LoginOptions): Promise<void> {
   } catch (error) {
     handleError(error as Error)
   }
+}
+
+async function loginWithEmailPassword(credManager: WebexCredentialManager, options: LoginOptions): Promise<void> {
+  const password = await resolvePassword(options)
+  const config = await loginWithPassword(options.email!, password, { idbrokerHost: options.idbrokerHost })
+
+  await credManager.saveConfig({
+    ...config,
+    tokenType: 'password',
+    clientId: WEB_CLIENT_ID,
+    clientSecret: WEB_CLIENT_SECRET,
+    encryptionKeys: {},
+  })
+
+  const client = await new WebexClient().login({
+    token: config.accessToken,
+    deviceUrl: config.deviceUrl,
+    tokenType: 'password',
+  })
+  const person = await client.testAuth()
+
+  console.log(
+    formatOutput(
+      {
+        authenticated: true,
+        user: { id: person.id, displayName: person.displayName, emails: person.emails },
+      },
+      options.pretty,
+    ),
+  )
+}
+
+async function resolvePassword(options: LoginOptions): Promise<string> {
+  if (options.password && options.passwordStdin) {
+    throw new Error('Use only one of --password or --password-stdin.')
+  }
+  if (options.password) return options.password
+  if (options.passwordStdin) return readFileSync(0, 'utf-8').replace(/\r?\n$/, '')
+  throw new Error('--password or --password-stdin is required with --email.')
 }
 
 async function startNonInteractiveDeviceGrant(
@@ -379,6 +430,10 @@ export const authCommand = new Command('auth')
       )
       .option('--client-id <id>', 'Webex Integration client ID')
       .option('--client-secret <secret>', 'Webex Integration client secret')
+      .option('--email <email>', 'Log in headlessly with a Webex email address')
+      .option('--password <password>', 'Password for --email login')
+      .option('--password-stdin', 'Read password for --email login from stdin')
+      .option('--idbroker-host <host>', 'Override IdBroker host for --email login')
       .option('--pretty', 'Pretty print JSON output')
       .action(loginAction),
   )
