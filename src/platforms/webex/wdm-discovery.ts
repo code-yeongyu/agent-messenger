@@ -1,6 +1,6 @@
 import type { FetchFunction, FetchRequest, FetchResponse } from 'webex-message-handler'
 
-import { WebexBotError } from './types'
+import { WebexError } from './types'
 
 const U2C_CATALOG_URL = 'https://u2c.wbx2.com/u2c/api/v1/catalog?format=hostmap'
 const HARDCODED_WDM_DEVICES_URL = 'https://wdm-a.wbx2.com/wdm/api/v1/devices'
@@ -14,13 +14,13 @@ const HARDCODED_WDM_DEVICES_URL = 'https://wdm-a.wbx2.com/wdm/api/v1/devices'
 export async function discoverWdmDevicesUrl(token: string): Promise<string> {
   const response = await fetch(U2C_CATALOG_URL, { headers: { Authorization: `Bearer ${token}` } })
   if (!response.ok) {
-    throw new WebexBotError(`Failed to discover Webex WDM cluster: HTTP ${response.status}`, 'wdm_discovery_failed')
+    throw new WebexError(`Failed to discover Webex WDM cluster: HTTP ${response.status}`, 'wdm_discovery_failed')
   }
 
   const catalog = (await response.json()) as { serviceLinks?: { wdm?: string } }
   const wdm = catalog.serviceLinks?.wdm
   if (!wdm) {
-    throw new WebexBotError('Webex U2C catalog did not include serviceLinks.wdm', 'wdm_discovery_failed')
+    throw new WebexError('Webex U2C catalog did not include serviceLinks.wdm', 'wdm_discovery_failed')
   }
 
   return `${wdm.replace(/\/$/, '')}/devices`

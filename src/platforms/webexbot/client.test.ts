@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test'
 
+import { toRestId } from '../webex/id-normalizer'
 import { WebexBotClient } from './client'
-import { toRestId } from './id-normalizer'
 
 describe('WebexBotClient', () => {
   const originalFetch = globalThis.fetch

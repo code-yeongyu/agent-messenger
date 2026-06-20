@@ -69,6 +69,10 @@ export class WebexClient {
     await this.encryption?.close()
   }
 
+  getToken(): string {
+    return this.ensureAuth()
+  }
+
   private async persistEncryptionKey(
     credManager: WebexCredentialManager,
     keyUri: string,

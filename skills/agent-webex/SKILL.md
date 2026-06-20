@@ -411,13 +411,33 @@ const msg = await client.sendMessage(spaces[0].id, 'Hello from SDK!')
 await client.sendMessage(spaces[0].id, '**Status**: All systems go', { markdown: true })
 ```
 
+### Real-time Events
+
+The SDK provides a real-time `WebexListener` backed by Webex Mercury WebSocket.
+
+```typescript
+import { WebexClient, WebexListener } from 'agent-messenger/webex'
+
+const client = await new WebexClient().login()
+const listener = new WebexListener(client)
+
+listener.on('message_created', (event) => {
+  console.log(`New message in ${event.roomId}: ${event.text}`)
+})
+
+listener.on('membership_created', (event) => {
+  console.log(`Membership changed in ${event.roomId}: ${event.personId}`)
+})
+
+await listener.start()
+```
+
 ### Full API Reference
 
 See the [Webex SDK documentation](https://agent-messenger.dev/docs/sdk/webex) for complete method signatures, types, schemas, and examples.
 
 ## Limitations
 
-- No real-time events / WebSocket connection
 - No file upload or download
 - No reactions / emoji support
 - No thread support

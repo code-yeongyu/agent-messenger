@@ -231,6 +231,27 @@ listener.on('message', (event) => {
 await listener.start()
 ```
 
+### Real-time Events (Webex)
+
+Stream Webex messages, memberships, attachment actions, and room events over Mercury WebSocket.
+
+```typescript
+import { WebexClient, WebexListener } from 'agent-messenger/webex'
+
+const client = await new WebexClient().login()
+const listener = new WebexListener(client)
+
+listener.on('message_created', (event) => {
+  console.log(`New message in ${event.roomId}: ${event.text}`)
+})
+
+listener.on('membership_created', (event) => {
+  console.log(`Membership changed in ${event.roomId}: ${event.personId}`)
+})
+
+await listener.start()
+```
+
 ### Real-time Events (KakaoTalk)
 
 ```typescript
