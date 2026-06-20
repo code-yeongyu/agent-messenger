@@ -235,6 +235,18 @@ describe('auth commands', () => {
 
       expect(pwSpy).toHaveBeenCalledWith('alice@example.com', 'prompted-secret', { idbrokerHost: undefined })
     })
+
+    it('preserves whitespace in the prompted password', async () => {
+      promptQueue = ['  spaced secret  ']
+      const pwSpy = protoSpy(passwordLogin, 'loginWithPassword').mockResolvedValue(passwordConfig)
+      protoSpy(WebexCredentialManager.prototype, 'saveConfig').mockResolvedValue(undefined)
+      protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
+      protoSpy(WebexClient.prototype, 'testAuth').mockResolvedValue(mockPerson)
+
+      await loginAction({ email: 'alice@example.com', pretty: false })
+
+      expect(pwSpy).toHaveBeenCalledWith('alice@example.com', '  spaced secret  ', { idbrokerHost: undefined })
+    })
   })
 
   describe('loginAction non-interactive without credentials', () => {

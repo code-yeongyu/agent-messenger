@@ -58,7 +58,7 @@ async function promptHidden(message: string): Promise<string | undefined> {
     process.stdout.write(`${message}: `)
     const answer = await rl.question('')
     process.stdout.write('\n')
-    return answer.trim() || undefined
+    return answer === '' ? undefined : answer
   } finally {
     hiddenOutput.muted = false
     rl.close()
