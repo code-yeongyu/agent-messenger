@@ -60,6 +60,16 @@ describe('WebexClient', () => {
       await expect(new WebexClient().login({ token: '' })).rejects.toThrow('Token is required')
     })
 
+    it('returns the authenticated token', async () => {
+      const client = await new WebexClient().login({ token: 'test-token' })
+
+      expect(client.getToken()).toBe('test-token')
+    })
+
+    it('throws when reading token before login', () => {
+      expect(() => new WebexClient().getToken()).toThrow('Not authenticated. Call .login() first.')
+    })
+
     it('accepts deviceUrl and tokenType', async () => {
       const client = await new WebexClient().login({
         token: 'test-token',
