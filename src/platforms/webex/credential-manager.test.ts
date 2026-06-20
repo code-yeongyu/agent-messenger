@@ -326,6 +326,46 @@ describe('WebexCredentialManager', () => {
     globalThis.fetch = originalFetch
   })
 
+  it('getToken refreshes password tokens with stored web credentials', async () => {
+    const originalFetch = globalThis.fetch
+    let capturedBody = ''
+    globalThis.fetch = mock((_url: string, init?: RequestInit) => {
+      capturedBody = String(init?.body ?? '')
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            access_token: 'refreshed-password-token',
+            refresh_token: 'new-password-refresh',
+            expires_in: 3600,
+          }),
+          { status: 200 },
+        ),
+      )
+    }) as typeof fetch
+
+    await credManager.saveConfig({
+      accessToken: 'expired-password-token',
+      refreshToken: 'password-refresh',
+      expiresAt: Date.now() - 1000,
+      tokenType: 'password',
+      clientId: 'fake-client-id',
+      clientSecret: 'fake-client-secret',
+    })
+
+    const token = await credManager.getToken()
+    const params = new URLSearchParams(capturedBody)
+
+    expect(token).toBe('refreshed-password-token')
+    expect(params.get('client_id')).toBe('fake-client-id')
+    expect(params.get('client_secret')).toBe('fake-client-secret')
+
+    const config = await credManager.loadConfig()
+    expect(config?.tokenType).toBe('password')
+    expect(config?.accessToken).toBe('refreshed-password-token')
+
+    globalThis.fetch = originalFetch
+  })
+
   it('getToken returns expired extracted token when refresh fails', async () => {
     const originalFetch = globalThis.fetch
     globalThis.fetch = mock(() =>
