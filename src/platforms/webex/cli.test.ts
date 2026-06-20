@@ -20,6 +20,21 @@ describe('Webex CLI program structure', () => {
     expect(output).toContain('space')
   })
 
+  it('auth --help lists login and oauth subcommands', async () => {
+    const proc = spawn(['bun', 'run', './src/platforms/webex/cli.ts', 'auth', '--help'], {
+      cwd: process.cwd(),
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+
+    const output = await new Response(proc.stdout).text()
+
+    expect(output).toContain('login')
+    expect(output).toContain('oauth')
+    expect(output).toContain('extract')
+    expect(output).toContain('status')
+    expect(output).toContain('logout')
+  })
+
   it('--version shows package version', async () => {
     const proc = spawn(['bun', 'run', './src/platforms/webex/cli.ts', '--version'], {
       cwd: process.cwd(),
@@ -30,7 +45,7 @@ describe('Webex CLI program structure', () => {
     expect(output.trim()).toBe(pkg.version)
   })
 
-  it('auth login --help shows Device Grant options', async () => {
+  it('auth login --help shows email/password options', async () => {
     const proc = spawn(['bun', 'run', './src/platforms/webex/cli.ts', 'auth', 'login', '--help'], {
       cwd: process.cwd(),
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -38,7 +53,22 @@ describe('Webex CLI program structure', () => {
 
     const output = await new Response(proc.stdout).text()
 
+    expect(output).toContain('--email')
+    expect(output).toContain('--password')
+    expect(output).toContain('--password-stdin')
     expect(output).toContain('--token')
+    expect(output).toContain('--pretty')
+  })
+
+  it('auth oauth --help shows Device Grant options', async () => {
+    const proc = spawn(['bun', 'run', './src/platforms/webex/cli.ts', 'auth', 'oauth', '--help'], {
+      cwd: process.cwd(),
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+
+    const output = await new Response(proc.stdout).text()
+
+    expect(output).toContain('--device-code')
     expect(output).toContain('--client-id')
     expect(output).toContain('--client-secret')
     expect(output).toContain('--pretty')
