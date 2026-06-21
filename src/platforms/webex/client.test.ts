@@ -60,6 +60,16 @@ describe('WebexClient', () => {
       await expect(new WebexClient().login({ token: '' })).rejects.toThrow('Token is required')
     })
 
+    it('returns the authenticated token', async () => {
+      const client = await new WebexClient().login({ token: 'test-token' })
+
+      expect(client.getToken()).toBe('test-token')
+    })
+
+    it('throws when reading token before login', () => {
+      expect(() => new WebexClient().getToken()).toThrow('Not authenticated. Call .login() first.')
+    })
+
     it('accepts deviceUrl and tokenType', async () => {
       const client = await new WebexClient().login({
         token: 'test-token',
@@ -191,6 +201,53 @@ describe('WebexClient', () => {
     })
   })
 
+  describe('iterateSpaces', () => {
+    it('follows the Link header across pages and yields every room', async () => {
+      // given two pages chained by a rel="next" Link header
+      mockResponse({ items: [{ id: 'room1', title: 'One', type: 'group' }] }, 200, {
+        Link: '<https://webexapis.com/v1/rooms?max=1000&before=cursor1>; rel="next"',
+      })
+      mockResponse({ items: [{ id: 'room2', title: 'Two', type: 'group' }] })
+
+      const client = await new WebexClient().login({ token: 'test-token' })
+      const ids: string[] = []
+      for await (const room of client.iterateSpaces({ max: 1000 })) {
+        ids.push(room.id)
+      }
+
+      expect(ids).toEqual(['room1', 'room2'])
+      expect(fetchCalls[0].url).toContain('/rooms?max=1000')
+      expect(fetchCalls[1].url).toContain('before=cursor1')
+    })
+
+    it('stops after a single page when no next Link is present', async () => {
+      mockResponse({ items: [{ id: 'room1', title: 'One', type: 'group' }] })
+
+      const client = await new WebexClient().login({ token: 'test-token' })
+      const ids: string[] = []
+      for await (const room of client.iterateSpaces()) {
+        ids.push(room.id)
+      }
+
+      expect(ids).toEqual(['room1'])
+      expect(fetchCalls).toHaveLength(1)
+    })
+
+    it('stops consuming the generator early without fetching the next page', async () => {
+      mockResponse({ items: [{ id: 'room1', title: 'One', type: 'group' }] }, 200, {
+        Link: '<https://webexapis.com/v1/rooms?max=1000&before=cursor1>; rel="next"',
+      })
+
+      const client = await new WebexClient().login({ token: 'test-token' })
+      for await (const room of client.iterateSpaces({ max: 1000 })) {
+        expect(room.id).toBe('room1')
+        break
+      }
+
+      expect(fetchCalls).toHaveLength(1)
+    })
+  })
+
   describe('getSpace', () => {
     it('calls GET /rooms/{spaceId}', async () => {
       mockResponse({ id: 'room1', title: 'Test Room', type: 'group' })
@@ -273,6 +330,16 @@ describe('WebexClient', () => {
       await client.listMessages('room1', { max: 10 })
 
       expect(fetchCalls[0].url).toContain('max=10')
+    })
+
+    it('passes mentionedPeople when requested', async () => {
+      mockResponse({ items: [] })
+
+      const client = await new WebexClient().login({ token: 'test-token' })
+      await client.listMessages('room1', { max: 10, mentionedPeople: 'me' })
+
+      const url = new URL(fetchCalls[0].url)
+      expect(url.searchParams.get('mentionedPeople')).toBe('me')
     })
   })
 
