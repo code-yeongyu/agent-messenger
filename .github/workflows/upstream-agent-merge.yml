@@ -259,7 +259,13 @@ jobs:
           fi
 
           BRANCH="${{ steps.agent.outputs.branch }}"
-          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BRANCH:$BRANCH"
+          git fetch --quiet origin main
+          AHEAD_COUNT="$(git rev-list --count origin/main..HEAD)"
+          if [ "$AHEAD_COUNT" = "0" ]; then
+            echo "::error::Merge agent reported CLEAN_PR_READY, but HEAD has no commits ahead of origin/main."
+            exit 1
+          fi
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:$BRANCH"
 
           BODY_FILE=/tmp/upstream-pr-body.md
           {
