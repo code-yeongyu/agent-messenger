@@ -2,12 +2,13 @@
 
 ## Overview
 
-agent-webex supports four authentication methods against the Webex REST API (`https://webexapis.com/v1`):
+agent-webex supports five authentication methods against the Webex REST API (`https://webexapis.com/v1`):
 
 1. **Browser Token Extraction**: Extracts your first-party token and cached encryption keys from a Chromium browser where you're logged into web.webex.com. Supports all operations including encrypted messaging via the internal API. Zero-config.
-2. **OAuth Device Grant** (recommended for messaging): Zero-config. Run `auth login`, approve in browser, done. Tokens refresh automatically. Supports all operations including sending messages (shows "via agent-messenger").
-3. **Bot Token**: Pass via `auth login --token`. Never expires. Best for CI/CD.
-4. **Personal Access Token (PAT)**: Pass via `auth login --token`. Expires in 12 hours. For quick testing.
+2. **Email/Password Login**: Run `auth login` to exchange email/password for a first-party web token without opening a browser. Prompts for email and password when omitted (the password is read without echoing), or pass `--email`/`--password-stdin` for headless use. Supports encrypted messaging via the internal API. Not supported for SSO/MFA accounts.
+3. **OAuth Device Grant** (recommended for messaging): Zero-config. Run `auth oauth`, approve in browser, done. Tokens refresh automatically. Supports all operations including sending messages (shows "via agent-messenger").
+4. **Bot Token**: Pass via `auth login --token`. Never expires. Best for CI/CD.
+5. **Personal Access Token (PAT)**: Pass via `auth login --token`. Expires in 12 hours. For quick testing.
 
 ## Token Types
 
@@ -40,11 +41,31 @@ Use `--browser-profile <path>` for agent-browser profiles, custom Chrome user da
 
 **Limitations**: Direct messages (`message dm`) require an existing conversation with the recipient. The extracted token cannot create new 1:1 conversations — start one from the Webex app first, then use the CLI.
 
+### Email/Password Login
+
+Use this when a browser profile is unavailable and the Webex account accepts direct email/password login.
+
+- **How it works**: Run `agent-webex auth login`. With no flags in a terminal, the CLI prompts for your email and then your password (read without echoing). For headless use, pass `--email <email> --password-stdin` (or `--email <email>` alone to be prompted only for the password). The CLI performs the Webex web OAuth + PKCE flow headlessly, registers a Webex device, and stores refreshable credentials.
+- **Auto-refresh**: The CLI refreshes expired access tokens using the stored web refresh token.
+- **End-to-end encryption**: Uses the internal Webex API with KMS key fetching, so messages appear as you without the "via" label.
+- **Limitations**: SSO and MFA accounts are not supported by this headless flow.
+
+```bash
+# Interactive — prompts for email, then password (hidden)
+agent-webex auth login
+
+# Headless — provide the email and pipe the password from stdin
+printf '%s' '<password>' | agent-webex auth login --email <email> --password-stdin
+
+# Provide the email only — password is prompted securely
+agent-webex auth login --email <email>
+```
+
 ### OAuth Device Grant
 
 The fallback authentication method when browser extraction is unavailable. No credentials to copy, no developer portal setup required.
 
-- **How it works**: Run `agent-webex auth login`. The CLI requests a device code from Webex, opens your browser, and waits for you to approve. Once approved, access and refresh tokens are stored automatically.
+- **How it works**: Run `agent-webex auth oauth`. The CLI requests a device code from Webex, opens your browser, and waits for you to approve. Once approved, access and refresh tokens are stored automatically.
 - **Access token lifetime**: 14 days
 - **Refresh token lifetime**: 90 days
 - **Auto-refresh**: The CLI refreshes expired access tokens automatically using the stored refresh token. No manual intervention needed until the refresh token itself expires (90 days).
@@ -52,7 +73,7 @@ The fallback authentication method when browser extraction is unavailable. No cr
 - **Best for**: Interactive use, development, any scenario where a human can approve via browser
 
 ```bash
-agent-webex auth login
+agent-webex auth oauth
 ```
 
 The CLI ships with built-in Integration credentials so this works out of the box. You can override them with your own (see [Environment Variables](#environment-variables)).
@@ -89,11 +110,15 @@ agent-webex auth login --token "YOUR_PAT_HERE"
 # Browser extraction (recommended — messages appear as you)
 agent-webex auth extract
 
-# Device Grant (fallback — messages show "via agent-messenger")
+# Email/password login (messages appear as you; prompts when flags are omitted)
 agent-webex auth login
+printf '%s' '<password>' | agent-webex auth login --email <email> --password-stdin
 
-# With custom Integration credentials
-agent-webex auth login --client-id <id> --client-secret <secret>
+# Device Grant (fallback — messages show "via agent-messenger")
+agent-webex auth oauth
+
+# Device Grant with custom Integration credentials
+agent-webex auth oauth --client-id <id> --client-secret <secret>
 
 # Bot token
 agent-webex auth login --token <bot-token>
@@ -177,6 +202,22 @@ OAuth credentials (from Device Grant):
 }
 ```
 
+Password credentials (from `auth login --email`):
+
+```json
+{
+  "accessToken": "...",
+  "refreshToken": "...",
+  "expiresAt": 1234567890,
+  "clientId": "...",
+  "clientSecret": "...",
+  "tokenType": "password",
+  "deviceUrl": "...",
+  "userId": "...",
+  "encryptionKeys": {}
+}
+```
+
 Manual credentials (from `--token`):
 
 ```json
@@ -217,7 +258,7 @@ Browser-extracted tokens have no refresh mechanism — when they expire, re-extr
 ### OAuth Device Grant
 
 ```
-auth login -> Device code -> Browser approval -> Access token (14 days) + Refresh token (90 days)
+auth oauth -> Device code -> Browser approval -> Access token (14 days) + Refresh token (90 days)
                                                         |
                                                   Token expires
                                                         |
@@ -225,7 +266,7 @@ auth login -> Device code -> Browser approval -> Access token (14 days) + Refres
                                                         |
                                                   Refresh token expires (90 days)
                                                         |
-                                                  Re-run "auth login"
+                                                  Re-run "auth oauth"
 ```
 
 The CLI checks token expiry before each API call and refreshes automatically when needed. You won't notice this happening.
@@ -255,7 +296,7 @@ Override the built-in Integration credentials with your own:
 | `AGENT_WEBEX_CLIENT_ID` | Webex Integration client ID |
 | `AGENT_WEBEX_CLIENT_SECRET` | Webex Integration client secret |
 
-Both must be set together. When set, `auth login` (without `--token`) uses these instead of the built-in credentials.
+Both must be set together. When set, `auth oauth` uses these instead of the built-in credentials.
 
 Legacy aliases `AGENT_MESSENGER_WEBEX_CLIENT_ID` and `AGENT_MESSENGER_WEBEX_CLIENT_SECRET` are also supported.
 
@@ -273,7 +314,7 @@ agent-webex auth login
 
 Token is expired or invalid.
 
-**If using Device Grant**: The CLI auto-refreshes tokens, so this usually means the refresh token has expired (after 90 days). Run `agent-webex auth login` again.
+**If using Device Grant**: The CLI auto-refreshes tokens, so this usually means the refresh token has expired (after 90 days). Run `agent-webex auth oauth` again.
 
 **If using a PAT**: Generate a new one at https://developer.webex.com/docs/getting-started
 
@@ -293,7 +334,7 @@ The device code request was rejected. Possible causes:
 
 ### "Device authorization timed out"
 
-You didn't approve the request in the browser before the code expired. Run `auth login` again.
+You didn't approve the request in the browser before the code expired. Run `auth oauth` again.
 
 ### "Token validation failed"
 

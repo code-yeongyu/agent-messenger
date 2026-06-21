@@ -55,7 +55,7 @@ export interface WebexConfig {
   expiresAt: number
   clientId?: string
   clientSecret?: string
-  tokenType?: 'oauth' | 'manual' | 'extracted'
+  tokenType?: 'oauth' | 'manual' | 'extracted' | 'password'
   deviceUrl?: string
   userId?: string
   encryptionKeys?: Record<string, string>
@@ -126,7 +126,7 @@ export const WebexConfigSchema = z.object({
   expiresAt: z.number(),
   clientId: z.string().optional(),
   clientSecret: z.string().optional(),
-  tokenType: z.enum(['oauth', 'manual', 'extracted']).optional(),
+  tokenType: z.enum(['oauth', 'manual', 'extracted', 'password']).optional(),
   deviceUrl: z.string().optional(),
   userId: z.string().optional(),
   encryptionKeys: z.record(z.string(), z.string()).optional(),

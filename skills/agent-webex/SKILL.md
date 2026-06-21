@@ -1,7 +1,7 @@
 ---
 name: agent-webex
 description: Interact with Cisco Webex - send messages, read spaces, manage memberships
-version: 2.20.5
+version: 2.23.1
 allowed-tools: Bash(agent-webex:*)
 metadata:
   openclaw:
@@ -16,7 +16,7 @@ metadata:
 
 # Agent Webex
 
-A TypeScript CLI tool that enables AI agents and humans to interact with Cisco Webex through a simple command interface. Supports browser token extraction (zero-config, sends as you) and OAuth Device Grant flow.
+A TypeScript CLI tool that enables AI agents and humans to interact with Cisco Webex through a simple command interface. Supports browser token extraction (zero-config, sends as you), headless password login, and OAuth Device Grant flow.
 
 ## Quick Start
 
@@ -24,8 +24,12 @@ A TypeScript CLI tool that enables AI agents and humans to interact with Cisco W
 # Extract token from browser (Chrome, Edge, Arc, Brave) — messages appear as you
 agent-webex auth extract
 
-# Or: Log in via OAuth Device Grant (opens browser, messages show "via agent-messenger")
+# Or: Log in with email/password — messages appear as you (prompts when flags are omitted)
 agent-webex auth login
+printf '%s' '<password>' | agent-webex auth login --email <email> --password-stdin
+
+# Or: Log in via OAuth Device Grant (opens browser, messages show "via agent-messenger")
+agent-webex auth oauth
 
 # Get workspace snapshot
 agent-webex snapshot
@@ -39,10 +43,11 @@ agent-webex space list
 
 ## Authentication
 
-Webex supports two authentication methods:
+Webex supports three authentication methods:
 
-1. **Browser token extraction** (recommended): Extracts your first-party token from a Chromium browser where you're logged into web.webex.com. Messages appear as you — no "via" label.
-2. **OAuth Device Grant**: Opens a browser for you to authorize. Messages show "via agent-messenger" label.
+1. **Browser token extraction** (`auth extract`, recommended): Extracts your first-party token from a Chromium browser where you're logged into web.webex.com. Messages appear as you — no "via" label.
+2. **Email/password login** (`auth login`): Exchanges Webex email/password for a first-party web token without opening a browser. Run `auth login` with no flags to be prompted, or pass `--email`/`--password-stdin` for headless use. Messages appear as you. Not supported for SSO/MFA accounts.
+3. **OAuth Device Grant** (`auth oauth`): Opens a browser for you to authorize. Messages show "via agent-messenger" label.
 
 ### Browser Token Extraction (Recommended)
 
@@ -68,15 +73,32 @@ agent-webex auth extract --browser-profile ~/work-profile --browser-profile ~/pe
 
 **When to re-extract**: Browser tokens expire. When your token expires, re-run `agent-webex auth extract` or let auto-extraction handle it (the CLI attempts extraction automatically on each run).
 
+### Email/Password Login
+
+`agent-webex auth login` logs you in with your Webex email and password. Run it with no flags in a terminal to be prompted for your email and then your password (the password is read without echoing). Use email/password login when no browser profile is available and the account does not require SSO or MFA.
+
+```bash
+# Interactive — prompts for email, then password (hidden input)
+agent-webex auth login
+
+# Headless — provide the email and pipe the password from stdin (keeps it out of shell history)
+printf '%s' '<password>' | agent-webex auth login --email <email> --password-stdin
+
+# Provide the email only — the password is prompted securely when omitted
+agent-webex auth login --email <email>
+```
+
+This stores a refreshable first-party web token locally and supports encrypted messaging through the internal Webex API. Pass `--token <bot-or-personal-access-token>` to log in with a bot token or PAT instead.
+
 ### OAuth Device Grant (Fallback)
 
-`agent-webex auth login` starts the Device Grant flow: it displays a verification URL and user code, then opens the browser. You enter the code at the verification page and approve access. The CLI polls for the token automatically. Access and refresh tokens are stored locally, and the access token auto-refreshes via the refresh token.
+`agent-webex auth oauth` starts the Device Grant flow: it displays a verification URL and user code, then opens the browser. You enter the code at the verification page and approve access. The CLI polls for the token automatically. Access and refresh tokens are stored locally, and the access token auto-refreshes via the refresh token.
 
 Note: Messages sent via OAuth Device Grant show "via agent-messenger" because the token is associated with a third-party Webex Integration.
 
-Optionally, pass `--token <bot-token>` for bot token auth. Or pass `--client-id <id> --client-secret <secret>` to use your own Webex Integration credentials instead of the built-in ones.
+Optionally, pass `--client-id <id> --client-secret <secret>` to use your own Webex Integration credentials instead of the built-in ones.
 
-**For AI agents (non-TTY)**: `agent-webex auth login` exposes the OAuth Device Grant flow as a stateless two-call sequence — no hangs, no polling loops, no on-disk state. Just structured JSON every time.
+**For AI agents (non-TTY)**: `agent-webex auth oauth` exposes the OAuth Device Grant flow as a stateless two-call sequence — no hangs, no polling loops, no on-disk state. Just structured JSON every time.
 
 **Call 1** (no `--device-code` passed): the command requests a device code from Webex and returns immediately:
 
@@ -98,23 +120,28 @@ Show the user `verification_uri_complete` (or `verification_uri` + `user_code`) 
 
 - **Success** — returns `{ "authenticated": true, "user": { ... } }`, exit 0.
 - **Still pending** — returns `{ "next_action": "still_pending", "device_code": "...", ... }`, exit 0. The user has not approved yet; confirm with them and retry with the same `--device-code` value.
-- **Expired / failed** — returns `{ "next_action": "restart", "error": "..." }`, exit 1. The device code is no longer usable; start over with another `agent-webex auth login` (no flags) to get a fresh one.
+- **Expired / failed** — returns `{ "next_action": "restart", "error": "..." }`, exit 1. The device code is no longer usable; start over with another `agent-webex auth oauth` (no flags) to get a fresh one.
 
 If you passed `--client-id` / `--client-secret` (custom Webex Integration) on Call 1, pass them again on Call 2.
 
 Alternatives that skip the Device Grant flow entirely:
 
 - `agent-webex auth login --token <bot-or-personal-access-token>` — fully unattended, no human required.
+- `agent-webex auth login --email <email> --password-stdin` — headless first-party login for non-SSO, non-MFA accounts.
 - `agent-webex auth extract` — read an existing browser session token (no auth flow at all).
 
 Env vars `AGENT_WEBEX_CLIENT_ID` / `AGENT_WEBEX_CLIENT_SECRET` can also override the built-in credentials.
 
 ```bash
-# Log in (Device Grant flow, opens browser)
+# Log in with email/password (prompts when flags are omitted)
 agent-webex auth login
+printf '%s' '<password>' | agent-webex auth login --email <email> --password-stdin
 
-# Log in with custom Integration credentials
-agent-webex auth login --client-id <id> --client-secret <secret>
+# Log in via OAuth Device Grant (opens browser)
+agent-webex auth oauth
+
+# Log in via OAuth with custom Integration credentials
+agent-webex auth oauth --client-id <id> --client-secret <secret>
 
 # Log in with a bot token
 agent-webex auth login --token <token>
@@ -129,11 +156,12 @@ agent-webex auth logout
 ### Token Types
 
 - **Extracted (browser)**: First-party token from web.webex.com. Messages appear as you. Requires re-extraction when expired.
+- **Password**: First-party web token from headless email/password login. Messages appear as you. Not supported for SSO/MFA accounts.
 - **OAuth Device Grant**: Zero-config login. Access token auto-refreshes. Messages show "via agent-messenger".
 - **Bot Token**: Pass via `--token` flag. Never expires. Best for CI/CD.
 - **Custom Integration**: Pass `--client-id` + `--client-secret` or set env vars for your own Webex Integration.
 
-**IMPORTANT**: NEVER guide the user to open a web browser, use DevTools, or manually copy tokens from a browser's network inspector. Always use `agent-webex auth extract` or `agent-webex auth login` for authentication.
+**IMPORTANT**: NEVER guide the user to open a web browser, use DevTools, or manually copy tokens from a browser's network inspector. Always use `agent-webex auth extract`, `agent-webex auth login`, or `agent-webex auth oauth` for authentication.
 
 For detailed token management, see [references/authentication.md](references/authentication.md).
 
@@ -209,14 +237,18 @@ If a memorized ID returns an error (space not found, member not found), remove i
 ### Auth Commands
 
 ```bash
-# Log in (Device Grant flow, opens browser)
+# Log in with email/password (prompts when flags are omitted)
 agent-webex auth login
-
-# Log in with custom Integration credentials
-agent-webex auth login --client-id <id> --client-secret <secret>
+printf '%s' '<password>' | agent-webex auth login --email <email> --password-stdin
 
 # Log in with a bot token
 agent-webex auth login --token <token>
+
+# Log in via OAuth Device Grant (opens browser)
+agent-webex auth oauth
+
+# Log in via OAuth with custom Integration credentials
+agent-webex auth oauth --client-id <id> --client-secret <secret>
 
 # Check auth status
 agent-webex auth status
@@ -346,7 +378,7 @@ All commands return consistent error format:
 Common errors:
 
 - `Not authenticated`: No valid token. Run `auth login` first
-- `Device authorization timed out`: User didn't complete verification in time. Run `auth login` again.
+- `Device authorization timed out`: User didn't complete verification in time. Run `auth oauth` again.
 - `401 Unauthorized`: Token expired or invalid. Re-run `auth login`
 - `429 Too Many Requests`: Rate limited. Wait and retry (Webex allows ~600 requests per minute)
 - `404 Not Found`: Invalid space ID, message ID, or resource
@@ -397,13 +429,33 @@ const msg = await client.sendMessage(spaces[0].id, 'Hello from SDK!')
 await client.sendMessage(spaces[0].id, '**Status**: All systems go', { markdown: true })
 ```
 
+### Real-time Events
+
+The SDK provides a real-time `WebexListener` backed by Webex Mercury WebSocket.
+
+```typescript
+import { WebexClient, WebexListener } from 'agent-messenger/webex'
+
+const client = await new WebexClient().login()
+const listener = new WebexListener(client)
+
+listener.on('message_created', (event) => {
+  console.log(`New message in ${event.roomId}: ${event.text}`)
+})
+
+listener.on('membership_created', (event) => {
+  console.log(`Membership changed in ${event.roomId}: ${event.personId}`)
+})
+
+await listener.start()
+```
+
 ### Full API Reference
 
 See the [Webex SDK documentation](https://agent-messenger.dev/docs/sdk/webex) for complete method signatures, types, schemas, and examples.
 
 ## Limitations
 
-- No real-time events / WebSocket connection
 - No file upload or download
 - No reactions / emoji support
 - No thread support
@@ -415,10 +467,12 @@ See the [Webex SDK documentation](https://agent-messenger.dev/docs/sdk/webex) fo
 
 ### Token refresh failed
 
-OAuth tokens auto-refresh, so expiration is handled automatically. If a refresh fails (revoked access, network issues), re-run:
+OAuth tokens auto-refresh, so expiration is handled automatically. If a refresh fails (revoked access, network issues), re-run the login method you used:
 
 ```bash
-agent-webex auth login
+agent-webex auth oauth     # OAuth Device Grant
+agent-webex auth login     # email/password
+agent-webex auth extract   # browser token
 ```
 
 Bot tokens never expire and don't need refreshing.
