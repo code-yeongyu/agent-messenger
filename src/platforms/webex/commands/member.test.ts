@@ -12,8 +12,11 @@ const person2Id = restId('PEOPLE', 'person-2')
 const mockMembers = [
   {
     id: member1Id,
+    ref: 'person-1:room-1',
     roomId: 'room-1',
+    roomRef: 'room-1',
     personId: person1Id,
+    personRef: 'person-1',
     personEmail: 'alice@example.com',
     personDisplayName: 'Alice',
     isModerator: true,
@@ -21,8 +24,11 @@ const mockMembers = [
   },
   {
     id: member2Id,
+    ref: 'person-2:room-1',
     roomId: 'room-1',
+    roomRef: 'room-1',
     personId: person2Id,
+    personRef: 'person-2',
     personEmail: 'bob@example.com',
     personDisplayName: 'Bob',
     isModerator: false,
