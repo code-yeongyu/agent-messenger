@@ -1,12 +1,15 @@
 export interface UnifiedChannel {
   id: string
+  ref?: string
   name: string
   parentId?: string
 }
 
 export interface UnifiedMessage {
   id: string
+  ref?: string
   channelId: string
+  channelRef?: string
   author: string
   content: string
   timestamp: string

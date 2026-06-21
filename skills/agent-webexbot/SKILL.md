@@ -246,7 +246,7 @@ agent-webexbot file download <content-url-or-id> ./downloaded-report.pdf
 Get a workspace overview for AI agents.
 
 ```bash
-# Brief snapshot (bot identity + space IDs/titles)
+# Brief snapshot (bot identity + space ids/refs/titles)
 agent-webexbot snapshot
 
 # Full snapshot (includes space type and last activity)

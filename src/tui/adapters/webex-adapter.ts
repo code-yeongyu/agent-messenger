@@ -3,6 +3,7 @@ import { exec } from 'node:child_process'
 import { getWebexAppCredentials } from '@/platforms/webex/app-config'
 import { WebexClient } from '@/platforms/webex/client'
 import { WebexCredentialManager } from '@/platforms/webex/credential-manager'
+import { toRef } from '@/platforms/webex/id-normalizer'
 
 import type { AuthHint, AuthIO, PlatformAdapter, UnifiedChannel, UnifiedMessage } from './types'
 
@@ -25,6 +26,7 @@ export class WebexAdapter implements PlatformAdapter {
     const spaces = await this.client!.listSpaces()
     return spaces.map((space) => ({
       id: space.id,
+      ref: toRef(space.id),
       name: space.title,
     }))
   }
@@ -35,7 +37,9 @@ export class WebexAdapter implements PlatformAdapter {
     return messages
       .map((msg) => ({
         id: msg.id,
+        ref: toRef(msg.id),
         channelId: msg.roomId,
+        channelRef: toRef(msg.roomId),
         author: msg.personEmail,
         content: msg.text ?? '',
         timestamp: msg.created,

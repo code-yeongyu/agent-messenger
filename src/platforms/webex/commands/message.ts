@@ -4,12 +4,15 @@ import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
 import { WebexClient } from '../client'
+import { toRef } from '../id-normalizer'
 import type { WebexMessage } from '../types'
 
 function formatMessageOutput(message: WebexMessage) {
   return {
     id: message.id,
+    ref: toRef(message.id),
     roomId: message.roomId,
+    roomRef: toRef(message.roomId),
     text: message.text,
     html: message.html,
     personEmail: message.personEmail,

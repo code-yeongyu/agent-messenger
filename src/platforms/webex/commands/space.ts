@@ -4,6 +4,7 @@ import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
 import { WebexClient } from '../client'
+import { toRef } from '../id-normalizer'
 
 export async function listAction(options: { type?: string; limit?: number; pretty?: boolean }): Promise<void> {
   try {
@@ -11,6 +12,7 @@ export async function listAction(options: { type?: string; limit?: number; prett
     const spaces = await client.listSpaces({ type: options.type, max: options.limit })
     const output = spaces.map((s) => ({
       id: s.id,
+      ref: toRef(s.id),
       title: s.title,
       type: s.type,
       lastActivity: s.lastActivity,
@@ -28,13 +30,16 @@ export async function infoAction(spaceId: string, options: { pretty?: boolean })
     const space = await client.getSpace(spaceId)
     const output = {
       id: space.id,
+      ref: toRef(space.id),
       title: space.title,
       type: space.type,
       isLocked: space.isLocked,
       teamId: space.teamId || null,
+      teamRef: space.teamId ? toRef(space.teamId) : null,
       lastActivity: space.lastActivity,
       created: space.created,
       creatorId: space.creatorId,
+      creatorRef: toRef(space.creatorId),
     }
     console.log(formatOutput(output, options.pretty))
   } catch (error) {

@@ -2,17 +2,20 @@ import { Command } from 'commander'
 
 import { cliOutput } from '@/shared/utils/cli-output'
 
+import { toRef } from '../../webex/id-normalizer'
 import type { BotOption } from './shared'
 import { getClient } from './shared'
 
 interface SnapshotResult {
   bot?: {
     id: string
+    ref: string
     displayName: string
     emails: string[]
   }
   spaces?: Array<{
     id: string
+    ref: string
     title: string
     type?: 'group' | 'direct'
     lastActivity?: string
@@ -31,12 +34,19 @@ export async function snapshotAction(options: BotOption & { full?: boolean; max?
     const result: SnapshotResult = {
       bot: {
         id: me.id,
+        ref: toRef(me.id),
         displayName: me.displayName,
         emails: me.emails,
       },
       spaces: options.full
-        ? spaces.map((s) => ({ id: s.id, title: s.title, type: s.type, lastActivity: s.lastActivity }))
-        : spaces.map((s) => ({ id: s.id, title: s.title })),
+        ? spaces.map((s) => ({
+            id: s.id,
+            ref: toRef(s.id),
+            title: s.title,
+            type: s.type,
+            lastActivity: s.lastActivity,
+          }))
+        : spaces.map((s) => ({ id: s.id, ref: toRef(s.id), title: s.title })),
     }
 
     if (!options.full) {

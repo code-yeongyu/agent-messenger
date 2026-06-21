@@ -4,6 +4,7 @@ import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
 import { WebexClient } from '../client'
+import { toRef } from '../id-normalizer'
 
 export async function whoamiAction(options: { pretty?: boolean }): Promise<void> {
   try {
@@ -12,6 +13,7 @@ export async function whoamiAction(options: { pretty?: boolean }): Promise<void>
 
     const output = {
       id: user.id,
+      ref: toRef(user.id),
       emails: user.emails,
       displayName: user.displayName,
       nickName: user.nickName,
@@ -19,6 +21,7 @@ export async function whoamiAction(options: { pretty?: boolean }): Promise<void>
       lastName: user.lastName,
       avatar: user.avatar,
       orgId: user.orgId,
+      orgRef: toRef(user.orgId),
       type: user.type,
     }
     console.log(formatOutput(output, options.pretty))
