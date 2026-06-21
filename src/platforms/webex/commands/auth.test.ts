@@ -1,11 +1,21 @@
-import { afterEach, beforeEach, describe, expect, spyOn, it } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, mock, spyOn, it } from 'bun:test'
 import * as childProcess from 'node:child_process'
+import * as fs from 'node:fs'
 
 import { WebexClient } from '../client'
 import { WebexCredentialManager } from '../credential-manager'
+import * as passwordLogin from '../password-login'
 import { WebexTokenExtractor } from '../token-extractor'
 import { WebexError } from '../types'
-import { extractAction, loginAction, logoutAction, statusAction } from './auth'
+import { extractAction, loginAction, logoutAction, oauthAction, statusAction } from './auth'
+
+let promptQueue: string[] = []
+mock.module('node:readline/promises', () => ({
+  createInterface: () => ({
+    question: async () => promptQueue.shift() ?? '',
+    close: () => {},
+  }),
+}))
 
 class ProcessExit extends Error {
   constructor(readonly code?: string | number | null) {
@@ -18,6 +28,7 @@ describe('auth commands', () => {
   let consoleErrorSpy: ReturnType<typeof spyOn>
   let execSpy: ReturnType<typeof spyOn>
   let stderrWriteSpy: ReturnType<typeof spyOn>
+  let stdoutWriteSpy: ReturnType<typeof spyOn>
   const protoSpies: ReturnType<typeof spyOn>[] = []
   let originalStdinTTY: boolean | undefined
   let originalStdoutTTY: boolean | undefined
@@ -42,10 +53,12 @@ describe('auth commands', () => {
   }
 
   beforeEach(() => {
+    promptQueue = []
     consoleSpy = spyOn(console, 'log').mockImplementation(() => {})
     consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {})
     execSpy = spyOn(childProcess, 'exec').mockImplementation((() => {}) as any)
     stderrWriteSpy = spyOn(process.stderr, 'write').mockImplementation(() => true)
+    stdoutWriteSpy = spyOn(process.stdout, 'write').mockImplementation(() => true)
     originalStdinTTY = process.stdin.isTTY
     originalStdoutTTY = process.stdout.isTTY
     // Default to interactive TTY for existing tests; non-interactive tests override.
@@ -62,6 +75,7 @@ describe('auth commands', () => {
     consoleErrorSpy.mockRestore()
     execSpy.mockRestore()
     stderrWriteSpy.mockRestore()
+    stdoutWriteSpy.mockRestore()
     for (const s of protoSpies) s.mockRestore()
     protoSpies.length = 0
     setTTY(originalStdinTTY)
@@ -99,9 +113,170 @@ describe('auth commands', () => {
       expect(savedConfig.expiresAt).toBe(0)
       expect(savedConfig.refreshToken).toBe('')
     })
+
+    it('still allows --token login when non-interactive (bot/PAT path)', async () => {
+      setTTY(false)
+      protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
+      protoSpy(WebexClient.prototype, 'testAuth').mockResolvedValue(mockPerson)
+      protoSpy(WebexCredentialManager.prototype, 'saveConfig').mockResolvedValue(undefined)
+
+      await loginAction({ token: 'bot-token-123', pretty: false })
+
+      const lastCall = consoleSpy.mock.calls[consoleSpy.mock.calls.length - 1][0] as string
+      const output = JSON.parse(lastCall)
+      expect(output.authenticated).toBe(true)
+      expect(output.user.displayName).toBe('Test User')
+    })
   })
 
-  describe('loginAction with --client-id and --client-secret', () => {
+  describe('loginAction with --email/--password', () => {
+    const passwordConfig = {
+      accessToken: 'pw-access-token',
+      refreshToken: 'pw-refresh-token',
+      expiresAt: Date.now() + 3_600_000,
+      deviceUrl: 'https://wdm-r.wbx2.com/wdm/api/v1/devices/test-device',
+      userId: 'user-1',
+    }
+
+    it('logs in with email/password and saves the password token type', async () => {
+      const pwSpy = protoSpy(passwordLogin, 'loginWithPassword').mockResolvedValue(passwordConfig)
+      const saveSpy = protoSpy(WebexCredentialManager.prototype, 'saveConfig').mockResolvedValue(undefined)
+      protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
+      protoSpy(WebexClient.prototype, 'testAuth').mockResolvedValue(mockPerson)
+
+      await loginAction({ email: 'alice@example.com', password: 'hunter2', pretty: false })
+
+      expect(pwSpy).toHaveBeenCalledWith('alice@example.com', 'hunter2', { idbrokerHost: undefined })
+      const savedConfig = saveSpy.mock.calls[0][0] as { tokenType: string; clientId: string }
+      expect(savedConfig.tokenType).toBe('password')
+      expect(savedConfig.clientId).toBe(passwordLogin.WEB_CLIENT_ID)
+
+      const lastCall = consoleSpy.mock.calls[consoleSpy.mock.calls.length - 1][0] as string
+      const output = JSON.parse(lastCall)
+      expect(output.authenticated).toBe(true)
+      expect(output.user.displayName).toBe('Test User')
+    })
+
+    it('forwards --idbroker-host to the password login flow', async () => {
+      const pwSpy = protoSpy(passwordLogin, 'loginWithPassword').mockResolvedValue(passwordConfig)
+      protoSpy(WebexCredentialManager.prototype, 'saveConfig').mockResolvedValue(undefined)
+      protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
+      protoSpy(WebexClient.prototype, 'testAuth').mockResolvedValue(mockPerson)
+
+      await loginAction({
+        email: 'alice@example.com',
+        password: 'hunter2',
+        idbrokerHost: 'https://idbroker.example.com',
+        pretty: false,
+      })
+
+      expect(pwSpy).toHaveBeenCalledWith('alice@example.com', 'hunter2', {
+        idbrokerHost: 'https://idbroker.example.com',
+      })
+    })
+
+    it('reads the password from stdin with --password-stdin', async () => {
+      const pwSpy = protoSpy(passwordLogin, 'loginWithPassword').mockResolvedValue(passwordConfig)
+      protoSpy(fs, 'readFileSync').mockReturnValue('stdin-secret\n')
+      protoSpy(WebexCredentialManager.prototype, 'saveConfig').mockResolvedValue(undefined)
+      protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
+      protoSpy(WebexClient.prototype, 'testAuth').mockResolvedValue(mockPerson)
+
+      await loginAction({ email: 'alice@example.com', passwordStdin: true, pretty: false })
+
+      expect(pwSpy).toHaveBeenCalledWith('alice@example.com', 'stdin-secret', { idbrokerHost: undefined })
+    })
+
+    it('rejects passing both --password and --password-stdin', async () => {
+      const exitSpy = protoSpy(process, 'exit').mockImplementation((code?: string | number | null) => {
+        throw new ProcessExit(code)
+      })
+
+      await expect(
+        loginAction({ email: 'alice@example.com', password: 'p', passwordStdin: true, pretty: false }),
+      ).rejects.toThrow(ProcessExit)
+
+      const lastCall = stderrWriteSpy.mock.calls[stderrWriteSpy.mock.calls.length - 1][0] as string
+      const output = JSON.parse(lastCall)
+      expect(output.error).toContain('Use only one of --password or --password-stdin')
+      expect(exitSpy).toHaveBeenCalledWith(1)
+    })
+  })
+
+  describe('loginAction interactive prompts', () => {
+    const passwordConfig = {
+      accessToken: 'pw-access-token',
+      refreshToken: 'pw-refresh-token',
+      expiresAt: Date.now() + 3_600_000,
+      deviceUrl: 'https://wdm-r.wbx2.com/wdm/api/v1/devices/test-device',
+      userId: 'user-1',
+    }
+
+    it('prompts for email and password when none are provided', async () => {
+      promptQueue = ['alice@example.com', 'prompted-secret']
+      const pwSpy = protoSpy(passwordLogin, 'loginWithPassword').mockResolvedValue(passwordConfig)
+      protoSpy(WebexCredentialManager.prototype, 'saveConfig').mockResolvedValue(undefined)
+      protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
+      protoSpy(WebexClient.prototype, 'testAuth').mockResolvedValue(mockPerson)
+
+      await loginAction({ pretty: false })
+
+      expect(pwSpy).toHaveBeenCalledWith('alice@example.com', 'prompted-secret', { idbrokerHost: undefined })
+    })
+
+    it('prompts only for the password when --email is provided without a password', async () => {
+      promptQueue = ['prompted-secret']
+      const pwSpy = protoSpy(passwordLogin, 'loginWithPassword').mockResolvedValue(passwordConfig)
+      protoSpy(WebexCredentialManager.prototype, 'saveConfig').mockResolvedValue(undefined)
+      protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
+      protoSpy(WebexClient.prototype, 'testAuth').mockResolvedValue(mockPerson)
+
+      await loginAction({ email: 'alice@example.com', pretty: false })
+
+      expect(pwSpy).toHaveBeenCalledWith('alice@example.com', 'prompted-secret', { idbrokerHost: undefined })
+    })
+
+    it('preserves whitespace in the prompted password', async () => {
+      promptQueue = ['  spaced secret  ']
+      const pwSpy = protoSpy(passwordLogin, 'loginWithPassword').mockResolvedValue(passwordConfig)
+      protoSpy(WebexCredentialManager.prototype, 'saveConfig').mockResolvedValue(undefined)
+      protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
+      protoSpy(WebexClient.prototype, 'testAuth').mockResolvedValue(mockPerson)
+
+      await loginAction({ email: 'alice@example.com', pretty: false })
+
+      expect(pwSpy).toHaveBeenCalledWith('alice@example.com', '  spaced secret  ', { idbrokerHost: undefined })
+    })
+  })
+
+  describe('loginAction non-interactive without credentials', () => {
+    it('errors when no email is provided and points to auth oauth', async () => {
+      setTTY(false)
+      const exitSpy = protoSpy(process, 'exit').mockImplementation(() => undefined as never)
+
+      await loginAction({ pretty: false })
+
+      const lastCall = consoleSpy.mock.calls[consoleSpy.mock.calls.length - 1][0] as string
+      const output = JSON.parse(lastCall)
+      expect(output.error).toContain('Email required')
+      expect(output.error).toContain('auth oauth')
+      expect(exitSpy).toHaveBeenCalledWith(1)
+    })
+
+    it('errors when --email is provided but no password is available', async () => {
+      setTTY(false)
+      const exitSpy = protoSpy(process, 'exit').mockImplementation(() => undefined as never)
+
+      await loginAction({ email: 'alice@example.com', pretty: false })
+
+      const lastCall = consoleSpy.mock.calls[consoleSpy.mock.calls.length - 1][0] as string
+      const output = JSON.parse(lastCall)
+      expect(output.error).toContain('Password required')
+      expect(exitSpy).toHaveBeenCalledWith(1)
+    })
+  })
+
+  describe('oauthAction with --client-id and --client-secret', () => {
     it('uses provided credentials for Device Grant flow', async () => {
       protoSpy(WebexCredentialManager.prototype, 'requestDeviceCode').mockResolvedValue({
         deviceCode: 'd',
@@ -120,7 +295,7 @@ describe('auth commands', () => {
       protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
       protoSpy(WebexClient.prototype, 'testAuth').mockResolvedValue(mockPerson)
 
-      await loginAction({ clientId: 'my-id', clientSecret: 'my-secret', pretty: false })
+      await oauthAction({ clientId: 'my-id', clientSecret: 'my-secret', pretty: false })
 
       expect(WebexCredentialManager.prototype.requestDeviceCode).toHaveBeenCalledWith('my-id')
       expect(WebexCredentialManager.prototype.pollDeviceToken).toHaveBeenCalledWith(
@@ -150,7 +325,7 @@ describe('auth commands', () => {
       protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
       protoSpy(WebexClient.prototype, 'testAuth').mockResolvedValue(mockPerson)
 
-      await loginAction({ clientId: 'my-id', clientSecret: 'my-secret', pretty: false })
+      await oauthAction({ clientId: 'my-id', clientSecret: 'my-secret', pretty: false })
 
       const savedConfig = saveSpy.mock.calls[0][0] as { tokenType: string }
       expect(savedConfig.tokenType).toBe('oauth')
@@ -174,7 +349,7 @@ describe('auth commands', () => {
       protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
       protoSpy(WebexClient.prototype, 'testAuth').mockResolvedValue(mockPerson)
 
-      await loginAction({ clientId: 'my-id', clientSecret: 'my-secret', pretty: false })
+      await oauthAction({ clientId: 'my-id', clientSecret: 'my-secret', pretty: false })
 
       const savedConfig = saveSpy.mock.calls[0][0] as { clientId: string; clientSecret: string }
       expect(savedConfig.clientId).toBe('my-id')
@@ -182,7 +357,7 @@ describe('auth commands', () => {
     })
   })
 
-  describe('loginAction non-interactive (no TTY)', () => {
+  describe('oauthAction non-interactive (no TTY)', () => {
     const device = {
       deviceCode: 'webex-device-code-abc123',
       userCode: 'USER-CODE',
@@ -199,7 +374,7 @@ describe('auth commands', () => {
       const pollSpy = protoSpy(WebexCredentialManager.prototype, 'pollDeviceToken')
       const exitSpy = protoSpy(process, 'exit').mockImplementation(() => undefined as never)
 
-      await loginAction({ pretty: false })
+      await oauthAction({ pretty: false })
 
       expect(requestSpy).toHaveBeenCalled()
       expect(exchangeSpy).not.toHaveBeenCalled()
@@ -212,7 +387,7 @@ describe('auth commands', () => {
       expect(output.verification_uri_complete).toBe(device.verificationUriComplete)
       expect(output.user_code).toBe(device.userCode)
       expect(output.device_code).toBe(device.deviceCode)
-      expect(output.message).toContain('--device-code')
+      expect(output.message).toContain('auth oauth --device-code')
       expect(exitSpy).toHaveBeenCalledWith(0)
     })
 
@@ -221,7 +396,7 @@ describe('auth commands', () => {
       protoSpy(WebexCredentialManager.prototype, 'requestDeviceCode').mockResolvedValue(device)
       protoSpy(process, 'exit').mockImplementation(() => undefined as never)
 
-      await loginAction({ pretty: false })
+      await oauthAction({ pretty: false })
 
       expect(execSpy).not.toHaveBeenCalled()
     })
@@ -232,7 +407,7 @@ describe('auth commands', () => {
       const requestSpy = protoSpy(WebexCredentialManager.prototype, 'requestDeviceCode')
       const exitSpy = protoSpy(process, 'exit').mockImplementation(() => undefined as never)
 
-      await loginAction({ deviceCode: 'webex-device-code-abc123', pretty: false })
+      await oauthAction({ deviceCode: 'webex-device-code-abc123', pretty: false })
 
       expect(requestSpy).not.toHaveBeenCalled()
 
@@ -253,7 +428,7 @@ describe('auth commands', () => {
       protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
       protoSpy(WebexClient.prototype, 'testAuth').mockResolvedValue(mockPerson)
 
-      await loginAction({
+      await oauthAction({
         deviceCode: 'webex-device-code-abc123',
         clientId: 'my-id',
         clientSecret: 'my-secret',
@@ -276,7 +451,7 @@ describe('auth commands', () => {
       protoSpy(WebexCredentialManager.prototype, 'exchangeDeviceCode').mockResolvedValue({ status: 'expired' })
       const exitSpy = protoSpy(process, 'exit').mockImplementation(() => undefined as never)
 
-      await loginAction({ deviceCode: 'webex-device-code-abc123', pretty: false })
+      await oauthAction({ deviceCode: 'webex-device-code-abc123', pretty: false })
 
       const lastCall = consoleSpy.mock.calls[consoleSpy.mock.calls.length - 1][0] as string
       const output = JSON.parse(lastCall)
@@ -297,25 +472,11 @@ describe('auth commands', () => {
       protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
       protoSpy(WebexClient.prototype, 'testAuth').mockResolvedValue(mockPerson)
 
-      await loginAction({ deviceCode: 'webex-device-code-abc123', pretty: false })
+      await oauthAction({ deviceCode: 'webex-device-code-abc123', pretty: false })
 
       expect(exchangeSpy).toHaveBeenCalled()
       expect(requestSpy).not.toHaveBeenCalled()
       expect(pollSpy).not.toHaveBeenCalled()
-    })
-
-    it('still allows --token login when non-interactive (bot/PAT path)', async () => {
-      setTTY(false)
-      protoSpy(WebexClient.prototype, 'login').mockResolvedValue(new WebexClient())
-      protoSpy(WebexClient.prototype, 'testAuth').mockResolvedValue(mockPerson)
-      protoSpy(WebexCredentialManager.prototype, 'saveConfig').mockResolvedValue(undefined)
-
-      await loginAction({ token: 'bot-token-123', pretty: false })
-
-      const lastCall = consoleSpy.mock.calls[consoleSpy.mock.calls.length - 1][0] as string
-      const output = JSON.parse(lastCall)
-      expect(output.authenticated).toBe(true)
-      expect(output.user.displayName).toBe('Test User')
     })
   })
 
