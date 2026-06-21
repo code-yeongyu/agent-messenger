@@ -42,12 +42,32 @@ This command:
 - Auto-extraction runs when no valid token is stored, so manual extraction is rarely needed
 - Messages are encrypted client-side (JWE/AES-256-GCM). Encryption keys are cached at extract time; for end-to-end encrypted conversations whose key is not cached, the key is fetched on demand (Mercury + KMS) and persisted for reuse. Non-encrypted conversations send as plaintext.
 
+### Email/Password Login
+
+Logs in with a Webex email and password — no browser. Useful for servers and CI/CD that need a real user token (e.g. for the real-time listener, which receives all space messages without an @mention). Run `agent-webex auth login` with no flags in a terminal to be prompted for your email and then your password (read without echoing); for headless use, pipe the password via stdin to keep it out of shell history.
+
+```bash
+# Interactive — prompts for email, then password (hidden)
+agent-webex auth login
+
+# Headless — provide the email and pipe the password from stdin
+printf '%s' "$WEBEX_PASSWORD" | agent-webex auth login --email you@example.com --password-stdin
+
+# Provide the email only — password is prompted securely
+agent-webex auth login --email you@example.com
+```
+
+- Discovers the user's Webex region, performs OAuth2 Authorization Code + PKCE against Cisco IdBroker, and stores access/refresh tokens in `~/.config/agent-messenger/`
+- Produces a KMS-scoped user token (client-side JWE/AES-256-GCM encryption works)
+- `--idbroker-host <host>` overrides region auto-discovery if needed
+- Accounts protected by SSO/IdP or MFA are not supported and fail with a clear error
+
 ### OAuth Device Grant (Fallback)
 
 Uses OAuth Device Grant flow with built-in Integration credentials. No tokens to copy, no developer portal setup needed. Messages show "via agent-messenger".
 
 ```bash
-agent-webex auth login
+agent-webex auth oauth
 ```
 
 This command:
@@ -61,10 +81,11 @@ This command:
 
 ### How Login Works
 
-1. Run `agent-webex auth extract` (recommended) or `agent-webex auth login` (fallback)
+1. Run `agent-webex auth extract` (recommended), `agent-webex auth login` (email/password), or `agent-webex auth oauth` (Device Grant)
 2. For extraction: CLI reads your browser's Webex session — no prompts needed
-3. For Device Grant: Browser opens, enter the displayed code, CLI stores tokens
-4. Access tokens are refreshed automatically
+3. For email/password: CLI prompts for any missing credentials, then exchanges them for a token
+4. For Device Grant: Browser opens, enter the displayed code, CLI stores tokens
+5. Access tokens are refreshed automatically
 
 ### Token Types
 
@@ -72,6 +93,7 @@ This command:
 | -------------------------------- | -------------------------------------------- | ------------------------------------ |
 | Browser Extraction (recommended) | Session-based (re-extract when expired)      | Interactive use, sending as yourself |
 | OAuth Device Grant               | 14-day access, 90-day refresh (auto-refresh) | Fallback when no browser session     |
+| Email/Password (headless)        | Access + refresh (auto-refresh)              | Server-side/CI without a browser     |
 | Bot Token                        | Never expires                                | CI/CD, long-running automation       |
 | Personal Access Token (PAT)      | 12 hours                                     | Quick testing                        |
 
@@ -81,11 +103,15 @@ This command:
 # Extract token from browser (recommended)
 agent-webex auth extract
 
-# Log in (Device Grant flow, opens browser)
+# Log in with email/password (prompts when flags are omitted)
 agent-webex auth login
+printf '%s' "$WEBEX_PASSWORD" | agent-webex auth login --email you@example.com --password-stdin
 
-# Log in with custom Integration credentials
-agent-webex auth login --client-id <id> --client-secret <secret>
+# Log in via OAuth Device Grant (opens browser)
+agent-webex auth oauth
+
+# Log in via OAuth with custom Integration credentials
+agent-webex auth oauth --client-id <id> --client-secret <secret>
 
 # Log in with a bot token (never expires)
 agent-webex auth login --token <bot-token>
@@ -109,7 +135,7 @@ Override the built-in Integration credentials with your own:
 | `AGENT_WEBEX_CLIENT_ID`     | Webex Integration client ID     |
 | `AGENT_WEBEX_CLIENT_SECRET` | Webex Integration client secret |
 
-Both must be set together. When set, `auth login` (without `--token`) uses these instead of the built-in credentials.
+Both must be set together. When set, `auth oauth` uses these instead of the built-in credentials.
 
 ## Commands
 
@@ -233,10 +259,10 @@ agent-webex auth login
 
 ### Token Expired (401 Unauthorized)
 
-**If using Device Grant (default)**: Tokens auto-refresh. If you still get 401s, the refresh token may have expired (after 90 days). Re-run:
+**If using Device Grant**: Tokens auto-refresh. If you still get 401s, the refresh token may have expired (after 90 days). Re-run:
 
 ```bash
-agent-webex auth login
+agent-webex auth oauth
 ```
 
 **If using a PAT**: Generate a new one at https://developer.webex.com/docs/getting-started
@@ -245,10 +271,10 @@ agent-webex auth login
 
 ### "Device authorization timed out"
 
-You didn't approve the request in the browser before the code expired. Run `auth login` again:
+You didn't approve the request in the browser before the code expired. Run `auth oauth` again:
 
 ```bash
-agent-webex auth login
+agent-webex auth oauth
 ```
 
 ### "Device authorization failed"
