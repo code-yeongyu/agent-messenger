@@ -1,7 +1,7 @@
 import { DiscordCredentialManager, type DiscordConfig } from './credential-manager'
 
 export class DiscordReadonlyError extends Error {
-  readonly code: 'DISCORD_READONLY_ACCOUNT' = 'DISCORD_READONLY_ACCOUNT'
+  readonly code = 'DISCORD_READONLY_ACCOUNT' as const
 
   constructor(operation: string) {
     super(`discord account is readonly; blocked ${operation} before Discord API request`)

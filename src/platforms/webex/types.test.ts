@@ -266,6 +266,22 @@ it('WebexConfigSchema validates config with tokenType manual', () => {
   }
 })
 
+it('WebexConfigSchema validates config with tokenType password', () => {
+  const result = WebexConfigSchema.safeParse({
+    accessToken: 'test',
+    refreshToken: 'test',
+    expiresAt: 1234567890,
+    tokenType: 'password',
+    deviceUrl: 'https://wdm-test.wbx2.com/wdm/api/v1/devices/device-1',
+    userId: 'user-1',
+    encryptionKeys: {},
+  })
+  expect(result.success).toBe(true)
+  if (result.success) {
+    expect(result.data.tokenType).toBe('password')
+  }
+})
+
 it('WebexConfigSchema rejects invalid tokenType', () => {
   const result = WebexConfigSchema.safeParse({
     accessToken: 'test',

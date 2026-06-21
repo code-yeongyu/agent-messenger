@@ -6,6 +6,7 @@ import type { WebexConfig, WebexMembership, WebexMessage, WebexPerson, WebexSpac
 import { WebexError } from './types'
 
 const BASE_URL = 'https://webexapis.com/v1'
+const CONTENT_HOST = 'webexapis.com'
 const MAX_RETRIES = 3
 const BASE_BACKOFF_MS = 100
 
@@ -45,7 +46,7 @@ export class WebexClient {
     this.tokenType = config?.tokenType ?? null
     await this.login({ token })
 
-    if (this.tokenType === 'extracted') {
+    if (this.tokenType === 'extracted' || this.tokenType === 'password') {
       const keysMap = new Map(Object.entries(config?.encryptionKeys ?? {}))
       this.encryption = new WebexEncryptionService(keysMap)
       const kmsProvider = new KmsKeyProvider({ token })
@@ -66,6 +67,10 @@ export class WebexClient {
 
   async dispose(): Promise<void> {
     await this.encryption?.close()
+  }
+
+  getToken(): string {
+    return this.ensureAuth()
   }
 
   private async persistEncryptionKey(
@@ -130,6 +135,14 @@ export class WebexClient {
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+    return (await this.requestWithLink<T>(method, path, body)).data
+  }
+
+  private async requestWithLink<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+  ): Promise<{ data: T; nextPath: string | null }> {
     const url = `${BASE_URL}${path}`
     const bucketKey = this.getBucketKey(method, path)
 
@@ -178,10 +191,11 @@ export class WebexClient {
       }
 
       if (response.status === 204) {
-        return undefined as T
+        return { data: undefined as T, nextPath: null }
       }
 
-      return response.json() as Promise<T>
+      const data = (await response.json()) as T
+      return { data, nextPath: parseNextPath(response.headers.get('Link')) }
     }
 
     throw new WebexError('Request failed after retries', 'max_retries')
@@ -219,15 +233,35 @@ export class WebexClient {
     return data.items
   }
 
+  async *iterateSpaces(options?: { type?: string; max?: number }): AsyncGenerator<WebexSpace> {
+    const params = new URLSearchParams()
+    if (options?.type) params.set('type', options.type)
+    params.set('max', String(options?.max ?? 100))
+    let path: string | null = `/rooms?${params.toString()}`
+    while (path) {
+      const page: { data: { items: WebexSpace[] }; nextPath: string | null } = await this.requestWithLink('GET', path)
+      yield* page.data.items
+      path = page.nextPath
+    }
+  }
+
   async getSpace(spaceId: string): Promise<WebexSpace> {
     return this.request<WebexSpace>('GET', `/rooms/${spaceId}`)
   }
 
-  async sendMessage(roomId: string, text: string, options?: { markdown?: boolean }): Promise<WebexMessage> {
+  async sendMessage(
+    roomId: string,
+    text: string,
+    options?: { markdown?: boolean; parentId?: string; files?: string[] },
+  ): Promise<WebexMessage> {
     if (this.useInternalAPI) {
       return this.sendMessageInternal(roomId, text, options)
     }
-    const body = options?.markdown ? { roomId, markdown: text } : { roomId, text }
+    const body: Record<string, unknown> = { roomId }
+    if (options?.markdown) body.markdown = text
+    else body.text = text
+    if (options?.parentId) body.parentId = options.parentId
+    if (options?.files?.length) body.files = options.files
     return this.request<WebexMessage>('POST', '/messages', body)
   }
 
@@ -246,7 +280,7 @@ export class WebexClient {
   }
 
   private get useInternalAPI(): boolean {
-    return this.tokenType === 'extracted' && this.deviceUrl !== null
+    return (this.tokenType === 'extracted' || this.tokenType === 'password') && this.deviceUrl !== null
   }
 
   private get convBaseUrl(): string {
@@ -405,7 +439,10 @@ export class WebexClient {
     return null
   }
 
-  async listMessages(roomId: string, options?: { max?: number }): Promise<WebexMessage[]> {
+  async listMessages(
+    roomId: string,
+    options?: { max?: number; mentionedPeople?: string; parentId?: string },
+  ): Promise<WebexMessage[]> {
     if (this.useInternalAPI) {
       const convUuid = this.decodeConvUuid(roomId)
       const max = options?.max ?? 50
@@ -418,6 +455,8 @@ export class WebexClient {
     const params = new URLSearchParams()
     params.set('roomId', roomId)
     params.set('max', String(options?.max ?? 50))
+    if (options?.mentionedPeople) params.set('mentionedPeople', options.mentionedPeople)
+    if (options?.parentId) params.set('parentId', options.parentId)
     const data = await this.request<{ items: WebexMessage[] }>('GET', `/messages?${params}`)
     return data.items
   }
@@ -511,6 +550,10 @@ export class WebexClient {
     return data.items
   }
 
+  async getPerson(personId: string): Promise<WebexPerson> {
+    return this.request<WebexPerson>('GET', `/people/${personId}`)
+  }
+
   async listMyMemberships(options?: { max?: number }): Promise<WebexMembership[]> {
     const params = new URLSearchParams()
     params.set('max', String(options?.max ?? 100))
@@ -525,6 +568,92 @@ export class WebexClient {
     const data = await this.request<{ items: WebexMembership[] }>('GET', `/memberships?${params}`)
     return data.items
   }
+
+  async uploadFile(
+    roomId: string,
+    file: { content: Blob; filename: string },
+    options?: { text?: string; markdown?: boolean; parentId?: string },
+  ): Promise<WebexMessage> {
+    const form = new FormData()
+    form.set('roomId', roomId)
+    if (options?.text) {
+      form.set(options.markdown ? 'markdown' : 'text', options.text)
+    }
+    if (options?.parentId) form.set('parentId', options.parentId)
+    form.set('files', file.content, file.filename)
+
+    const response = await fetch(`${BASE_URL}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.ensureAuth()}` },
+      body: form,
+    })
+
+    if (!response.ok) {
+      const errorBody = (await response.json().catch(() => null)) as { message?: string } | null
+      throw new WebexError(errorBody?.message ?? `HTTP ${response.status}`, `http_${response.status}`)
+    }
+    return response.json() as Promise<WebexMessage>
+  }
+
+  async downloadContent(contentRef: string): Promise<{ data: ArrayBuffer; filename: string; contentType: string }> {
+    const url = this.resolveContentUrl(contentRef)
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${this.ensureAuth()}` },
+    })
+
+    if (!response.ok) {
+      const errorBody = (await response.json().catch(() => null)) as { message?: string } | null
+      throw new WebexError(errorBody?.message ?? `HTTP ${response.status}`, `http_${response.status}`)
+    }
+
+    const disposition = response.headers.get('Content-Disposition') ?? ''
+    const match = disposition.match(/filename="?([^"]+)"?/)
+    const filename = sanitizeFilename(match?.[1]) ?? sanitizeFilename(contentRef.split('/').pop()) ?? 'download'
+    const contentType = response.headers.get('Content-Type') ?? 'application/octet-stream'
+    const data = await response.arrayBuffer()
+    return { data, filename, contentType }
+  }
+
+  private resolveContentUrl(contentRef: string): string {
+    // A bare content id never contains a scheme or path separators.
+    if (!contentRef.includes('://') && !contentRef.includes('/')) {
+      return `${BASE_URL}/contents/${encodeURIComponent(contentRef)}`
+    }
+
+    // Only attach the bearer token to HTTPS Webex content URLs to avoid
+    // leaking credentials to attacker-controlled hosts (SSRF/token exfiltration).
+    let parsed: URL
+    try {
+      parsed = new URL(contentRef)
+    } catch {
+      throw new WebexError(`Invalid content reference: ${contentRef}`, 'invalid_content_ref')
+    }
+    if (parsed.protocol !== 'https:' || parsed.host !== CONTENT_HOST || !parsed.pathname.startsWith('/v1/contents/')) {
+      throw new WebexError(
+        `Refusing to download from untrusted location: ${parsed.origin}${parsed.pathname}`,
+        'untrusted_content_url',
+      )
+    }
+    return parsed.toString()
+  }
+}
+
+// Webex paginates List endpoints via an RFC 5988 `Link` header
+// (`<https://webexapis.com/v1/rooms?...&before=cursor>; rel="next"`). Return the
+// next page as a BASE_URL-relative path, or null when there is no next page.
+function parseNextPath(linkHeader: string | null): string | null {
+  if (!linkHeader) return null
+  const next = linkHeader.match(/<([^>]+)>\s*;\s*rel="next"/i)
+  if (!next) return null
+  return next[1].startsWith(BASE_URL) ? next[1].slice(BASE_URL.length) : null
+}
+
+function sanitizeFilename(name: string | undefined): string | undefined {
+  if (!name) return undefined
+  // Strip any path components so a server-supplied name cannot escape the target directory.
+  const base = name.replace(/\\/g, '/').split('/').pop()
+  if (!base || base === '.' || base === '..') return undefined
+  return base
 }
 
 interface InternalActivity {
