@@ -189,7 +189,7 @@ jobs:
           QUOTIO_API_KEY: ${{ secrets.QUOTIO_API_KEY }}
         run: |
           set -euo pipefail
-          BRANCH="automation/sync-upstream-${UPSTREAM_SHORT_SHA}"
+          BRANCH="automation/sync-upstream-${UPSTREAM_SHORT_SHA}-${GITHUB_RUN_ID}"
           git checkout -B "$BRANCH"
 
           {
