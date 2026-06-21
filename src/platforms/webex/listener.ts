@@ -21,6 +21,14 @@ import {
   normalizeMessage,
   normalizeRoomActivity,
 } from './id-normalizer'
+import type {
+  WebexAttachmentActionEvent,
+  WebexDeletedMessageEvent,
+  WebexMembershipEvent,
+  WebexMessageEvent,
+  WebexRealtimeEvent,
+  WebexRoomEvent,
+} from './types'
 import { createWdmRewriteFetch, discoverWdmDevicesUrl } from './wdm-discovery'
 
 type EventKey = keyof WebexListenerEventMap
@@ -49,14 +57,14 @@ export interface WebexListenerOptions {
 }
 
 export interface WebexListenerEventMap {
-  message_created: [event: DecryptedMessage]
-  message_updated: [event: DecryptedMessage]
-  message_deleted: [event: DeletedMessage]
-  membership_created: [event: MembershipActivity]
-  attachment_action: [event: AttachmentAction]
-  room_created: [event: RoomActivity]
-  room_updated: [event: RoomActivity]
-  webex_event: [event: DecryptedMessage | DeletedMessage | MembershipActivity | AttachmentAction | RoomActivity]
+  message_created: [event: WebexMessageEvent]
+  message_updated: [event: WebexMessageEvent]
+  message_deleted: [event: WebexDeletedMessageEvent]
+  membership_created: [event: WebexMembershipEvent]
+  attachment_action: [event: WebexAttachmentActionEvent]
+  room_created: [event: WebexRoomEvent]
+  room_updated: [event: WebexRoomEvent]
+  webex_event: [event: WebexRealtimeEvent]
   connected: [info: { connected: boolean; status: HandlerStatus }]
   reconnecting: [attempt: number]
   disconnected: [reason: string]

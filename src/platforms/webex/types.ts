@@ -1,3 +1,10 @@
+import type {
+  AttachmentAction,
+  DecryptedMessage,
+  DeletedMessage,
+  MembershipActivity,
+  RoomActivity,
+} from 'webex-message-handler'
 import { z } from 'zod'
 
 export interface WebexSpace {
@@ -70,6 +77,47 @@ export interface WebexConfig {
   userId?: string
   encryptionKeys?: Record<string, string>
 }
+
+export type WebexMessageEvent = DecryptedMessage & {
+  ref: string
+  parentRef?: string
+  roomRef: string
+  personRef: string
+  mentionedPeopleRefs: string[]
+}
+
+export type WebexDeletedMessageEvent = DeletedMessage & {
+  messageRef: string
+  roomRef: string
+  personRef: string
+}
+
+export type WebexMembershipEvent = MembershipActivity & {
+  ref: string
+  actorRef: string
+  personRef: string
+  roomRef: string
+}
+
+export type WebexAttachmentActionEvent = AttachmentAction & {
+  ref: string
+  messageRef: string
+  personRef: string
+  roomRef: string
+}
+
+export type WebexRoomEvent = RoomActivity & {
+  ref: string
+  roomRef: string
+  actorRef: string
+}
+
+export type WebexRealtimeEvent =
+  | WebexMessageEvent
+  | WebexDeletedMessageEvent
+  | WebexMembershipEvent
+  | WebexAttachmentActionEvent
+  | WebexRoomEvent
 
 export class WebexError extends Error {
   code: string
