@@ -13,21 +13,27 @@ export interface WebexSpace {
 
 export interface WebexMessage {
   id: string
+  ref: string
   roomId: string
+  roomRef: string
   roomType: 'group' | 'direct'
   text?: string
   markdown?: string
   html?: string
   files?: string[]
   personId: string
+  personRef: string
   personEmail: string
   created: string
   parentId?: string
+  parentRef?: string
   mentionedPeople?: string[]
+  mentionedPeopleRefs?: string[]
 }
 
 export interface WebexPerson {
   id: string
+  ref: string
   emails: string[]
   displayName: string
   nickName?: string
@@ -35,14 +41,18 @@ export interface WebexPerson {
   lastName?: string
   avatar?: string
   orgId: string
+  orgRef: string
   type: 'person' | 'bot'
   created: string
 }
 
 export interface WebexMembership {
   id: string
+  ref: string
   roomId: string
+  roomRef: string
   personId: string
+  personRef: string
   personEmail: string
   personDisplayName: string
   isModerator: boolean
@@ -84,21 +94,27 @@ export const WebexSpaceSchema = z.object({
 
 export const WebexMessageSchema = z.object({
   id: z.string(),
+  ref: z.string(),
   roomId: z.string(),
+  roomRef: z.string(),
   roomType: z.enum(['group', 'direct']),
   text: z.string().optional(),
   markdown: z.string().optional(),
   html: z.string().optional(),
   files: z.array(z.string()).optional(),
   personId: z.string(),
+  personRef: z.string(),
   personEmail: z.string(),
   created: z.string(),
   parentId: z.string().optional(),
+  parentRef: z.string().optional(),
   mentionedPeople: z.array(z.string()).optional(),
+  mentionedPeopleRefs: z.array(z.string()).optional(),
 })
 
 export const WebexPersonSchema = z.object({
   id: z.string(),
+  ref: z.string(),
   emails: z.array(z.string()),
   displayName: z.string(),
   nickName: z.string().optional(),
@@ -106,14 +122,18 @@ export const WebexPersonSchema = z.object({
   lastName: z.string().optional(),
   avatar: z.string().optional(),
   orgId: z.string(),
+  orgRef: z.string(),
   type: z.enum(['person', 'bot']),
   created: z.string(),
 })
 
 export const WebexMembershipSchema = z.object({
   id: z.string(),
+  ref: z.string(),
   roomId: z.string(),
+  roomRef: z.string(),
   personId: z.string(),
+  personRef: z.string(),
   personEmail: z.string(),
   personDisplayName: z.string(),
   isModerator: z.boolean(),

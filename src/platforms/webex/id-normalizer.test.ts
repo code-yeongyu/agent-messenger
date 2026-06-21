@@ -16,9 +16,13 @@ import {
   normalizeMembership,
   normalizeMessage,
   normalizeRoomActivity,
+  normalizeSdkMembership,
+  normalizeSdkMessage,
+  normalizeSdkPerson,
   toRestId,
   toRef,
 } from './id-normalizer'
+import type { WebexMembership, WebexMessage, WebexPerson } from './types'
 
 const RAW: MercuryActivity = {
   id: 'activity-uuid',
@@ -318,5 +322,166 @@ describe('normalizeRoomActivity', () => {
     expect(result.ref).toBe('activity-uuid')
     expect(result.roomRef).toBe('room-uuid')
     expect(result.actorRef).toBe('actor-uuid')
+  })
+})
+
+describe('normalizeSdkPerson', () => {
+  const person: WebexPerson = {
+    id: restId('PEOPLE', 'person-uuid'),
+    ref: '',
+    emails: ['user@example.com'],
+    displayName: 'User',
+    orgId: restId('ORGANIZATION', 'org-uuid'),
+    orgRef: '',
+    type: 'person',
+    created: '2024-01-01T00:00:00Z',
+  }
+
+  it('decodes the bot identity id and orgId into raw uuid refs', () => {
+    const result = normalizeSdkPerson(person)
+
+    expect(result.ref).toBe('person-uuid')
+    expect(result.orgRef).toBe('org-uuid')
+  })
+
+  it('does not re-encode the already-REST ids', () => {
+    const result = normalizeSdkPerson(person)
+
+    expect(result.id).toBe(restId('PEOPLE', 'person-uuid'))
+    expect(result.orgId).toBe(restId('ORGANIZATION', 'org-uuid'))
+  })
+
+  it('leaves empty ids and refs empty', () => {
+    const result = normalizeSdkPerson({ ...person, id: '', orgId: '' })
+
+    expect(result.ref).toBe('')
+    expect(result.orgRef).toBe('')
+  })
+
+  it('returns a new object without mutating the input', () => {
+    const result = normalizeSdkPerson(person)
+
+    expect(result).not.toBe(person)
+    expect(person.ref).toBe('')
+  })
+})
+
+describe('normalizeSdkMessage', () => {
+  const message: WebexMessage = {
+    id: restId('MESSAGE', 'msg-uuid'),
+    ref: '',
+    roomId: restId('ROOM', 'room-uuid'),
+    roomRef: '',
+    roomType: 'group',
+    text: 'hello',
+    personId: restId('PEOPLE', 'person-uuid'),
+    personRef: '',
+    personEmail: 'user@example.com',
+    created: '2024-01-01T00:00:00Z',
+    parentId: restId('MESSAGE', 'parent-uuid'),
+    mentionedPeople: [restId('PEOPLE', 'mention-1'), restId('PEOPLE', 'mention-2')],
+  }
+
+  it('decodes id, roomId, personId and parentId into raw uuid refs', () => {
+    const result = normalizeSdkMessage(message)
+
+    expect(result.ref).toBe('msg-uuid')
+    expect(result.roomRef).toBe('room-uuid')
+    expect(result.personRef).toBe('person-uuid')
+    expect(result.parentRef).toBe('parent-uuid')
+  })
+
+  it('adds a mentionedPeopleRefs array of raw uuids', () => {
+    const result = normalizeSdkMessage(message)
+
+    expect(result.mentionedPeopleRefs).toEqual(['mention-1', 'mention-2'])
+  })
+
+  it('omits parentRef when parentId is absent', () => {
+    const { parentId: _omit, ...withoutParent } = message
+    const result = normalizeSdkMessage(withoutParent)
+
+    expect(result.parentRef).toBeUndefined()
+  })
+
+  it('omits mentionedPeopleRefs when mentionedPeople is absent', () => {
+    const { mentionedPeople: _omit, ...withoutMentions } = message
+    const result = normalizeSdkMessage(withoutMentions)
+
+    expect(result.mentionedPeopleRefs).toBeUndefined()
+  })
+
+  it('does not re-encode the already-REST ids', () => {
+    const result = normalizeSdkMessage(message)
+
+    expect(result.id).toBe(restId('MESSAGE', 'msg-uuid'))
+    expect(result.roomId).toBe(restId('ROOM', 'room-uuid'))
+  })
+})
+
+describe('normalizeSdkMembership', () => {
+  const membership: WebexMembership = {
+    id: restId('MEMBERSHIP', 'membership-uuid'),
+    ref: '',
+    roomId: restId('ROOM', 'room-uuid'),
+    roomRef: '',
+    personId: restId('PEOPLE', 'person-uuid'),
+    personRef: '',
+    personEmail: 'user@example.com',
+    personDisplayName: 'User',
+    isModerator: false,
+    created: '2024-01-01T00:00:00Z',
+  }
+
+  it('decodes id, roomId and personId into raw uuid refs', () => {
+    const result = normalizeSdkMembership(membership)
+
+    expect(result.ref).toBe('membership-uuid')
+    expect(result.roomRef).toBe('room-uuid')
+    expect(result.personRef).toBe('person-uuid')
+  })
+
+  it('does not re-encode the already-REST ids', () => {
+    const result = normalizeSdkMembership(membership)
+
+    expect(result.id).toBe(restId('MEMBERSHIP', 'membership-uuid'))
+    expect(result.personId).toBe(restId('PEOPLE', 'person-uuid'))
+  })
+})
+
+describe('SDK and event refs agree for the same person', () => {
+  it('matches the bot identity ref against an event mention ref so self/mention detection holds', () => {
+    const personUuid = 'bot-person-uuid'
+
+    // given: the bot identity from a REST response (testAuth path)
+    const bot = normalizeSdkPerson({
+      id: restId('PEOPLE', personUuid),
+      ref: '',
+      emails: ['bot@webex.bot'],
+      displayName: 'Bot',
+      orgId: restId('ORGANIZATION', 'org-uuid'),
+      orgRef: '',
+      type: 'bot',
+      created: '2024-01-01T00:00:00Z',
+    })
+
+    // when: an event carries the same person as a raw Mercury uuid
+    const event = normalizeMessage({
+      id: 'msg-uuid',
+      roomId: 'room-uuid',
+      personId: personUuid,
+      personEmail: 'bot@webex.bot',
+      text: 'hi',
+      created: '2024-01-01T00:00:00Z',
+      mentionedPeople: [personUuid],
+      mentionedGroups: [],
+      files: [],
+      raw: RAW,
+    })
+
+    // then: both paths decode to the same raw uuid ref
+    expect(bot.ref).toBe(personUuid)
+    expect(event.personRef).toBe(personUuid)
+    expect(event.mentionedPeopleRefs.includes(bot.ref)).toBe(true)
   })
 })

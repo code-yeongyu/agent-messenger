@@ -1,6 +1,12 @@
 import { WebexCredentialManager } from './credential-manager'
 import { WebexEncryptionService } from './encryption'
-import { decodeWebexId, toRestId } from './id-normalizer'
+import {
+  decodeWebexId,
+  normalizeSdkMembership,
+  normalizeSdkMessage,
+  normalizeSdkPerson,
+  toRestId,
+} from './id-normalizer'
 import { KmsKeyProvider } from './kms-key-provider'
 import { escapeHtml, markdownToHtml, stripMarkdown } from './markdown-to-html'
 import type { WebexConfig, WebexMembership, WebexMessage, WebexPerson, WebexSpace } from './types'
@@ -216,15 +222,24 @@ export class WebexClient {
   async testAuth(): Promise<WebexPerson> {
     if (this.useInternalAPI) {
       try {
-        return await this.request<WebexPerson>('GET', '/people/me')
+        return normalizeSdkPerson(await this.request<WebexPerson>('GET', '/people/me'))
       } catch (err) {
         const isAuthError = err instanceof WebexError && (err.code === 'http_401' || err.code === 'http_403')
         if (!isAuthError) throw err
         await this.testAuthInternal()
-        return { id: '', emails: [], displayName: '', orgId: '', type: 'person', created: '' } as WebexPerson
+        return normalizeSdkPerson({
+          id: '',
+          ref: '',
+          emails: [],
+          displayName: '',
+          orgId: '',
+          orgRef: '',
+          type: 'person',
+          created: '',
+        })
       }
     }
-    return this.request<WebexPerson>('GET', '/people/me')
+    return normalizeSdkPerson(await this.request<WebexPerson>('GET', '/people/me'))
   }
 
   private async testAuthInternal(): Promise<void> {
@@ -324,7 +339,7 @@ export class WebexClient {
     else body.text = text
     if (resolvedOptions?.parentId) body.parentId = resolvedOptions.parentId
     if (resolvedOptions?.files?.length) body.files = resolvedOptions.files
-    return this.request<WebexMessage>('POST', '/messages', body)
+    return normalizeSdkMessage(await this.request<WebexMessage>('POST', '/messages', body))
   }
 
   private get useInternalAPI(): boolean {
@@ -376,15 +391,18 @@ export class WebexClient {
       }
     }
 
-    return {
+    return normalizeSdkMessage({
       id: this.normalizeMessageId(a.id),
+      ref: '',
       roomId,
+      roomRef: '',
       roomType: 'group' as const,
       text,
       personId: this.normalizePersonId(a.actor?.entryUUID ?? a.actor?.id ?? ''),
+      personRef: '',
       personEmail: a.actor?.emailAddress ?? '',
       created: a.published,
-    }
+    })
   }
 
   private async buildEncryptedObject(
@@ -469,7 +487,7 @@ export class WebexClient {
     const body = options?.markdown
       ? { toPersonEmail: personEmail, markdown: text }
       : { toPersonEmail: personEmail, text }
-    return this.request<WebexMessage>('POST', '/messages', body)
+    return normalizeSdkMessage(await this.request<WebexMessage>('POST', '/messages', body))
   }
 
   private async findDirectRoomByEmail(email: string): Promise<string | null> {
@@ -505,7 +523,7 @@ export class WebexClient {
     if (resolvedOptions?.mentionedPeople) params.set('mentionedPeople', resolvedOptions.mentionedPeople)
     if (resolvedOptions?.parentId) params.set('parentId', resolvedOptions.parentId)
     const data = await this.request<{ items: WebexMessage[] }>('GET', `/messages?${params}`)
-    return data.items
+    return data.items.map(normalizeSdkMessage)
   }
 
   async getMessage(messageId: string): Promise<WebexMessage> {
@@ -521,7 +539,7 @@ export class WebexClient {
       const roomId = convId ? Buffer.from(`ciscospark://urn:TEAM:unknown/ROOM/${convId}`).toString('base64') : ''
       return this.activityToMessage(activity, roomId)
     }
-    return this.request<WebexMessage>('GET', `/messages/${this.resolveMessageId(messageId)}`)
+    return normalizeSdkMessage(await this.request<WebexMessage>('GET', `/messages/${this.resolveMessageId(messageId)}`))
   }
 
   async deleteMessage(messageId: string): Promise<void> {
@@ -588,7 +606,9 @@ export class WebexClient {
       return this.activityToMessage(result, resolvedRoomId)
     }
     const body = options?.markdown ? { roomId: resolvedRoomId, markdown: text } : { roomId: resolvedRoomId, text }
-    return this.request<WebexMessage>('PUT', `/messages/${this.resolveMessageId(messageId)}`, body)
+    return normalizeSdkMessage(
+      await this.request<WebexMessage>('PUT', `/messages/${this.resolveMessageId(messageId)}`, body),
+    )
   }
 
   async listPeople(options?: { email?: string; displayName?: string; max?: number }): Promise<WebexPerson[]> {
@@ -599,7 +619,7 @@ export class WebexClient {
     const query = params.toString()
     const path = query ? `/people?${query}` : '/people'
     const data = await this.request<{ items: WebexPerson[] }>('GET', path)
-    return data.items
+    return data.items.map(normalizeSdkPerson)
   }
 
   async getPerson(personId: string): Promise<WebexPerson> {
@@ -610,14 +630,14 @@ export class WebexClient {
       }
       return person
     }
-    return this.request<WebexPerson>('GET', `/people/${await this.resolvePersonId(personId)}`)
+    return normalizeSdkPerson(await this.request<WebexPerson>('GET', `/people/${await this.resolvePersonId(personId)}`))
   }
 
   async listMyMemberships(options?: { max?: number }): Promise<WebexMembership[]> {
     const params = new URLSearchParams()
     params.set('max', String(options?.max ?? 100))
     const data = await this.request<{ items: WebexMembership[] }>('GET', `/memberships?${params}`)
-    return data.items
+    return data.items.map(normalizeSdkMembership)
   }
 
   async listMemberships(roomId: string, options?: { max?: number }): Promise<WebexMembership[]> {
@@ -626,7 +646,7 @@ export class WebexClient {
     params.set('roomId', resolvedRoomId)
     if (options?.max) params.set('max', String(options.max))
     const data = await this.request<{ items: WebexMembership[] }>('GET', `/memberships?${params}`)
-    return data.items
+    return data.items.map(normalizeSdkMembership)
   }
 
   async uploadFile(
@@ -654,7 +674,7 @@ export class WebexClient {
       const errorBody = (await response.json().catch(() => null)) as { message?: string } | null
       throw new WebexError(errorBody?.message ?? `HTTP ${response.status}`, `http_${response.status}`)
     }
-    return response.json() as Promise<WebexMessage>
+    return normalizeSdkMessage((await response.json()) as WebexMessage)
   }
 
   private async lookupRoomId(uuid: string, fallback: string): Promise<string> {
