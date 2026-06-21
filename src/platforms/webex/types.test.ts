@@ -73,10 +73,13 @@ it('WebexSpaceSchema rejects invalid type', () => {
 it('WebexMessageSchema validates valid message', () => {
   const result = WebexMessageSchema.safeParse({
     id: 'Y2lzY29zcGFyazovL3VzL01FU1NBR0UvbXNn',
+    ref: 'msg',
     roomId: 'Y2lzY29zcGFyazovL3VzL1JPT00vYWJj',
+    roomRef: 'abc',
     roomType: 'group',
     text: 'Hello world',
     personId: 'Y2lzY29zcGFyazovL3VzL1BFT1BMRS9hYmM',
+    personRef: 'abc',
     personEmail: 'user@example.com',
     created: '2024-01-15T10:30:00.000Z',
   })
@@ -86,17 +89,22 @@ it('WebexMessageSchema validates valid message', () => {
 it('WebexMessageSchema validates message with optional fields', () => {
   const result = WebexMessageSchema.safeParse({
     id: 'Y2lzY29zcGFyazovL3VzL01FU1NBR0UvbXNn',
+    ref: 'msg',
     roomId: 'Y2lzY29zcGFyazovL3VzL1JPT00vYWJj',
+    roomRef: 'abc',
     roomType: 'group',
     text: 'Hello world',
     markdown: '**Hello world**',
     html: '<strong>Hello world</strong>',
     files: ['https://webexapis.com/v1/contents/file1'],
     personId: 'Y2lzY29zcGFyazovL3VzL1BFT1BMRS9hYmM',
+    personRef: 'abc',
     personEmail: 'user@example.com',
     created: '2024-01-15T10:30:00.000Z',
     parentId: 'Y2lzY29zcGFyazovL3VzL01FU1NBR0UvcGFyZW50',
+    parentRef: 'parent',
     mentionedPeople: ['Y2lzY29zcGFyazovL3VzL1BFT1BMRS9tZW50aW9u'],
+    mentionedPeopleRefs: ['mention'],
   })
   expect(result.success).toBe(true)
 })
@@ -125,9 +133,11 @@ it('WebexMessageSchema rejects invalid roomType', () => {
 it('WebexPersonSchema validates valid person', () => {
   const result = WebexPersonSchema.safeParse({
     id: 'Y2lzY29zcGFyazovL3VzL1BFT1BMRS9hYmM',
+    ref: 'abc',
     emails: ['user@example.com'],
     displayName: 'Test User',
     orgId: 'Y2lzY29zcGFyazovL3VzL09SR0FOSVpBVElPTi9vcmc',
+    orgRef: 'org',
     type: 'person',
     created: '2024-01-01T00:00:00.000Z',
   })
@@ -137,6 +147,7 @@ it('WebexPersonSchema validates valid person', () => {
 it('WebexPersonSchema validates person with optional fields', () => {
   const result = WebexPersonSchema.safeParse({
     id: 'Y2lzY29zcGFyazovL3VzL1BFT1BMRS9hYmM',
+    ref: 'abc',
     emails: ['user@example.com', 'user@work.com'],
     displayName: 'Test User',
     nickName: 'Tester',
@@ -144,6 +155,7 @@ it('WebexPersonSchema validates person with optional fields', () => {
     lastName: 'User',
     avatar: 'https://example.com/avatar.jpg',
     orgId: 'Y2lzY29zcGFyazovL3VzL09SR0FOSVpBVElPTi9vcmc',
+    orgRef: 'org',
     type: 'person',
     created: '2024-01-01T00:00:00.000Z',
   })
@@ -153,9 +165,11 @@ it('WebexPersonSchema validates person with optional fields', () => {
 it('WebexPersonSchema validates bot type', () => {
   const result = WebexPersonSchema.safeParse({
     id: 'Y2lzY29zcGFyazovL3VzL1BFT1BMRS9ib3Q',
+    ref: 'bot',
     emails: ['bot@webex.bot'],
     displayName: 'My Bot',
     orgId: 'Y2lzY29zcGFyazovL3VzL09SR0FOSVpBVElPTi9vcmc',
+    orgRef: 'org',
     type: 'bot',
     created: '2024-01-01T00:00:00.000Z',
   })
@@ -185,8 +199,11 @@ it('WebexPersonSchema rejects invalid type', () => {
 it('WebexMembershipSchema validates valid membership', () => {
   const result = WebexMembershipSchema.safeParse({
     id: 'Y2lzY29zcGFyazovL3VzL01FTUJFUlNISVAvbWVt',
+    ref: 'mem',
     roomId: 'Y2lzY29zcGFyazovL3VzL1JPT00vYWJj',
+    roomRef: 'abc',
     personId: 'Y2lzY29zcGFyazovL3VzL1BFT1BMRS9hYmM',
+    personRef: 'abc',
     personEmail: 'user@example.com',
     personDisplayName: 'Test User',
     isModerator: false,
@@ -198,8 +215,11 @@ it('WebexMembershipSchema validates valid membership', () => {
 it('WebexMembershipSchema validates moderator membership', () => {
   const result = WebexMembershipSchema.safeParse({
     id: 'Y2lzY29zcGFyazovL3VzL01FTUJFUlNISVAvbWVt',
+    ref: 'mem',
     roomId: 'Y2lzY29zcGFyazovL3VzL1JPT00vYWJj',
+    roomRef: 'abc',
     personId: 'Y2lzY29zcGFyazovL3VzL1BFT1BMRS9hYmM',
+    personRef: 'abc',
     personEmail: 'moderator@example.com',
     personDisplayName: 'Moderator User',
     isModerator: true,

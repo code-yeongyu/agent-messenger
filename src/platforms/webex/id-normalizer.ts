@@ -7,6 +7,8 @@ import type {
   RoomActivity,
 } from 'webex-message-handler'
 
+import type { WebexMembership, WebexMessage, WebexPerson } from './types'
+
 export { fromRestId }
 
 // Superset of webex-message-handler's toRestId union, which omits ATTACHMENT_ACTION
@@ -20,7 +22,9 @@ export interface DecodedWebexId {
 }
 
 export function toRef(id: string): string {
-  if (!id) return id
+  // fromRestId throws on values that are not base64-encoded ciscospark ids; fail
+  // open so a non-REST id (legacy/sentinel) yields the id itself instead of crashing.
+  if (!id || !decodeWebexId(id)) return id
   return fromRestId(id)
 }
 
@@ -130,5 +134,35 @@ export function normalizeRoomActivity(activity: RoomActivity): RoomActivity {
     roomRef: toRef(roomId),
     actorId,
     actorRef: toRef(actorId),
+  }
+}
+
+// SDK REST responses (people/messages/memberships) already carry REST-encoded ids,
+// so unlike the event normalizers above we only attach raw uuid refs — no re-encoding.
+export function normalizeSdkPerson(person: WebexPerson): WebexPerson {
+  return {
+    ...person,
+    ref: toRef(person.id),
+    orgRef: toRef(person.orgId),
+  }
+}
+
+export function normalizeSdkMessage(message: WebexMessage): WebexMessage {
+  return {
+    ...message,
+    ref: toRef(message.id),
+    roomRef: toRef(message.roomId),
+    personRef: toRef(message.personId),
+    parentRef: message.parentId ? toRef(message.parentId) : message.parentId,
+    mentionedPeopleRefs: message.mentionedPeople?.map(toRef),
+  }
+}
+
+export function normalizeSdkMembership(membership: WebexMembership): WebexMembership {
+  return {
+    ...membership,
+    ref: toRef(membership.id),
+    roomRef: toRef(membership.roomId),
+    personRef: toRef(membership.personId),
   }
 }
