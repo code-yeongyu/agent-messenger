@@ -34,7 +34,7 @@ export async function snapshotAction(options: BotOption & { full?: boolean; max?
     const result: SnapshotResult = {
       bot: {
         id: me.id,
-        ref: toRef(me.id),
+        ref: me.ref,
         displayName: me.displayName,
         emails: me.emails,
       },

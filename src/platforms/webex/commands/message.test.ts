@@ -11,22 +11,28 @@ const personId = toRestId('person_789', 'PEOPLE')
 
 const mockMessage = {
   id: messageId,
+  ref: 'msg_123',
   roomId,
+  roomRef: 'space_456',
   roomType: 'group' as const,
   text: 'Hello world',
   html: '<p>Hello <a href="https://example.com">world</a></p>',
   personId,
+  personRef: 'person_789',
   personEmail: 'user@example.com',
   created: '2025-01-29T10:00:00.000Z',
 }
 
 const mockMessage2 = {
   id: message2Id,
+  ref: 'msg_124',
   roomId,
+  roomRef: 'space_456',
   roomType: 'group' as const,
   text: 'Second message',
   html: '<p>Second message</p>',
   personId,
+  personRef: 'person_789',
   personEmail: 'user@example.com',
   created: '2025-01-29T10:01:00.000Z',
 }

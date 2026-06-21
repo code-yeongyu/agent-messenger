@@ -155,6 +155,8 @@ declare module 'webex-message-handler' {
   export interface DecryptedMessage {
     /** Mercury activity UUID. Works as parentId for threaded replies. */
     id: string
+    /** Raw UUID ref for `id`. */
+    ref: string
     /**
      * Full Conversation-service activity URL, when present on the raw Mercury
      * activity (e.g. for an outbound "acknowledge" read-receipt). Undefined if
@@ -163,8 +165,14 @@ declare module 'webex-message-handler' {
     url?: string
     /** Parent activity UUID for threaded replies. Undefined if not a thread reply. */
     parentId?: string
+    /** Raw UUID ref for `parentId`. Undefined when `parentId` is absent. */
+    parentRef?: string
     roomId: string
+    /** Raw UUID ref for `roomId`. */
+    roomRef: string
     personId: string
+    /** Raw UUID ref for `personId`. */
+    personRef: string
     personEmail: string
     text: string
     html?: string
@@ -172,6 +180,8 @@ declare module 'webex-message-handler' {
     roomType?: string
     /** Person UUIDs mentioned via @mention in the message. */
     mentionedPeople: string[]
+    /** Raw UUID refs for `mentionedPeople`, index-aligned. */
+    mentionedPeopleRefs: string[]
     /** Group mention types (e.g. "all") in the message. */
     mentionedGroups: string[]
     /** File URLs attached to the message. Empty if no files. */
@@ -181,19 +191,33 @@ declare module 'webex-message-handler' {
 
   export interface DeletedMessage {
     messageId: string
+    /** Raw UUID ref for `messageId`. */
+    messageRef: string
     roomId: string
+    /** Raw UUID ref for `roomId`. */
+    roomRef: string
     personId: string
+    /** Raw UUID ref for `personId`. */
+    personRef: string
   }
 
   export interface MembershipActivity {
-    /** Activity ID. */
+    /** Activity ID (raw Mercury activity UUID). */
     id: string
+    /** Raw UUID ref for `id`. Equal to `id` since the activity id is already raw. */
+    ref: string
     /** ID of the person who performed the action. */
     actorId: string
+    /** Raw UUID ref for `actorId`. */
+    actorRef: string
     /** ID of the member affected. */
     personId: string
+    /** Raw UUID ref for `personId`. */
+    personRef: string
     /** Conversation/space ID. */
     roomId: string
+    /** Raw UUID ref for `roomId`. */
+    roomRef: string
     /** Membership action: "add", "leave", "assignModerator", or "unassignModerator". */
     action: string
     /** ISO 8601 timestamp. */
@@ -207,14 +231,22 @@ declare module 'webex-message-handler' {
   export interface AttachmentAction {
     /** Activity ID. */
     id: string
+    /** Raw UUID ref for `id`. */
+    ref: string
     /** ID of the message the card was attached to. */
     messageId: string
+    /** Raw UUID ref for `messageId`. Empty when `messageId` is empty. */
+    messageRef: string
     /** ID of the person who submitted the card. */
     personId: string
+    /** Raw UUID ref for `personId`. */
+    personRef: string
     /** Email of the person who submitted the card. */
     personEmail: string
     /** Conversation/space ID. */
     roomId: string
+    /** Raw UUID ref for `roomId`. */
+    roomRef: string
     /** Card form input values. */
     inputs: Record<string, unknown>
     /** ISO 8601 timestamp. */
@@ -224,12 +256,18 @@ declare module 'webex-message-handler' {
   }
 
   export interface RoomActivity {
-    /** Activity ID. */
+    /** Activity ID (raw Mercury activity UUID). */
     id: string
+    /** Raw UUID ref for `id`. Equal to `id` since the activity id is already raw. */
+    ref: string
     /** Conversation/space ID. */
     roomId: string
+    /** Raw UUID ref for `roomId`. */
+    roomRef: string
     /** ID of the person who performed the action. */
     actorId: string
+    /** Raw UUID ref for `actorId`. */
+    actorRef: string
     /** Room action: "created" or "updated". */
     action: string
     /** ISO 8601 timestamp. */

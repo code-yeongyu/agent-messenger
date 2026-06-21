@@ -2,7 +2,6 @@ import { Command } from 'commander'
 
 import { cliOutput } from '@/shared/utils/cli-output'
 
-import { toRef } from '../../webex/id-normalizer'
 import type { WebexMessage } from '../../webex/types'
 import type { BotOption } from './shared'
 import { getClient } from './shared'
@@ -33,9 +32,9 @@ interface MessageResult {
 function formatMessage(message: WebexMessage): MessageResult {
   return {
     id: message.id,
-    ref: toRef(message.id),
+    ref: message.ref,
     roomId: message.roomId,
-    roomRef: toRef(message.roomId),
+    roomRef: message.roomRef,
     text: message.text,
     markdown: message.markdown,
     html: message.html,
@@ -88,9 +87,9 @@ export async function repliesAction(
     return {
       messages: messages.map((msg) => ({
         id: msg.id,
-        ref: toRef(msg.id),
+        ref: msg.ref,
         roomId: msg.roomId,
-        roomRef: toRef(msg.roomId),
+        roomRef: msg.roomRef,
         text: msg.text,
         personEmail: msg.personEmail,
         created: msg.created,
@@ -125,9 +124,9 @@ export async function listAction(space: string, options: BotOption & { max?: str
     return {
       messages: messages.map((msg) => ({
         id: msg.id,
-        ref: toRef(msg.id),
+        ref: msg.ref,
         roomId: msg.roomId,
-        roomRef: toRef(msg.roomId),
+        roomRef: msg.roomRef,
         text: msg.text,
         personEmail: msg.personEmail,
         created: msg.created,

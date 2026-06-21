@@ -10,6 +10,7 @@ const personId = toRestId('person-123', 'PEOPLE')
 
 const mockUser = {
   id: personId,
+  ref: 'person-123',
   emails: ['test@example.com'],
   displayName: 'Test User',
   nickName: 'Testy',
@@ -17,6 +18,7 @@ const mockUser = {
   lastName: 'User',
   avatar: 'https://example.com/avatar.jpg',
   orgId,
+  orgRef: 'org-123',
   type: 'person' as const,
   created: '2024-01-01T00:00:00.000Z',
 }

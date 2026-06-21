@@ -2,7 +2,6 @@ import { Command } from 'commander'
 
 import { cliOutput } from '@/shared/utils/cli-output'
 
-import { toRef } from '../../webex/id-normalizer'
 import type { BotOption } from './shared'
 import { getClient } from './shared'
 
@@ -29,9 +28,9 @@ export async function listAction(space: string, options: BotOption & { max?: str
     return {
       members: members.map((m) => ({
         id: m.id,
-        ref: toRef(m.id),
+        ref: m.ref,
         personId: m.personId,
-        personRef: toRef(m.personId),
+        personRef: m.personRef,
         personEmail: m.personEmail,
         personDisplayName: m.personDisplayName,
         isModerator: m.isModerator,

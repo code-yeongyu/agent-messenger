@@ -12,9 +12,9 @@ import { info, debug, error as stderrError } from '@/shared/utils/stderr'
 import { getWebexAppCredentials } from '../app-config'
 import { WebexClient } from '../client'
 import { WebexCredentialManager } from '../credential-manager'
-import { toRef } from '../id-normalizer'
 import { loginWithPassword, WEB_CLIENT_ID, WEB_CLIENT_SECRET } from '../password-login'
 import { WebexTokenExtractor } from '../token-extractor'
+import type { WebexPerson } from '../types'
 import { WebexError } from '../types'
 
 interface ResolvedCredentials {
@@ -22,8 +22,8 @@ interface ResolvedCredentials {
   clientSecret: string
 }
 
-function formatAuthUser(person: { id: string; displayName: string; emails: string[] }) {
-  return { id: person.id, ref: toRef(person.id), displayName: person.displayName, emails: person.emails }
+function formatAuthUser(person: WebexPerson) {
+  return { id: person.id, ref: person.ref, displayName: person.displayName, emails: person.emails }
 }
 
 async function openBrowser(url: string): Promise<void> {

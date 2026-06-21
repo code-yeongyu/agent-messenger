@@ -37,9 +37,9 @@ export class WebexAdapter implements PlatformAdapter {
     return messages
       .map((msg) => ({
         id: msg.id,
-        ref: toRef(msg.id),
+        ref: msg.ref,
         channelId: msg.roomId,
-        channelRef: toRef(msg.roomId),
+        channelRef: msg.roomRef,
         author: msg.personEmail,
         content: msg.text ?? '',
         timestamp: msg.created,
