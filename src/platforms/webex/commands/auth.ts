@@ -12,6 +12,7 @@ import { info, debug, error as stderrError } from '@/shared/utils/stderr'
 import { getWebexAppCredentials } from '../app-config'
 import { WebexClient } from '../client'
 import { WebexCredentialManager } from '../credential-manager'
+import { toRef } from '../id-normalizer'
 import { loginWithPassword, WEB_CLIENT_ID, WEB_CLIENT_SECRET } from '../password-login'
 import { WebexTokenExtractor } from '../token-extractor'
 import { WebexError } from '../types'
@@ -19,6 +20,10 @@ import { WebexError } from '../types'
 interface ResolvedCredentials {
   clientId: string
   clientSecret: string
+}
+
+function formatAuthUser(person: { id: string; displayName: string; emails: string[] }) {
+  return { id: person.id, ref: toRef(person.id), displayName: person.displayName, emails: person.emails }
 }
 
 async function openBrowser(url: string): Promise<void> {
@@ -170,7 +175,7 @@ async function loginWithToken(credManager: WebexCredentialManager, token: string
   console.log(
     formatOutput(
       {
-        user: { id: person.id, displayName: person.displayName, emails: person.emails },
+        user: formatAuthUser(person),
         authenticated: true,
       },
       pretty,
@@ -205,7 +210,7 @@ async function loginWithEmailPassword(
     formatOutput(
       {
         authenticated: true,
-        user: { id: person.id, displayName: person.displayName, emails: person.emails },
+        user: formatAuthUser(person),
       },
       options.pretty,
     ),
@@ -259,7 +264,7 @@ export async function oauthAction(options: OAuthOptions): Promise<void> {
     console.log(
       formatOutput(
         {
-          user: { id: person.id, displayName: person.displayName, emails: person.emails },
+          user: formatAuthUser(person),
           authenticated: true,
         },
         options.pretty,
@@ -308,7 +313,7 @@ async function finishDeviceGrant(credManager: WebexCredentialManager, options: O
       formatOutput(
         {
           authenticated: true,
-          user: { id: person.id, displayName: person.displayName, emails: person.emails },
+          user: formatAuthUser(person),
         },
         options.pretty,
       ),
@@ -364,7 +369,7 @@ export async function statusAction(options: { pretty?: boolean }): Promise<void>
         formatOutput(
           {
             authenticated: true,
-            user: { id: person.id, displayName: person.displayName, emails: person.emails },
+            user: formatAuthUser(person),
           },
           options.pretty,
         ),
@@ -436,11 +441,11 @@ export async function extractAction(options: {
       tokenType: 'extracted',
     })
 
-    let person: { id: string; displayName: string; emails: string[] } | null = null
+    let person: ReturnType<typeof formatAuthUser> | null = null
     try {
       const result = await client.testAuth()
       if (result.id) {
-        person = { id: result.id, displayName: result.displayName, emails: result.emails }
+        person = formatAuthUser(result)
       }
     } catch (authError) {
       const isAuthFailure =

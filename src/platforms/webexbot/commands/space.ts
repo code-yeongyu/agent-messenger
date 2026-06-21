@@ -2,20 +2,25 @@ import { Command } from 'commander'
 
 import { cliOutput } from '@/shared/utils/cli-output'
 
+import { toRef } from '../../webex/id-normalizer'
 import type { BotOption } from './shared'
 import { getClient } from './shared'
 
 interface SpaceResult {
   id?: string
+  ref?: string
   title?: string
   type?: 'group' | 'direct'
   isLocked?: boolean
   teamId?: string | null
+  teamRef?: string | null
   lastActivity?: string
   created?: string
   creatorId?: string
+  creatorRef?: string
   spaces?: Array<{
     id: string
+    ref: string
     title: string
     type: 'group' | 'direct'
     lastActivity: string
@@ -33,6 +38,7 @@ export async function listAction(options: BotOption & { max?: string; type?: str
     return {
       spaces: spaces.map((s) => ({
         id: s.id,
+        ref: toRef(s.id),
         title: s.title,
         type: s.type,
         lastActivity: s.lastActivity,
@@ -50,13 +56,16 @@ export async function infoAction(spaceId: string, options: BotOption): Promise<S
     const space = await client.getSpace(spaceId)
     return {
       id: space.id,
+      ref: toRef(space.id),
       title: space.title,
       type: space.type,
       isLocked: space.isLocked,
       teamId: space.teamId || null,
+      teamRef: space.teamId ? toRef(space.teamId) : null,
       lastActivity: space.lastActivity,
       created: space.created,
       creatorId: space.creatorId,
+      creatorRef: toRef(space.creatorId),
     }
   } catch (error) {
     return { error: (error as Error).message }

@@ -3,36 +3,43 @@ import { afterEach, beforeEach, describe, expect, spyOn, it } from 'bun:test'
 import { WebexClient } from '../client'
 import { WebexError } from '../types'
 
+const restId = (type: string, ref: string) => Buffer.from(`ciscospark://us/${type}/${ref}`).toString('base64url')
+const space1Id = restId('ROOM', 'space-1')
+const space2Id = restId('ROOM', 'space-2')
+const person1Id = restId('PEOPLE', 'person-1')
+const person2Id = restId('PEOPLE', 'person-2')
+const teamId = restId('TEAM', 'team-abc')
+
 const mockSpaces = [
   {
-    id: 'space-1',
+    id: space1Id,
     title: 'General',
     type: 'group' as const,
     isLocked: false,
     lastActivity: '2024-01-02T00:00:00.000Z',
     created: '2024-01-01T00:00:00.000Z',
-    creatorId: 'person-1',
+    creatorId: person1Id,
   },
   {
-    id: 'space-2',
+    id: space2Id,
     title: 'Direct with Alice',
     type: 'direct' as const,
     isLocked: false,
     lastActivity: '2024-01-03T00:00:00.000Z',
     created: '2024-01-01T00:00:00.000Z',
-    creatorId: 'person-2',
+    creatorId: person2Id,
   },
 ]
 
 const mockSpace = {
-  id: 'space-1',
+  id: space1Id,
   title: 'General',
   type: 'group' as const,
   isLocked: false,
-  teamId: 'team-abc',
+  teamId,
   lastActivity: '2024-01-02T00:00:00.000Z',
   created: '2024-01-01T00:00:00.000Z',
-  creatorId: 'person-1',
+  creatorId: person1Id,
 }
 
 import { infoAction, listAction } from './space'
@@ -79,14 +86,16 @@ describe('listAction', () => {
     expect(consoleLogSpy).toHaveBeenCalledWith(
       JSON.stringify([
         {
-          id: 'space-1',
+          id: space1Id,
+          ref: 'space-1',
           title: 'General',
           type: 'group',
           lastActivity: '2024-01-02T00:00:00.000Z',
           created: '2024-01-01T00:00:00.000Z',
         },
         {
-          id: 'space-2',
+          id: space2Id,
+          ref: 'space-2',
           title: 'Direct with Alice',
           type: 'direct',
           lastActivity: '2024-01-03T00:00:00.000Z',
@@ -115,14 +124,16 @@ describe('listAction', () => {
       JSON.stringify(
         [
           {
-            id: 'space-1',
+            id: space1Id,
+            ref: 'space-1',
             title: 'General',
             type: 'group',
             lastActivity: '2024-01-02T00:00:00.000Z',
             created: '2024-01-01T00:00:00.000Z',
           },
           {
-            id: 'space-2',
+            id: space2Id,
+            ref: 'space-2',
             title: 'Direct with Alice',
             type: 'direct',
             lastActivity: '2024-01-03T00:00:00.000Z',
@@ -152,14 +163,17 @@ describe('infoAction', () => {
     expect(mockGetSpace).toHaveBeenCalledWith('space-1')
     expect(consoleLogSpy).toHaveBeenCalledWith(
       JSON.stringify({
-        id: 'space-1',
+        id: space1Id,
+        ref: 'space-1',
         title: 'General',
         type: 'group',
         isLocked: false,
-        teamId: 'team-abc',
+        teamId,
+        teamRef: 'team-abc',
         lastActivity: '2024-01-02T00:00:00.000Z',
         created: '2024-01-01T00:00:00.000Z',
-        creatorId: 'person-1',
+        creatorId: person1Id,
+        creatorRef: 'person-1',
       }),
     )
   })
@@ -171,8 +185,10 @@ describe('infoAction', () => {
 
     const output = JSON.parse(consoleLogSpy.mock.calls[0][0] as string) as {
       teamId: null
+      teamRef: null
     }
     expect(output.teamId).toBeNull()
+    expect(output.teamRef).toBeNull()
   })
 
   it('outputs pretty-printed JSON when pretty is true', async () => {
@@ -181,14 +197,17 @@ describe('infoAction', () => {
     expect(consoleLogSpy).toHaveBeenCalledWith(
       JSON.stringify(
         {
-          id: 'space-1',
+          id: space1Id,
+          ref: 'space-1',
           title: 'General',
           type: 'group',
           isLocked: false,
-          teamId: 'team-abc',
+          teamId,
+          teamRef: 'team-abc',
           lastActivity: '2024-01-02T00:00:00.000Z',
           created: '2024-01-01T00:00:00.000Z',
-          creatorId: 'person-1',
+          creatorId: person1Id,
+          creatorRef: 'person-1',
         },
         null,
         2,
