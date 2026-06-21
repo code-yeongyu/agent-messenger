@@ -12,9 +12,11 @@ const mockListPeople = mock(() =>
   Promise.resolve([
     {
       id: personId,
+      ref: 'p1',
       emails: ['alice@example.com'],
       displayName: 'Alice',
       orgId,
+      orgRef: 'o1',
       type: 'person' as const,
       created: '',
     },
@@ -24,9 +26,11 @@ const mockListPeople = mock(() =>
 const mockGetPerson = mock(() =>
   Promise.resolve({
     id: personId,
+    ref: 'p1',
     emails: ['alice@example.com'],
     displayName: 'Alice',
     orgId,
+    orgRef: 'o1',
     type: 'person' as const,
     created: '2024-01-01T00:00:00Z',
   }),

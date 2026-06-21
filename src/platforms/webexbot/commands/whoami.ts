@@ -2,7 +2,6 @@ import { Command } from 'commander'
 
 import { cliOutput } from '@/shared/utils/cli-output'
 
-import { toRef } from '../../webex/id-normalizer'
 import type { BotOption } from './shared'
 import { getClient } from './shared'
 
@@ -25,12 +24,12 @@ export async function whoamiAction(options: BotOption): Promise<WhoamiResult> {
     const info = await client.testAuth()
     return {
       id: info.id,
-      ref: toRef(info.id),
+      ref: info.ref,
       emails: info.emails,
       displayName: info.displayName,
       avatar: info.avatar,
       orgId: info.orgId,
-      orgRef: toRef(info.orgId),
+      orgRef: info.orgRef,
       type: info.type,
       created: info.created,
     }

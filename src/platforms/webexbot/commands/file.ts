@@ -5,7 +5,6 @@ import { Command } from 'commander'
 
 import { cliOutput } from '@/shared/utils/cli-output'
 
-import { toRef } from '../../webex/id-normalizer'
 import type { BotOption } from './shared'
 import { getClient } from './shared'
 
@@ -40,9 +39,9 @@ export async function uploadAction(
 
     return {
       id: message.id,
-      ref: toRef(message.id),
+      ref: message.ref,
       roomId: message.roomId,
-      roomRef: toRef(message.roomId),
+      roomRef: message.roomRef,
       files: message.files,
       created: message.created,
     }

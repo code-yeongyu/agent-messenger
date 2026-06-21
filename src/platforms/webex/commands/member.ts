@@ -4,7 +4,6 @@ import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
 import { WebexClient } from '../client'
-import { toRef } from '../id-normalizer'
 
 export async function listAction(spaceId: string, options: { limit?: number; pretty?: boolean }): Promise<void> {
   try {
@@ -13,9 +12,9 @@ export async function listAction(spaceId: string, options: { limit?: number; pre
 
     const output = members.map((m) => ({
       id: m.id,
-      ref: toRef(m.id),
+      ref: m.ref,
       personId: m.personId,
-      personRef: toRef(m.personId),
+      personRef: m.personRef,
       personEmail: m.personEmail,
       personDisplayName: m.personDisplayName,
       isModerator: m.isModerator,

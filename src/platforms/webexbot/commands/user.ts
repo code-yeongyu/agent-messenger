@@ -2,7 +2,6 @@ import { Command } from 'commander'
 
 import { cliOutput } from '@/shared/utils/cli-output'
 
-import { toRef } from '../../webex/id-normalizer'
 import type { WebexPerson } from '../../webex/types'
 import type { BotOption } from './shared'
 import { getClient } from './shared'
@@ -33,7 +32,7 @@ interface UserResult {
 function formatPerson(person: WebexPerson): UserResult {
   return {
     id: person.id,
-    ref: toRef(person.id),
+    ref: person.ref,
     emails: person.emails,
     displayName: person.displayName,
     nickName: person.nickName,
@@ -41,7 +40,7 @@ function formatPerson(person: WebexPerson): UserResult {
     lastName: person.lastName,
     avatar: person.avatar,
     orgId: person.orgId,
-    orgRef: toRef(person.orgId),
+    orgRef: person.orgRef,
     type: person.type,
     created: person.created,
   }
@@ -58,7 +57,7 @@ export async function listAction(
     return {
       users: people.map((p) => ({
         id: p.id,
-        ref: toRef(p.id),
+        ref: p.ref,
         emails: p.emails,
         displayName: p.displayName,
         type: p.type,
