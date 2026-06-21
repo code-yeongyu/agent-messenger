@@ -17,6 +17,7 @@ import {
   normalizeMessage,
   normalizeRoomActivity,
   toRestId,
+  toRef,
 } from './id-normalizer'
 
 const RAW: MercuryActivity = {
@@ -27,6 +28,8 @@ const RAW: MercuryActivity = {
   target: { id: 'room-uuid', objectType: 'conversation' },
   published: '2024-01-01T00:00:00Z',
 }
+
+const restId = (type: string, ref: string) => Buffer.from(`ciscospark://us/${type}/${ref}`).toString('base64url')
 
 describe('toRestId / fromRestId', () => {
   it('encodes a uuid into a ciscospark REST id round-trippable to the uuid', () => {
@@ -55,6 +58,40 @@ describe('toRestId / fromRestId', () => {
 
   it('returns empty input unchanged', () => {
     expect(toRestId('', 'MESSAGE')).toBe('')
+  })
+})
+
+describe('toRef', () => {
+  it('returns a room uuid ref', () => {
+    const uuid = '12345678-1234-1234-1234-1234567890ab'
+
+    expect(toRef(toRestId(uuid, 'ROOM'))).toBe(uuid)
+  })
+
+  it('returns a person uuid ref', () => {
+    const uuid = '22222222-2222-2222-2222-222222222222'
+
+    expect(toRef(toRestId(uuid, 'PEOPLE'))).toBe(uuid)
+  })
+
+  it('returns a legacy person email ref', () => {
+    expect(toRef(toRestId('legacy@example.com', 'PEOPLE'))).toBe('legacy@example.com')
+  })
+
+  it('returns an organization uuid ref', () => {
+    const uuid = '33333333-3333-3333-3333-333333333333'
+
+    expect(toRef(restId('ORGANIZATION', uuid))).toBe(uuid)
+  })
+
+  it('returns a membership person-room pair ref', () => {
+    const membershipRef = '44444444-4444-4444-4444-444444444444:55555555-5555-5555-5555-555555555555'
+
+    expect(toRef(restId('MEMBERSHIP', membershipRef))).toBe(membershipRef)
+  })
+
+  it('returns empty input unchanged', () => {
+    expect(toRef('')).toBe('')
   })
 })
 

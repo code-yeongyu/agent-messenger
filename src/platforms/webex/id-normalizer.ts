@@ -13,6 +13,27 @@ export { fromRestId }
 // (the resource type behind GET /v1/attachment/actions).
 export type WebexRestIdType = 'MESSAGE' | 'PEOPLE' | 'ROOM' | 'ATTACHMENT_ACTION'
 
+export interface DecodedWebexId {
+  cluster: string
+  type: string
+  uuid: string
+}
+
+export function toRef(id: string): string {
+  if (!id) return id
+  return fromRestId(id)
+}
+
+// Webex REST ids are base64(url) of `ciscospark://<cluster>/<TYPE>/<uuid>`; room
+// cluster correction needs all three parts, not just the trailing ref value.
+export function decodeWebexId(restId: string): DecodedWebexId | null {
+  if (!restId) return null
+  const decoded = Buffer.from(restId, 'base64').toString('utf-8')
+  const match = decoded.match(/^ciscospark:\/\/([^/]+)\/([^/]+)\/(.+)$/)
+  if (!match) return null
+  return { cluster: match[1], type: match[2], uuid: match[3] }
+}
+
 /**
  * Encode a raw Mercury UUID as a Webex REST ID. Empty input is returned unchanged
  * so an absent ID never becomes a bogus `ciscospark://us/{TYPE}/` value.

@@ -4,12 +4,15 @@ import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
 import { WebexClient } from '../client'
+import { toRef } from '../id-normalizer'
 import type { WebexMessage } from '../types'
 
 function formatMessageOutput(message: WebexMessage) {
   return {
     id: message.id,
+    ref: toRef(message.id),
     roomId: message.roomId,
+    roomRef: toRef(message.roomId),
     text: message.text,
     html: message.html,
     personEmail: message.personEmail,
@@ -105,16 +108,13 @@ export async function replyAction(
   options: { markdown?: boolean; pretty?: boolean },
 ): Promise<void> {
   try {
-    const client = await new WebexClient().login()
-    const message = await client.replyToMessage(spaceId, parentId, text, { markdown: options.markdown })
+    const message = await withWebexClient((client) =>
+      client.replyToMessage(spaceId, parentId, text, { markdown: options.markdown }),
+    )
 
     const output = {
-      id: message.id,
-      roomId: message.roomId,
+      ...formatMessageOutput(message),
       parentId,
-      text: message.text,
-      personEmail: message.personEmail,
-      created: message.created,
     }
 
     console.log(formatOutput(output, options.pretty))

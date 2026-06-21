@@ -1,26 +1,32 @@
 import { afterEach, beforeEach, expect, spyOn, it } from 'bun:test'
 
 import { WebexClient } from '../client'
+import { toRestId } from '../id-normalizer'
 import { WebexError } from '../types'
 
+const messageId = toRestId('msg_123', 'MESSAGE')
+const message2Id = toRestId('msg_124', 'MESSAGE')
+const roomId = toRestId('space_456', 'ROOM')
+const personId = toRestId('person_789', 'PEOPLE')
+
 const mockMessage = {
-  id: 'msg_123',
-  roomId: 'space_456',
+  id: messageId,
+  roomId,
   roomType: 'group' as const,
   text: 'Hello world',
   html: '<p>Hello <a href="https://example.com">world</a></p>',
-  personId: 'person_789',
+  personId,
   personEmail: 'user@example.com',
   created: '2025-01-29T10:00:00.000Z',
 }
 
 const mockMessage2 = {
-  id: 'msg_124',
-  roomId: 'space_456',
+  id: message2Id,
+  roomId,
   roomType: 'group' as const,
   text: 'Second message',
   html: '<p>Second message</p>',
-  personId: 'person_789',
+  personId,
   personEmail: 'user@example.com',
   created: '2025-01-29T10:01:00.000Z',
 }
@@ -83,10 +89,12 @@ it('calls sendMessage with correct args and outputs result', async () => {
     markdown: undefined,
   })
   expect(consoleLogSpy).toHaveBeenCalled()
-  const output = consoleLogSpy.mock.calls[0][0]
-  expect(output).toContain('msg_123')
-  expect(output).toContain('space_456')
-  expect(output).toContain('user@example.com')
+  const output = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+  expect(output.id).toBe(messageId)
+  expect(output.ref).toBe('msg_123')
+  expect(output.roomId).toBe(roomId)
+  expect(output.roomRef).toBe('space_456')
+  expect(output.personEmail).toBe('user@example.com')
   expect(mockDispose).toHaveBeenCalled()
 })
 
@@ -140,8 +148,8 @@ it('calls sendDirectMessage with email and text', async () => {
     markdown: undefined,
   })
   expect(consoleLogSpy).toHaveBeenCalled()
-  const output = consoleLogSpy.mock.calls[0][0]
-  expect(output).toContain('msg_123')
+  const output = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+  expect(output.ref).toBe('msg_123')
 })
 
 it('passes markdown option to sendDirectMessage when --markdown flag is set', async () => {
@@ -157,10 +165,10 @@ it('calls listMessages with limit and outputs array', async () => {
 
   expect(mockListMessages).toHaveBeenCalledWith('space_456', { max: 50 })
   expect(consoleLogSpy).toHaveBeenCalled()
-  const output = consoleLogSpy.mock.calls[0][0]
-  expect(output).toContain('msg_123')
-  expect(output).toContain('msg_124')
-  expect(output).toContain('https://example.com')
+  const output = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+  expect(output[0].ref).toBe('msg_123')
+  expect(output[1].ref).toBe('msg_124')
+  expect(output[0].html).toContain('https://example.com')
 })
 
 it('calls getMessage with correct id and outputs result', async () => {
@@ -168,10 +176,10 @@ it('calls getMessage with correct id and outputs result', async () => {
 
   expect(mockGetMessage).toHaveBeenCalledWith('msg_123')
   expect(consoleLogSpy).toHaveBeenCalled()
-  const output = consoleLogSpy.mock.calls[0][0]
-  expect(output).toContain('msg_123')
-  expect(output).toContain('user@example.com')
-  expect(output).toContain('https://example.com')
+  const output = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+  expect(output.ref).toBe('msg_123')
+  expect(output.personEmail).toBe('user@example.com')
+  expect(output.html).toContain('https://example.com')
 })
 
 it('calls deleteMessage and outputs deleted id when --force flag is set', async () => {
@@ -202,9 +210,9 @@ it('calls editMessage with roomId in args and outputs result', async () => {
     markdown: undefined,
   })
   expect(consoleLogSpy).toHaveBeenCalled()
-  const output = consoleLogSpy.mock.calls[0][0]
-  expect(output).toContain('msg_123')
-  expect(output).toContain('Updated message')
+  const output = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+  expect(output.ref).toBe('msg_123')
+  expect(output.text).toBe('Updated message')
   expect(mockDispose).toHaveBeenCalled()
 })
 

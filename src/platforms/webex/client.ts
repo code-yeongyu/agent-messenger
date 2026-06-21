@@ -1,5 +1,6 @@
 import { WebexCredentialManager } from './credential-manager'
 import { WebexEncryptionService } from './encryption'
+import { decodeWebexId, toRestId } from './id-normalizer'
 import { KmsKeyProvider } from './kms-key-provider'
 import { escapeHtml, markdownToHtml, stripMarkdown } from './markdown-to-html'
 import type { WebexConfig, WebexMembership, WebexMessage, WebexPerson, WebexSpace } from './types'
@@ -15,6 +16,10 @@ interface RateLimitBucket {
   resetAt: number
 }
 
+interface WebexClientOptions {
+  roomResolutionWarningPrefix?: string
+}
+
 export class WebexClient {
   private token: string | null = null
   private deviceUrl: string | null = null
@@ -22,6 +27,13 @@ export class WebexClient {
   private buckets: Map<string, RateLimitBucket> = new Map()
   private globalRateLimitUntil: number = 0
   private encryption: WebexEncryptionService | null = null
+  private clusteredRoomIds = new Map<string, string>()
+  private roomIdLookups = new Map<string, Promise<string>>()
+  private roomResolutionWarningPrefix: string
+
+  constructor(options: WebexClientOptions = {}) {
+    this.roomResolutionWarningPrefix = options.roomResolutionWarningPrefix ?? '[webex]'
+  }
 
   async login(credentials?: { token: string; deviceUrl?: string; tokenType?: string }): Promise<this> {
     if (credentials) {
@@ -245,8 +257,55 @@ export class WebexClient {
     }
   }
 
+  async resolveRoomId(roomId: string): Promise<string> {
+    const decoded = decodeWebexId(roomId)
+    let uuid: string
+    let fallback: string
+
+    if (decoded) {
+      if (decoded.type !== 'ROOM' || decoded.cluster.startsWith('urn:')) return roomId
+      uuid = decoded.uuid
+      fallback = roomId
+    } else if (looksLikeUuid(roomId)) {
+      uuid = roomId
+      fallback = toRestId(roomId, 'ROOM')
+    } else {
+      return roomId
+    }
+
+    const cached = this.clusteredRoomIds.get(uuid)
+    if (cached) return cached
+
+    const inFlight = this.roomIdLookups.get(uuid)
+    if (inFlight) return inFlight
+
+    const lookup = this.lookupRoomId(uuid, fallback)
+    this.roomIdLookups.set(uuid, lookup)
+    try {
+      return await lookup
+    } finally {
+      this.roomIdLookups.delete(uuid)
+    }
+  }
+
+  async resolvePersonId(personId: string): Promise<string> {
+    if (!personId || decodeWebexId(personId)) return personId
+
+    if (looksLikeEmail(personId)) {
+      const [person] = await this.listPeople({ email: personId, max: 1 })
+      if (!person) {
+        throw new WebexError(`Person not found for ref: ${personId}`, 'not_found')
+      }
+      return person.id
+    }
+
+    if (looksLikeUuid(personId)) return toRestId(personId, 'PEOPLE')
+    return personId
+  }
+
   async getSpace(spaceId: string): Promise<WebexSpace> {
-    return this.request<WebexSpace>('GET', `/rooms/${spaceId}`)
+    const resolvedSpaceId = await this.resolveRoomId(spaceId)
+    return this.request<WebexSpace>('GET', `/rooms/${resolvedSpaceId}`)
   }
 
   async sendMessage(
@@ -254,14 +313,17 @@ export class WebexClient {
     text: string,
     options?: { markdown?: boolean; parentId?: string; files?: string[] },
   ): Promise<WebexMessage> {
+    const resolvedRoomId = await this.resolveRoomId(roomId)
+    const resolvedOptions = this.resolveMessageOptions(options)
+
     if (this.useInternalAPI) {
-      return this.sendMessageInternal(roomId, text, options)
+      return this.sendMessageInternal(resolvedRoomId, text, resolvedOptions)
     }
-    const body: Record<string, unknown> = { roomId }
-    if (options?.markdown) body.markdown = text
+    const body: Record<string, unknown> = { roomId: resolvedRoomId }
+    if (resolvedOptions?.markdown) body.markdown = text
     else body.text = text
-    if (options?.parentId) body.parentId = options.parentId
-    if (options?.files?.length) body.files = options.files
+    if (resolvedOptions?.parentId) body.parentId = resolvedOptions.parentId
+    if (resolvedOptions?.files?.length) body.files = resolvedOptions.files
     return this.request<WebexMessage>('POST', '/messages', body)
   }
 
@@ -297,7 +359,7 @@ export class WebexClient {
   }
 
   private decodeConvUuid(roomId: string): string {
-    return Buffer.from(roomId, 'base64').toString('utf8').split('/').pop() ?? roomId
+    return decodeWebexId(roomId)?.uuid ?? roomId
   }
 
   private async internalRequest<T>(path: string, init?: RequestInit): Promise<T> {
@@ -329,11 +391,11 @@ export class WebexClient {
     }
 
     return {
-      id: a.id,
+      id: this.normalizeMessageId(a.id),
       roomId,
       roomType: 'group' as const,
       text,
-      personId: a.actor?.entryUUID ?? a.actor?.id ?? '',
+      personId: this.normalizePersonId(a.actor?.entryUUID ?? a.actor?.id ?? ''),
       personEmail: a.actor?.emailAddress ?? '',
       created: a.published,
     }
@@ -443,27 +505,31 @@ export class WebexClient {
     roomId: string,
     options?: { max?: number; mentionedPeople?: string; parentId?: string },
   ): Promise<WebexMessage[]> {
+    const resolvedRoomId = await this.resolveRoomId(roomId)
+    const resolvedOptions = await this.resolveListMessageOptions(options)
+
     if (this.useInternalAPI) {
-      const convUuid = this.decodeConvUuid(roomId)
-      const max = options?.max ?? 50
+      const convUuid = this.decodeConvUuid(resolvedRoomId)
+      const max = resolvedOptions?.max ?? 50
       const conv = await this.internalRequest<InternalConversation>(
         `/conversations/${convUuid}?activitiesLimit=${max}&participantsLimit=0`,
       )
       const activities = (conv.activities?.items ?? []).filter((a) => a.verb === 'post')
-      return Promise.all(activities.map((a) => this.activityToMessage(a, roomId)))
+      return Promise.all(activities.map((a) => this.activityToMessage(a, resolvedRoomId)))
     }
     const params = new URLSearchParams()
-    params.set('roomId', roomId)
-    params.set('max', String(options?.max ?? 50))
-    if (options?.mentionedPeople) params.set('mentionedPeople', options.mentionedPeople)
-    if (options?.parentId) params.set('parentId', options.parentId)
+    params.set('roomId', resolvedRoomId)
+    params.set('max', String(resolvedOptions?.max ?? 50))
+    if (resolvedOptions?.mentionedPeople) params.set('mentionedPeople', resolvedOptions.mentionedPeople)
+    if (resolvedOptions?.parentId) params.set('parentId', resolvedOptions.parentId)
     const data = await this.request<{ items: WebexMessage[] }>('GET', `/messages?${params}`)
     return data.items
   }
 
   async getMessage(messageId: string): Promise<WebexMessage> {
     if (this.useInternalAPI) {
-      const activity = await this.internalRequest<InternalActivity>(`/activities/${messageId}`)
+      const activityId = this.toMessageRef(messageId)
+      const activity = await this.internalRequest<InternalActivity>(`/activities/${activityId}`)
       const convId = activity.target?.id ?? ''
       // Internal API responses don't carry the cluster shard (e.g. `us-west-2_r`) the
       // public roomId encoding requires. The `unknown` placeholder is a sentinel — it
@@ -473,25 +539,26 @@ export class WebexClient {
       const roomId = convId ? Buffer.from(`ciscospark://urn:TEAM:unknown/ROOM/${convId}`).toString('base64') : ''
       return this.activityToMessage(activity, roomId)
     }
-    return this.request<WebexMessage>('GET', `/messages/${messageId}`)
+    return this.request<WebexMessage>('GET', `/messages/${this.resolveMessageId(messageId)}`)
   }
 
   async deleteMessage(messageId: string): Promise<void> {
     if (this.useInternalAPI) {
-      const activity = await this.internalRequest<InternalActivity>(`/activities/${messageId}`)
+      const activityId = this.toMessageRef(messageId)
+      const activity = await this.internalRequest<InternalActivity>(`/activities/${activityId}`)
       const convId = activity.target?.id
       if (!convId) throw new WebexError('Cannot determine conversation for activity', 'internal_error')
       await this.internalRequest<unknown>('/activities', {
         method: 'POST',
         body: JSON.stringify({
           verb: 'delete',
-          object: { id: messageId, objectType: 'activity' },
+          object: { id: activityId, objectType: 'activity' },
           target: { id: convId, objectType: 'conversation' },
         }),
       })
       return
     }
-    return this.request<void>('DELETE', `/messages/${messageId}`)
+    return this.request<void>('DELETE', `/messages/${this.resolveMessageId(messageId)}`)
   }
 
   async editMessage(
@@ -500,8 +567,11 @@ export class WebexClient {
     text: string,
     options?: { markdown?: boolean },
   ): Promise<WebexMessage> {
+    const resolvedRoomId = await this.resolveRoomId(roomId)
+
     if (this.useInternalAPI) {
-      const convUuid = this.decodeConvUuid(roomId)
+      const activityId = this.toMessageRef(messageId)
+      const convUuid = this.decodeConvUuid(resolvedRoomId)
       const { object, encryptionKeyUrl } = await this.buildEncryptedObject(convUuid, text, {
         ...options,
         forEdit: true,
@@ -511,7 +581,7 @@ export class WebexClient {
         verb: 'post',
         object,
         target: { id: convUuid, objectType: 'conversation' },
-        parent: { id: messageId, type: 'edit' },
+        parent: { id: activityId, type: 'edit' },
         clientTempId: `tmp-${Date.now()}-edit`,
       }
 
@@ -526,17 +596,17 @@ export class WebexClient {
 
       // Tolerate responses that omit `parent` (server may return minimal shape) —
       // only fail on an explicit mismatch between the echoed parent and the edited id.
-      if (result.parent && result.parent.id !== messageId) {
+      if (result.parent && result.parent.id !== activityId) {
         throw new WebexError(
-          `Edit rejected: server linked the new activity ${result.id} to ${result.parent.id} instead of ${messageId}.`,
+          `Edit rejected: server linked the new activity ${result.id} to ${result.parent.id} instead of ${activityId}.`,
           'edit_failed',
         )
       }
 
-      return this.activityToMessage(result, roomId)
+      return this.activityToMessage(result, resolvedRoomId)
     }
-    const body = options?.markdown ? { roomId, markdown: text } : { roomId, text }
-    return this.request<WebexMessage>('PUT', `/messages/${messageId}`, body)
+    const body = options?.markdown ? { roomId: resolvedRoomId, markdown: text } : { roomId: resolvedRoomId, text }
+    return this.request<WebexMessage>('PUT', `/messages/${this.resolveMessageId(messageId)}`, body)
   }
 
   async listPeople(options?: { email?: string; displayName?: string; max?: number }): Promise<WebexPerson[]> {
@@ -551,7 +621,14 @@ export class WebexClient {
   }
 
   async getPerson(personId: string): Promise<WebexPerson> {
-    return this.request<WebexPerson>('GET', `/people/${personId}`)
+    if (!decodeWebexId(personId) && looksLikeEmail(personId)) {
+      const [person] = await this.listPeople({ email: personId, max: 1 })
+      if (!person) {
+        throw new WebexError(`Person not found for ref: ${personId}`, 'not_found')
+      }
+      return person
+    }
+    return this.request<WebexPerson>('GET', `/people/${await this.resolvePersonId(personId)}`)
   }
 
   async listMyMemberships(options?: { max?: number }): Promise<WebexMembership[]> {
@@ -562,8 +639,9 @@ export class WebexClient {
   }
 
   async listMemberships(roomId: string, options?: { max?: number }): Promise<WebexMembership[]> {
+    const resolvedRoomId = await this.resolveRoomId(roomId)
     const params = new URLSearchParams()
-    params.set('roomId', roomId)
+    params.set('roomId', resolvedRoomId)
     if (options?.max) params.set('max', String(options.max))
     const data = await this.request<{ items: WebexMembership[] }>('GET', `/memberships?${params}`)
     return data.items
@@ -574,12 +652,14 @@ export class WebexClient {
     file: { content: Blob; filename: string },
     options?: { text?: string; markdown?: boolean; parentId?: string },
   ): Promise<WebexMessage> {
+    const resolvedRoomId = await this.resolveRoomId(roomId)
+    const resolvedParentId = options?.parentId ? this.resolveMessageId(options.parentId) : undefined
     const form = new FormData()
-    form.set('roomId', roomId)
+    form.set('roomId', resolvedRoomId)
     if (options?.text) {
       form.set(options.markdown ? 'markdown' : 'text', options.text)
     }
-    if (options?.parentId) form.set('parentId', options.parentId)
+    if (resolvedParentId) form.set('parentId', resolvedParentId)
     form.set('files', file.content, file.filename)
 
     const response = await fetch(`${BASE_URL}/messages`, {
@@ -593,6 +673,80 @@ export class WebexClient {
       throw new WebexError(errorBody?.message ?? `HTTP ${response.status}`, `http_${response.status}`)
     }
     return response.json() as Promise<WebexMessage>
+  }
+
+  private async lookupRoomId(uuid: string, fallback: string): Promise<string> {
+    try {
+      // Page through every room the account belongs to, stopping as soon as the
+      // trailing UUID matches because room titles are not stable identifiers.
+      for await (const room of this.iterateSpaces({ max: 1000 })) {
+        if (decodeWebexId(room.id)?.uuid === uuid) {
+          this.clusteredRoomIds.set(uuid, room.id)
+          return room.id
+        }
+      }
+    } catch {
+      // Network/auth failure: fail open to the un-corrected id rather than block the call.
+      return fallback
+    }
+
+    console.warn(
+      `${this.roomResolutionWarningPrefix} Could not resolve clustered room id for ${uuid}; falling back to the un-clustered id. ` +
+        'Room-scoped calls may fail if this room lives on a non-default Webex cluster.',
+    )
+    return fallback
+  }
+
+  private resolveMessageOptions(options?: {
+    markdown?: boolean
+    parentId?: string
+    files?: string[]
+  }): { markdown?: boolean; parentId?: string; files?: string[] } | undefined {
+    if (!options?.parentId) return options
+    return { ...options, parentId: this.resolveMessageId(options.parentId) }
+  }
+
+  private async resolveListMessageOptions(options?: {
+    max?: number
+    mentionedPeople?: string
+    parentId?: string
+  }): Promise<{ max?: number; mentionedPeople?: string; parentId?: string } | undefined> {
+    if (!options) return undefined
+    const resolved = { ...options }
+    if (options.mentionedPeople) {
+      resolved.mentionedPeople = await this.resolveMentionedPeople(options.mentionedPeople)
+    }
+    if (options.parentId) {
+      resolved.parentId = this.resolveMessageId(options.parentId)
+    }
+    return resolved
+  }
+
+  private async resolveMentionedPeople(mentionedPeople: string): Promise<string> {
+    if (mentionedPeople === 'me') return mentionedPeople
+    return this.resolvePersonId(mentionedPeople)
+  }
+
+  private resolveMessageId(messageId: string): string {
+    if (!messageId || decodeWebexId(messageId)) return messageId
+    // A lone message UUID does not identify its room cluster, so cluster correction
+    // is not possible without the room context.
+    if (looksLikeUuid(messageId)) return toRestId(messageId, 'MESSAGE')
+    return messageId
+  }
+
+  private toMessageRef(messageId: string): string {
+    return decodeWebexId(messageId)?.uuid ?? messageId
+  }
+
+  private normalizeMessageId(messageId: string): string {
+    if (!messageId || decodeWebexId(messageId)) return messageId
+    return toRestId(messageId, 'MESSAGE')
+  }
+
+  private normalizePersonId(personId: string): string {
+    if (!personId || decodeWebexId(personId)) return personId
+    return toRestId(personId, 'PEOPLE')
   }
 
   async downloadContent(contentRef: string): Promise<{ data: ArrayBuffer; filename: string; contentType: string }> {
@@ -654,6 +808,14 @@ function sanitizeFilename(name: string | undefined): string | undefined {
   const base = name.replace(/\\/g, '/').split('/').pop()
   if (!base || base === '.' || base === '..') return undefined
   return base
+}
+
+function looksLikeUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+}
+
+function looksLikeEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
 interface InternalActivity {

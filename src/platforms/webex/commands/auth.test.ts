@@ -9,6 +9,8 @@ import { WebexTokenExtractor } from '../token-extractor'
 import { WebexError } from '../types'
 import { extractAction, loginAction, logoutAction, oauthAction, statusAction } from './auth'
 
+const personId = Buffer.from('ciscospark://us/PEOPLE/person-1').toString('base64url')
+
 let promptQueue: string[] = []
 mock.module('node:readline/promises', () => ({
   createInterface: () => ({
@@ -33,7 +35,7 @@ describe('auth commands', () => {
   let originalStdinTTY: boolean | undefined
   let originalStdoutTTY: boolean | undefined
   const mockPerson = {
-    id: 'person-1',
+    id: personId,
     displayName: 'Test User',
     emails: ['test@example.com'],
     orgId: 'org-1',
