@@ -218,7 +218,12 @@ jobs:
           if [ -f .github/agent/last-merge-report.md ]; then
             mkdir -p "$EVIDENCE_DIR"
             cp .github/agent/last-merge-report.md "$EVIDENCE_DIR/last-merge-report.md"
-            rm .github/agent/last-merge-report.md
+            if git cat-file -e HEAD:.github/agent/last-merge-report.md 2>/dev/null; then
+              git rm --quiet --force -- .github/agent/last-merge-report.md
+              git commit --quiet --only -m "chore: remove upstream agent report" -- .github/agent/last-merge-report.md
+            else
+              rm .github/agent/last-merge-report.md
+            fi
           fi
           echo "result=${RESULT:-AGENT_FAILED}" >> "$GITHUB_OUTPUT"
           echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
