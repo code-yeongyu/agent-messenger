@@ -308,6 +308,17 @@ jobs:
           echo "number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
           echo "url=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json url --jq .url)" >> "$GITHUB_OUTPUT"
 
+          for attempt in {1..24}; do
+            CHECK_COUNT="$(gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json bucket --jq '[.[] | select(.bucket != "skipping")] | length' 2>/dev/null || echo 0)"
+            if [ "$CHECK_COUNT" -gt 0 ]; then
+              break
+            fi
+            if [ "$attempt" = "24" ]; then
+              echo "::error::PR ${PR_NUMBER} has no reported CI checks yet."
+              exit 1
+            fi
+            sleep 5
+          done
           gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --watch --fail-fast --interval 30
           HEAD_SHA="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid)"
           gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --merge --delete-branch --match-head-commit "$HEAD_SHA"
