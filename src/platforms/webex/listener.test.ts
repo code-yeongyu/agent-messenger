@@ -81,8 +81,11 @@ describe('WebexListener', () => {
 
     const expected = expect.objectContaining({
       id: toRestId('message-123', 'MESSAGE'),
+      ref: 'message-123',
       roomId: toRestId('room-123', 'ROOM'),
+      roomRef: 'room-123',
       personId: toRestId('person-123', 'PEOPLE'),
+      personRef: 'person-123',
       personEmail: 'user@example.com',
       text: 'hello',
       raw: RAW_ACTIVITY,
