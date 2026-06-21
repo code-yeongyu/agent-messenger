@@ -266,6 +266,17 @@ jobs:
             exit 1
           fi
           git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:$BRANCH"
+          for attempt in {1..12}; do
+            AHEAD_BY="$(gh api "repos/${GITHUB_REPOSITORY}/compare/main...${BRANCH}" --jq '.ahead_by // 0' 2>/dev/null || echo 0)"
+            if [ "$AHEAD_BY" -gt 0 ]; then
+              break
+            fi
+            if [ "$attempt" = "12" ]; then
+              echo "::error::Pushed ${BRANCH}, but GitHub compare still does not show commits ahead of main."
+              exit 1
+            fi
+            sleep 5
+          done
 
           BODY_FILE=/tmp/upstream-pr-body.md
           {
@@ -285,20 +296,21 @@ jobs:
             echo "- built CLI help smoke tests"
           } > "$BODY_FILE"
 
-          EXISTING="$(gh pr list --base main --head "$BRANCH" --state open --json number --jq '.[0].number // empty')"
+          PR_HEAD="${GITHUB_REPOSITORY_OWNER}:${BRANCH}"
+          EXISTING="$(gh pr list --repo "$GITHUB_REPOSITORY" --base main --head "$PR_HEAD" --state open --json number --jq '.[0].number // empty')"
           if [ -n "$EXISTING" ]; then
             PR_NUMBER="$EXISTING"
-            gh pr edit "$PR_NUMBER" --title "sync: upstream ${UPSTREAM_SHORT_SHA}" --body-file "$BODY_FILE"
+            gh pr edit "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --title "sync: upstream ${UPSTREAM_SHORT_SHA}" --body-file "$BODY_FILE"
           else
-            PR_URL="$(gh pr create --base main --head "$BRANCH" --title "sync: upstream ${UPSTREAM_SHORT_SHA}" --body-file "$BODY_FILE")"
+            PR_URL="$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$PR_HEAD" --title "sync: upstream ${UPSTREAM_SHORT_SHA}" --body-file "$BODY_FILE")"
             PR_NUMBER="${PR_URL##*/}"
           fi
           echo "number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
-          echo "url=$(gh pr view "$PR_NUMBER" --json url --jq .url)" >> "$GITHUB_OUTPUT"
+          echo "url=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json url --jq .url)" >> "$GITHUB_OUTPUT"
 
-          gh pr checks "$PR_NUMBER" --watch --fail-fast --interval 30
-          HEAD_SHA="$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)"
-          gh pr merge "$PR_NUMBER" --merge --delete-branch --match-head-commit "$HEAD_SHA"
+          gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --watch --fail-fast --interval 30
+          HEAD_SHA="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid)"
+          gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --merge --delete-branch --match-head-commit "$HEAD_SHA"
 
       - name: Upload QA evidence
         if: always() && steps.detect.outputs.proceed == 'true'
