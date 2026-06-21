@@ -27,6 +27,7 @@ coverage/
 
 # Test artifacts
 .test-workspace-config/
+local-ignore/
 
 # Environment
 .env
