@@ -7,7 +7,16 @@ import type {
   RoomActivity,
 } from 'webex-message-handler'
 
-import type { WebexMembership, WebexMessage, WebexPerson } from './types'
+import type {
+  WebexAttachmentActionEvent,
+  WebexDeletedMessageEvent,
+  WebexMembership,
+  WebexMembershipEvent,
+  WebexMessage,
+  WebexMessageEvent,
+  WebexPerson,
+  WebexRoomEvent,
+} from './types'
 
 export { fromRestId }
 
@@ -51,7 +60,7 @@ export function toRestId(uuid: string, type: WebexRestIdType): string {
   return Buffer.from(`ciscospark://us/${type}/${uuid}`).toString('base64url')
 }
 
-export function normalizeMessage(message: DecryptedMessage): DecryptedMessage {
+export function normalizeMessage(message: DecryptedMessage): WebexMessageEvent {
   const id = toRestId(message.id, 'MESSAGE')
   const parentId = message.parentId ? toRestId(message.parentId, 'MESSAGE') : message.parentId
   const roomId = toRestId(message.roomId, 'ROOM')
@@ -72,7 +81,7 @@ export function normalizeMessage(message: DecryptedMessage): DecryptedMessage {
   }
 }
 
-export function normalizeDeletedMessage(message: DeletedMessage): DeletedMessage {
+export function normalizeDeletedMessage(message: DeletedMessage): WebexDeletedMessageEvent {
   const messageId = toRestId(message.messageId, 'MESSAGE')
   const roomId = toRestId(message.roomId, 'ROOM')
   const personId = toRestId(message.personId, 'PEOPLE')
@@ -86,7 +95,7 @@ export function normalizeDeletedMessage(message: DeletedMessage): DeletedMessage
   }
 }
 
-export function normalizeMembership(activity: MembershipActivity): MembershipActivity {
+export function normalizeMembership(activity: MembershipActivity): WebexMembershipEvent {
   // `id` stays raw: it is a Mercury activity UUID, not a REST membership ID, so
   // its ref is the id itself rather than a decoded REST id.
   const actorId = toRestId(activity.actorId, 'PEOPLE')
@@ -104,7 +113,7 @@ export function normalizeMembership(activity: MembershipActivity): MembershipAct
   }
 }
 
-export function normalizeAttachmentAction(action: AttachmentAction): AttachmentAction {
+export function normalizeAttachmentAction(action: AttachmentAction): WebexAttachmentActionEvent {
   const id = toRestId(action.id, 'ATTACHMENT_ACTION')
   const messageId = action.messageId ? toRestId(action.messageId, 'MESSAGE') : action.messageId
   const personId = toRestId(action.personId, 'PEOPLE')
@@ -122,7 +131,7 @@ export function normalizeAttachmentAction(action: AttachmentAction): AttachmentA
   }
 }
 
-export function normalizeRoomActivity(activity: RoomActivity): RoomActivity {
+export function normalizeRoomActivity(activity: RoomActivity): WebexRoomEvent {
   // `id` stays raw: the Mercury conversation activity UUID has no consumer-facing
   // REST resource, so its ref is the id itself (the comparable REST id is `roomId`).
   const roomId = toRestId(activity.roomId, 'ROOM')
