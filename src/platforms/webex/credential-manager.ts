@@ -51,12 +51,15 @@ export class WebexCredentialManager {
 
     const isExpired = config.expiresAt > 0 && config.expiresAt < Date.now() + 5 * 60 * 1000
 
-    if (config.tokenType === 'extracted') {
+    if (config.tokenType === 'extracted' || config.tokenType === 'password') {
       if (isExpired && config.refreshToken) {
-        const builtinCreds = getWebexAppCredentials()
-        const refreshed = await this.refreshToken(config.refreshToken, builtinCreds.clientId, builtinCreds.clientSecret)
+        const builtinCreds = config.tokenType === 'password' ? null : getWebexAppCredentials()
+        const resolvedClientId = config.clientId ?? builtinCreds?.clientId
+        const resolvedClientSecret = config.clientSecret ?? builtinCreds?.clientSecret
+        if (!resolvedClientId || !resolvedClientSecret) return null
+        const refreshed = await this.refreshToken(config.refreshToken, resolvedClientId, resolvedClientSecret)
         if (refreshed) {
-          await this.saveConfig({ ...config, ...refreshed, tokenType: 'extracted' })
+          await this.saveConfig({ ...config, ...refreshed, tokenType: config.tokenType })
           return refreshed.accessToken
         }
       }
