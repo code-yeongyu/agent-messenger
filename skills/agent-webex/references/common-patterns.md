@@ -18,8 +18,11 @@ This guide covers typical workflows for AI agents interacting with Cisco Webex u
 # Recommended: Browser extraction (zero-config, sends as you, no "via" label)
 agent-webex auth extract
 
-# Fallback: Device Grant (zero-config, opens browser, shows "via agent-messenger")
+# Email/password login (messages appear as you; prompts when flags are omitted)
 agent-webex auth login
+
+# Fallback: Device Grant (zero-config, opens browser, shows "via agent-messenger")
+agent-webex auth oauth
 
 # With a bot token (never expires, for CI/CD)
 agent-webex auth login --token "YOUR_BOT_TOKEN_HERE"
@@ -628,7 +631,7 @@ done
 
 ```bash
 # Best: Device Grant (auto-refreshes, no token management)
-agent-webex auth login
+agent-webex auth oauth
 
 # Also good: bot token (never expires)
 agent-webex auth login --token "$BOT_TOKEN"

@@ -1,6 +1,6 @@
 {
   "name": "agent-messenger",
-  "version": "2.20.5",
+  "version": "2.23.0",
   "description": "Multi-platform messaging CLI for AI agents (Slack, Discord, Teams, Webex, Telegram, Telegram Bot, WhatsApp, LINE, Instagram, KakaoTalk, Channel Talk)",
   "repository": {
     "type": "git",
@@ -21,6 +21,7 @@
     "agent-telegram": "./src/platforms/telegram/cli.ts",
     "agent-telegrambot": "./src/platforms/telegrambot/cli.ts",
     "agent-webex": "./src/platforms/webex/cli.ts",
+    "agent-webexbot": "./src/platforms/webexbot/cli.ts",
     "agent-wechatbot": "./src/platforms/wechatbot/cli.ts",
     "agent-whatsapp": "./src/platforms/whatsapp/cli.ts",
     "agent-whatsappbot": "./src/platforms/whatsappbot/cli.ts",
@@ -48,6 +49,9 @@
       ],
       "webex": [
         "./src/platforms/webex/index.ts"
+      ],
+      "webexbot": [
+        "./src/platforms/webexbot/index.ts"
       ],
       "whatsapp": [
         "./src/platforms/whatsapp/index.ts"
@@ -107,6 +111,10 @@
     "./webex": {
       "types": "./src/platforms/webex/index.ts",
       "default": "./src/platforms/webex/index.ts"
+    },
+    "./webexbot": {
+      "types": "./src/platforms/webexbot/index.ts",
+      "default": "./src/platforms/webexbot/index.ts"
     },
     "./whatsapp": {
       "types": "./src/platforms/whatsapp/index.ts",

@@ -77,6 +77,10 @@ program.command('webex', 'Interact with Cisco Webex', {
   executableFile: join(__dirname, 'platforms', 'webex', `cli${ext}`),
 })
 
+program.command('webexbot', 'Interact with Cisco Webex using bot tokens', {
+  executableFile: join(__dirname, 'platforms', 'webexbot', `cli${ext}`),
+})
+
 program.command('tui', 'Launch unified messenger TUI', {
   executableFile: join(__dirname, 'tui', `cli${ext}`),
 })
