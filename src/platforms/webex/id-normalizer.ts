@@ -48,50 +48,87 @@ export function toRestId(uuid: string, type: WebexRestIdType): string {
 }
 
 export function normalizeMessage(message: DecryptedMessage): DecryptedMessage {
+  const id = toRestId(message.id, 'MESSAGE')
+  const parentId = message.parentId ? toRestId(message.parentId, 'MESSAGE') : message.parentId
+  const roomId = toRestId(message.roomId, 'ROOM')
+  const personId = toRestId(message.personId, 'PEOPLE')
+  const mentionedPeople = message.mentionedPeople.map((person) => toRestId(person, 'PEOPLE'))
   return {
     ...message,
-    id: toRestId(message.id, 'MESSAGE'),
-    parentId: message.parentId ? toRestId(message.parentId, 'MESSAGE') : message.parentId,
-    roomId: toRestId(message.roomId, 'ROOM'),
-    personId: toRestId(message.personId, 'PEOPLE'),
-    mentionedPeople: message.mentionedPeople.map((id) => toRestId(id, 'PEOPLE')),
+    id,
+    ref: toRef(id),
+    parentId,
+    parentRef: parentId ? toRef(parentId) : parentId,
+    roomId,
+    roomRef: toRef(roomId),
+    personId,
+    personRef: toRef(personId),
+    mentionedPeople,
+    mentionedPeopleRefs: mentionedPeople.map(toRef),
   }
 }
 
 export function normalizeDeletedMessage(message: DeletedMessage): DeletedMessage {
+  const messageId = toRestId(message.messageId, 'MESSAGE')
+  const roomId = toRestId(message.roomId, 'ROOM')
+  const personId = toRestId(message.personId, 'PEOPLE')
   return {
-    messageId: toRestId(message.messageId, 'MESSAGE'),
-    roomId: toRestId(message.roomId, 'ROOM'),
-    personId: toRestId(message.personId, 'PEOPLE'),
+    messageId,
+    messageRef: toRef(messageId),
+    roomId,
+    roomRef: toRef(roomId),
+    personId,
+    personRef: toRef(personId),
   }
 }
 
 export function normalizeMembership(activity: MembershipActivity): MembershipActivity {
-  // `id` stays raw: it is a Mercury activity UUID, not a REST membership ID.
+  // `id` stays raw: it is a Mercury activity UUID, not a REST membership ID, so
+  // its ref is the id itself rather than a decoded REST id.
+  const actorId = toRestId(activity.actorId, 'PEOPLE')
+  const personId = toRestId(activity.personId, 'PEOPLE')
+  const roomId = toRestId(activity.roomId, 'ROOM')
   return {
     ...activity,
-    actorId: toRestId(activity.actorId, 'PEOPLE'),
-    personId: toRestId(activity.personId, 'PEOPLE'),
-    roomId: toRestId(activity.roomId, 'ROOM'),
+    ref: activity.id,
+    actorId,
+    actorRef: toRef(actorId),
+    personId,
+    personRef: toRef(personId),
+    roomId,
+    roomRef: toRef(roomId),
   }
 }
 
 export function normalizeAttachmentAction(action: AttachmentAction): AttachmentAction {
+  const id = toRestId(action.id, 'ATTACHMENT_ACTION')
+  const messageId = action.messageId ? toRestId(action.messageId, 'MESSAGE') : action.messageId
+  const personId = toRestId(action.personId, 'PEOPLE')
+  const roomId = toRestId(action.roomId, 'ROOM')
   return {
     ...action,
-    id: toRestId(action.id, 'ATTACHMENT_ACTION'),
-    messageId: action.messageId ? toRestId(action.messageId, 'MESSAGE') : action.messageId,
-    personId: toRestId(action.personId, 'PEOPLE'),
-    roomId: toRestId(action.roomId, 'ROOM'),
+    id,
+    ref: toRef(id),
+    messageId,
+    messageRef: toRef(messageId),
+    personId,
+    personRef: toRef(personId),
+    roomId,
+    roomRef: toRef(roomId),
   }
 }
 
 export function normalizeRoomActivity(activity: RoomActivity): RoomActivity {
-  // `id` stays raw: the Mercury conversation activity UUID has no
-  // consumer-facing REST resource (the comparable REST ID is `roomId`).
+  // `id` stays raw: the Mercury conversation activity UUID has no consumer-facing
+  // REST resource, so its ref is the id itself (the comparable REST id is `roomId`).
+  const roomId = toRestId(activity.roomId, 'ROOM')
+  const actorId = toRestId(activity.actorId, 'PEOPLE')
   return {
     ...activity,
-    roomId: toRestId(activity.roomId, 'ROOM'),
-    actorId: toRestId(activity.actorId, 'PEOPLE'),
+    ref: activity.id,
+    roomId,
+    roomRef: toRef(roomId),
+    actorId,
+    actorRef: toRef(actorId),
   }
 }

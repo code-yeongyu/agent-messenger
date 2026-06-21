@@ -122,6 +122,23 @@ describe('normalizeMessage', () => {
     expect(result.mentionedPeople).toEqual([toRestId('mention-uuid-1', 'PEOPLE'), toRestId('mention-uuid-2', 'PEOPLE')])
   })
 
+  it('adds a raw uuid ref alongside every id', () => {
+    const result = normalizeMessage(message)
+
+    expect(result.ref).toBe('msg-uuid')
+    expect(result.parentRef).toBe('parent-uuid')
+    expect(result.roomRef).toBe('room-uuid')
+    expect(result.personRef).toBe('person-uuid')
+    expect(result.mentionedPeopleRefs).toEqual(['mention-uuid-1', 'mention-uuid-2'])
+  })
+
+  it('omits parentRef when parentId is absent', () => {
+    const { parentId: _omit, ...withoutParent } = message
+    const result = normalizeMessage(withoutParent)
+
+    expect(result.parentRef).toBeUndefined()
+  })
+
   it('leaves non-id fields and raw untouched', () => {
     const result = normalizeMessage(message)
 
@@ -157,8 +174,11 @@ describe('normalizeDeletedMessage', () => {
 
     expect(normalizeDeletedMessage(deleted)).toEqual({
       messageId: toRestId('msg-uuid', 'MESSAGE'),
+      messageRef: 'msg-uuid',
       roomId: toRestId('room-uuid', 'ROOM'),
+      roomRef: 'room-uuid',
       personId: toRestId('person-uuid', 'PEOPLE'),
+      personRef: 'person-uuid',
     })
   })
 })
@@ -182,6 +202,25 @@ describe('normalizeMembership', () => {
     expect(result.personId).toBe(toRestId('member-uuid', 'PEOPLE'))
     expect(result.roomId).toBe(toRestId('room-uuid', 'ROOM'))
     expect(result.raw).toBe(RAW)
+  })
+
+  it('sets ref to the raw activity id and adds refs for the rest', () => {
+    const membership: MembershipActivity = {
+      id: 'activity-uuid',
+      actorId: 'actor-uuid',
+      personId: 'member-uuid',
+      roomId: 'room-uuid',
+      action: 'add',
+      created: '2024-01-01T00:00:00Z',
+      raw: RAW,
+    }
+
+    const result = normalizeMembership(membership)
+
+    expect(result.ref).toBe('activity-uuid')
+    expect(result.actorRef).toBe('actor-uuid')
+    expect(result.personRef).toBe('member-uuid')
+    expect(result.roomRef).toBe('room-uuid')
   })
 })
 
@@ -207,7 +246,27 @@ describe('normalizeAttachmentAction', () => {
     expect(result.inputs).toEqual({ choice: 'yes' })
   })
 
-  it('preserves an empty messageId', () => {
+  it('adds a raw uuid ref alongside every id', () => {
+    const action: AttachmentAction = {
+      id: 'action-uuid',
+      messageId: 'msg-uuid',
+      personId: 'person-uuid',
+      personEmail: 'user@example.com',
+      roomId: 'room-uuid',
+      inputs: { choice: 'yes' },
+      created: '2024-01-01T00:00:00Z',
+      raw: RAW,
+    }
+
+    const result = normalizeAttachmentAction(action)
+
+    expect(result.ref).toBe('action-uuid')
+    expect(result.messageRef).toBe('msg-uuid')
+    expect(result.personRef).toBe('person-uuid')
+    expect(result.roomRef).toBe('room-uuid')
+  })
+
+  it('preserves an empty messageId and its ref', () => {
     const action: AttachmentAction = {
       id: 'action-uuid',
       messageId: '',
@@ -219,7 +278,9 @@ describe('normalizeAttachmentAction', () => {
       raw: RAW,
     }
 
-    expect(normalizeAttachmentAction(action).messageId).toBe('')
+    const result = normalizeAttachmentAction(action)
+    expect(result.messageId).toBe('')
+    expect(result.messageRef).toBe('')
   })
 })
 
@@ -240,5 +301,22 @@ describe('normalizeRoomActivity', () => {
     expect(result.roomId).toBe(toRestId('room-uuid', 'ROOM'))
     expect(result.actorId).toBe(toRestId('actor-uuid', 'PEOPLE'))
     expect(result.raw).toBe(RAW)
+  })
+
+  it('sets ref to the raw activity id and adds refs for the rest', () => {
+    const room: RoomActivity = {
+      id: 'activity-uuid',
+      roomId: 'room-uuid',
+      actorId: 'actor-uuid',
+      action: 'created',
+      created: '2024-01-01T00:00:00Z',
+      raw: RAW,
+    }
+
+    const result = normalizeRoomActivity(room)
+
+    expect(result.ref).toBe('activity-uuid')
+    expect(result.roomRef).toBe('room-uuid')
+    expect(result.actorRef).toBe('actor-uuid')
   })
 })
