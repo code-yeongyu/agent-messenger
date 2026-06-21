@@ -3,20 +3,26 @@ import { afterEach, beforeEach, describe, expect, spyOn, it } from 'bun:test'
 import { WebexClient } from '../client'
 import { WebexError } from '../types'
 
+const restId = (type: string, ref: string) => Buffer.from(`ciscospark://us/${type}/${ref}`).toString('base64url')
+const member1Id = restId('MEMBERSHIP', 'person-1:room-1')
+const member2Id = restId('MEMBERSHIP', 'person-2:room-1')
+const person1Id = restId('PEOPLE', 'person-1')
+const person2Id = restId('PEOPLE', 'person-2')
+
 const mockMembers = [
   {
-    id: 'mem-1',
+    id: member1Id,
     roomId: 'room-1',
-    personId: 'person-1',
+    personId: person1Id,
     personEmail: 'alice@example.com',
     personDisplayName: 'Alice',
     isModerator: true,
     created: '2024-01-01T00:00:00.000Z',
   },
   {
-    id: 'mem-2',
+    id: member2Id,
     roomId: 'room-1',
-    personId: 'person-2',
+    personId: person2Id,
     personEmail: 'bob@example.com',
     personDisplayName: 'Bob',
     isModerator: false,
@@ -66,16 +72,20 @@ describe('member commands', () => {
     expect(consoleSpy).toHaveBeenCalledWith(
       JSON.stringify([
         {
-          id: 'mem-1',
-          personId: 'person-1',
+          id: member1Id,
+          ref: 'person-1:room-1',
+          personId: person1Id,
+          personRef: 'person-1',
           personEmail: 'alice@example.com',
           personDisplayName: 'Alice',
           isModerator: true,
           created: '2024-01-01T00:00:00.000Z',
         },
         {
-          id: 'mem-2',
-          personId: 'person-2',
+          id: member2Id,
+          ref: 'person-2:room-1',
+          personId: person2Id,
+          personRef: 'person-2',
           personEmail: 'bob@example.com',
           personDisplayName: 'Bob',
           isModerator: false,

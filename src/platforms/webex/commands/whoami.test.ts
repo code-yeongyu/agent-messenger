@@ -1,18 +1,22 @@
 import { afterEach, beforeEach, expect, spyOn, it } from 'bun:test'
 
 import { WebexClient } from '../client'
+import { toRestId } from '../id-normalizer'
 import { WebexError } from '../types'
 import { whoamiCommand } from './whoami'
 
+const orgId = Buffer.from('ciscospark://us/ORGANIZATION/org-123').toString('base64url')
+const personId = toRestId('person-123', 'PEOPLE')
+
 const mockUser = {
-  id: 'person-123',
+  id: personId,
   emails: ['test@example.com'],
   displayName: 'Test User',
   nickName: 'Testy',
   firstName: 'Test',
   lastName: 'User',
   avatar: 'https://example.com/avatar.jpg',
-  orgId: 'org-123',
+  orgId,
   type: 'person' as const,
   created: '2024-01-01T00:00:00.000Z',
 }
@@ -58,14 +62,16 @@ it('whoami calls testAuth and outputs user fields', async () => {
 
   expect(consoleLogSpy).toHaveBeenCalledWith(
     JSON.stringify({
-      id: 'person-123',
+      id: personId,
+      ref: 'person-123',
       emails: ['test@example.com'],
       displayName: 'Test User',
       nickName: 'Testy',
       firstName: 'Test',
       lastName: 'User',
       avatar: 'https://example.com/avatar.jpg',
-      orgId: 'org-123',
+      orgId,
+      orgRef: 'org-123',
       type: 'person',
     }),
   )
@@ -77,14 +83,16 @@ it('whoami outputs pretty-printed JSON when --pretty flag is passed', async () =
   expect(consoleLogSpy).toHaveBeenCalledWith(
     JSON.stringify(
       {
-        id: 'person-123',
+        id: personId,
+        ref: 'person-123',
         emails: ['test@example.com'],
         displayName: 'Test User',
         nickName: 'Testy',
         firstName: 'Test',
         lastName: 'User',
         avatar: 'https://example.com/avatar.jpg',
-        orgId: 'org-123',
+        orgId,
+        orgRef: 'org-123',
         type: 'person',
       },
       null,

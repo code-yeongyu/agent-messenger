@@ -4,6 +4,7 @@ import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
 import { WebexClient } from '../client'
+import { toRef } from '../id-normalizer'
 
 export async function snapshotAction(options: { full?: boolean; pretty?: boolean }): Promise<void> {
   try {
@@ -19,11 +20,12 @@ export async function snapshotAction(options: { full?: boolean; pretty?: boolean
       spaces: options.full
         ? spaces.map((s) => ({
             id: s.id,
+            ref: toRef(s.id),
             title: s.title,
             type: s.type,
             lastActivity: s.lastActivity,
           }))
-        : spaces.map((s) => ({ id: s.id, title: s.title })),
+        : spaces.map((s) => ({ id: s.id, ref: toRef(s.id), title: s.title })),
     }
 
     if (!options.full) {

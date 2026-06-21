@@ -331,7 +331,7 @@ agent-webexbot user info "$PERSON_ID" | jq '{displayName, emails, type}'
 ```bash
 #!/bin/bash
 
-# Brief: bot identity + space IDs/titles
+# Brief: bot identity + space ids/refs/titles
 agent-webexbot snapshot
 
 # Full: includes space type and last activity

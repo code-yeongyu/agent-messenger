@@ -1,7 +1,7 @@
 ---
 name: agent-webex
 description: Interact with Cisco Webex - send messages, read spaces, manage memberships
-version: 2.23.1
+version: 2.23.2
 allowed-tools: Bash(agent-webex:*)
 metadata:
   openclaw:
@@ -333,12 +333,12 @@ agent-webex snapshot --full
 
 Default returns brief JSON with:
 
-- Spaces (id, title) — only spaces you're a member of
+- Spaces (id, ref, title) — only spaces you're a member of
 - Hint for next commands
 
 With `--full`, returns:
 
-- Spaces (id, title, type, lastActivity)
+- Spaces (id, ref, title, type, lastActivity)
 
 For messages or members, use `message list <space-id>` or `member list <space-id>`.
 

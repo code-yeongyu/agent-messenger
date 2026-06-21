@@ -1,9 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test'
 
 import * as jose from 'node-jose'
 
 import { WebexClient } from './client'
 import { WebexEncryptionService } from './encryption'
+import { toRestId } from './id-normalizer'
 import { WebexError } from './types'
 
 describe('WebexClient', () => {
@@ -444,6 +445,92 @@ describe('WebexClient', () => {
     })
   })
 
+  describe('id ref resolution', () => {
+    const roomUuid = '12345678-1234-1234-1234-1234567890ab'
+    const personUuid = '22222222-2222-2222-2222-222222222222'
+    const messageUuid = '33333333-3333-3333-3333-333333333333'
+    const usRoomId = toRestId(roomUuid, 'ROOM')
+    const clusteredRoomId = Buffer.from(`ciscospark://urn:TEAM:us-west-2_r/ROOM/${roomUuid}`).toString('base64url')
+
+    const isRoomsList = (url: string) => new URL(url).pathname === '/v1/rooms'
+
+    it('resolves a bare room uuid to the real clustered id before sending', async () => {
+      mockResponse({ items: [{ id: clusteredRoomId, title: 'Team', type: 'group' }] })
+      mockResponse({ id: 'msg-1', roomId: clusteredRoomId, roomType: 'group' })
+
+      const client = await new WebexClient().login({ token: 'test-token' })
+      await client.sendMessage(roomUuid, 'hello')
+
+      expect(isRoomsList(fetchCalls[0].url)).toBe(true)
+      expect(JSON.parse(fetchCalls[1].options?.body as string).roomId).toBe(clusteredRoomId)
+    })
+
+    it('rewrites a us-cluster room id to the real clustered id for memberships', async () => {
+      mockResponse({ items: [{ id: clusteredRoomId, title: 'Team', type: 'group' }] })
+      mockResponse({ items: [{ id: 'm1', roomId: clusteredRoomId, personId: 'p1' }] })
+
+      const client = await new WebexClient().login({ token: 'test-token' })
+      await client.listMemberships(usRoomId)
+
+      const membershipsUrl = new URL(fetchCalls[1].url)
+      expect(membershipsUrl.pathname).toBe('/v1/memberships')
+      expect(membershipsUrl.searchParams.get('roomId')).toBe(clusteredRoomId)
+    })
+
+    it('passes an already-clustered room id through without a lookup', async () => {
+      mockResponse({ id: 'msg-1', roomId: clusteredRoomId, roomType: 'group' })
+
+      const client = await new WebexClient().login({ token: 'test-token' })
+      await client.sendMessage(clusteredRoomId, 'hello')
+
+      expect(fetchCalls).toHaveLength(1)
+      expect(JSON.parse(fetchCalls[0].options?.body as string).roomId).toBe(clusteredRoomId)
+    })
+
+    it('fails open to the reconstructed room id and warns when no room matches', async () => {
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        mockResponse({ items: [] })
+        mockResponse({ id: 'msg-1', roomId: usRoomId, roomType: 'group' })
+
+        const client = await new WebexClient().login({ token: 'test-token' })
+        await client.sendMessage(roomUuid, 'hello')
+
+        expect(JSON.parse(fetchCalls[1].options?.body as string).roomId).toBe(usRoomId)
+        expect(warnSpy).toHaveBeenCalled()
+      } finally {
+        warnSpy.mockRestore()
+      }
+    })
+
+    it('resolves a person email through the people search endpoint', async () => {
+      const personId = toRestId(personUuid, 'PEOPLE')
+      mockResponse({ items: [{ id: personId, emails: ['alice@example.com'], displayName: 'Alice', type: 'person' }] })
+
+      const client = await new WebexClient().login({ token: 'test-token' })
+      const person = await client.getPerson('alice@example.com')
+
+      expect(person.id).toBe(personId)
+      const url = new URL(fetchCalls[0].url)
+      expect(url.pathname).toBe('/v1/people')
+      expect(url.searchParams.get('email')).toBe('alice@example.com')
+    })
+
+    it('reconstructs bare person and message uuids for REST calls', async () => {
+      const personId = toRestId(personUuid, 'PEOPLE')
+      const messageId = toRestId(messageUuid, 'MESSAGE')
+      mockResponse({ id: personId, emails: ['alice@example.com'], displayName: 'Alice', type: 'person' })
+      mockResponse({ id: messageId, roomId: usRoomId, text: 'hi' })
+
+      const client = await new WebexClient().login({ token: 'test-token' })
+      await client.getPerson(personUuid)
+      await client.getMessage(messageUuid)
+
+      expect(fetchCalls[0].url).toBe(`https://webexapis.com/v1/people/${personId}`)
+      expect(fetchCalls[1].url).toBe(`https://webexapis.com/v1/messages/${messageId}`)
+    })
+  })
+
   describe('rate limiting', () => {
     it('retries on 429 with Retry-After header', async () => {
       mockResponse({ message: 'Rate limited' }, 429, { 'Retry-After': '0.1' })
@@ -519,6 +606,7 @@ describe('WebexClient', () => {
     const CONV_BASE = 'https://conv-r.wbx2.com/conversation/api/v1'
     const TEST_ROOM_ID = Buffer.from('ciscospark://urn:TEAM:us-west-2_r/ROOM/abc123-def456').toString('base64')
     const TEST_CONV_UUID = 'abc123-def456'
+    const TEST_ACTIVITY_ID = toRestId('activity-123', 'MESSAGE')
 
     const mockActivity = (text: string, overrides?: Partial<Record<string, unknown>>) => ({
       id: 'activity-123',
@@ -605,7 +693,7 @@ describe('WebexClient', () => {
         const client = await createExtractedClient()
         const message = await client.sendMessage(TEST_ROOM_ID, 'Hello world')
 
-        expect(message.id).toBe('activity-123')
+        expect(message.id).toBe(TEST_ACTIVITY_ID)
         expect(message.text).toBe('Hello world')
         expect(message.personEmail).toBe('test@example.com')
         expect(message.created).toBe('2026-01-01T00:00:00.000Z')
@@ -670,7 +758,7 @@ describe('WebexClient', () => {
         const client = await createExtractedClient()
         const messages = await client.listMessages(TEST_ROOM_ID)
 
-        expect(messages[0].id).toBe('activity-123')
+        expect(messages[0].id).toBe(TEST_ACTIVITY_ID)
         expect(messages[0].text).toBe('Hello')
         expect(messages[0].personEmail).toBe('test@example.com')
         expect(messages[0].created).toBe('2026-01-01T00:00:00.000Z')
@@ -713,7 +801,7 @@ describe('WebexClient', () => {
         const client = await createExtractedClient()
         const message = await client.getMessage('activity-123')
 
-        expect(message.id).toBe('activity-123')
+        expect(message.id).toBe(TEST_ACTIVITY_ID)
         expect(message.text).toBe('Hello')
         expect(message.personEmail).toBe('test@example.com')
       })
@@ -843,7 +931,7 @@ describe('WebexClient', () => {
 
         const client = await createExtractedClient()
         const message = await client.editMessage('activity-123', TEST_ROOM_ID, 'Edited text')
-        expect(message.id).toBe('activity-123')
+        expect(message.id).toBe(TEST_ACTIVITY_ID)
       })
 
       it('throws when server returns activity linked to a different parent', async () => {
@@ -916,7 +1004,7 @@ describe('WebexClient', () => {
         expect(fetchCalls[0].url).toContain('/rooms?type=direct&max=100')
         expect(fetchCalls[1].url).toContain('/memberships?roomId=')
         expect(fetchCalls[2].url).toBe(`${CONV_BASE}/activities`)
-        expect(message.id).toBe('activity-123')
+        expect(message.id).toBe(TEST_ACTIVITY_ID)
       })
 
       it('throws WebexError when no existing direct conversation found', async () => {

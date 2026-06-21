@@ -2,13 +2,16 @@ import { Command } from 'commander'
 
 import { cliOutput } from '@/shared/utils/cli-output'
 
+import { toRef } from '../../webex/id-normalizer'
 import type { WebexMessage } from '../../webex/types'
 import type { BotOption } from './shared'
 import { getClient } from './shared'
 
 interface MessageResult {
   id?: string
+  ref?: string
   roomId?: string
+  roomRef?: string
   text?: string
   markdown?: string
   html?: string
@@ -16,7 +19,9 @@ interface MessageResult {
   created?: string
   messages?: Array<{
     id: string
+    ref: string
     roomId: string
+    roomRef: string
     text?: string
     personEmail: string
     created: string
@@ -28,7 +33,9 @@ interface MessageResult {
 function formatMessage(message: WebexMessage): MessageResult {
   return {
     id: message.id,
+    ref: toRef(message.id),
     roomId: message.roomId,
+    roomRef: toRef(message.roomId),
     text: message.text,
     markdown: message.markdown,
     html: message.html,
@@ -81,7 +88,9 @@ export async function repliesAction(
     return {
       messages: messages.map((msg) => ({
         id: msg.id,
+        ref: toRef(msg.id),
         roomId: msg.roomId,
+        roomRef: toRef(msg.roomId),
         text: msg.text,
         personEmail: msg.personEmail,
         created: msg.created,
@@ -116,7 +125,9 @@ export async function listAction(space: string, options: BotOption & { max?: str
     return {
       messages: messages.map((msg) => ({
         id: msg.id,
+        ref: toRef(msg.id),
         roomId: msg.roomId,
+        roomRef: toRef(msg.roomId),
         text: msg.text,
         personEmail: msg.personEmail,
         created: msg.created,

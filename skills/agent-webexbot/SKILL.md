@@ -1,7 +1,7 @@
 ---
 name: agent-webexbot
 description: Interact with Cisco Webex using bot tokens - send messages, reply in threads, upload and download files, look up people, read spaces, manage memberships, stream real-time events
-version: 2.23.1
+version: 2.23.2
 allowed-tools: Bash(agent-webexbot:*)
 metadata:
   openclaw:
@@ -246,7 +246,7 @@ agent-webexbot file download <content-url-or-id> ./downloaded-report.pdf
 Get a workspace overview for AI agents.
 
 ```bash
-# Brief snapshot (bot identity + space IDs/titles)
+# Brief snapshot (bot identity + space ids/refs/titles)
 agent-webexbot snapshot
 
 # Full snapshot (includes space type and last activity)
