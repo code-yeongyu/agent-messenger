@@ -21,6 +21,10 @@ describe('webex barrel exports', () => {
     expect(webex.fromRestId).toBeDefined()
   })
 
+  it('exports loginWithPassword', () => {
+    expect(webex.loginWithPassword).toBeDefined()
+  })
+
   it('exports Zod schemas', () => {
     expect(webex.WebexSpaceSchema).toBeDefined()
     expect(webex.WebexMessageSchema).toBeDefined()
