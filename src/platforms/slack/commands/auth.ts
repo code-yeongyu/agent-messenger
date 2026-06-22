@@ -8,7 +8,8 @@ import { debug } from '@/shared/utils/stderr'
 
 import { SlackClient, SlackError } from '../client'
 import { CredentialManager } from '../credential-manager'
-import { refreshCookie, tryWebTokenRefresh } from '../ensure-auth'
+import { refreshCookie, refreshKnownWorkspaceDomains, tryWebTokenRefresh } from '../ensure-auth'
+import type { RefreshResult } from '../ensure-auth'
 import { loginWithQr } from '../qr-http-login'
 import { type ExtractedWorkspace, TokenExtractor } from '../token-extractor'
 
@@ -80,6 +81,8 @@ async function extractAction(options: {
 
     const validWorkspaces = []
     const failureReasons: string[] = []
+    const resolvedTeamIds = new Set<string>()
+    const refreshCache = new Map<string, RefreshResult | null>()
     for (const ws of workspaces) {
       if (options.debug) {
         debug(`[debug] Testing credentials for ${ws.workspace_id}...`)
@@ -88,10 +91,14 @@ async function extractAction(options: {
       try {
         const client = await new SlackClient().login({ token: ws.token, cookie: ws.cookie })
         const authInfo = await client.testAuth()
+        if (!authInfo.team_id) throw new SlackError('testAuth returned empty team_id', 'invalid_auth')
         ws.workspace_id = authInfo.team_id
         ws.workspace_name = authInfo.team || ws.workspace_name
-        validWorkspaces.push(ws)
-        await credManager.setWorkspace(ws)
+        if (!resolvedTeamIds.has(ws.workspace_id)) {
+          resolvedTeamIds.add(ws.workspace_id)
+          validWorkspaces.push(ws)
+          await credManager.setWorkspace(ws)
+        }
 
         if (options.debug) {
           debug(`[debug] ✓ Valid: ${authInfo.team} (${authInfo.user})`)
@@ -112,11 +119,12 @@ async function extractAction(options: {
             : `${ws.workspace_id} (trying all known domains)`
           debug(`[debug] Attempting web token refresh for ${target}...`)
         }
-        const refreshed = await tryWebTokenRefresh(ws, workspaceDomains)
-        if (refreshed) {
+        const refreshed = await tryWebTokenRefresh(ws, workspaceDomains, { resolvedTeamIds, refreshCache })
+        if (refreshed && !resolvedTeamIds.has(refreshed.workspace_id)) {
           ws.token = refreshed.token
           ws.workspace_id = refreshed.workspace_id
           ws.workspace_name = refreshed.workspace_name
+          resolvedTeamIds.add(ws.workspace_id)
           validWorkspaces.push(ws)
           await credManager.setWorkspace(ws)
 
@@ -125,6 +133,26 @@ async function extractAction(options: {
           }
         } else if (options.debug) {
           debug('[debug] ✗ Web refresh failed')
+        }
+      }
+    }
+
+    for (const cookie of new Set(workspaces.map((ws) => ws.cookie).filter(Boolean))) {
+      const enumerated = await refreshKnownWorkspaceDomains(cookie, workspaceDomains, {
+        resolvedTeamIds,
+        refreshCache,
+      })
+      for (const result of enumerated) {
+        const ws: ExtractedWorkspace = {
+          workspace_id: result.workspace_id,
+          workspace_name: result.workspace_name,
+          token: result.token,
+          cookie,
+        }
+        validWorkspaces.push(ws)
+        await credManager.setWorkspace(ws)
+        if (options.debug) {
+          debug(`[debug] ✓ Recovered via domain enumeration: ${result.workspace_id}/${result.workspace_name}`)
         }
       }
     }

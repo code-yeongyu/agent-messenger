@@ -1,9 +1,8 @@
 import { copyFileSync, existsSync, rmSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const require = createRequire(import.meta.url)
+import { openReadonlyDatabase } from '@/shared/sqlite'
 
 /**
  * Reads Chromium SQLite cookie databases with Bun/Node dual-runtime support.
@@ -70,24 +69,7 @@ export class ChromiumCookieReader {
     params: unknown[] | undefined,
     mode: 'all' | 'first',
   ): T[] | T | null {
-    if (typeof globalThis.Bun !== 'undefined') {
-      const { Database } = require('bun:sqlite')
-      const db = new Database(tempPath, { readonly: true })
-
-      try {
-        const stmt = db.query(sql)
-        if (mode === 'all') {
-          return (params ? stmt.all(...params) : stmt.all()) as T[]
-        }
-
-        return (params ? stmt.get(...params) : stmt.get()) as T | null
-      } finally {
-        db.close()
-      }
-    }
-
-    const Database = require('better-sqlite3')
-    const db = new Database(tempPath, { readonly: true })
+    const db = openReadonlyDatabase(tempPath)
 
     try {
       const stmt = db.prepare(sql)
@@ -95,7 +77,8 @@ export class ChromiumCookieReader {
         return (params ? stmt.all(...params) : stmt.all()) as T[]
       }
 
-      return (params ? stmt.get(...params) : stmt.get()) as T | null
+      const row = params ? stmt.get(...params) : stmt.get()
+      return (row ?? null) as T | null
     } finally {
       db.close()
     }
