@@ -81,6 +81,38 @@ describe('WebexClient', () => {
       expect((client as any).deviceUrl).toBe('https://wdm-r.wbx2.com/wdm/api/v1/devices/dev-1')
       expect((client as any).tokenType).toBe('extracted')
     })
+
+    const DEVICE_URL = 'https://wdm-r.wbx2.com/wdm/api/v1/devices/dev-1'
+    const encryptionOf = (client: WebexClient) =>
+      (client as unknown as { encryption: WebexEncryptionService | null }).encryption
+
+    it('initializes encryption for explicit extracted credentials with a device URL', async () => {
+      const client = await new WebexClient().login({
+        token: 'extracted-token',
+        deviceUrl: DEVICE_URL,
+        tokenType: 'extracted',
+      })
+      expect(encryptionOf(client)).toBeInstanceOf(WebexEncryptionService)
+    })
+
+    it('initializes encryption for explicit password credentials with a device URL', async () => {
+      const client = await new WebexClient().login({
+        token: 'password-token',
+        deviceUrl: DEVICE_URL,
+        tokenType: 'password',
+      })
+      expect(encryptionOf(client)).toBeInstanceOf(WebexEncryptionService)
+    })
+
+    it('does not initialize encryption for a plain token without device URL', async () => {
+      const client = await new WebexClient().login({ token: 'plain-token' })
+      expect(encryptionOf(client)).toBeNull()
+    })
+
+    it('does not initialize encryption when device URL is absent', async () => {
+      const client = await new WebexClient().login({ token: 'extracted-token', tokenType: 'extracted' })
+      expect(encryptionOf(client)).toBeNull()
+    })
   })
 
   describe('testAuth', () => {
@@ -623,12 +655,17 @@ describe('WebexClient', () => {
       activities: { items: activities },
     })
 
+    // These tests exercise the cleartext internal-API shape, so the KMS-backed
+    // encryption service is cleared after login; the encrypted path has its own
+    // createEncryptedClient that re-attaches a stub service.
     const createExtractedClient = async () => {
-      return new WebexClient().login({
+      const client = await new WebexClient().login({
         token: 'extracted-token',
         deviceUrl: TEST_DEVICE_URL,
         tokenType: 'extracted',
       })
+      ;(client as unknown as { encryption: null }).encryption = null
+      return client
     }
 
     describe('sendMessage', () => {
@@ -988,6 +1025,31 @@ describe('WebexClient', () => {
         expect(decodeJweHeader(body.object.displayName).kid).toBe(TEST_KEY_URI)
         expect(decodeJweHeader(body.object.content).kid).toBe(TEST_KEY_URI)
       })
+
+      it('explicit-credential login encrypts the send without manually attaching a service', async () => {
+        const keystore = jose.JWK.createKeyStore()
+        const key = await keystore.generate('oct', 256, { alg: 'A256GCM' })
+        const serializedKey = JSON.stringify({ uri: TEST_KEY_URI, jwk: key.toJSON(true) })
+
+        const client = await new WebexClient().login({
+          token: 'extracted-token',
+          deviceUrl: TEST_DEVICE_URL,
+          tokenType: 'extracted',
+        })
+        const service = (client as unknown as { encryption: WebexEncryptionService | null }).encryption
+        expect(service).toBeInstanceOf(WebexEncryptionService)
+        service?.setKeyProvider({ fetchKey: async () => serializedKey })
+
+        mockResponse({ id: TEST_CONV_UUID, defaultActivityEncryptionKeyUrl: TEST_KEY_URI })
+        mockResponse(mockActivity('Hello world'))
+
+        await client.sendMessage(TEST_ROOM_ID, 'Hello world')
+
+        const body = JSON.parse(fetchCalls[1].options?.body as string)
+        expect(body.object.displayName.startsWith('eyJ')).toBe(true)
+        expect(body.encryptionKeyUrl).toBe(TEST_KEY_URI)
+        expect(decodeJweHeader(body.object.displayName).kid).toBe(TEST_KEY_URI)
+      })
     })
 
     describe('sendDirectMessage', () => {
@@ -1015,6 +1077,137 @@ describe('WebexClient', () => {
 
         const client = await createExtractedClient()
         await expect(client.sendDirectMessage('target@example.com', 'Hello')).rejects.toThrow(WebexError)
+      })
+    })
+
+    describe('uploadFile', () => {
+      const mockUploadFlow = () => {
+        // given: the full internal share flow — conv lookup, space, session, PUT, finish, content
+        mockResponse({ id: TEST_CONV_UUID })
+        mockResponse({ spaceUrl: 'https://files.wbx2.com/spaces/sp1' })
+        mockResponse({
+          uploadUrl: 'https://up.wbx2.com/upload/sess1',
+          finishUploadUrl: 'https://up.wbx2.com/upload/sess1/finish',
+        })
+        mockResponse({}, 200)
+        mockResponse({ downloadUrl: 'https://files.wbx2.com/files/f1' })
+        mockResponse({ ...mockActivity(''), verb: 'share' })
+      }
+
+      const file = () => ({ content: new Blob(['hello world']), filename: 'note.txt' })
+
+      it('routes to the internal conversation API instead of the public messages endpoint', async () => {
+        mockUploadFlow()
+
+        const client = await createExtractedClient()
+        await client.uploadFile(TEST_ROOM_ID, file())
+
+        expect(fetchCalls.every((c) => !c.url.includes('webexapis.com/v1/messages'))).toBe(true)
+        expect(fetchCalls.at(-1)?.url).toBe(`${CONV_BASE}/conversations/${TEST_CONV_UUID}/content`)
+        expect(fetchCalls.at(-1)?.options?.method).toBe('POST')
+      })
+
+      it('requests a space, opens an upload session, PUTs the bytes, then finalizes', async () => {
+        mockUploadFlow()
+
+        const client = await createExtractedClient()
+        await client.uploadFile(TEST_ROOM_ID, file())
+
+        expect(fetchCalls[1].url).toBe(`${CONV_BASE}/conversations/${TEST_CONV_UUID}/space`)
+        expect(fetchCalls[1].options?.method).toBe('PUT')
+        expect(fetchCalls[2].url).toBe('https://files.wbx2.com/spaces/sp1/upload_sessions')
+        expect(fetchCalls[3].url).toBe('https://up.wbx2.com/upload/sess1')
+        expect(fetchCalls[3].options?.method).toBe('PUT')
+        expect(fetchCalls[4].url).toBe('https://up.wbx2.com/upload/sess1/finish')
+      })
+
+      it('finalize body carries fileSize and a sha256 fileHash of the uploaded bytes', async () => {
+        mockUploadFlow()
+
+        const client = await createExtractedClient()
+        await client.uploadFile(TEST_ROOM_ID, file())
+
+        const body = JSON.parse(fetchCalls[4].options?.body as string)
+        expect(body.fileSize).toBe(11)
+        expect(body.fileHash).toMatch(/^[0-9a-f]{64}$/)
+      })
+
+      it('share activity references the uploaded file with download url and metadata', async () => {
+        mockUploadFlow()
+
+        const client = await createExtractedClient()
+        await client.uploadFile(TEST_ROOM_ID, file())
+
+        const body = JSON.parse(fetchCalls.at(-1)?.options?.body as string)
+        expect(body.verb).toBe('share')
+        expect(body.object.objectType).toBe('content')
+        expect(body.object.contentCategory).toBe('documents')
+        const item = body.object.files.items[0]
+        expect(item.objectType).toBe('file')
+        expect(item.url).toBe('https://files.wbx2.com/files/f1')
+        expect(item.fileSize).toBe(11)
+        expect(item.mimeType).toBe('text/plain')
+        expect(item.displayName).toBe('note.txt')
+      })
+
+      it('attaches an optional text comment to the share activity', async () => {
+        mockUploadFlow()
+
+        const client = await createExtractedClient()
+        await client.uploadFile(TEST_ROOM_ID, file(), { text: 'see attached' })
+
+        const body = JSON.parse(fetchCalls.at(-1)?.options?.body as string)
+        expect(body.object.displayName).toBe('see attached')
+      })
+
+      it('categorizes images by mime type', async () => {
+        mockUploadFlow()
+
+        const client = await createExtractedClient()
+        await client.uploadFile(TEST_ROOM_ID, { content: new Blob(['x']), filename: 'photo.png' })
+
+        const body = JSON.parse(fetchCalls.at(-1)?.options?.body as string)
+        expect(body.object.contentCategory).toBe('images')
+        expect(body.object.files.items[0].mimeType).toBe('image/png')
+      })
+
+      it('refuses to upload when the server returns an untrusted space url', async () => {
+        mockResponse({ id: TEST_CONV_UUID })
+        mockResponse({ spaceUrl: 'https://evil.example.com/spaces/sp1' })
+
+        const client = await createExtractedClient()
+
+        await expect(client.uploadFile(TEST_ROOM_ID, file())).rejects.toThrow('untrusted host')
+        expect(fetchCalls.every((c) => !c.url.includes('evil.example.com'))).toBe(true)
+      })
+
+      it('refuses to upload when the server returns a non-https upload url', async () => {
+        mockResponse({ id: TEST_CONV_UUID })
+        mockResponse({ spaceUrl: 'https://files.wbx2.com/spaces/sp1' })
+        mockResponse({
+          uploadUrl: 'http://up.wbx2.com/upload/sess1',
+          finishUploadUrl: 'https://up.wbx2.com/upload/sess1/finish',
+        })
+
+        const client = await createExtractedClient()
+
+        await expect(client.uploadFile(TEST_ROOM_ID, file())).rejects.toThrow('untrusted host')
+      })
+
+      it('accepts trusted Webex urls that carry an explicit port', async () => {
+        mockResponse({ id: TEST_CONV_UUID })
+        mockResponse({ spaceUrl: 'https://files.wbx2.com:443/spaces/sp1' })
+        mockResponse({
+          uploadUrl: 'https://up.wbx2.com:443/upload/sess1',
+          finishUploadUrl: 'https://up.wbx2.com:443/upload/sess1/finish',
+        })
+        mockResponse({}, 200)
+        mockResponse({ downloadUrl: 'https://files.wbx2.com/files/f1' })
+        mockResponse({ ...mockActivity(''), verb: 'share' })
+
+        const client = await createExtractedClient()
+
+        await expect(client.uploadFile(TEST_ROOM_ID, file())).resolves.toBeDefined()
       })
     })
 

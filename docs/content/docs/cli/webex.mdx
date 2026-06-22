@@ -203,6 +203,19 @@ agent-webex member list <space-id>
 agent-webex member list abc123 --limit 100
 ```
 
+### File Commands
+
+```bash
+# Upload a local file to a space
+agent-webex file upload <space-id> <path>
+agent-webex file upload abc123 ./report.pdf --text "Latest report"
+agent-webex file upload abc123 ./image.png --text "**Done**" --markdown
+
+# Download a file attachment by content URL or ID
+agent-webex file download <content-url-or-id>
+agent-webex file download <content-url-or-id> ./out.pdf
+```
+
 ### Snapshot Command
 
 Get workspace overview for AI agents (brief by default):

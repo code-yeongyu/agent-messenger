@@ -1,4 +1,5 @@
 export { authCommand } from './auth'
+export { fileCommand } from './file'
 export { memberCommand } from './member'
 export { messageCommand } from './message'
 export { snapshotAction, snapshotCommand } from './snapshot'
