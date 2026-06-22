@@ -12,6 +12,8 @@ import {
   SlackUserSchema,
   WorkspaceCredentialsSchema,
   ConfigSchema,
+  decodeSlackQr,
+  loginWithQr,
 } from '@/platforms/slack/index'
 
 it('SlackClient is exported from barrel', () => {
@@ -56,4 +58,12 @@ it('WorkspaceCredentialsSchema is exported from barrel', () => {
 
 it('ConfigSchema is exported from barrel', () => {
   expect(typeof ConfigSchema.parse).toBe('function')
+})
+
+it('loginWithQr is exported from barrel', () => {
+  expect(typeof loginWithQr).toBe('function')
+})
+
+it('decodeSlackQr is exported from barrel', () => {
+  expect(typeof decodeSlackQr).toBe('function')
 })
