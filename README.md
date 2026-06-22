@@ -447,8 +447,8 @@ See [AGENTS.md](AGENTS.md#access-control-module) for the contributor view.
 | Threads                    |  ✅   |   ✅    |   —   |   —   |    —     |    —     |   —   |   —    |     —     |    —      |         —           |
 | Channels & Users           |  ✅   |   ✅    |  ✅   |  ✅   | partial  |    —     |  ✅   |   ✅    |     —     |    —      |         ✅          |
 | Reactions                  |  ✅   |   ✅    |  ✅   |   —   |    —     |    ✅     |   —   |   —    |     —     |    —      |         —           |
-| File uploads               |  ✅   |   ✅    |  ✅   |   —   |    —     |    —     |   —   |   —    |     —     |    ✅     |         —           |
-| File downloads             |  ✅   |    —    |   —   |   —   |    —     |    —     |   —   |   —    |     —     |    —      |         —           |
+| File uploads               |  ✅   |   ✅    |  ✅   |  ✅   |    —     |    —     |   —   |   —    |     —     |    ✅     |         —           |
+| File downloads             |  ✅   |    —    |   —   |  ✅   |    —     |    —     |   —   |   —    |     —     |    —      |         —           |
 | Workspace snapshots        |  ✅   |   ✅    |  ✅   |  ✅   |    —     |    —     |   —   |   —    |     —     |    —      |         ✅          |
 | Multi-workspace / account  |  ✅   |   ✅    |  ✅   |   —   |    ✅     |    ✅     |  ✅   |   ✅    |    ✅     |    ✅     |         ✅          |
 | Activity feed              |  ✅   |    —    |   —   |   —   |    —     |    —     |   —   |   —    |     —     |    —      |         —           |

@@ -106,4 +106,42 @@ describe('WebexEncryptionService', () => {
     expect(key).not.toBeNull()
     expect(provider.fetchKey).toHaveBeenCalledTimes(1)
   })
+
+  it('encryptBinary produces A256GCM scr material and ciphertext that differs from input', async () => {
+    const service = new WebexEncryptionService(new Map())
+
+    const plaintext = new Uint8Array([1, 2, 3, 4, 5])
+    const { scr, ciphertext } = service.encryptBinary(plaintext)
+
+    expect(scr.enc).toBe('A256GCM')
+    expect(scr.key).toMatch(/^[A-Za-z0-9_-]+$/)
+    expect(scr.iv).toMatch(/^[A-Za-z0-9_-]+$/)
+    expect(scr.tag).toMatch(/^[A-Za-z0-9_-]+$/)
+    expect(Buffer.from(scr.key, 'base64url')).toHaveLength(32)
+    expect(Buffer.from(scr.iv, 'base64url')).toHaveLength(12)
+    expect(Buffer.from(ciphertext)).not.toEqual(Buffer.from(plaintext))
+  })
+
+  it('encryptScr requires loc to be set before encrypting', async () => {
+    const service = await createKeyring(keyUri)
+    const { scr } = service.encryptBinary(new Uint8Array([9, 9, 9]))
+
+    const result = await service.encryptScr(keyUri, scr)
+
+    expect(result).toBeNull()
+  })
+
+  it('encryptScr wraps the scr as a JWE with kid once loc is set', async () => {
+    const service = await createKeyring(keyUri)
+    const { scr } = service.encryptBinary(new Uint8Array([9, 9, 9]))
+    scr.loc = 'https://files.wbx2.com/files/f1'
+
+    const jwe = await service.encryptScr(keyUri, scr)
+
+    expect(jwe).not.toBeNull()
+    const header = decodeJweHeader(jwe as string)
+    expect(header.alg).toBe('dir')
+    expect(header.enc).toBe('A256GCM')
+    expect(header.kid).toBe(keyUri)
+  })
 })

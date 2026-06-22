@@ -1,7 +1,7 @@
 ---
 name: agent-webex
 description: Interact with Cisco Webex - send messages, read spaces, manage memberships
-version: 2.23.4
+version: 2.23.6
 allowed-tools: Bash(agent-webex:*)
 metadata:
   openclaw:
@@ -319,6 +319,19 @@ agent-webex member list <space-id>
 agent-webex member list <space-id> --limit 100
 ```
 
+### File Commands
+
+```bash
+# Upload a local file to a space
+agent-webex file upload <space-id> <path>
+agent-webex file upload <space-id> ./report.pdf --text "Latest report"
+agent-webex file upload <space-id> ./image.png --text "**Done**" --markdown
+
+# Download a file attachment by content URL or ID
+agent-webex file download <content-url-or-id>
+agent-webex file download <content-url-or-id> ./out.pdf
+```
+
 ### Snapshot Command
 
 Get workspace overview for AI agents (brief by default):
@@ -456,7 +469,6 @@ See the [Webex SDK documentation](https://agent-messenger.dev/docs/sdk/webex) fo
 
 ## Limitations
 
-- No file upload or download
 - No reactions / emoji support
 - No thread support
 - No message search
