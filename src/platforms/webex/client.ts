@@ -786,7 +786,7 @@ export class WebexClient {
       },
     )
 
-    const putResponse = await fetch(session.uploadUrl, {
+    const putResponse = await fetch(assertTrustedWebexUrl(session.uploadUrl), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': String(body.byteLength) },
       body,
@@ -804,7 +804,7 @@ export class WebexClient {
   }
 
   private async internalActivityRequest<T>(url: string, init: RequestInit): Promise<T> {
-    const response = await fetch(url, {
+    const response = await fetch(assertTrustedWebexUrl(url), {
       ...init,
       headers: { ...this.internalHeaders, ...(init.headers as Record<string, string>) },
     })
@@ -953,6 +953,33 @@ function sanitizeFilename(name: string | undefined): string | undefined {
 
 function looksLikeUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+}
+
+function isTrustedWebexHost(host: string): boolean {
+  return (
+    host === 'webex.com' ||
+    host.endsWith('.webex.com') ||
+    host === 'wbx2.com' ||
+    host.endsWith('.wbx2.com') ||
+    host === 'ciscospark.com' ||
+    host.endsWith('.ciscospark.com')
+  )
+}
+
+// Pin server-returned upload URLs to HTTPS Webex hosts: they receive the bearer
+// token (activity calls) and file bytes, so a compromised response must not be
+// able to exfiltrate them to an attacker-controlled host (SSRF/token leak).
+function assertTrustedWebexUrl(url: string): string {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    throw new WebexError(`Invalid Webex URL: ${url}`, 'invalid_url')
+  }
+  if (parsed.protocol !== 'https:' || !isTrustedWebexHost(parsed.host)) {
+    throw new WebexError(`Refusing to send request to untrusted host: ${parsed.origin}`, 'untrusted_url')
+  }
+  return parsed.toString()
 }
 
 const MIME_TYPES: Record<string, string> = {

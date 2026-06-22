@@ -104,6 +104,18 @@ const limited = await client.listMemberships(roomId, { max: 100 })
 // → WebexMembership[]
 ```
 
+### Files
+
+```typescript
+// Upload a file to a space (optionally with a text comment)
+const msg = await client.uploadFile(roomId, { content: blob, filename: 'report.pdf' }, { text: 'Latest report' })
+// → WebexMessage { id, roomId, files, ... }
+
+// Download a file attachment by content URL or ID
+const { data, filename, contentType } = await client.downloadContent(contentUrlOrId)
+// → { data: ArrayBuffer, filename: string, contentType: string }
+```
+
 ## WebexCredentialManager
 
 Manages Webex credentials stored at `~/.config/agent-messenger/webex-credentials.json`. Files are written with `0o600` permissions. Supports OAuth Device Grant flow, bot tokens, and PATs.

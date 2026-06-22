@@ -1108,6 +1108,29 @@ describe('WebexClient', () => {
         expect(body.object.contentCategory).toBe('images')
         expect(body.object.files.items[0].mimeType).toBe('image/png')
       })
+
+      it('refuses to upload when the server returns an untrusted space url', async () => {
+        mockResponse({ id: TEST_CONV_UUID })
+        mockResponse({ spaceUrl: 'https://evil.example.com/spaces/sp1' })
+
+        const client = await createExtractedClient()
+
+        await expect(client.uploadFile(TEST_ROOM_ID, file())).rejects.toThrow('untrusted host')
+        expect(fetchCalls.every((c) => !c.url.includes('evil.example.com'))).toBe(true)
+      })
+
+      it('refuses to upload when the server returns a non-https upload url', async () => {
+        mockResponse({ id: TEST_CONV_UUID })
+        mockResponse({ spaceUrl: 'https://files.wbx2.com/spaces/sp1' })
+        mockResponse({
+          uploadUrl: 'http://up.wbx2.com/upload/sess1',
+          finishUploadUrl: 'https://up.wbx2.com/upload/sess1/finish',
+        })
+
+        const client = await createExtractedClient()
+
+        await expect(client.uploadFile(TEST_ROOM_ID, file())).rejects.toThrow('untrusted host')
+      })
     })
 
     describe('error handling', () => {
