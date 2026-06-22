@@ -18,11 +18,16 @@ const dbPath = join(tempDir, 'Cookies')
 
 try {
   const db = new DatabaseSync(dbPath)
-  db.exec('CREATE TABLE cookies (name TEXT, value TEXT, host_key TEXT, last_access_utc INTEGER)')
-  const insert = db.prepare('INSERT INTO cookies (name, value, host_key, last_access_utc) VALUES (?, ?, ?, ?)')
-  insert.run('d', 'xoxd-newer', '.slack.com', 200)
-  insert.run('d', 'xoxd-older', '.slack.com', 100)
-  insert.run('other', 'ignored', '.example.com', 300)
+  db.exec('CREATE TABLE cookies (name TEXT, value TEXT, encrypted_value BLOB, host_key TEXT, last_access_utc INTEGER)')
+  const insert = db.prepare(
+    'INSERT INTO cookies (name, value, encrypted_value, host_key, last_access_utc) VALUES (?, ?, ?, ?, ?)',
+  )
+  // Chromium *_utc columns are microseconds since 1601; real values exceed
+  // Number.MAX_SAFE_INTEGER, which node:sqlite throws on when SELECTed.
+  insert.run('d', 'xoxd-newer', null, '.slack.com', 13380000000000200n)
+  insert.run('d', 'xoxd-older', null, '.slack.com', 13380000000000100n)
+  insert.run('other', 'ignored', null, '.example.com', 13380000000000300n)
+  insert.run('enc', '', Buffer.from('v10-secret-bytes'), '.slack.com', 13380000000000100n)
   db.close()
 
   if (typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined') {
@@ -47,6 +52,17 @@ try {
 
   const none = await reader.queryFirst(dbPath, "SELECT value FROM cookies WHERE host_key = 'no.match'")
   if (none !== null) fail(`no-row queryFirst expected null, got ${String(none)}`)
+
+  // node:sqlite returns BLOBs as Uint8Array (not Buffer); Buffer.from must
+  // preserve the bytes so cookie decryption keeps working
+  const encrypted = await reader.queryFirst<{ encrypted_value?: Uint8Array }>(
+    dbPath,
+    "SELECT encrypted_value FROM cookies WHERE name = 'enc' LIMIT 1",
+  )
+  if (!(encrypted?.encrypted_value instanceof Uint8Array)) fail('encrypted_value expected Uint8Array')
+  if (Buffer.from(encrypted.encrypted_value).toString('utf8') !== 'v10-secret-bytes') {
+    fail('Buffer.from(BLOB) did not round-trip the original bytes')
+  }
 
   console.log('ok')
 } finally {

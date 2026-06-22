@@ -1,7 +1,7 @@
 ---
 name: agent-discord
 description: Read Discord servers with personal tokens - inspect servers, channels, messages, members, mentions, files, snapshots, and readonly credentials. NEVER send messages or perform Discord write automation with agent-discord; use agent-discordbot for bot-token writes.
-version: 2.24.0
+version: 2.24.1
 allowed-tools: Bash(agent-discord:*)
 metadata:
   openclaw:
