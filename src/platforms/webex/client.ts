@@ -976,7 +976,7 @@ function assertTrustedWebexUrl(url: string): string {
   } catch {
     throw new WebexError(`Invalid Webex URL: ${url}`, 'invalid_url')
   }
-  if (parsed.protocol !== 'https:' || !isTrustedWebexHost(parsed.host)) {
+  if (parsed.protocol !== 'https:' || !isTrustedWebexHost(parsed.hostname)) {
     throw new WebexError(`Refusing to send request to untrusted host: ${parsed.origin}`, 'untrusted_url')
   }
   return parsed.toString()

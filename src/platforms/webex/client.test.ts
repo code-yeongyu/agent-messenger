@@ -1131,6 +1131,22 @@ describe('WebexClient', () => {
 
         await expect(client.uploadFile(TEST_ROOM_ID, file())).rejects.toThrow('untrusted host')
       })
+
+      it('accepts trusted Webex urls that carry an explicit port', async () => {
+        mockResponse({ id: TEST_CONV_UUID })
+        mockResponse({ spaceUrl: 'https://files.wbx2.com:443/spaces/sp1' })
+        mockResponse({
+          uploadUrl: 'https://up.wbx2.com:443/upload/sess1',
+          finishUploadUrl: 'https://up.wbx2.com:443/upload/sess1/finish',
+        })
+        mockResponse({}, 200)
+        mockResponse({ downloadUrl: 'https://files.wbx2.com/files/f1' })
+        mockResponse({ ...mockActivity(''), verb: 'share' })
+
+        const client = await createExtractedClient()
+
+        await expect(client.uploadFile(TEST_ROOM_ID, file())).resolves.toBeDefined()
+      })
     })
 
     describe('error handling', () => {
