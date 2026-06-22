@@ -81,6 +81,38 @@ describe('WebexClient', () => {
       expect((client as any).deviceUrl).toBe('https://wdm-r.wbx2.com/wdm/api/v1/devices/dev-1')
       expect((client as any).tokenType).toBe('extracted')
     })
+
+    const DEVICE_URL = 'https://wdm-r.wbx2.com/wdm/api/v1/devices/dev-1'
+    const encryptionOf = (client: WebexClient) =>
+      (client as unknown as { encryption: WebexEncryptionService | null }).encryption
+
+    it('initializes encryption for explicit extracted credentials with a device URL', async () => {
+      const client = await new WebexClient().login({
+        token: 'extracted-token',
+        deviceUrl: DEVICE_URL,
+        tokenType: 'extracted',
+      })
+      expect(encryptionOf(client)).toBeInstanceOf(WebexEncryptionService)
+    })
+
+    it('initializes encryption for explicit password credentials with a device URL', async () => {
+      const client = await new WebexClient().login({
+        token: 'password-token',
+        deviceUrl: DEVICE_URL,
+        tokenType: 'password',
+      })
+      expect(encryptionOf(client)).toBeInstanceOf(WebexEncryptionService)
+    })
+
+    it('does not initialize encryption for a plain token without device URL', async () => {
+      const client = await new WebexClient().login({ token: 'plain-token' })
+      expect(encryptionOf(client)).toBeNull()
+    })
+
+    it('does not initialize encryption when device URL is absent', async () => {
+      const client = await new WebexClient().login({ token: 'extracted-token', tokenType: 'extracted' })
+      expect(encryptionOf(client)).toBeNull()
+    })
   })
 
   describe('testAuth', () => {
@@ -623,12 +655,17 @@ describe('WebexClient', () => {
       activities: { items: activities },
     })
 
+    // These tests exercise the cleartext internal-API shape, so the KMS-backed
+    // encryption service is cleared after login; the encrypted path has its own
+    // createEncryptedClient that re-attaches a stub service.
     const createExtractedClient = async () => {
-      return new WebexClient().login({
+      const client = await new WebexClient().login({
         token: 'extracted-token',
         deviceUrl: TEST_DEVICE_URL,
         tokenType: 'extracted',
       })
+      ;(client as unknown as { encryption: null }).encryption = null
+      return client
     }
 
     describe('sendMessage', () => {
@@ -987,6 +1024,31 @@ describe('WebexClient', () => {
         expect(body.encryptionKeyUrl).toBe(TEST_KEY_URI)
         expect(decodeJweHeader(body.object.displayName).kid).toBe(TEST_KEY_URI)
         expect(decodeJweHeader(body.object.content).kid).toBe(TEST_KEY_URI)
+      })
+
+      it('explicit-credential login encrypts the send without manually attaching a service', async () => {
+        const keystore = jose.JWK.createKeyStore()
+        const key = await keystore.generate('oct', 256, { alg: 'A256GCM' })
+        const serializedKey = JSON.stringify({ uri: TEST_KEY_URI, jwk: key.toJSON(true) })
+
+        const client = await new WebexClient().login({
+          token: 'extracted-token',
+          deviceUrl: TEST_DEVICE_URL,
+          tokenType: 'extracted',
+        })
+        const service = (client as unknown as { encryption: WebexEncryptionService | null }).encryption
+        expect(service).toBeInstanceOf(WebexEncryptionService)
+        service?.setKeyProvider({ fetchKey: async () => serializedKey })
+
+        mockResponse({ id: TEST_CONV_UUID, defaultActivityEncryptionKeyUrl: TEST_KEY_URI })
+        mockResponse(mockActivity('Hello world'))
+
+        await client.sendMessage(TEST_ROOM_ID, 'Hello world')
+
+        const body = JSON.parse(fetchCalls[1].options?.body as string)
+        expect(body.object.displayName.startsWith('eyJ')).toBe(true)
+        expect(body.encryptionKeyUrl).toBe(TEST_KEY_URI)
+        expect(decodeJweHeader(body.object.displayName).kid).toBe(TEST_KEY_URI)
       })
     })
 

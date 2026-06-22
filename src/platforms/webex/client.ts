@@ -52,6 +52,7 @@ export class WebexClient {
       this.token = credentials.token
       if (credentials.deviceUrl !== undefined) this.deviceUrl = credentials.deviceUrl
       if (credentials.tokenType !== undefined) this.tokenType = credentials.tokenType
+      this.initializeEncryption(credentials.token)
       return this
     }
 
@@ -63,27 +64,44 @@ export class WebexClient {
     if (!token) {
       throw new WebexError('No Webex credentials found. Run "auth login" to authenticate.', 'no_credentials')
     }
+    this.token = token
     this.deviceUrl = config?.deviceUrl ?? null
     this.tokenType = config?.tokenType ?? null
-    await this.login({ token })
-
-    if (this.tokenType === 'extracted' || this.tokenType === 'password') {
-      const keysMap = new Map(Object.entries(config?.encryptionKeys ?? {}))
-      this.encryption = new WebexEncryptionService(keysMap)
-      const kmsProvider = new KmsKeyProvider({ token })
-      this.encryption.setKeyProvider({
-        fetchKey: async (keyUri: string) => {
-          const serializedKey = await kmsProvider.fetchKey(keyUri)
-          if (serializedKey) {
-            await this.persistEncryptionKey(credManager, keyUri, serializedKey)
-          }
-          return serializedKey
-        },
-        close: () => kmsProvider.close(),
-      })
-    }
+    this.initializeEncryption(token, {
+      cachedKeys: config?.encryptionKeys,
+      persist: (keyUri, serializedKey) => this.persistEncryptionKey(credManager, keyUri, serializedKey),
+    })
 
     return this
+  }
+
+  // Both login paths must run this. Explicit-credential callers would otherwise
+  // skip encryption setup and send cleartext on the internal conversation API,
+  // which Webex flags as "not encrypted before it was sent". Gated on a
+  // device-backed extracted/password session, the only case E2E applies to.
+  private initializeEncryption(
+    token: string,
+    options?: {
+      cachedKeys?: Record<string, string>
+      persist?: (keyUri: string, serializedKey: string) => Promise<void>
+    },
+  ): void {
+    if (this.tokenType !== 'extracted' && this.tokenType !== 'password') return
+    if (this.deviceUrl === null) return
+
+    const keysMap = new Map(Object.entries(options?.cachedKeys ?? {}))
+    this.encryption = new WebexEncryptionService(keysMap)
+    const kmsProvider = new KmsKeyProvider({ token })
+    this.encryption.setKeyProvider({
+      fetchKey: async (keyUri: string) => {
+        const serializedKey = await kmsProvider.fetchKey(keyUri)
+        if (serializedKey) {
+          await options?.persist?.(keyUri, serializedKey)
+        }
+        return serializedKey
+      },
+      close: () => kmsProvider.close(),
+    })
   }
 
   async dispose(): Promise<void> {
