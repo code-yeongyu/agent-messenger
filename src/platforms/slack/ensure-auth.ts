@@ -50,6 +50,23 @@ export async function ensureSlackAuth(): Promise<void> {
       }
     }
 
+    for (const cookie of new Set(workspaces.map((ws) => ws.cookie).filter(Boolean))) {
+      const enumerated = await refreshKnownWorkspaceDomains(cookie, workspaceDomains, {
+        resolvedTeamIds,
+        refreshCache,
+      })
+      for (const result of enumerated) {
+        const ws: ExtractedWorkspace = {
+          workspace_id: result.workspace_id,
+          workspace_name: result.workspace_name,
+          token: result.token,
+          cookie,
+        }
+        await credManager.setWorkspace(ws)
+        validWorkspaces.push(ws)
+      }
+    }
+
     const config = await credManager.load()
     if (!config.current_workspace && validWorkspaces.length > 0) {
       await credManager.setCurrentWorkspace(validWorkspaces[0].workspace_id)
@@ -76,6 +93,40 @@ export type RefreshResult = { token: string; workspace_id: string; workspace_nam
 export type RefreshContext = {
   resolvedTeamIds?: Set<string>
   refreshCache?: Map<string, RefreshResult | null>
+}
+
+// A single valid Slack `d` cookie can authenticate every workspace the user is signed into.
+// Given the workspace->domain map from root-state.json, enumerate ALL known domains via web
+// refresh so that workspaces without their own extracted xoxc token are still recovered. The
+// number of recoverable workspaces must not be bounded by the number of extracted token blobs.
+export async function refreshKnownWorkspaceDomains(
+  cookie: string,
+  workspaceDomains: Record<string, string>,
+  context: RefreshContext = {},
+): Promise<RefreshResult[]> {
+  if (!cookie) return []
+
+  const resolvedTeamIds = context.resolvedTeamIds ?? new Set<string>()
+  const results: RefreshResult[] = []
+  for (const domain of Object.values(workspaceDomains)) {
+    if (!SLACK_DOMAIN_REGEX.test(domain)) continue
+
+    const cacheKey = `${cookie}\u0000${domain}`
+    let result: RefreshResult | null
+    const cached = context.refreshCache?.get(cacheKey)
+    if (cached !== undefined) {
+      result = cached
+    } else {
+      result = await refreshAndVerify(cookie, domain, domain)
+      context.refreshCache?.set(cacheKey, result)
+    }
+
+    if (!result) continue
+    if (resolvedTeamIds.has(result.workspace_id)) continue
+    resolvedTeamIds.add(result.workspace_id)
+    results.push(result)
+  }
+  return results
 }
 
 export async function tryWebTokenRefresh(
