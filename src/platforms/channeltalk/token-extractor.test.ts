@@ -457,8 +457,8 @@ async function createCookieDatabase(
 
   const { createRequire } = await import('node:module')
   const req = createRequire(import.meta.url)
-  const Database = req('better-sqlite3')
-  const db = new Database(dbPath)
+  const { DatabaseSync } = req('node:sqlite')
+  const db = new DatabaseSync(dbPath)
   db.exec('CREATE TABLE cookies (name TEXT, value TEXT, encrypted_value BLOB, host_key TEXT)')
   const statement = db.prepare('INSERT INTO cookies (name, value, encrypted_value, host_key) VALUES (?, ?, ?, ?)')
   for (const row of rows) {

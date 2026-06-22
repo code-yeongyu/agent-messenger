@@ -1,7 +1,6 @@
 import { execSync } from 'node:child_process'
 import { createDecipheriv, pbkdf2Sync } from 'node:crypto'
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -16,10 +15,9 @@ import {
   getBrowserBasePath,
   getAgentBrowserProfileDirs,
 } from '@/shared/chromium'
+import { openReadonlyDatabase } from '@/shared/sqlite'
 import { DerivedKeyCache } from '@/shared/utils/derived-key-cache'
 import { lookupLinuxKeyringPassword } from '@/shared/utils/linux-keyring'
-
-const require = createRequire(import.meta.url)
 
 export interface ExtractedWorkspace {
   workspace_id: string
@@ -872,16 +870,11 @@ export class TokenExtractor {
         encrypted_value?: Uint8Array | Buffer
       } | null
 
+      const db = openReadonlyDatabase(tempDbPath)
       let row: CookieRow
-      if (typeof globalThis.Bun !== 'undefined') {
-        const { Database } = require('bun:sqlite')
-        const db = new Database(tempDbPath, { readonly: true })
-        row = db.query(sql).get() as CookieRow
-        db.close()
-      } else {
-        const Database = require('better-sqlite3')
-        const db = new Database(tempDbPath, { readonly: true })
+      try {
         row = db.prepare(sql).get() as CookieRow
+      } finally {
         db.close()
       }
 

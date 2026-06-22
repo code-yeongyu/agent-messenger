@@ -1,12 +1,11 @@
 import { execSync } from 'node:child_process'
 import { copyFileSync, existsSync, readFileSync, rmSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import type { ExtractedKakaoToken } from './types'
+import { openReadonlyDatabase } from '@/shared/sqlite'
 
-const require = createRequire(import.meta.url)
+import type { ExtractedKakaoToken } from './types'
 
 export class KakaoTokenExtractor {
   private platform: NodeJS.Platform
@@ -106,23 +105,12 @@ export class KakaoTokenExtractor {
       time_stamp: number
     }
 
+    const db = openReadonlyDatabase(dbPath)
     let rows: CacheRow[]
-    if (typeof globalThis.Bun !== 'undefined') {
-      const { Database } = require('bun:sqlite')
-      const db = new Database(dbPath, { readonly: true })
-      try {
-        rows = db.query(sql).all() as CacheRow[]
-      } finally {
-        db.close()
-      }
-    } else {
-      const Database = require('better-sqlite3')
-      const db = new Database(dbPath, { readonly: true })
-      try {
-        rows = db.prepare(sql).all() as CacheRow[]
-      } finally {
-        db.close()
-      }
+    try {
+      rows = db.prepare(sql).all() as CacheRow[]
+    } finally {
+      db.close()
     }
 
     this.debug(`Found ${rows.length} cached request(s) to kakao.com`)
@@ -166,24 +154,13 @@ export class KakaoTokenExtractor {
     `
 
     type CacheRow = { request_object: Uint8Array | Buffer | null; request_key: string }
-    let authRows: CacheRow[]
 
-    if (typeof globalThis.Bun !== 'undefined') {
-      const { Database } = require('bun:sqlite')
-      const db = new Database(dbPath, { readonly: true })
-      try {
-        authRows = db.query(sql).all() as CacheRow[]
-      } finally {
-        db.close()
-      }
-    } else {
-      const Database = require('better-sqlite3')
-      const db = new Database(dbPath, { readonly: true })
-      try {
-        authRows = db.prepare(sql).all() as CacheRow[]
-      } finally {
-        db.close()
-      }
+    const db = openReadonlyDatabase(dbPath)
+    let authRows: CacheRow[]
+    try {
+      authRows = db.prepare(sql).all() as CacheRow[]
+    } finally {
+      db.close()
     }
 
     for (const row of authRows) {

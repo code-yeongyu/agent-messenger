@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, spyOn, it } from 'bun:test'
 
 import { SlackClient } from './client'
 import { CredentialManager } from './credential-manager'
-import { ensureSlackAuth, refreshTokenFromWeb } from './ensure-auth'
+import { ensureSlackAuth, refreshKnownWorkspaceDomains, refreshTokenFromWeb, tryWebTokenRefresh } from './ensure-auth'
 import { TokenExtractor } from './token-extractor'
 
 let getWorkspaceSpy: ReturnType<typeof spyOn>
@@ -358,8 +358,8 @@ describe('ensureSlackAuth', () => {
     )
   })
 
-  it('stops trying domains once a refresh+verify succeeds', async () => {
-    // given — exact-match domain succeeds on first attempt; the fallback domain must not be fetched
+  it('enumerates all known domains to recover every authenticatable workspace', async () => {
+    // given — one stale extracted token, but the cookie is valid for two workspaces
     extractSpy.mockResolvedValue([
       { workspace_id: 'T_TARGET', workspace_name: 'target', token: 'xoxc-stale', cookie: 'xoxd-valid' },
     ])
@@ -368,21 +368,27 @@ describe('ensureSlackAuth', () => {
       T_OTHER: 'other-domain',
     })
 
-    fetchSpy.mockResolvedValue(new Response('<html>"api_token":"xoxc-fresh"</html>', { status: 200 }))
+    fetchSpy.mockImplementation((url: string) => {
+      if (url.startsWith('https://target-domain.slack.com/')) {
+        return Promise.resolve(new Response('<html>"api_token":"xoxc-fresh-target"</html>', { status: 200 }))
+      }
+      if (url.startsWith('https://other-domain.slack.com/')) {
+        return Promise.resolve(new Response('<html>"api_token":"xoxc-fresh-other"</html>', { status: 200 }))
+      }
+      return Promise.resolve(new Response('', { status: 500 }))
+    })
 
     authResponseByToken({
-      'xoxc-fresh': { team_id: 'T_TARGET', team: 'Target' },
+      'xoxc-fresh-target': { team_id: 'T_TARGET', team: 'Target' },
+      'xoxc-fresh-other': { team_id: 'T_OTHER', team: 'Other' },
     })
 
     // when
     await ensureSlackAuth()
 
-    // then — the exact-match domain is tried, fallback domain is not
-    expect(fetchSpy).toHaveBeenCalledWith(
-      'https://target-domain.slack.com/ssb/redirect',
-      expect.objectContaining({ headers: { Cookie: 'd=xoxd-valid' } }),
-    )
-    expect(fetchSpy).not.toHaveBeenCalledWith('https://other-domain.slack.com/ssb/redirect', expect.anything())
+    // then — both workspaces are recovered from the single cookie, each saved once
+    const savedIds = setWorkspaceSpy.mock.calls.map((c) => (c[0] as { workspace_id: string }).workspace_id)
+    expect(savedIds.sort()).toEqual(['T_OTHER', 'T_TARGET'])
   })
 
   it('returns failure when no known domain validates the cookie', async () => {
@@ -496,24 +502,129 @@ describe('ensureSlackAuth', () => {
     expect(refreshCalls.length).toBe(2)
   })
 
-  it('caps domain attempts at MAX_DOMAIN_ATTEMPTS', async () => {
-    // given — 20 candidate domains; only the first 16 should be attempted
-    extractSpy.mockResolvedValue([
-      { workspace_id: 'unknown', workspace_name: 'unknown', token: 'xoxc-stale', cookie: 'xoxd-valid' },
-    ])
+  it('caps single-candidate fallback at MAX_DOMAIN_ATTEMPTS', async () => {
+    // given — 20 candidate domains; the per-token fallback only probes the first 16
     const manyDomains: Record<string, string> = {}
     for (let i = 0; i < 20; i++) manyDomains[`T_${i}`] = `dom${i}`
-    getWorkspaceDomainsSpy.mockReturnValue(manyDomains)
-
     fetchSpy.mockResolvedValue(new Response('', { status: 500 }))
     testAuthSpy.mockRejectedValue(new Error('invalid_auth'))
 
     // when
-    await ensureSlackAuth()
+    await tryWebTokenRefresh(
+      { workspace_id: 'unknown', workspace_name: 'unknown', token: 'xoxc-stale', cookie: 'xoxd-valid' },
+      manyDomains,
+    )
 
     // then — exactly 16 refresh attempts
     const refreshCalls = fetchSpy.mock.calls.filter((c) => String(c[0]).includes('/ssb/redirect'))
     expect(refreshCalls.length).toBe(16)
+  })
+
+  it('enumerates ALL known domains without the MAX_DOMAIN_ATTEMPTS cap', async () => {
+    // given — 20 candidate domains; enumeration must probe every one
+    const manyDomains: Record<string, string> = {}
+    for (let i = 0; i < 20; i++) manyDomains[`T_${i}`] = `dom${i}`
+    fetchSpy.mockResolvedValue(new Response('', { status: 500 }))
+    testAuthSpy.mockRejectedValue(new Error('invalid_auth'))
+
+    // when
+    await refreshKnownWorkspaceDomains('xoxd-valid', manyDomains)
+
+    // then — all 20 domains attempted
+    const refreshCalls = fetchSpy.mock.calls.filter((c) => String(c[0]).includes('/ssb/redirect'))
+    expect(refreshCalls.length).toBe(20)
+  })
+
+  it('dedupes by verified team_id even when no context is supplied', async () => {
+    // given — two domains whose cookie verifies to the same team_id, called without a context set
+    getWorkspaceDomainsSpy.mockReturnValue({})
+    fetchSpy.mockImplementation((url: string) => {
+      if (url.startsWith('https://primary.slack.com/')) {
+        return Promise.resolve(new Response('<html>"api_token":"xoxc-fresh-primary"</html>', { status: 200 }))
+      }
+      if (url.startsWith('https://alias.slack.com/')) {
+        return Promise.resolve(new Response('<html>"api_token":"xoxc-fresh-alias"</html>', { status: 200 }))
+      }
+      return Promise.resolve(new Response('', { status: 500 }))
+    })
+    authResponseByToken({
+      'xoxc-fresh-primary': { team_id: 'T_SAME', team: 'Same' },
+      'xoxc-fresh-alias': { team_id: 'T_SAME', team: 'Same' },
+    })
+
+    // when
+    const results = await refreshKnownWorkspaceDomains('xoxd-valid', { T_A: 'primary', T_B: 'alias' })
+
+    // then — the duplicate team is returned only once
+    expect(results.map((r) => r.workspace_id)).toEqual(['T_SAME'])
+  })
+
+  it('recovers all workspaces from one cookie when only one token is extracted', async () => {
+    // given — extractor yields one token deduped into two entries (one with a team id, one unknown),
+    // both sharing a single cookie that is valid for five workspaces
+    extractSpy.mockResolvedValue([
+      { workspace_id: 'T1', workspace_name: 'unknown', token: 'xoxc-shared', cookie: 'xoxd-valid' },
+      { workspace_id: 'unknown', workspace_name: 'unknown', token: 'xoxc-shared', cookie: 'xoxd-valid' },
+    ])
+    getWorkspaceDomainsSpy.mockReturnValue({
+      T1: 'one',
+      T2: 'two',
+      T3: 'three',
+      T4: 'four',
+      T5: 'five',
+    })
+
+    const domainToToken: Record<string, string> = {
+      one: 'xoxc-fresh-1',
+      two: 'xoxc-fresh-2',
+      three: 'xoxc-fresh-3',
+      four: 'xoxc-fresh-4',
+      five: 'xoxc-fresh-5',
+    }
+    fetchSpy.mockImplementation((url: string) => {
+      const domain = String(url).match(/https:\/\/([^.]+)\.slack\.com/)?.[1] ?? ''
+      const token = domainToToken[domain]
+      return Promise.resolve(
+        token
+          ? new Response(`<html>"api_token":"${token}"</html>`, { status: 200 })
+          : new Response('', { status: 500 }),
+      )
+    })
+    authResponseByToken({
+      'xoxc-shared': new Error('invalid_auth'),
+      'xoxc-fresh-1': { team_id: 'T1', team: 'one' },
+      'xoxc-fresh-2': { team_id: 'T2', team: 'two' },
+      'xoxc-fresh-3': { team_id: 'T3', team: 'three' },
+      'xoxc-fresh-4': { team_id: 'T4', team: 'four' },
+      'xoxc-fresh-5': { team_id: 'T5', team: 'five' },
+    })
+
+    // when
+    await ensureSlackAuth()
+
+    // then — all five teams recovered, each saved exactly once
+    const savedIds = setWorkspaceSpy.mock.calls.map((c) => (c[0] as { workspace_id: string }).workspace_id)
+    expect(savedIds.sort()).toEqual(['T1', 'T2', 'T3', 'T4', 'T5'])
+  })
+
+  it('keeps a valid extracted token without overwriting it via enumeration', async () => {
+    // given — a single extracted token that authenticates directly
+    extractSpy.mockResolvedValue([
+      { workspace_id: 'T1', workspace_name: 'ws1', token: 'xoxc-good', cookie: 'xoxd-valid' },
+    ])
+    getWorkspaceDomainsSpy.mockReturnValue({ T1: 'one' })
+    authResponseByToken({
+      'xoxc-good': { team_id: 'T1', team: 'ws1' },
+      'xoxc-fresh-1': { team_id: 'T1', team: 'ws1' },
+    })
+    fetchSpy.mockResolvedValue(new Response('<html>"api_token":"xoxc-fresh-1"</html>', { status: 200 }))
+
+    // when
+    await ensureSlackAuth()
+
+    // then — saved once with the original valid token, not the web-refreshed one
+    expect(setWorkspaceSpy).toHaveBeenCalledTimes(1)
+    expect(setWorkspaceSpy).toHaveBeenCalledWith(expect.objectContaining({ workspace_id: 'T1', token: 'xoxc-good' }))
   })
 
   it('skips web refresh when workspace has no cookie', async () => {
