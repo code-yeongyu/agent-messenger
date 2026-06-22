@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'bun:test'
 import QRCode from 'qrcode'
 
 import { SlackError } from '@/platforms/slack/client'
-import { loginWithQr, parseDCookie } from '@/platforms/slack/qr-http-login'
+import { isSlackHost, loginWithQr, parseDCookie } from '@/platforms/slack/qr-http-login'
 
 const WORKSPACE = 'acme'
 const ZAPP_URL = `https://app.slack.com/t/${WORKSPACE}/login/z-app-1-2-abcdef?src=qr_code&user_id=U1&team_id=T1`
@@ -40,21 +40,29 @@ describe('parseDCookie', () => {
   })
 })
 
+describe('isSlackHost', () => {
+  it('accepts slack.com and its subdomains over https', () => {
+    expect(isSlackHost('https://slack.com/checkcookie')).toBe(true)
+    expect(isSlackHost('https://app.slack.com/t/acme/login/z-app-1')).toBe(true)
+    expect(isSlackHost('https://acme.slack.com/ssb/redirect')).toBe(true)
+  })
+
+  it('rejects non-Slack hosts, http, and lookalikes', () => {
+    expect(isSlackHost('https://idp.example.com/saml')).toBe(false)
+    expect(isSlackHost('http://app.slack.com/x')).toBe(false)
+    expect(isSlackHost('https://slack.com.evil.com/x')).toBe(false)
+    expect(isSlackHost('not a url')).toBe(false)
+  })
+})
+
 describe('loginWithQr', () => {
-  it('captures cookie through the redirect chain and mints a token', async () => {
+  it('captures cookie and mints a token through a single injected fetch', async () => {
     // Given a QR encoding the z-app login URL
     const dataUrl = await qrDataUrl(ZAPP_URL)
 
-    // And a redirect chain that sets the d cookie midway, then the ssb token page
-    globalThis.fetch = (async (input: string | URL | Request) => {
-      const url = typeof input === 'string' ? input : input.toString()
-      if (url.includes('/ssb/redirect')) {
-        return new Response(`<script>var boot_data={"api_token":"${TOKEN}"}</script>`, { status: 200 })
-      }
-      throw new Error(`unexpected global fetch: ${url}`)
-    }) as typeof fetch
-
-    const stepAFetch = (async (input: string | URL) => {
+    // And a single fetchImpl serving both the redirect chain and the token page
+    // (no globalThis.fetch monkeypatching)
+    const fetchImpl = (async (input: string | URL) => {
       const url = typeof input === 'string' ? input : input.toString()
       if (url.startsWith('https://app.slack.com/t/')) {
         return redirect(`https://${WORKSPACE}.slack.com/app-redir/login/x`)
@@ -68,16 +76,51 @@ describe('loginWithQr', () => {
       if (url.includes('/checkcookie')) {
         return new Response(null, { status: 200 })
       }
-      throw new Error(`unexpected step A fetch: ${url}`)
+      if (url.includes('/ssb/redirect')) {
+        return new Response(`<script>var boot_data={"api_token":"${TOKEN}"}</script>`, { status: 200 })
+      }
+      throw new Error(`unexpected fetch: ${url}`)
     }) as typeof fetch
 
-    // When logging in
-    const session = await loginWithQr(dataUrl, { fetchImpl: stepAFetch })
+    // When logging in with only fetchImpl
+    const session = await loginWithQr(dataUrl, { fetchImpl })
 
     // Then the cookie, token, and workspace are returned
     expect(session.cookie).toBe(D_COOKIE)
     expect(session.token).toBe(TOKEN)
     expect(session.workspace).toBe(WORKSPACE)
+  })
+
+  it('never sends the d cookie to a non-Slack redirect target', async () => {
+    // Given a chain that sets the d cookie, then redirects off-domain to an IdP
+    const dataUrl = await qrDataUrl(ZAPP_URL)
+    const requests: Array<{ url: string; cookie: string | null }> = []
+
+    const fetchImpl = (async (input: string | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      const headers = new Headers(init?.headers)
+      requests.push({ url, cookie: headers.get('cookie') })
+
+      if (url.startsWith('https://app.slack.com/t/')) {
+        return redirect(`https://${WORKSPACE}.slack.com/z-app-secret`, `d=${D_COOKIE}; HttpOnly`)
+      }
+      if (url.includes('/z-app-secret')) {
+        return redirect('https://idp.example.com/saml/login')
+      }
+      throw new Error(`d cookie leaked to non-Slack host: ${url}`)
+    }) as typeof fetch
+
+    // When logging in, the off-domain redirect is refused (so no token is minted)
+    await expect(loginWithQr(dataUrl, { fetchImpl })).rejects.toThrow(/expired|client token/)
+
+    // Then the IdP host was never requested at all
+    expect(requests.some((r) => r.url.includes('idp.example.com'))).toBe(false)
+    // And no request ever carried the d session cookie to a non-Slack host
+    for (const r of requests) {
+      if (r.cookie?.includes('xoxd-')) {
+        expect(isSlackHost(r.url)).toBe(true)
+      }
+    }
   })
 
   it('fails with qr_session_failed when no d cookie is set', async () => {

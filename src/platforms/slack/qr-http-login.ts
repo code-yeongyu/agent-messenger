@@ -32,7 +32,7 @@ export async function loginWithQr(dataUrl: string, options: QrLoginOptions = {})
   }
   debug?.('Captured session cookie')
 
-  const token = await refreshTokenFromWeb(login.workspace, cookie)
+  const token = await refreshTokenFromWeb(login.workspace, cookie, options.fetchImpl ?? fetch)
   if (!token) {
     throw new SlackError(
       'Slack session was established but the client token could not be retrieved.',
@@ -54,6 +54,14 @@ async function captureDCookie(startUrl: string, options: QrLoginOptions): Promis
   const cookieJar: string[] = []
 
   for (let hop = 0; hop < maxRedirects; hop++) {
+    // Only ever send captured cookies (including the d session cookie) to Slack
+    // hosts. A redirect to an off-domain host (e.g. an SSO IdP) must never
+    // receive the d=xoxd- session cookie.
+    if (!isSlackHost(url)) {
+      debug?.(`hop ${hop}: refusing non-Slack host`)
+      break
+    }
+
     const response = await doFetch(url, {
       redirect: 'manual',
       headers: {
@@ -75,10 +83,26 @@ async function captureDCookie(startUrl: string, options: QrLoginOptions): Promis
 
     const location = response.status >= 300 && response.status < 400 ? response.headers.get('location') : null
     if (!location) break
-    url = new URL(location, url).toString()
+
+    const next = new URL(location, url).toString()
+    if (!isSlackHost(next)) {
+      debug?.(`hop ${hop}: redirect target is not a Slack host, stopping`)
+      break
+    }
+    url = next
   }
 
   return dCookie
+}
+
+export function isSlackHost(rawUrl: string): boolean {
+  try {
+    const { protocol, hostname } = new URL(rawUrl)
+    if (protocol !== 'https:') return false
+    return hostname === 'slack.com' || hostname.endsWith('.slack.com')
+  } catch {
+    return false
+  }
 }
 
 export function parseDCookie(setCookieHeader: string): string | null {
