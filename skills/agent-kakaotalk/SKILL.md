@@ -1,7 +1,7 @@
 ---
 name: agent-kakaotalk
 description: Interact with KakaoTalk - send messages, read chats, manage conversations
-version: 2.23.4
+version: 2.23.5
 allowed-tools: Bash(agent-kakaotalk:*)
 metadata:
   openclaw:
