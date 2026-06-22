@@ -39,6 +39,21 @@ On macOS, the system may prompt for your Keychain password the first time (requi
 
 **IMPORTANT**: Always use `agent-slack auth extract` to obtain tokens. The CLI extracts from the desktop app first, falling back to Chromium browsers if the app isn't installed.
 
+### QR Code Sign-In (No Desktop App Required)
+
+If the Slack desktop app isn't installed (or extraction fails), you can sign in with a QR code from any device where you're already logged into Slack — no browser automation, fully over HTTP:
+
+```bash
+# In Slack (desktop or web): your name (top-left) → "Sign in on mobile".
+# Right-click the QR code → "Copy Image Address", then:
+pbpaste | agent-slack auth qr
+
+# Or pass the data URL directly:
+agent-slack auth qr "data:image/png;base64,iVBORw0KGgo..."
+```
+
+This decodes the QR's one-time login link, establishes a session, and stores the resulting credentials like `auth extract` does. The QR link is single-use — generate a fresh one if it expires.
+
 ### Multi-Workspace Support
 
 ```bash
@@ -144,6 +159,11 @@ agent-slack auth extract --browser-profile ~/browser-data
 agent-slack auth extract --browser-profile ~/work-profile --browser-profile ~/personal-profile
 
 # --browser-profile accepts repeatable or comma-separated Chromium profile/user-data dirs
+
+# Sign in with a QR code from Slack's "Sign in on mobile" screen (no desktop app needed)
+agent-slack auth qr "data:image/png;base64,..."
+pbpaste | agent-slack auth qr
+agent-slack auth qr --debug   # show each redirect hop for troubleshooting
 
 # Check auth status
 agent-slack auth status
@@ -622,6 +642,30 @@ agent-messenger policy edit
 File location: `~/.config/agent-messenger/policy.json` (override via `AGENT_MESSENGER_POLICY_FILE`).
 
 See [README.md#access-control](../../README.md#access-control) for the full policy schema.
+
+## SDK: QR Code Login
+
+`loginWithQr` turns a Slack "Sign in on mobile" QR image into a usable session (token + cookie) over plain HTTP — no browser, no desktop app.
+
+```typescript
+import { loginWithQr, SlackClient, SlackCredentialManager } from 'agent-messenger/slack'
+
+// dataUrl is the QR image as a "data:image/png;base64,..." string
+const session = await loginWithQr(dataUrl)
+
+const client = await new SlackClient().login({ token: session.token, cookie: session.cookie })
+const { team_id, team } = await client.testAuth()
+
+// Persist for later, like the CLI does
+await new SlackCredentialManager().setWorkspace({
+  workspace_id: team_id,
+  workspace_name: team ?? session.workspace,
+  token: session.token,
+  cookie: session.cookie,
+})
+```
+
+`loginWithQr(dataUrl, options)` accepts an optional `{ debug, fetchImpl, maxRedirects }`. It throws `SlackError` with codes `qr_session_failed` (link expired / no session) or `qr_token_failed` (token could not be retrieved). To decode the QR without logging in, use `decodeSlackQr(dataUrl)` which returns `{ url, workspace, teamId, userId }`.
 
 ## SDK: Real-Time Events
 

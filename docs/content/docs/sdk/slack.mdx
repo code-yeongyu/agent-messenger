@@ -39,6 +39,21 @@ const auth = await client.testAuth()
 // → { user_id: string, team_id: string, user?: string, team?: string }
 ```
 
+### QR Code Login
+
+`loginWithQr` turns a Slack "Sign in on mobile" QR image into a usable session (token + cookie) over plain HTTP — no browser or desktop app. `dataUrl` is the QR image as a `data:image/png;base64,...` string.
+
+```typescript
+import { loginWithQr, SlackClient } from 'agent-messenger/slack'
+
+const session = await loginWithQr(dataUrl)
+// → { token: string, cookie: string, workspace: string }
+
+const client = await new SlackClient().login({ token: session.token, cookie: session.cookie })
+```
+
+`loginWithQr(dataUrl, options)` accepts an optional `{ debug, fetchImpl, maxRedirects }` and throws `SlackError` with codes `qr_session_failed` (link expired / no session) or `qr_token_failed` (token unavailable). Use `decodeSlackQr(dataUrl)` to decode the QR without logging in.
+
 ### Messages
 
 ```typescript
