@@ -158,7 +158,7 @@ const square = [
       throw new InternalError("RequestError", `Request internal failed, ${methodName}(${path}) -> ` + JSON.stringify(res.data.e), res.data.e);
     }
     if (hasError && !isRefresh) {
-      if (res.data.e.code === "NOT_AUTHORIZED_DEVICE") {
+      if (res.data.e && res.data.e.code === "NOT_AUTHORIZED_DEVICE") {
         delete this.client.authToken;
         this.client.emit("end", this.client.profile);
       }
