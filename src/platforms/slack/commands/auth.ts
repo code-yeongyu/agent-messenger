@@ -9,6 +9,7 @@ import { debug } from '@/shared/utils/stderr'
 import { SlackClient, SlackError } from '../client'
 import { CredentialManager } from '../credential-manager'
 import { refreshCookie, tryWebTokenRefresh } from '../ensure-auth'
+import { loginWithQr } from '../qr-http-login'
 import { type ExtractedWorkspace, TokenExtractor } from '../token-extractor'
 
 export function formatCredentialDebug(ws: ExtractedWorkspace, showSecrets?: boolean): string {
@@ -230,6 +231,70 @@ async function statusAction(options: { pretty?: boolean }): Promise<void> {
   }
 }
 
+async function qrAction(imageArg: string | undefined, options: { pretty?: boolean; debug?: boolean }): Promise<void> {
+  try {
+    const dataUrl = imageArg ?? (await readStdin())
+    if (!dataUrl) {
+      console.log(
+        formatOutput(
+          {
+            error: 'No QR image provided. Pass the copied QR image data URL as an argument, or pipe it via stdin.',
+            hint: 'In Slack: your name (top-left) → "Sign in on mobile" → right-click the QR → Copy Image Address.',
+          },
+          options.pretty,
+        ),
+      )
+      process.exit(1)
+    }
+
+    const debugLog = options.debug ? (msg: string) => debug(`[debug] ${msg}`) : undefined
+    const session = await loginWithQr(dataUrl, { debug: debugLog })
+
+    const client = await new SlackClient().login({ token: session.token, cookie: session.cookie })
+    const authInfo = await client.testAuth()
+
+    const credManager = new CredentialManager()
+    const workspace: ExtractedWorkspace = {
+      workspace_id: authInfo.team_id,
+      workspace_name: authInfo.team || session.workspace,
+      token: session.token,
+      cookie: session.cookie,
+    }
+    await credManager.setWorkspace(workspace)
+
+    const config = await credManager.load()
+    if (!config.current_workspace) {
+      await credManager.setCurrentWorkspace(workspace.workspace_id)
+    }
+
+    console.log(
+      formatOutput(
+        {
+          workspace: `${workspace.workspace_id}/${workspace.workspace_name}`,
+          user: authInfo.user,
+          current: (await credManager.load()).current_workspace,
+        },
+        options.pretty,
+      ),
+    )
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
+function readStdin(): Promise<string> {
+  if (process.stdin.isTTY) return Promise.resolve('')
+  return new Promise((resolve) => {
+    let data = ''
+    process.stdin.setEncoding('utf8')
+    process.stdin.on('data', (chunk) => {
+      data += chunk
+    })
+    process.stdin.on('end', () => resolve(data))
+    process.stdin.on('error', () => resolve(data))
+  })
+}
+
 export function getExtractionErrorMessage(failureReasons: string[]): string {
   if (failureReasons.includes('missing_cookie')) {
     return 'Cookie extraction failed. Grant Keychain access when prompted, and make sure you are signed into Slack in the desktop app or a supported Chromium browser.'
@@ -259,6 +324,14 @@ export const authCommand = new Command('auth')
       )
       .option('--unsafely-show-secrets', 'Show full token and cookie values in debug output')
       .action((options: BrowserProfileOption & Parameters<typeof extractAction>[0]) => extractAction(options)),
+  )
+  .addCommand(
+    new Command('qr')
+      .description('Sign in by pasting a QR code from Slack\u2019s "Sign in on mobile" screen')
+      .argument('[image]', 'QR image data URL (data:image/png;base64,...); read from stdin if omitted')
+      .option('--pretty', 'Pretty print JSON output')
+      .option('--debug', 'Show debug output for troubleshooting')
+      .action(qrAction),
   )
   .addCommand(
     new Command('logout')

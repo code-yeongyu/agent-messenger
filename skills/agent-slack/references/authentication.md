@@ -34,6 +34,35 @@ This command:
 
 Use `--browser-profile <path>` for agent-browser profiles, custom Chrome user data dirs, or portable browser profiles. The option can be repeated or given comma-separated paths, and explicit paths are included even when desktop credentials are also present.
 
+### QR Code Sign-In
+
+When the desktop app isn't installed and browser extraction isn't an option, you can sign in with a QR code from a device where you're already logged into Slack. This runs entirely over HTTP — no browser automation:
+
+```bash
+# In Slack (desktop or web): your name (top-left) → "Sign in on mobile".
+# Right-click the QR code → "Copy Image Address", then pipe it in:
+pbpaste | agent-slack auth qr
+
+# Or pass the data URL directly:
+agent-slack auth qr "data:image/png;base64,iVBORw0KGgo..."
+
+# Show each redirect hop while debugging:
+agent-slack auth qr --debug
+```
+
+How it works:
+
+1. Decodes the QR image (a `data:image/png;base64,...` string) to its one-time `z-app-` login URL
+2. Follows Slack's server-side redirect chain, capturing the session `d` cookie (`xoxd-...`)
+3. Retrieves the matching `xoxc-` client token from the established session
+4. Validates against the Slack API and stores credentials like `auth extract`
+
+Notes:
+
+- The QR link is **single-use** — if it expires, generate a fresh one from Slack's "Sign in on mobile" screen.
+- No Chrome/Chromium or desktop app is required; the flow uses plain HTTP requests.
+- Works with workspaces that allow password/email sign-in. SSO-only / Enterprise Grid workspaces that disable the mobile QR flow are not supported.
+
 ### Platform-Specific Paths
 
 **macOS (Direct Download):**

@@ -71,7 +71,7 @@ The global install gives you all platform CLIs. The project install gives you bo
 
 This installs:
 
-- `agent-slack` — Slack CLI (user token, zero-config)
+- `agent-slack` — Slack CLI (user token, zero-config, or QR code sign-in)
 - `agent-slackbot` — Slack Bot CLI (bot token, for server-side/CI/CD)
 - `agent-discord` — Discord CLI
 - `agent-discordbot` — Discord Bot CLI (bot token, for server-side/CI/CD)
@@ -216,6 +216,17 @@ import { SlackClient } from 'agent-messenger/slack'
 
 const client = await new SlackClient().login({ token: 'xoxc-...', cookie: 'xoxd-...' })
 const messages = await client.getMessages('C01234567')
+```
+
+### QR Code Login (Slack)
+
+Sign in with a QR code from Slack's "Sign in on mobile" screen — no desktop app or browser automation, just HTTP. `dataUrl` is the QR image as a `data:image/png;base64,...` string.
+
+```typescript
+import { loginWithQr, SlackClient } from 'agent-messenger/slack'
+
+const session = await loginWithQr(dataUrl)
+const client = await new SlackClient().login({ token: session.token, cookie: session.cookie })
 ```
 
 ### Real-time Events (Slack)

@@ -145,9 +145,13 @@ async function refreshAndVerify(cookie: string, domain: string, fallbackName: st
 
 const TOKEN_REGEX = /"api_token":"(xoxc-[a-zA-Z0-9-]+)"/
 
-export async function refreshTokenFromWeb(domain: string, cookie: string): Promise<string | null> {
+export async function refreshTokenFromWeb(
+  domain: string,
+  cookie: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<string | null> {
   try {
-    const response = await fetch(`https://${domain}.slack.com/ssb/redirect`, {
+    const response = await fetchImpl(`https://${domain}.slack.com/ssb/redirect`, {
       headers: { Cookie: `d=${cookie}` },
       redirect: 'follow',
     })
