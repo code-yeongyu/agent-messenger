@@ -4,7 +4,15 @@ import type { Command as CommandType } from 'commander'
 import { Command } from 'commander'
 
 import pkg from '../../../package.json' with { type: 'json' }
-import { authCommand, memberCommand, messageCommand, snapshotCommand, spaceCommand, whoamiCommand } from './commands'
+import {
+  authCommand,
+  fileCommand,
+  memberCommand,
+  messageCommand,
+  snapshotCommand,
+  spaceCommand,
+  whoamiCommand,
+} from './commands'
 import { ensureWebexAuth } from './ensure-auth'
 
 function isAuthCommand(command: CommandType): boolean {
@@ -26,6 +34,7 @@ program.hook('preAction', async (_thisCommand, actionCommand) => {
 })
 
 program.addCommand(authCommand)
+program.addCommand(fileCommand)
 program.addCommand(memberCommand)
 program.addCommand(messageCommand)
 program.addCommand(snapshotCommand)
