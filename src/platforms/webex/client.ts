@@ -1,5 +1,8 @@
+import { createHash } from 'node:crypto'
+
 import { WebexCredentialManager } from './credential-manager'
 import { WebexEncryptionService } from './encryption'
+import type { WebexScr } from './encryption'
 import {
   decodeWebexId,
   normalizeSdkMembership,
@@ -655,6 +658,11 @@ export class WebexClient {
     options?: { text?: string; markdown?: boolean; parentId?: string },
   ): Promise<WebexMessage> {
     const resolvedRoomId = await this.resolveRoomId(roomId)
+
+    if (this.useInternalAPI) {
+      return this.uploadFileInternal(resolvedRoomId, file, options)
+    }
+
     const resolvedParentId = options?.parentId ? this.resolveMessageId(options.parentId) : undefined
     const form = new FormData()
     form.set('roomId', resolvedRoomId)
@@ -675,6 +683,137 @@ export class WebexClient {
       throw new WebexError(errorBody?.message ?? `HTTP ${response.status}`, `http_${response.status}`)
     }
     return normalizeSdkMessage((await response.json()) as WebexMessage)
+  }
+
+  private async uploadFileInternal(
+    roomId: string,
+    file: { content: Blob; filename: string },
+    options?: { text?: string; markdown?: boolean; parentId?: string },
+  ): Promise<WebexMessage> {
+    const convUuid = this.decodeConvUuid(roomId)
+    const conversationUrl = `${this.convBaseUrl}/conversations/${convUuid}`
+    const conv = await this.internalRequest<InternalConversation>(
+      `/conversations/${convUuid}?activitiesLimit=0&participantsLimit=0`,
+    )
+    const keyUri = conv.defaultActivityEncryptionKeyUrl
+
+    const bytes = new Uint8Array(await file.content.arrayBuffer())
+    const fileItem = await this.uploadFileContent(conversationUrl, file.filename, bytes, keyUri)
+
+    const object: Record<string, unknown> = {
+      objectType: 'content',
+      contentCategory: contentCategoryFor(fileItem.mimeType),
+      files: { items: [fileItem.item] },
+    }
+    let encryptionKeyUrl: string | undefined
+    if (options?.text) {
+      const built = await this.buildEncryptedObject(convUuid, options.text, { markdown: options.markdown })
+      object.displayName = built.object.displayName
+      if (built.object.content) object.content = built.object.content
+      encryptionKeyUrl = built.encryptionKeyUrl
+    }
+
+    const activity: Record<string, unknown> = {
+      verb: 'share',
+      object,
+      target: { id: convUuid, objectType: 'conversation' },
+      clientTempId: `tmp-${Date.now()}-share`,
+    }
+    if (options?.parentId) {
+      activity.parent = { id: this.toMessageRef(options.parentId), type: 'reply' }
+    }
+    if (encryptionKeyUrl ?? keyUri) {
+      activity.encryptionKeyUrl = encryptionKeyUrl ?? keyUri
+    }
+
+    const result = await this.internalActivityRequest<InternalActivity>(`${conversationUrl}/content`, {
+      method: 'POST',
+      body: JSON.stringify(activity),
+    })
+    return this.activityToMessage(result, roomId)
+  }
+
+  private async uploadFileContent(
+    conversationUrl: string,
+    filename: string,
+    bytes: Uint8Array,
+    keyUri: string | undefined,
+  ): Promise<{ item: Record<string, unknown>; mimeType: string }> {
+    const space = await this.internalActivityRequest<{ spaceUrl: string }>(`${conversationUrl}/space`, {
+      method: 'PUT',
+    })
+
+    let body: Uint8Array
+    let scr: WebexScr | undefined
+    if (this.encryption && keyUri) {
+      const encrypted = this.encryption.encryptBinary(bytes)
+      body = encrypted.ciphertext
+      scr = encrypted.scr
+    } else {
+      body = bytes
+    }
+
+    const downloadUrl = await this.uploadToSpace(space.spaceUrl, body)
+
+    const mimeType = guessMimeType(filename)
+    const item: Record<string, unknown> = {
+      objectType: 'file',
+      displayName: filename,
+      fileSize: bytes.byteLength,
+      mimeType,
+      url: downloadUrl,
+    }
+
+    if (scr && keyUri && this.encryption) {
+      scr.loc = downloadUrl
+      const encryptedScr = await this.encryption.encryptScr(keyUri, scr)
+      if (!encryptedScr) {
+        throw new WebexError('Cannot encrypt file for Webex E2E conversation', 'encryption_failed')
+      }
+      item.scr = encryptedScr
+      item.displayName = (await this.encryption.encryptText(keyUri, filename)) ?? filename
+    }
+
+    return { item, mimeType }
+  }
+
+  private async uploadToSpace(spaceUrl: string, body: Uint8Array): Promise<string> {
+    const session = await this.internalActivityRequest<{ uploadUrl: string; finishUploadUrl: string }>(
+      `${spaceUrl}/upload_sessions`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ uploadProtocol: 'content-length', fileSize: body.byteLength }),
+      },
+    )
+
+    const putResponse = await fetch(session.uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': String(body.byteLength) },
+      body,
+    })
+    if (!putResponse.ok) {
+      throw new WebexError(`File upload failed: HTTP ${putResponse.status}`, `http_${putResponse.status}`)
+    }
+
+    const fileHash = createHash('sha256').update(body).digest('hex')
+    const finished = await this.internalActivityRequest<{ downloadUrl: string }>(session.finishUploadUrl, {
+      method: 'POST',
+      body: JSON.stringify({ fileSize: body.byteLength, fileHash }),
+    })
+    return finished.downloadUrl
+  }
+
+  private async internalActivityRequest<T>(url: string, init: RequestInit): Promise<T> {
+    const response = await fetch(url, {
+      ...init,
+      headers: { ...this.internalHeaders, ...(init.headers as Record<string, string>) },
+    })
+    if (!response.ok) {
+      const errorBody = (await response.json().catch(() => null)) as { message?: string } | null
+      throw new WebexError(errorBody?.message ?? `HTTP ${response.status}`, `http_${response.status}`)
+    }
+    if (response.status === 204) return undefined as T
+    return response.json() as Promise<T>
   }
 
   private async lookupRoomId(uuid: string, fallback: string): Promise<string> {
@@ -814,6 +953,35 @@ function sanitizeFilename(name: string | undefined): string | undefined {
 
 function looksLikeUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+}
+
+const MIME_TYPES: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  webm: 'video/webm',
+  pdf: 'application/pdf',
+  txt: 'text/plain',
+  md: 'text/markdown',
+  json: 'application/json',
+  csv: 'text/csv',
+  zip: 'application/zip',
+}
+
+function guessMimeType(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? ''
+  return MIME_TYPES[ext] ?? 'application/octet-stream'
+}
+
+function contentCategoryFor(mimeType: string): string {
+  if (mimeType.startsWith('image/')) return 'images'
+  if (mimeType.startsWith('video/')) return 'videos'
+  return 'documents'
 }
 
 function looksLikeEmail(value: string): boolean {

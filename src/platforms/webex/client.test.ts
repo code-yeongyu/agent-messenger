@@ -1018,6 +1018,98 @@ describe('WebexClient', () => {
       })
     })
 
+    describe('uploadFile', () => {
+      const mockUploadFlow = () => {
+        // given: the full internal share flow — conv lookup, space, session, PUT, finish, content
+        mockResponse({ id: TEST_CONV_UUID })
+        mockResponse({ spaceUrl: 'https://files.wbx2.com/spaces/sp1' })
+        mockResponse({
+          uploadUrl: 'https://up.wbx2.com/upload/sess1',
+          finishUploadUrl: 'https://up.wbx2.com/upload/sess1/finish',
+        })
+        mockResponse({}, 200)
+        mockResponse({ downloadUrl: 'https://files.wbx2.com/files/f1' })
+        mockResponse({ ...mockActivity(''), verb: 'share' })
+      }
+
+      const file = () => ({ content: new Blob(['hello world']), filename: 'note.txt' })
+
+      it('routes to the internal conversation API instead of the public messages endpoint', async () => {
+        mockUploadFlow()
+
+        const client = await createExtractedClient()
+        await client.uploadFile(TEST_ROOM_ID, file())
+
+        expect(fetchCalls.every((c) => !c.url.includes('webexapis.com/v1/messages'))).toBe(true)
+        expect(fetchCalls.at(-1)?.url).toBe(`${CONV_BASE}/conversations/${TEST_CONV_UUID}/content`)
+        expect(fetchCalls.at(-1)?.options?.method).toBe('POST')
+      })
+
+      it('requests a space, opens an upload session, PUTs the bytes, then finalizes', async () => {
+        mockUploadFlow()
+
+        const client = await createExtractedClient()
+        await client.uploadFile(TEST_ROOM_ID, file())
+
+        expect(fetchCalls[1].url).toBe(`${CONV_BASE}/conversations/${TEST_CONV_UUID}/space`)
+        expect(fetchCalls[1].options?.method).toBe('PUT')
+        expect(fetchCalls[2].url).toBe('https://files.wbx2.com/spaces/sp1/upload_sessions')
+        expect(fetchCalls[3].url).toBe('https://up.wbx2.com/upload/sess1')
+        expect(fetchCalls[3].options?.method).toBe('PUT')
+        expect(fetchCalls[4].url).toBe('https://up.wbx2.com/upload/sess1/finish')
+      })
+
+      it('finalize body carries fileSize and a sha256 fileHash of the uploaded bytes', async () => {
+        mockUploadFlow()
+
+        const client = await createExtractedClient()
+        await client.uploadFile(TEST_ROOM_ID, file())
+
+        const body = JSON.parse(fetchCalls[4].options?.body as string)
+        expect(body.fileSize).toBe(11)
+        expect(body.fileHash).toMatch(/^[0-9a-f]{64}$/)
+      })
+
+      it('share activity references the uploaded file with download url and metadata', async () => {
+        mockUploadFlow()
+
+        const client = await createExtractedClient()
+        await client.uploadFile(TEST_ROOM_ID, file())
+
+        const body = JSON.parse(fetchCalls.at(-1)?.options?.body as string)
+        expect(body.verb).toBe('share')
+        expect(body.object.objectType).toBe('content')
+        expect(body.object.contentCategory).toBe('documents')
+        const item = body.object.files.items[0]
+        expect(item.objectType).toBe('file')
+        expect(item.url).toBe('https://files.wbx2.com/files/f1')
+        expect(item.fileSize).toBe(11)
+        expect(item.mimeType).toBe('text/plain')
+        expect(item.displayName).toBe('note.txt')
+      })
+
+      it('attaches an optional text comment to the share activity', async () => {
+        mockUploadFlow()
+
+        const client = await createExtractedClient()
+        await client.uploadFile(TEST_ROOM_ID, file(), { text: 'see attached' })
+
+        const body = JSON.parse(fetchCalls.at(-1)?.options?.body as string)
+        expect(body.object.displayName).toBe('see attached')
+      })
+
+      it('categorizes images by mime type', async () => {
+        mockUploadFlow()
+
+        const client = await createExtractedClient()
+        await client.uploadFile(TEST_ROOM_ID, { content: new Blob(['x']), filename: 'photo.png' })
+
+        const body = JSON.parse(fetchCalls.at(-1)?.options?.body as string)
+        expect(body.object.contentCategory).toBe('images')
+        expect(body.object.files.items[0].mimeType).toBe('image/png')
+      })
+    })
+
     describe('error handling', () => {
       it('throws WebexError when internal API returns non-OK response', async () => {
         fetchResponses.push(
