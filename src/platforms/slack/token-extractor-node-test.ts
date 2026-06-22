@@ -1,10 +1,12 @@
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import Database from 'better-sqlite3'
-
 import { TokenExtractor } from './token-extractor'
+
+const require = createRequire(import.meta.url)
+const { DatabaseSync } = require('node:sqlite')
 
 const tempDir = mkdtempSync(join(tmpdir(), 'token-extractor-test-'))
 const slackDir = join(tempDir, 'Slack')
@@ -13,7 +15,7 @@ mkdirSync(slackDir)
 const dbPath = join(slackDir, 'Cookies')
 
 try {
-  const db = new Database(dbPath)
+  const db = new DatabaseSync(dbPath)
   db.exec(`
     CREATE TABLE cookies (
       name TEXT,

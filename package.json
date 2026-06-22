@@ -171,7 +171,6 @@
     "@hapi/boom": "^10.0.1",
     "@slack/web-api": "^6.9.0",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
-    "better-sqlite3": "^12.0.0",
     "blessed": "^0.1.81",
     "bson": "^6.10.4",
     "classic-level": "^3.0.0",
@@ -192,7 +191,6 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.8",
     "@types/blessed": "^0.1.27",
     "@types/bun": "latest",
     "@types/hapi__boom": "^9.0.1",
@@ -211,9 +209,11 @@
     "koffi": "^2.15.2",
     "prebuilt-tdlib": "0.1008062.2"
   },
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "trustedDependencies": [
     "@whiskeysockets/baileys",
-    "better-sqlite3",
     "classic-level",
     "protobufjs"
   ]
