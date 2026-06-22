@@ -14,7 +14,7 @@ export interface ReadonlyDatabase {
 
 type ReadonlyDatabaseConstructor = new (path: string, options: { readOnly: boolean }) => ReadonlyDatabase
 
-// Uses the runtime's built-in driver (bun:sqlite on Bun, node:sqlite on Node >= 22.5)
+// Uses the runtime's built-in driver (bun:sqlite on Bun, node:sqlite on Node >= 22.13)
 // to avoid a native addon dependency.
 export function openReadonlyDatabase(path: string): ReadonlyDatabase {
   if (typeof globalThis.Bun !== 'undefined') {
@@ -27,7 +27,7 @@ export function openReadonlyDatabase(path: string): ReadonlyDatabase {
     DatabaseSync = require('node:sqlite').DatabaseSync
   } catch {
     throw new Error(
-      'SQLite support requires Node.js >= 22.5 (the built-in node:sqlite module) or Bun. Please upgrade Node.js.',
+      'SQLite support requires Node.js >= 22.13.0 (the built-in node:sqlite module) or Bun. Please upgrade Node.js.',
     )
   }
 
