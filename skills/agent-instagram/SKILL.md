@@ -1,7 +1,7 @@
 ---
 name: agent-instagram
 description: Interact with Instagram DMs - send messages, read conversations, manage accounts
-version: 2.26.0
+version: 2.27.0
 allowed-tools: Bash(agent-instagram:*)
 metadata:
   openclaw:
