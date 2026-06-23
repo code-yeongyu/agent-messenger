@@ -132,6 +132,53 @@ describe('loginWithQr', () => {
     await expect(promise).rejects.toThrow(/expired/)
   })
 
+  it('reports SSO enforcement when the z-app hop redirects to an identity provider', async () => {
+    // Given a workspace whose z-app hop redirects off Slack to an SSO IdP (no d cookie issued)
+    const dataUrl = await qrDataUrl(ZAPP_URL)
+    const fetchImpl = (async (input: string | URL) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.startsWith('https://app.slack.com/t/')) {
+        return redirect(`https://${WORKSPACE}.slack.com/z-app-secret`)
+      }
+      return redirect('https://accounts.google.com/o/oauth2/auth?redirect_uri=https://slack.com/sso/google')
+    }) as typeof fetch
+
+    // When logging in, the error names SSO + the detected provider and points to a working auth method
+    await expect(loginWithQr(dataUrl, { fetchImpl })).rejects.toThrow(/enforces SSO \(via Google\)/)
+    await expect(loginWithQr(dataUrl, { fetchImpl })).rejects.toThrow(/auth extract/)
+  })
+
+  it('reports SSO enforcement for an unrecognized/vanity IdP host', async () => {
+    // Given a z-app hop that redirects off Slack to a custom SAML IdP not in the known-provider list
+    const dataUrl = await qrDataUrl(ZAPP_URL)
+    const fetchImpl = (async (input: string | URL) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.startsWith('https://app.slack.com/t/')) {
+        return redirect(`https://${WORKSPACE}.slack.com/z-app-secret`)
+      }
+      return redirect('https://login.acme.example/saml')
+    }) as typeof fetch
+
+    // When logging in, it is still classified as SSO (without naming a provider) and routes to auth extract
+    await expect(loginWithQr(dataUrl, { fetchImpl })).rejects.toThrow(/enforces SSO/)
+    await expect(loginWithQr(dataUrl, { fetchImpl })).rejects.toThrow(/auth extract/)
+  })
+
+  it('reports an expired link when the final page is Slack\u2019s "Link Expired" page', async () => {
+    // Given a z-app chain that completes on a Slack host but returns the expired page with no d cookie
+    const dataUrl = await qrDataUrl(ZAPP_URL)
+    const fetchImpl = (async (input: string | URL) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.startsWith('https://app.slack.com/t/')) {
+        return redirect(`https://${WORKSPACE}.slack.com/z-app-secret`)
+      }
+      return new Response('<title>Link Expired | Slack</title>', { status: 200 })
+    }) as typeof fetch
+
+    // When logging in, the error names the expiry explicitly
+    await expect(loginWithQr(dataUrl, { fetchImpl })).rejects.toThrow(/has expired or was already used/)
+  })
+
   it('fails with qr_token_failed when the token cannot be retrieved', async () => {
     const dataUrl = await qrDataUrl(ZAPP_URL)
 

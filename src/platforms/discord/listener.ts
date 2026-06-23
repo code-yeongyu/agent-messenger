@@ -4,7 +4,7 @@ import WebSocket from 'ws'
 
 import type { DiscordClient } from './client'
 import type { DiscordListenerEventMap, DiscordGatewayGenericEvent } from './types'
-import { DiscordGatewayOpcode, DiscordIntent } from './types'
+import { DiscordGatewayOpcode } from './types'
 
 const GATEWAY_URL = 'wss://gateway.discord.gg/?v=10&encoding=json'
 const GATEWAY_QUERY = '?v=10&encoding=json'
@@ -13,20 +13,25 @@ const RECONNECT_MAX_DELAY = 30_000
 const NON_RECOVERABLE_CLOSE_CODES = [4004, 4010, 4011, 4012, 4013, 4014]
 const SESSION_RESET_CLOSE_CODES = [4007, 4009]
 
-const DEFAULT_INTENTS =
-  DiscordIntent.Guilds |
-  DiscordIntent.GuildMessages |
-  DiscordIntent.GuildMessageReactions |
-  DiscordIntent.GuildMessageTyping |
-  DiscordIntent.DirectMessages |
-  DiscordIntent.DirectMessageReactions |
-  DiscordIntent.DirectMessageTyping
+// User (non-bot) gateway capabilities bitmask, mirroring discord.py-self's default set.
+// Capabilities shape the READY payload; bit 10 (client_state_v2) requires client_state.guild_versions.
+const USER_GATEWAY_CAPABILITIES = 16381
+
+// Without MESSAGE_CONTENT (1<<15), Discord blanks `content`/`embeds`/`attachments` on messages
+// from OTHER users (self/DM/mention content still arrives). User sessions get all intents only
+// when `intents` is omitted OR explicitly set, so we send an all-intents value to guarantee content.
+const USER_GATEWAY_INTENTS = 33_554_431
+
+// Discord validates client_build_number against recent web-client builds; a stale value can
+// yield a connected-but-degraded session that fires READY yet delivers no message events.
+// Overridable via env so it can be refreshed without a release when it eventually goes stale.
+const DEFAULT_CLIENT_BUILD_NUMBER = 648814
+const USER_GATEWAY_BUILD_NUMBER = Number(process.env.AGENT_DISCORD_BUILD_NUMBER) || DEFAULT_CLIENT_BUILD_NUMBER
 
 type EventKey = keyof DiscordListenerEventMap
 
 export class DiscordListener {
   private client: DiscordClient
-  private intents: number
   private running = false
   private ws: WebSocket | null = null
   private emitter = new EventEmitter()
@@ -43,9 +48,8 @@ export class DiscordListener {
   private cachedUser: { id: string; username: string } | null = null
   private generation = 0
 
-  constructor(client: DiscordClient, options?: { intents?: number }) {
+  constructor(client: DiscordClient) {
     this.client = client
-    this.intents = options?.intents ?? DEFAULT_INTENTS
   }
 
   async start(): Promise<void> {
@@ -233,12 +237,28 @@ export class DiscordListener {
         op: DiscordGatewayOpcode.Identify,
         d: {
           token: this.token,
-          intents: this.intents,
+          capabilities: USER_GATEWAY_CAPABILITIES,
+          intents: USER_GATEWAY_INTENTS,
           properties: {
-            os: 'linux',
-            browser: 'agent-messenger',
-            device: 'agent-messenger',
+            os: 'Linux',
+            browser: 'Chrome',
+            device: '',
+            system_locale: 'en-US',
+            browser_user_agent:
+              'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            browser_version: '131.0.0.0',
+            os_version: '',
+            referrer: '',
+            referring_domain: '',
+            referrer_current: '',
+            referring_domain_current: '',
+            release_channel: 'stable',
+            client_build_number: USER_GATEWAY_BUILD_NUMBER,
+            client_event_source: null,
           },
+          presence: { status: 'online', since: 0, activities: [], afk: false },
+          compress: false,
+          client_state: { guild_versions: {} },
         },
       }),
     )

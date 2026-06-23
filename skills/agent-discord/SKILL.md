@@ -533,12 +533,10 @@ console.log({ results, messages })
 `DiscordListener` connects to Discord's Gateway WebSocket for instant event streaming:
 
 ```typescript
-import { DiscordClient, DiscordListener, DiscordIntent } from 'agent-messenger/discord'
+import { DiscordClient, DiscordListener } from 'agent-messenger/discord'
 
 const client = await new DiscordClient().login()
-const listener = new DiscordListener(client, {
-  intents: DiscordIntent.Guilds | DiscordIntent.GuildMessages | DiscordIntent.MessageContent,
-})
+const listener = new DiscordListener(client)
 
 listener.on('message_create', (event) => {
   console.log(`${event.author.username}: ${event.content}`)
