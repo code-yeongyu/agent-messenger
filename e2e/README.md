@@ -41,7 +41,7 @@ Before running E2E tests, you need:
 
 ## Running E2E Tests Locally
 
-### Step 1: Extract Credentials
+### Step 1: Authenticate
 
 First, make sure the desktop apps (Slack/Discord) are running and logged into your **test** workspaces.
 
@@ -55,6 +55,8 @@ agent-discord auth extract
 # Extract Teams credentials
 agent-teams auth extract
 ```
+
+> For local runs you can also use QR code sign-in for the **test** accounts (`agent-slack auth qr` / `agent-discord auth qr`) instead of extraction — it's the recommended auth method and doesn't require the desktop app. CI uses the environment variables below (extracted token/cookie values), since QR sign-in is interactive.
 
 ### Step 2: Switch to Test Workspace
 

@@ -24,6 +24,7 @@ Or within Claude Code:
 Enables AI agents to interact with messaging platforms through CLI interfaces:
 
 ### Slack (`agent-slack`)
+- **QR code sign-in** — recommended, safest auth (no credential extraction)
 - **Send messages** to channels and threads
 - **Read channels** and message history
 - **Manage reactions** (add/remove/list)
@@ -46,6 +47,7 @@ Enables AI agents to interact with messaging platforms through CLI interfaces:
 - Designed for **server-side and CI/CD** use cases
 
 ### Discord (`agent-discord`)
+- **QR code sign-in** — recommended, scan with the mobile app (no credential extraction)
 - **Send messages** to channels
 - **Read channels** and message history
 - **Manage reactions** (add/remove/list)
@@ -141,7 +143,19 @@ Enables AI agents to interact with messaging platforms through CLI interfaces:
 
 ### Zero-Config Authentication
 
-Credentials are automatically extracted from your desktop apps on first command — no manual auth step needed. You can also extract manually:
+Credentials are automatically extracted from your desktop apps on first command — no manual auth step needed. You can also authenticate manually.
+
+For **Slack and Discord, QR code sign-in is the recommended method** — it's the safest and most reliable option because it authenticates through the platform's own login flow instead of reading credentials off disk, and it works without a desktop app or browser:
+
+```bash
+# Slack — paste the QR from "Sign in on mobile" (recommended)
+pbpaste | agent-slack auth qr
+
+# Discord — scan the QR with the Discord mobile app (recommended)
+agent-discord auth qr
+```
+
+Or extract credentials directly from your desktop apps / browsers:
 
 ```bash
 # Slack
@@ -174,7 +188,7 @@ All commands output JSON by default for easy AI consumption. Use `--pretty` for 
 
 ## Requirements
 
-- Desktop app installed and logged in for the platform(s) you want to use (Slack, Discord, Teams, KakaoTalk, and/or Channel Talk). Instagram uses username/password auth
+- Desktop app installed and logged in for the platform(s) you want to use (Slack, Discord, Teams, KakaoTalk, and/or Channel Talk). For Slack and Discord, QR code sign-in is the recommended alternative — no desktop app required (Discord needs the mobile app to scan). Instagram uses username/password auth
 - For Telegram: TDLib is bundled; API credentials are auto-provisioned on first login
 - Node.js 18+ or Bun runtime
 
