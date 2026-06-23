@@ -1,11 +1,8 @@
-import { Writable } from 'node:stream'
-
 import { Command } from 'commander'
 
 import { collectBrowserProfileOption } from '@/shared/chromium'
 import type { BrowserProfileOption } from '@/shared/chromium'
 import { handleError } from '@/shared/utils/error-handler'
-import { isInteractive } from '@/shared/utils/interactive'
 import { formatOutput } from '@/shared/utils/output'
 import { debug } from '@/shared/utils/stderr'
 
@@ -326,106 +323,6 @@ function readStdin(): Promise<string> {
   })
 }
 
-const TOKEN_PREFIX = 'xoxc-'
-const COOKIE_PREFIX = 'xoxd-'
-
-async function tokenAction(
-  tokenArg: string | undefined,
-  options: { cookie?: string; pretty?: boolean },
-): Promise<void> {
-  try {
-    const stdinToken = tokenArg ? undefined : (await readStdin()).trim() || undefined
-    const token = tokenArg ?? stdinToken ?? (await promptHidden('Slack token (xoxc-...)'))
-    const rawCookie = options.cookie ?? (await promptHidden('Slack d cookie (xoxd-...)'))
-
-    if (!token || !rawCookie) {
-      console.log(
-        formatOutput(
-          {
-            error: 'Both a Slack token (xoxc-...) and d cookie (xoxd-...) are required.',
-            hint: 'In your browser on app.slack.com: DevTools → Application → Cookies → copy the "d" cookie (xoxd-...), and read the xoxc- token from localStorage localConfig_v2.',
-          },
-          options.pretty,
-        ),
-      )
-      process.exit(1)
-    }
-
-    const cookie = normalizeDCookie(rawCookie)
-    if (!token.startsWith(TOKEN_PREFIX) || !cookie.startsWith(COOKIE_PREFIX)) {
-      console.log(
-        formatOutput(
-          { error: `Token must start with "${TOKEN_PREFIX}" and cookie must start with "${COOKIE_PREFIX}".` },
-          options.pretty,
-        ),
-      )
-      process.exit(1)
-    }
-
-    const client = await new SlackClient().login({ token, cookie })
-    const authInfo = await client.testAuth()
-
-    const credManager = new CredentialManager()
-    const workspace: ExtractedWorkspace = {
-      workspace_id: authInfo.team_id,
-      workspace_name: authInfo.team || 'unknown',
-      token,
-      cookie,
-    }
-    await credManager.setWorkspace(workspace)
-
-    if (!(await credManager.load()).current_workspace) {
-      await credManager.setCurrentWorkspace(workspace.workspace_id)
-    }
-
-    console.log(
-      formatOutput(
-        {
-          workspace: `${workspace.workspace_id}/${workspace.workspace_name}`,
-          user: authInfo.user,
-          current: (await credManager.load()).current_workspace,
-        },
-        options.pretty,
-      ),
-    )
-  } catch (error) {
-    handleError(error as Error)
-  }
-}
-
-export function normalizeDCookie(raw: string): string {
-  const trimmed = raw.trim()
-  const withoutPrefix = trimmed.startsWith('d=') ? trimmed.slice(2) : trimmed
-  return decodeURIComponent(withoutPrefix)
-}
-
-class HiddenWritable extends Writable {
-  muted = false
-  _write(chunk: unknown, _encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
-    if (!this.muted) process.stdout.write(chunk as Buffer)
-    callback()
-  }
-}
-
-async function promptHidden(message: string): Promise<string | undefined> {
-  if (!isInteractive()) return undefined
-
-  const { createInterface } = await import('node:readline/promises')
-  const hiddenOutput = new HiddenWritable()
-  const rl = createInterface({ input: process.stdin, output: hiddenOutput, terminal: true })
-
-  try {
-    hiddenOutput.muted = true
-    process.stdout.write(`${message}: `)
-    const answer = await rl.question('')
-    process.stdout.write('\n')
-    return answer.trim() || undefined
-  } finally {
-    hiddenOutput.muted = false
-    rl.close()
-  }
-}
-
 export function getExtractionErrorMessage(failureReasons: string[]): string {
   if (failureReasons.includes('missing_cookie')) {
     return 'Cookie extraction failed. Grant Keychain access when prompted, and make sure you are signed into Slack in the desktop app or a supported Chromium browser.'
@@ -463,14 +360,6 @@ export const authCommand = new Command('auth')
       .option('--pretty', 'Pretty print JSON output')
       .option('--debug', 'Show debug output for troubleshooting')
       .action(qrAction),
-  )
-  .addCommand(
-    new Command('token')
-      .description('Sign in by pasting a Slack token (xoxc-...) and d cookie (xoxd-...)')
-      .argument('[token]', 'Slack user token (xoxc-...); prompted if omitted')
-      .option('--cookie <cookie>', 'Slack d cookie (xoxd-...); prompted if omitted')
-      .option('--pretty', 'Pretty print JSON output')
-      .action(tokenAction),
   )
   .addCommand(
     new Command('logout')
