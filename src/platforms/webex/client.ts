@@ -363,6 +363,23 @@ export class WebexClient {
     return normalizeSdkMessage(await this.request<WebexMessage>('POST', '/messages', body))
   }
 
+  async setTyping(roomId: string, typing: boolean = true): Promise<void> {
+    if (!this.useInternalAPI) {
+      throw new WebexError('Typing indicator requires an extracted or password token with a device URL', 'unsupported')
+    }
+
+    const resolvedRoomId = await this.resolveRoomId(roomId)
+    const convUuid = this.decodeConvUuid(resolvedRoomId)
+
+    await this.internalRequest<void>(`/conversations/${convUuid}/status/typing`, {
+      method: 'POST',
+      body: JSON.stringify({
+        conversationId: convUuid,
+        eventType: typing ? 'status.start_typing' : 'status.stop_typing',
+      }),
+    })
+  }
+
   private get useInternalAPI(): boolean {
     return (this.tokenType === 'extracted' || this.tokenType === 'password') && this.deviceUrl !== null
   }
