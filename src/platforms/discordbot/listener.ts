@@ -13,6 +13,11 @@ const RECONNECT_MAX_DELAY = 30_000
 const NON_RECOVERABLE_CLOSE_CODES = [4004, 4010, 4011, 4012, 4013, 4014]
 const SESSION_RESET_CLOSE_CODES = [4007, 4009]
 
+// Hello arrives within milliseconds and READY within a few seconds on a healthy gateway;
+// 15s is generous for a successful handshake while still failing fast on bad tokens,
+// network stalls, or a gateway that accepts the socket but never delivers READY.
+const DEFAULT_CONNECT_TIMEOUT_MS = 15_000
+
 const DEFAULT_INTENTS =
   DiscordIntent.Guilds |
   DiscordIntent.GuildMessages |
@@ -26,11 +31,13 @@ type EventKey = keyof DiscordBotListenerEventMap
 
 export interface DiscordBotListenerOptions {
   intents?: number
+  connectTimeoutMs?: number
 }
 
 export class DiscordBotListener {
   private client: DiscordBotClient
   private intents: number
+  private connectTimeoutMs: number
   private running = false
   private ws: WebSocket | null = null
   private emitter = new EventEmitter()
@@ -39,6 +46,7 @@ export class DiscordBotListener {
   private heartbeatJitterTimer: ReturnType<typeof setTimeout> | null = null
   private invalidSessionTimer: ReturnType<typeof setTimeout> | null = null
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private connectTimeoutTimer: ReturnType<typeof setTimeout> | null = null
   private reconnectAttempts = 0
   private sequence: number | null = null
   private sessionId: string | null = null
@@ -46,24 +54,91 @@ export class DiscordBotListener {
   private token: string | null = null
   private cachedUser: { id: string; username: string } | null = null
   private generation = 0
+  private startPromise: Promise<void> | null = null
+  private pendingStartReject: ((error: Error) => void) | null = null
 
   constructor(client: DiscordBotClient, options?: DiscordBotListenerOptions) {
     this.client = client
     this.intents = options?.intents ?? DEFAULT_INTENTS
+    this.connectTimeoutMs = options?.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS
   }
 
   async start(): Promise<void> {
+    if (this.startPromise) return this.startPromise
     if (this.running) return
+
     this.running = true
     this.reconnectAttempts = 0
-    this.generation++
-    await this.connect(this.generation)
+    const generation = ++this.generation
+
+    const ready = new Promise<void>((resolve, reject) => {
+      let settled = false
+
+      const cleanup = () => {
+        this.emitter.off('connected', onConnected)
+        this.emitter.off('error', onError)
+        this.pendingStartReject = null
+        if (this.connectTimeoutTimer) {
+          clearTimeout(this.connectTimeoutTimer)
+          this.connectTimeoutTimer = null
+        }
+      }
+
+      const onConnected = () => {
+        if (settled || !this.isCurrent(generation)) return
+        settled = true
+        cleanup()
+        resolve()
+      }
+
+      const onError = (error: Error) => {
+        if (settled || !this.isCurrent(generation)) return
+        settled = true
+        cleanup()
+        this.teardownFailedStart(generation)
+        reject(error)
+      }
+
+      this.emitter.once('connected', onConnected)
+      this.emitter.once('error', onError)
+
+      // Generation-agnostic on purpose: stop() invokes this to reject an in-flight start
+      // (after bumping generation) without leaking the once() handlers.
+      this.pendingStartReject = (error: Error) => {
+        if (settled) return
+        settled = true
+        cleanup()
+        reject(error)
+      }
+
+      this.connectTimeoutTimer = setTimeout(() => {
+        onError(new Error(`Discord gateway did not become ready within ${this.connectTimeoutMs}ms`))
+      }, this.connectTimeoutMs)
+    })
+
+    const run = async (): Promise<void> => {
+      try {
+        await Promise.all([this.connect(generation), ready])
+      } finally {
+        if (this.generation === generation) this.startPromise = null
+      }
+    }
+    const startPromise = run()
+    this.startPromise = startPromise
+    return startPromise
   }
 
   stop(): void {
     this.running = false
     this.generation++
     this.clearTimers()
+    if (this.connectTimeoutTimer) {
+      clearTimeout(this.connectTimeoutTimer)
+      this.connectTimeoutTimer = null
+    }
+    const rejectStart = this.pendingStartReject
+    this.pendingStartReject = null
+    this.startPromise = null
     if (this.ws) {
       this.ws.close()
       this.ws = null
@@ -73,6 +148,12 @@ export class DiscordBotListener {
     this.resumeGatewayUrl = null
     this.token = null
     this.cachedUser = null
+    rejectStart?.(new Error('Discord gateway start was stopped before becoming ready'))
+  }
+
+  private teardownFailedStart(generation: number): void {
+    if (!this.isCurrent(generation)) return
+    this.stop()
   }
 
   on<K extends EventKey>(event: K, listener: (...args: DiscordBotListenerEventMap[K]) => void): this {
