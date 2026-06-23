@@ -2,7 +2,40 @@
 
 ## Overview
 
-agent-discord uses Discord's user token extracted from the Discord desktop application, with automatic fallback to Chromium browser profiles (Chrome, Chrome Canary, Edge, Arc, Brave, Vivaldi, Chromium) when the desktop app isn't installed.
+agent-discord supports two ways to authenticate:
+
+- **QR code sign-in (`auth qr`) — recommended.** Scan a QR code with the Discord mobile app to sign in through Discord's own Remote Auth flow. This is the safest and most reliable method: it never reads stored credentials off disk, works without a desktop app or browser, and uses Discord's official login confirmation on your phone.
+- **Token extraction (`auth extract`).** Reads Discord's user token from the desktop application, with automatic fallback to Chromium browser profiles (Chrome, Chrome Canary, Edge, Arc, Brave, Vivaldi, Chromium). Best for automated/headless environments where no phone is available to scan.
+
+> **Recommendation:** Prefer `agent-discord auth qr` whenever you can scan a QR code. Use `auth extract` for headless/CI setups where interactive scanning isn't possible.
+
+## QR Code Sign-In (Recommended)
+
+Sign in by scanning a QR code with the Discord mobile app — no desktop app or browser token extraction required. This runs Discord's official Remote Auth protocol, so you authenticate through Discord's own login confirmation rather than by reading stored credentials.
+
+```bash
+# Generate a QR code and wait for you to scan it
+agent-discord auth qr
+
+# Show protocol details while debugging
+agent-discord auth qr --debug
+
+# Human-readable output
+agent-discord auth qr --pretty
+```
+
+How it works:
+
+1. Opens a WebSocket to Discord's remote-auth gateway and performs an RSA key exchange
+2. Renders a QR code in your terminal (and opens it in the browser as a fallback)
+3. You scan it with the Discord mobile app: **Settings → Scan QR Code**, then confirm on your phone
+4. Discord returns an encrypted ticket, which is exchanged for your user token, validated, and stored like `auth extract` — along with all discovered servers
+
+Notes:
+
+- **Requires the Discord mobile app** (logged in) to scan. Because it's interactive, it cannot run headlessly — use `auth extract` for CI.
+- The QR code expires after about 150 seconds. Re-run `agent-discord auth qr` to generate a fresh one.
+- If Discord presents a captcha challenge during the token exchange, the CLI surfaces a typed error directing you to fall back to `auth extract`.
 
 ## Token Extraction
 
@@ -186,7 +219,10 @@ Discord user tokens can be invalidated when:
 If commands start failing with auth errors:
 
 ```bash
-# Re-extract credentials
+# Recommended: re-authenticate with a QR code
+agent-discord auth qr
+
+# Or re-extract credentials from the desktop app / browser
 agent-discord auth extract
 
 # Verify it worked
@@ -216,8 +252,9 @@ This shows:
 
 **Solution**:
 
-1. Log in to discord.com in a Chromium browser (Chrome, Edge, Arc, Brave) — the CLI will extract from browser automatically
-2. Or install the Discord desktop app, log in, and run `agent-discord auth extract` again
+1. Recommended: run `agent-discord auth qr` and scan the QR code with the Discord mobile app — no desktop app or browser required
+2. Or log in to discord.com in a Chromium browser (Chrome, Edge, Arc, Brave) — the CLI will extract from browser automatically
+3. Or install the Discord desktop app, log in, and run `agent-discord auth extract` again
 
 ### "No Discord token found"
 
@@ -275,10 +312,11 @@ With extracted credentials, agent-discord has the same permissions as you in Dis
 
 ### Best Practices
 
-1. **Protect credentials.json**: Never commit to version control
-2. **Use server switching**: Keep different contexts separate
-3. **Re-extract periodically**: Keep tokens fresh
-4. **Revoke if compromised**: Change your Discord password to invalidate tokens
+1. **Prefer QR sign-in**: Use `auth qr` when possible — it authenticates through Discord's official flow instead of reading credentials off disk
+2. **Protect credentials.json**: Never commit to version control
+3. **Use server switching**: Keep different contexts separate
+4. **Re-authenticate periodically**: Keep tokens fresh
+5. **Revoke if compromised**: Change your Discord password to invalidate tokens
 
 ## Manual Token Management (Advanced)
 

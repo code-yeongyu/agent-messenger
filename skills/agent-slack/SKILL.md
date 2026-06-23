@@ -37,11 +37,14 @@ Credentials are extracted automatically from the Slack desktop app (or Chromium 
 
 On macOS, the system may prompt for your Keychain password the first time (required to decrypt Slack's stored token). This is a one-time prompt.
 
-**IMPORTANT**: Always use `agent-slack auth extract` to obtain tokens. The CLI extracts from the desktop app first, falling back to Chromium browsers if the app isn't installed.
+**Two ways to obtain tokens:**
 
-### QR Code Sign-In (No Desktop App Required)
+- **`agent-slack auth qr` — recommended.** Sign in with a QR code from Slack's "Sign in on mobile" screen. It's the safest and most reliable method: it authenticates through Slack's own login flow over plain HTTP instead of reading credentials off disk, and needs no desktop app or browser.
+- **`agent-slack auth extract`.** Extracts tokens from the Slack desktop app first, falling back to Chromium browsers if the app isn't installed. Best for automated/headless environments.
 
-If the Slack desktop app isn't installed (or extraction fails), you can sign in with a QR code from any device where you're already logged into Slack — no browser automation, fully over HTTP:
+### QR Code Sign-In (Recommended)
+
+Sign in with a QR code from any device where you're already logged into Slack — no desktop app, no browser automation, fully over HTTP:
 
 ```bash
 # In Slack (desktop or web): your name (top-left) → "Sign in on mobile".

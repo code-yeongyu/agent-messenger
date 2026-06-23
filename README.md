@@ -46,6 +46,10 @@ Every platform gates API access behind OAuth apps that need admin approval — d
 
 Agent Messenger reads session tokens from your Slack, Discord, Teams, KakaoTalk, or Channel Talk desktop app — zero config. If the desktop app isn't installed, it falls back to extracting from Chromium browsers, with `auth extract --browser-profile <path>` for custom Chromium profile locations. Webex and Instagram tokens are extracted directly from browsers. Telegram authenticates with a one-time phone code, and WhatsApp with a QR code or pairing code. Either way, your agent operates **as you** — same name, same permissions, same context. Bot tokens are fully supported too for server-side and CI/CD use cases.
 
+> [!TIP]
+> **For Slack and Discord, QR code sign-in (`auth qr`) is the recommended way to authenticate** — it's the safest and most reliable method. It signs you in through the platform's own login flow instead of reading credentials off disk, and works even without the desktop app. See the [Slack](skills/agent-slack/references/authentication.md) and [Discord](skills/agent-discord/references/authentication.md) auth guides.
+
+- **QR Code Sign-In (Slack & Discord)** — The recommended, safest auth: sign in through the platform's official flow, no credential extraction and no desktop app required (Discord scans with the mobile app)
 - **Auto-Extract Auth** — Reads tokens from Slack, Discord, Teams, KakaoTalk, and Channel Talk desktop apps, with browser fallback and custom Chromium profile paths via `--browser-profile`. Webex and Instagram tokens extracted from Chromium browsers. Telegram and WhatsApp authenticate with a one-time code — still under a minute
 - **Act As Yourself** — Extracts your user session — not a bot token. Your agent sends messages, reacts, and searches as you. Need bot mode? Bot CLIs are included too
 - **One Interface** — Consistent command style across 7 platforms for supported actions (e.g. message send, message search, channel list, snapshot). Learn once
@@ -135,6 +139,13 @@ agent-slack message send general "Hello from the CLI!"
 ```
 
 That's it. Credentials are extracted automatically from your Slack desktop app on first run. No OAuth flows. No API tokens. No configuration files.
+
+> **No desktop app?** QR code sign-in is the recommended way to authenticate Slack and Discord. In Slack, open "Sign in on mobile", copy the QR image, and pipe it in; in Discord, scan the printed QR with the mobile app:
+>
+> ```bash
+> pbpaste | agent-slack auth qr   # paste Slack's "Sign in on mobile" QR
+> agent-discord auth qr           # scan the printed QR with the Discord app
+> ```
 
 ### Custom config directory
 
@@ -228,6 +239,22 @@ import { loginWithQr, SlackClient } from 'agent-messenger/slack'
 
 const session = await loginWithQr(dataUrl)
 const client = await new SlackClient().login({ token: session.token, cookie: session.cookie })
+```
+
+### QR Code Login (Discord)
+
+Sign in by scanning a QR code with the Discord mobile app — no desktop app or browser token extraction required. `loginWithRemoteAuth` runs Discord's Remote Auth protocol and hands you a QR URL to display; once the user scans and confirms on their phone, you receive the user token.
+
+```typescript
+import { DiscordClient, loginWithRemoteAuth } from 'agent-messenger/discord'
+
+const session = await loginWithRemoteAuth({
+  onQrUrl: (url) => {
+    // Render this URL as a QR code (e.g. with the `qrcode` package)
+    console.log('Scan this with the Discord mobile app:', url)
+  },
+})
+const client = await new DiscordClient().login({ token: session.token })
 ```
 
 ### Real-time Events (Slack)
