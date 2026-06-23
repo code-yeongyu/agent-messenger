@@ -37,7 +37,10 @@ Credentials are extracted automatically from the Discord desktop app (or Chromiu
 
 On macOS, the system may prompt for your Keychain password the first time (required to decrypt Discord's stored token). This is a one-time prompt.
 
-**IMPORTANT**: Always use `agent-discord auth extract` to obtain tokens. The CLI extracts from the desktop app first, falling back to Chromium browsers if the app isn't installed.
+**Obtaining tokens** — two options:
+
+- **`agent-discord auth extract`** (default): extracts from the Discord desktop app first, falling back to Chromium browsers if the app isn't installed. Best for automated/headless use.
+- **`agent-discord auth qr`**: signs in by scanning a QR code with the Discord mobile app (Settings → Scan QR Code). Use this when there is no desktop app or browser session to extract from. Requires a phone, so it cannot run headlessly.
 
 ### Multi-Server Support
 
@@ -141,6 +144,10 @@ agent-discord auth extract --browser-profile ~/browser-data
 agent-discord auth extract --browser-profile "$HOME/work-profile,$HOME/personal-profile"
 
 # --browser-profile accepts repeatable or comma-separated Chromium profile/user-data dirs
+
+# Sign in by scanning a QR code with the Discord mobile app (Settings -> Scan QR Code)
+agent-discord auth qr
+agent-discord auth qr --debug
 
 # Check auth status
 agent-discord auth status
