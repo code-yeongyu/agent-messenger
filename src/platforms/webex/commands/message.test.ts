@@ -37,7 +37,7 @@ const mockMessage2 = {
   created: '2025-01-29T10:01:00.000Z',
 }
 
-import { deleteAction, dmAction, editAction, getAction, listAction, replyAction, sendAction } from './message'
+import { deleteAction, dmAction, editAction, getAction, listAction, replyAction, sendAction, typingAction } from './message'
 
 let mockSendMessage: ReturnType<typeof spyOn>
 let mockReplyToMessage: ReturnType<typeof spyOn>
@@ -46,27 +46,33 @@ let mockListMessages: ReturnType<typeof spyOn>
 let mockGetMessage: ReturnType<typeof spyOn>
 let mockDeleteMessage: ReturnType<typeof spyOn>
 let mockEditMessage: ReturnType<typeof spyOn>
+let mockSetTyping: ReturnType<typeof spyOn>
 let mockLogin: ReturnType<typeof spyOn>
 let mockDispose: ReturnType<typeof spyOn>
 let consoleLogSpy: ReturnType<typeof spyOn>
 let stderrWriteSpy: ReturnType<typeof spyOn>
 let processExitSpy: ReturnType<typeof spyOn>
+const protoSpies: ReturnType<typeof spyOn>[] = []
+
+function protoSpy(method: keyof WebexClient) {
+  const s = spyOn(WebexClient.prototype, method as never)
+  protoSpies.push(s)
+  return s
+}
 
 beforeEach(() => {
-  mockLogin = spyOn(WebexClient.prototype, 'login').mockImplementation(async function (this: WebexClient) {
+  mockLogin = protoSpy('login').mockImplementation(async function (this: WebexClient) {
     return this
   })
-  mockDispose = spyOn(WebexClient.prototype, 'dispose').mockResolvedValue(undefined)
-  mockSendMessage = spyOn(WebexClient.prototype, 'sendMessage').mockResolvedValue(mockMessage)
-  mockReplyToMessage = spyOn(WebexClient.prototype, 'replyToMessage').mockResolvedValue(mockMessage)
-  mockSendDirectMessage = spyOn(WebexClient.prototype, 'sendDirectMessage').mockResolvedValue(mockMessage)
-  mockListMessages = spyOn(WebexClient.prototype, 'listMessages').mockResolvedValue([mockMessage, mockMessage2])
-  mockGetMessage = spyOn(WebexClient.prototype, 'getMessage').mockResolvedValue(mockMessage)
-  mockDeleteMessage = spyOn(WebexClient.prototype, 'deleteMessage').mockResolvedValue(undefined)
-  mockEditMessage = spyOn(WebexClient.prototype, 'editMessage').mockResolvedValue({
-    ...mockMessage,
-    text: 'Updated message',
-  })
+  mockDispose = protoSpy('dispose').mockResolvedValue(undefined)
+  mockSendMessage = protoSpy('sendMessage').mockResolvedValue(mockMessage)
+  mockReplyToMessage = protoSpy('replyToMessage').mockResolvedValue(mockMessage)
+  mockSendDirectMessage = protoSpy('sendDirectMessage').mockResolvedValue(mockMessage)
+  mockListMessages = protoSpy('listMessages').mockResolvedValue([mockMessage, mockMessage2])
+  mockGetMessage = protoSpy('getMessage').mockResolvedValue(mockMessage)
+  mockDeleteMessage = protoSpy('deleteMessage').mockResolvedValue(undefined)
+  mockEditMessage = protoSpy('editMessage').mockResolvedValue({ ...mockMessage, text: 'Updated message' })
+  mockSetTyping = protoSpy('setTyping').mockResolvedValue(undefined)
 
   consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {})
   stderrWriteSpy = spyOn(process.stderr, 'write').mockImplementation(() => true)
@@ -77,15 +83,8 @@ afterEach(() => {
   consoleLogSpy.mockRestore()
   stderrWriteSpy.mockRestore()
   processExitSpy.mockRestore()
-  mockLogin.mockRestore()
-  mockDispose.mockRestore()
-  mockSendMessage.mockRestore()
-  mockReplyToMessage.mockRestore()
-  mockSendDirectMessage.mockRestore()
-  mockListMessages.mockRestore()
-  mockGetMessage.mockRestore()
-  mockDeleteMessage.mockRestore()
-  mockEditMessage.mockRestore()
+  for (const s of protoSpies) s.mockRestore()
+  protoSpies.length = 0
 })
 
 it('calls sendMessage with correct args and outputs result', async () => {
@@ -228,4 +227,30 @@ it('passes markdown option to editMessage when --markdown flag is set', async ()
   expect(mockEditMessage).toHaveBeenCalledWith('msg_123', 'space_456', '**updated**', {
     markdown: true,
   })
+})
+
+it('calls setTyping with start-typing by default and outputs result', async () => {
+  await typingAction('space_456', { pretty: false })
+
+  expect(mockSetTyping).toHaveBeenCalledWith('space_456', true)
+  expect(consoleLogSpy).toHaveBeenCalled()
+  const output = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+  expect(output).toEqual({ spaceId: 'space_456', typing: true })
+  expect(mockDispose).toHaveBeenCalled()
+})
+
+it('calls setTyping with stop-typing when --stop flag is set', async () => {
+  await typingAction('space_456', { stop: true, pretty: false })
+
+  expect(mockSetTyping).toHaveBeenCalledWith('space_456', false)
+  const output = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+  expect(output).toEqual({ spaceId: 'space_456', typing: false })
+})
+
+it('disposes the client when setTyping fails', async () => {
+  mockSetTyping.mockRejectedValue(new WebexError('Typing failed', 'unsupported'))
+
+  await typingAction('space_456', { pretty: false })
+
+  expect(mockDispose).toHaveBeenCalled()
 })

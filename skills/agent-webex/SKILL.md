@@ -1,7 +1,7 @@
 ---
 name: agent-webex
 description: Interact with Cisco Webex - send messages, read spaces, manage memberships
-version: 2.24.1
+version: 2.25.0
 allowed-tools: Bash(agent-webex:*)
 metadata:
   openclaw:
@@ -309,6 +309,10 @@ agent-webex message delete <message-id> --force
 # Edit a message
 agent-webex message edit <message-id> <space-id> <text>
 agent-webex message edit <message-id> <space-id> "Updated text" --markdown
+
+# Send a typing indicator (requires extracted/browser or password token)
+agent-webex message typing <space-id>
+agent-webex message typing <space-id> --stop
 ```
 
 ### Member Commands
@@ -472,6 +476,7 @@ See the [Webex SDK documentation](https://agent-messenger.dev/docs/sdk/webex) fo
 - No reactions / emoji support
 - No thread support
 - No message search
+- Typing indicators require an extracted (browser) or password token; bot/OAuth tokens are not supported for typing
 - No voice/video or meeting support
 - No space management (create/delete spaces, roles)
 
