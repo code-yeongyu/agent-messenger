@@ -2,7 +2,12 @@
 
 ## Overview
 
-agent-slack uses Slack's web client credentials (xoxc token + xoxd cookie) extracted from the Slack desktop application, with automatic fallback to Chromium browser profiles (Chrome, Chrome Canary, Edge, Arc, Brave, Vivaldi, Chromium) when the desktop app isn't installed.
+agent-slack supports two ways to authenticate:
+
+- **QR code sign-in (`auth qr`) — recommended.** Sign in with a QR code from Slack's "Sign in on mobile" screen. This is the safest and most reliable method: it authenticates through Slack's own login flow over plain HTTP instead of reading stored credentials off disk, and works without a desktop app or browser.
+- **Token extraction (`auth extract`).** Reads Slack's web client credentials (xoxc token + xoxd cookie) from the desktop application, with automatic fallback to Chromium browser profiles (Chrome, Chrome Canary, Edge, Arc, Brave, Vivaldi, Chromium). Best for automated/headless environments.
+
+> **Recommendation:** Prefer `agent-slack auth qr`. Use `auth extract` for headless/CI setups or when you'd rather reuse an existing desktop/browser session.
 
 ## Token Extraction
 
@@ -34,9 +39,9 @@ This command:
 
 Use `--browser-profile <path>` for agent-browser profiles, custom Chrome user data dirs, or portable browser profiles. The option can be repeated or given comma-separated paths, and explicit paths are included even when desktop credentials are also present.
 
-### QR Code Sign-In
+### QR Code Sign-In (Recommended)
 
-When the desktop app isn't installed and browser extraction isn't an option, you can sign in with a QR code from a device where you're already logged into Slack. This runs entirely over HTTP — no browser automation:
+The recommended way to authenticate: sign in with a QR code from a device where you're already logged into Slack. This runs entirely over HTTP — no browser automation, and no desktop app required:
 
 ```bash
 # In Slack (desktop or web): your name (top-left) → "Sign in on mobile".
