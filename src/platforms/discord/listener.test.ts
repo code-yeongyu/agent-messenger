@@ -171,10 +171,9 @@ describe('DiscordListener', () => {
       expect(identifyMsg.d.token).toBe('fake-token')
     })
 
-    it('sends Identify with custom intents', async () => {
+    it('sends a user-account Identify with the load-bearing default shape', async () => {
       const client = createMockClient()
-      const customIntents = 1 << 9
-      listener = new DiscordListener(client, { intents: customIntents })
+      listener = new DiscordListener(client)
 
       await listener.start()
       mockWsInstance.simulateOpen()
@@ -184,7 +183,16 @@ describe('DiscordListener', () => {
       const identifyMsg = sentMessages.find((m) => m.op === 2)
 
       expect(identifyMsg).toBeDefined()
-      expect(identifyMsg.d.intents).toBe(customIntents)
+      expect(identifyMsg.d.capabilities).toBe(16381)
+      expect(identifyMsg.d.client_state).toEqual({ guild_versions: {} })
+      expect(identifyMsg.d.compress).toBe(false)
+      expect(identifyMsg.d.presence).toEqual({ status: 'online', since: 0, activities: [], afk: false })
+      expect(identifyMsg.d.properties.browser).toBe('Chrome')
+      expect(identifyMsg.d.properties.client_build_number).toBe(648814)
+
+      // All intents incl. MESSAGE_CONTENT (1<<15); user sessions blank other users' content without it
+      expect(identifyMsg.d.intents).toBe(33_554_431)
+      expect(identifyMsg.d.intents & (1 << 15)).toBe(1 << 15)
     })
   })
 
