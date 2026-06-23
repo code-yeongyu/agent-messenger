@@ -369,12 +369,24 @@ export class WebexClient {
     text: string,
     options?: { markdown?: boolean },
   ): Promise<WebexMessage> {
-    if (this.useInternalAPI) {
-      return this.sendMessageInternal(roomId, text, { ...options, parentId })
+    return this.sendMessage(roomId, text, { ...options, parentId })
+  }
+
+  async setTyping(roomId: string, typing: boolean = true): Promise<void> {
+    if (!this.useInternalAPI) {
+      throw new WebexError('Typing indicator requires an extracted or password token with a device URL', 'unsupported')
     }
-    const body: Record<string, string> = options?.markdown ? { roomId, markdown: text } : { roomId, text }
-    body.parentId = parentId
-    return this.request<WebexMessage>('POST', '/messages', body)
+
+    const resolvedRoomId = await this.resolveRoomId(roomId)
+    const convUuid = this.decodeConvUuid(resolvedRoomId)
+
+    await this.internalRequest<void>(`/conversations/${convUuid}/status/typing`, {
+      method: 'POST',
+      body: JSON.stringify({
+        conversationId: convUuid,
+        eventType: typing ? 'status.start_typing' : 'status.stop_typing',
+      }),
+    })
   }
 
   private get useInternalAPI(): boolean {
@@ -998,7 +1010,9 @@ function isTrustedWebexHost(host: string): boolean {
     host === 'wbx2.com' ||
     host.endsWith('.wbx2.com') ||
     host === 'ciscospark.com' ||
-    host.endsWith('.ciscospark.com')
+    host.endsWith('.ciscospark.com') ||
+    host === 'webexcontent.com' ||
+    host.endsWith('.webexcontent.com')
   )
 }
 

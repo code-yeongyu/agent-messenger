@@ -760,6 +760,54 @@ describe('WebexClient', () => {
       })
     })
 
+    describe('setTyping', () => {
+      it('sends start_typing via internal API for extracted token', async () => {
+        // given
+        mockResponse(null, 204)
+        const client = await createExtractedClient()
+
+        // when
+        await client.setTyping(TEST_ROOM_ID)
+
+        // then
+        expect(fetchCalls).toHaveLength(1)
+        expect(fetchCalls[0].url).toContain('conv-r.wbx2.com/conversation/api/v1/conversations/')
+        expect(fetchCalls[0].url).toContain('/status/typing')
+        expect(fetchCalls[0].options?.method).toBe('POST')
+        const body = JSON.parse(fetchCalls[0].options?.body as string)
+        expect(body).toEqual({
+          conversationId: TEST_CONV_UUID,
+          eventType: 'status.start_typing',
+        })
+      })
+
+      it('sends stop_typing when typing is false', async () => {
+        // given
+        mockResponse(null, 204)
+        const client = await createExtractedClient()
+
+        // when
+        await client.setTyping(TEST_ROOM_ID, false)
+
+        // then
+        const body = JSON.parse(fetchCalls[0].options?.body as string)
+        expect(body.eventType).toBe('status.stop_typing')
+        expect(body.conversationId).toBe(TEST_CONV_UUID)
+      })
+
+      it('throws for non-internal token', async () => {
+        // given
+        const client = await new WebexClient().login({ token: 'plain-token' })
+
+        // when / then
+        await expect(client.setTyping('roomId')).rejects.toThrow(WebexError)
+        await expect(client.setTyping('roomId')).rejects.toThrow(
+          'Typing indicator requires an extracted or password token with a device URL',
+        )
+        expect(fetchCalls).toHaveLength(0)
+      })
+    })
+
     describe('listMessages', () => {
       it('calls GET on conversations endpoint with activitiesLimit and participantsLimit', async () => {
         mockResponse(mockConversation([mockActivity('Hello')]))
@@ -1208,6 +1256,32 @@ describe('WebexClient', () => {
         const client = await createExtractedClient()
 
         await expect(client.uploadFile(TEST_ROOM_ID, file())).resolves.toBeDefined()
+      })
+
+      it('accepts webexcontent.com upload urls returned by the server', async () => {
+        mockResponse({ id: TEST_CONV_UUID })
+        mockResponse({ spaceUrl: 'https://files-prod-us-west-2.webexcontent.com/spaces/sp1' })
+        mockResponse({
+          uploadUrl: 'https://files-prod-us-west-2.webexcontent.com/upload/sess1',
+          finishUploadUrl: 'https://files-prod-us-west-2.webexcontent.com/upload/sess1/finish',
+        })
+        mockResponse({}, 200)
+        mockResponse({ downloadUrl: 'https://files-prod-us-west-2.webexcontent.com/files/f1' })
+        mockResponse({ ...mockActivity(''), verb: 'share' })
+
+        const client = await createExtractedClient()
+
+        await expect(client.uploadFile(TEST_ROOM_ID, file())).resolves.toBeDefined()
+      })
+
+      it('refuses non-webex upload hosts that merely contain a trusted host', async () => {
+        mockResponse({ id: TEST_CONV_UUID })
+        mockResponse({ spaceUrl: 'https://webexcontent.com.evil.example/spaces/sp1' })
+
+        const client = await createExtractedClient()
+
+        await expect(client.uploadFile(TEST_ROOM_ID, file())).rejects.toThrow('untrusted host')
+        expect(fetchCalls.every((c) => !c.url.includes('evil.example'))).toBe(true)
       })
     })
 

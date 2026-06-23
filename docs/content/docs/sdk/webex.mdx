@@ -84,7 +84,14 @@ await client.editMessage(messageId, roomId, '**Updated**', { markdown: true })
 
 // Delete a message
 await client.deleteMessage(messageId)
+
+// Send a typing indicator ("…is typing")
+await client.setTyping(roomId)
+// Clear the typing indicator
+await client.setTyping(roomId, false)
 ```
+
+Typing indicators are sent over Webex's internal conversation service, which the public REST API does not expose. They require an extracted (browser) or password token — bot and OAuth tokens have no device URL and throw a `WebexError`. The indicator is ephemeral and auto-expires after a few seconds, so re-send periodically to sustain it.
 
 ### People
 
