@@ -116,6 +116,16 @@ export async function dmAction(
   }
 }
 
+export async function typingAction(spaceId: string, options: { stop?: boolean; pretty?: boolean }): Promise<void> {
+  try {
+    await withWebexClient((client) => client.setTyping(spaceId, !options.stop))
+
+    console.log(formatOutput({ spaceId, typing: !options.stop }, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
 export const messageCommand = new Command('message')
   .description('Message commands')
   .addCommand(
@@ -173,4 +183,12 @@ export const messageCommand = new Command('message')
       .option('--markdown', 'Send as markdown')
       .option('--pretty', 'Pretty print JSON output')
       .action(editAction),
+  )
+  .addCommand(
+    new Command('typing')
+      .description('Send a typing indicator to a space')
+      .argument('<space-id>', 'Space/Room ID')
+      .option('--stop', 'Send stop-typing instead of start-typing')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(typingAction),
   )
