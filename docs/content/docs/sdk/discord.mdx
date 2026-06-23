@@ -257,15 +257,7 @@ await listener.start() // connects via Gateway WebSocket
 // listener.stop()      // clean shutdown
 ```
 
-Custom intents (default includes non-privileged message/reaction/typing intents — add `MessageContent` to read message text):
-
-```typescript
-import { DiscordIntent } from 'agent-messenger/discord'
-
-const listener = new DiscordListener(client, {
-  intents: DiscordIntent.Guilds | DiscordIntent.GuildMessages | DiscordIntent.MessageContent, // MessageContent is privileged
-})
-```
+The user-account listener does not take intents — Gateway intents are a bot concept. It identifies as a user session and automatically receives full message content (including other users' messages), so no configuration is required.
 
 ### Available Events
 
