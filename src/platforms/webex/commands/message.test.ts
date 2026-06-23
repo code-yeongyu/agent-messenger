@@ -37,7 +37,16 @@ const mockMessage2 = {
   created: '2025-01-29T10:01:00.000Z',
 }
 
-import { deleteAction, dmAction, editAction, getAction, listAction, replyAction, sendAction, typingAction } from './message'
+import {
+  deleteAction,
+  dmAction,
+  editAction,
+  getAction,
+  listAction,
+  replyAction,
+  sendAction,
+  typingAction,
+} from './message'
 
 let mockSendMessage: ReturnType<typeof spyOn>
 let mockReplyToMessage: ReturnType<typeof spyOn>
