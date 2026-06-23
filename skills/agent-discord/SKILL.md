@@ -39,8 +39,20 @@ On macOS, the system may prompt for your Keychain password the first time (requi
 
 **Obtaining tokens** — two options:
 
-- **`agent-discord auth extract`** (default): extracts from the Discord desktop app first, falling back to Chromium browsers if the app isn't installed. Best for automated/headless use.
-- **`agent-discord auth qr`**: signs in by scanning a QR code with the Discord mobile app (Settings → Scan QR Code). Use this when there is no desktop app or browser session to extract from. Requires a phone, so it cannot run headlessly.
+- **`agent-discord auth qr` — recommended**: signs in by scanning a QR code with the Discord mobile app (Settings → Scan QR Code). This is the safest and most reliable method — it authenticates through Discord's official Remote Auth flow instead of reading credentials off disk, and needs no desktop app or browser. Requires a phone to scan, so it cannot run headlessly.
+- **`agent-discord auth extract`**: extracts from the Discord desktop app first, falling back to Chromium browsers if the app isn't installed. Best for automated/headless use where no phone is available to scan.
+
+### QR Code Sign-In (Recommended)
+
+```bash
+# Generate a QR code and wait for you to scan it with the Discord mobile app
+agent-discord auth qr
+
+# Show protocol details while debugging
+agent-discord auth qr --debug
+```
+
+Open the Discord mobile app → **Settings → Scan QR Code**, scan the printed code, and confirm on your phone. The token (plus all discovered servers) is validated and stored like `auth extract`. The QR code expires after ~150 seconds — re-run the command to generate a fresh one. See [references/authentication.md](references/authentication.md) for the full flow.
 
 ### Multi-Server Support
 
@@ -418,7 +430,7 @@ All commands return consistent error format:
 
 Common errors:
 
-- `Not authenticated`: No valid token (auto-extraction failed — see Troubleshooting)
+- `Not authenticated`: No valid token (auto-extraction failed — run `auth qr` to sign in, or see Troubleshooting)
 - `No current server set`: Run `server switch <id>` first
 - `Message not found`: Invalid message ID
 - `Unknown Channel`: Invalid channel ID
@@ -451,6 +463,25 @@ if (!token) {
 }
 const client = await new DiscordClient().login({ token })
 ```
+
+### QR Code Login (Recommended)
+
+`loginWithRemoteAuth` signs in by scanning a QR code with the Discord mobile app — no desktop app or token extraction required. It runs Discord's Remote Auth protocol and hands you a QR URL to display; once the user scans and confirms on their phone, you receive the user token.
+
+```typescript
+import { DiscordClient, loginWithRemoteAuth } from 'agent-messenger/discord'
+
+const session = await loginWithRemoteAuth({
+  onQrUrl: (url) => {
+    // Render this URL as a QR code (e.g. with the `qrcode` package)
+    console.log('Scan this with the Discord mobile app:', url)
+  },
+})
+
+const client = await new DiscordClient().login({ token: session.token })
+```
+
+`session` is `{ token, user }`, where `user` may be `null` if the gateway skips the user payload — call `await client.testAuth()` after login if you need the identity. If Discord requires a captcha on the final token exchange, the call rejects with a `DiscordError` of code `remote_auth_captcha`; fall back to `auth extract` in that case. Requires a phone with the Discord app, so it cannot run headlessly.
 
 ### Example
 
