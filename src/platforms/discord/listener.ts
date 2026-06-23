@@ -13,11 +13,14 @@ const RECONNECT_MAX_DELAY = 30_000
 const NON_RECOVERABLE_CLOSE_CODES = [4004, 4010, 4011, 4012, 4013, 4014]
 const SESSION_RESET_CLOSE_CODES = [4007, 4009]
 
-// User (non-bot) gateway capabilities bitmask. Discord delivers MESSAGE_CREATE and other
-// session events to user accounts based on these capabilities, NOT the bot `intents` field
-// (which user sessions ignore). Bit 10 (client_state_v2) requires client_state.guild_versions.
-// Mirrors discord.py-self's default capability set.
+// User (non-bot) gateway capabilities bitmask, mirroring discord.py-self's default set.
+// Capabilities shape the READY payload; bit 10 (client_state_v2) requires client_state.guild_versions.
 const USER_GATEWAY_CAPABILITIES = 16381
+
+// Without MESSAGE_CONTENT (1<<15), Discord blanks `content`/`embeds`/`attachments` on messages
+// from OTHER users (self/DM/mention content still arrives). User sessions get all intents only
+// when `intents` is omitted OR explicitly set, so we send an all-intents value to guarantee content.
+const USER_GATEWAY_INTENTS = 33_554_431
 
 // Discord validates client_build_number against recent web-client builds; a stale value can
 // yield a connected-but-degraded session that fires READY yet delivers no message events.
@@ -235,6 +238,7 @@ export class DiscordListener {
         d: {
           token: this.token,
           capabilities: USER_GATEWAY_CAPABILITIES,
+          intents: USER_GATEWAY_INTENTS,
           properties: {
             os: 'Linux',
             browser: 'Chrome',
