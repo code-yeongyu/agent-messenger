@@ -193,7 +193,14 @@ agent-webex message edit msg123 abc123 "Updated text" --markdown
 # Delete a message
 agent-webex message delete <message-id>
 agent-webex message delete <message-id> --force
+
+# Send a typing indicator ("…is typing")
+agent-webex message typing <space-id>
+# Clear the typing indicator
+agent-webex message typing <space-id> --stop
 ```
+
+Typing indicators require an extracted (browser) or password token — bot and OAuth tokens are not supported. The indicator is ephemeral and auto-expires after a few seconds.
 
 ### Member Commands
 
