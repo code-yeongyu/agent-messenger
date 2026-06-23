@@ -7,6 +7,7 @@ import {
   formatCredentialDebug,
   getExtractionErrorMessage,
   getNoWorkspacesFoundMessage,
+  normalizeDCookie,
 } from '@/platforms/slack/commands/auth'
 import { CredentialManager } from '@/platforms/slack/credential-manager'
 import { type ExtractedWorkspace, TokenExtractor } from '@/platforms/slack/token-extractor'
@@ -498,5 +499,23 @@ describe('Error Handling', () => {
 
     // Then: Should return empty array (no tokens found)
     expect(result).toEqual([])
+  })
+})
+
+describe('normalizeDCookie', () => {
+  it('strips a leading d= prefix', () => {
+    expect(normalizeDCookie('d=xoxd-abc123')).toBe('xoxd-abc123')
+  })
+
+  it('passes through a bare xoxd- value', () => {
+    expect(normalizeDCookie('xoxd-abc123')).toBe('xoxd-abc123')
+  })
+
+  it('url-decodes percent-encoded values', () => {
+    expect(normalizeDCookie('d=xoxd-abc%2Bdef')).toBe('xoxd-abc+def')
+  })
+
+  it('trims surrounding whitespace', () => {
+    expect(normalizeDCookie('  xoxd-abc123  ')).toBe('xoxd-abc123')
   })
 })
