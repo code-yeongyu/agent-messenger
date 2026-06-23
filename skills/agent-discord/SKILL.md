@@ -1,7 +1,7 @@
 ---
 name: agent-discord
 description: Read Discord servers with personal tokens - inspect servers, channels, messages, members, mentions, files, snapshots, and readonly credentials. NEVER send messages or perform Discord write automation with agent-discord; use agent-discordbot for bot-token writes.
-version: 2.25.0
+version: 2.26.0
 allowed-tools: Bash(agent-discord:*)
 metadata:
   openclaw:
@@ -34,7 +34,10 @@ Credentials are extracted automatically from the Discord desktop app (or Chromiu
 
 On macOS, the system may prompt for your Keychain password the first time (required to decrypt Discord's stored token). This is a one-time prompt.
 
-**IMPORTANT**: Always use `agent-discord auth extract` to obtain tokens. The CLI extracts from the desktop app first, falling back to Chromium browsers if the app isn't installed.
+**Obtaining tokens** — two options:
+
+- **`agent-discord auth extract`** (default): extracts from the Discord desktop app first, falling back to Chromium browsers if the app isn't installed. Best for automated/headless use.
+- **`agent-discord auth qr`**: signs in by scanning a QR code with the Discord mobile app (Settings → Scan QR Code). Use this when there is no desktop app or browser session to extract from. Requires a phone, so it cannot run headlessly.
 
 **IMPORTANT**: NEVER send Discord messages with `agent-discord`. It uses a personal Discord token and write attempts can damage the account/session. Use `agent-discordbot` for every send/reply automation path.
 
@@ -142,6 +145,10 @@ agent-discord auth extract --browser-profile ~/browser-data
 agent-discord auth extract --browser-profile "$HOME/work-profile,$HOME/personal-profile"
 
 # --browser-profile accepts repeatable or comma-separated Chromium profile/user-data dirs
+
+# Sign in by scanning a QR code with the Discord mobile app (Settings -> Scan QR Code)
+agent-discord auth qr
+agent-discord auth qr --debug
 
 # Check auth status
 agent-discord auth status
