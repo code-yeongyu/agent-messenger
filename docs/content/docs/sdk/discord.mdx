@@ -180,6 +180,28 @@ const thread = await client.getChannel(threadId)
 console.log(thread.thread_metadata)
 ```
 
+## QR Code Login
+
+Sign in by scanning a QR code with the Discord mobile app — no desktop app or browser token extraction required. `loginWithRemoteAuth` implements Discord's Remote Auth protocol: it opens a WebSocket to Discord's remote-auth gateway, performs an RSA key exchange, and hands you a QR URL to display. Once the user scans it with an authenticated Discord mobile app and confirms, you receive the user token.
+
+```typescript
+import { DiscordClient, loginWithRemoteAuth } from 'agent-messenger/discord'
+
+const session = await loginWithRemoteAuth({
+  onQrUrl: (url) => {
+    // Render this URL as a QR code (e.g. with the `qrcode` package)
+    console.log('Scan this with the Discord mobile app:', url)
+  },
+  onPendingLogin: (user) => {
+    console.log(`Scanned by ${user.username}. Confirm on your phone...`)
+  },
+})
+
+const client = await new DiscordClient().login({ token: session.token })
+```
+
+`session` is `{ token, user: RemoteAuthUser | null }`, where `RemoteAuthUser` is `{ id, username, discriminator, avatar }`. `user` is populated from the scan confirmation, but can be `null` if the gateway skips the user payload — if you need the identity, guard for `null` and call `await client.testAuth()` after login. Discord may require an hCaptcha on the final token exchange; when it does, the call rejects with a `DiscordError` of code `remote_auth_captcha` — fall back to `auth extract` in that case. The flow requires a phone with the Discord app, so it cannot run headlessly.
+
 ## Real-Time Events
 
 `DiscordListener` connects to Discord's Gateway WebSocket for instant event streaming.

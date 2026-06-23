@@ -1,6 +1,8 @@
 export { DiscordClient, DiscordError } from './client'
 export { DiscordCredentialManager } from './credential-manager'
 export { DiscordListener } from './listener'
+export { loginWithRemoteAuth } from './remote-auth'
+export type { RemoteAuthOptions, RemoteAuthSession } from './remote-auth'
 export type {
   DiscordChannel,
   DiscordConfig,

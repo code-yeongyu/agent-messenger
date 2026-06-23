@@ -74,7 +74,7 @@ This installs:
 
 - `agent-slack` — Slack CLI (user token, zero-config, or QR code sign-in)
 - `agent-slackbot` — Slack Bot CLI (bot token, for server-side/CI/CD)
-- `agent-discord` — Discord CLI
+- `agent-discord` — Discord CLI (token extraction, or QR code sign-in via the mobile app)
 - `agent-discordbot` — Discord Bot CLI (bot token, for server-side/CI/CD)
 - `agent-teams` — Microsoft Teams CLI
 - `agent-webex` — Cisco Webex CLI (browser token extraction with e2e encryption + OAuth Device Grant, zero-config)

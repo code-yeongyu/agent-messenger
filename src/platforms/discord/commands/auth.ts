@@ -3,10 +3,12 @@ import { Command } from 'commander'
 import { collectBrowserProfileOption } from '@/shared/chromium'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
-import { debug } from '@/shared/utils/stderr'
+import { displayQR } from '@/shared/utils/qr'
+import { debug, info } from '@/shared/utils/stderr'
 
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
+import { loginWithRemoteAuth } from '../remote-auth'
 import { DiscordTokenExtractor } from '../token-extractor'
 
 export async function extractAction(options: {
@@ -138,6 +140,77 @@ export async function extractAction(options: {
   }
 }
 
+async function saveTokenWithServers(
+  token: string,
+  credManager: DiscordCredentialManager,
+): Promise<{ username: string; servers: { id: string; name: string }[]; current: string } | null> {
+  const client = await new DiscordClient().login({ token })
+  const authInfo = await client.testAuth()
+  const servers = await client.listServers()
+  if (servers.length === 0) return null
+
+  const serverMap: Record<string, { server_id: string; server_name: string }> = {}
+  for (const server of servers) {
+    serverMap[server.id] = { server_id: server.id, server_name: server.name }
+  }
+
+  await credManager.save({ token, current_server: servers[0].id, servers: serverMap })
+  return {
+    username: authInfo.username,
+    servers: servers.map((s) => ({ id: s.id, name: s.name })),
+    current: servers[0].id,
+  }
+}
+
+export async function qrAction(options: { pretty?: boolean; debug?: boolean }): Promise<void> {
+  try {
+    const interactive = Boolean(process.stdout.isTTY)
+    const debugLog = options.debug ? (msg: string) => debug(`[debug] ${msg}`) : undefined
+
+    const session = await loginWithRemoteAuth({
+      debug: debugLog,
+      onQrUrl: async (url) => {
+        await displayQR(url, {
+          platform: 'Discord',
+          brandColor: '#5865F2',
+          scanInstruction: 'Scan with the Discord mobile app (Settings → Scan QR Code)',
+          interactive,
+          formatOutput,
+          pretty: options.pretty,
+        })
+      },
+      onPendingLogin: (user) => {
+        if (interactive) info(`\nQR scanned by ${user.username}. Confirm the login on your phone...\n`)
+      },
+    })
+
+    const credManager = new DiscordCredentialManager()
+    const saved = await saveTokenWithServers(session.token, credManager)
+
+    if (!saved) {
+      console.log(
+        formatOutput(
+          {
+            error: 'Logged in, but this account is not a member of any server.',
+            hint: 'Join at least one server, then run this command again.',
+          },
+          options.pretty,
+        ),
+      )
+      process.exit(1)
+    }
+
+    console.log(
+      formatOutput(
+        { user: saved.username, servers: saved.servers.map((s) => `${s.id}/${s.name}`), current: saved.current },
+        options.pretty,
+      ),
+    )
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
 export async function logoutAction(options: { pretty?: boolean }): Promise<void> {
   try {
     const credManager = new DiscordCredentialManager()
@@ -208,6 +281,13 @@ export const authCommand = new Command('auth')
         [],
       )
       .action(extractAction),
+  )
+  .addCommand(
+    new Command('qr')
+      .description('Sign in by scanning a QR code with the Discord mobile app')
+      .option('--pretty', 'Pretty print JSON output')
+      .option('--debug', 'Show debug output for troubleshooting')
+      .action(qrAction),
   )
   .addCommand(
     new Command('logout')
