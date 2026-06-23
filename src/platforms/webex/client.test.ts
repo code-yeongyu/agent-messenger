@@ -1209,6 +1209,32 @@ describe('WebexClient', () => {
 
         await expect(client.uploadFile(TEST_ROOM_ID, file())).resolves.toBeDefined()
       })
+
+      it('accepts webexcontent.com upload urls returned by the server', async () => {
+        mockResponse({ id: TEST_CONV_UUID })
+        mockResponse({ spaceUrl: 'https://files-prod-us-west-2.webexcontent.com/spaces/sp1' })
+        mockResponse({
+          uploadUrl: 'https://files-prod-us-west-2.webexcontent.com/upload/sess1',
+          finishUploadUrl: 'https://files-prod-us-west-2.webexcontent.com/upload/sess1/finish',
+        })
+        mockResponse({}, 200)
+        mockResponse({ downloadUrl: 'https://files-prod-us-west-2.webexcontent.com/files/f1' })
+        mockResponse({ ...mockActivity(''), verb: 'share' })
+
+        const client = await createExtractedClient()
+
+        await expect(client.uploadFile(TEST_ROOM_ID, file())).resolves.toBeDefined()
+      })
+
+      it('refuses non-webex upload hosts that merely contain a trusted host', async () => {
+        mockResponse({ id: TEST_CONV_UUID })
+        mockResponse({ spaceUrl: 'https://webexcontent.com.evil.example/spaces/sp1' })
+
+        const client = await createExtractedClient()
+
+        await expect(client.uploadFile(TEST_ROOM_ID, file())).rejects.toThrow('untrusted host')
+        expect(fetchCalls.every((c) => !c.url.includes('evil.example'))).toBe(true)
+      })
     })
 
     describe('error handling', () => {

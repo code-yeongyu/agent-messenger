@@ -980,7 +980,9 @@ function isTrustedWebexHost(host: string): boolean {
     host === 'wbx2.com' ||
     host.endsWith('.wbx2.com') ||
     host === 'ciscospark.com' ||
-    host.endsWith('.ciscospark.com')
+    host.endsWith('.ciscospark.com') ||
+    host === 'webexcontent.com' ||
+    host.endsWith('.webexcontent.com')
   )
 }
 
