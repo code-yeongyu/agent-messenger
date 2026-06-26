@@ -92,6 +92,7 @@ This installs:
 - `agent-kakaotalk` — KakaoTalk CLI (sub-device login, LOCO protocol)
 - `agent-channeltalk` — Channel Talk CLI (beta, zero-config, extracted cookies)
 - `agent-channeltalkbot` — Channel Talk Bot CLI (beta, API credentials, for server-side/CI/CD)
+- `agent-imessage` — iMessage CLI (runs on a Mac via the [imsg](https://github.com/openclaw/imsg) tool)
 
 ## Agent Skills
 
@@ -210,6 +211,7 @@ const slack = await new SlackClient().login({ token: 'xoxc-...', cookie: 'xoxd-.
 | `agent-messenger/kakaotalk` | `KakaoTalkClient` |
 | `agent-messenger/channeltalk` | `ChannelClient` |
 | `agent-messenger/channeltalkbot` | `ChannelBotClient` |
+| `agent-messenger/imessage` | `ImsgClient` |
 
 Each module also exports its credential manager, Zod schemas, and TypeScript types:
 
@@ -429,6 +431,8 @@ See the [TUI docs](https://agent-messenger.dev/docs/tui) for keybindings, archit
 
 > ⚠️ **Teams tokens expire in 60-90 minutes.** Re-run `agent-teams auth extract` to refresh. See [Teams Guide](skills/agent-teams/SKILL.md) for details.
 
+> 💬 **iMessage** is supported via the local [imsg](https://github.com/openclaw/imsg) tool (`agent-imessage`), not the table above. It runs **on a Mac** (Apple has no API). v1 covers send & list messages, direct & group chats, chat listing, real-time watch, and standard tapbacks. Typing, edit/unsend, group management, and targeted/custom reactions require imsg's bridge (SIP disabled) and are a later tier. See the [iMessage Guide](skills/agent-imessage/SKILL.md).
+
 ## Platform Guides
 
 - **[Slack Guide](https://agent-messenger.dev/docs/cli/slack)** — Full command reference for Slack
@@ -448,6 +452,11 @@ See the [TUI docs](https://agent-messenger.dev/docs/tui) for keybindings, archit
 - **[KakaoTalk Guide](https://agent-messenger.dev/docs/cli/kakaotalk)** — Sub-device login and LOCO protocol integration
 - **[Channel Talk Guide](https://agent-messenger.dev/docs/cli/channeltalk)** — Full command reference for Channel Talk (beta, zero-config)
 - **[Channel Talk Bot Guide](https://agent-messenger.dev/docs/cli/channeltalkbot)** — Bot API integration for Channel Talk (beta)
+- **[iMessage Guide](skills/agent-imessage/SKILL.md)** — iMessage on a Mac via the imsg tool
+
+### iMessage is different
+
+Most agent-messenger platforms run anywhere. **iMessage is the exception:** Apple provides no API, so `agent-imessage` runs **on a Mac** and drives Messages locally through the [imsg](https://github.com/openclaw/imsg) tool. You still act as yourself with your own Apple ID and run one shell command per action, but the agent must run on the Mac (imsg is local-only — no network or server) with Full Disk Access and Automation granted. See the [setup guide](skills/agent-imessage/references/setup.md).
 
 ## Use Cases
 
