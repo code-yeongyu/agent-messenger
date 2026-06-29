@@ -1,24 +1,21 @@
-import { cpSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 
-const cliFiles = [
-  'dist/src/cli.js',
-  'dist/src/platforms/slack/cli.js',
-  'dist/src/platforms/discord/cli.js',
-  'dist/src/platforms/teams/cli.js',
-  'dist/src/platforms/slackbot/cli.js',
-  'dist/src/platforms/channeltalk/cli.js',
-  'dist/src/platforms/channeltalkbot/cli.js',
-  'dist/src/platforms/telegram/cli.js',
-  'dist/src/platforms/telegrambot/cli.js',
-]
+const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { bin?: Record<string, string> }
 
+const cliFiles = Object.values(pkg.bin ?? {}).map((entry) =>
+  entry.replace(/^\.\/src\//, 'dist/src/').replace(/\.ts$/, '.js'),
+)
+
+let updatedCount = 0
 for (const file of cliFiles) {
+  if (!existsSync(file)) continue
   const content = readFileSync(file, 'utf8')
-  const updated = content.replace('#!/usr/bin/env bun', '#!/usr/bin/env node')
-  writeFileSync(file, updated)
+  if (!content.startsWith('#!/usr/bin/env bun')) continue
+  writeFileSync(file, content.replace('#!/usr/bin/env bun', '#!/usr/bin/env node'))
+  updatedCount++
 }
 
-console.log(`Updated shebang in ${cliFiles.length} CLI files`)
+console.log(`Updated shebang in ${updatedCount} CLI files`)
 
 cpSync('src/vendor', 'dist/src/vendor', { recursive: true })
 
