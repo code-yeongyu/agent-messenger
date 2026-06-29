@@ -1,7 +1,7 @@
 {
   "name": "agent-messenger",
-  "version": "2.27.1",
-  "description": "Multi-platform messaging CLI for AI agents (Slack, Discord, Teams, Webex, Telegram, Telegram Bot, WhatsApp, LINE, Instagram, KakaoTalk, Channel Talk)",
+  "version": "2.27.2",
+  "description": "Multi-platform messaging CLI for AI agents (Slack, Discord, Teams, Webex, Telegram, Telegram Bot, WhatsApp, LINE, iMessage, Instagram, KakaoTalk, Channel Talk)",
   "repository": {
     "type": "git",
     "url": "https://github.com/agent-messenger/agent-messenger"
@@ -11,6 +11,7 @@
     "agent-channeltalkbot": "./src/platforms/channeltalkbot/cli.ts",
     "agent-discord": "./src/platforms/discord/cli.ts",
     "agent-discordbot": "./src/platforms/discordbot/cli.ts",
+    "agent-imessage": "./src/platforms/imessage/cli.ts",
     "agent-instagram": "./src/platforms/instagram/cli.ts",
     "agent-kakaotalk": "./src/platforms/kakaotalk/cli.ts",
     "agent-line": "./src/platforms/line/cli.ts",
@@ -64,6 +65,9 @@
       ],
       "wechatbot": [
         "./src/platforms/wechatbot/index.ts"
+      ],
+      "imessage": [
+        "./src/platforms/imessage/index.ts"
       ],
       "instagram": [
         "./src/platforms/instagram/index.ts"
@@ -131,6 +135,10 @@
     "./wechatbot": {
       "types": "./src/platforms/wechatbot/index.ts",
       "default": "./src/platforms/wechatbot/index.ts"
+    },
+    "./imessage": {
+      "types": "./src/platforms/imessage/index.ts",
+      "default": "./src/platforms/imessage/index.ts"
     },
     "./instagram": {
       "types": "./src/platforms/instagram/index.ts",

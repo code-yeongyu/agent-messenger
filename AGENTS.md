@@ -37,6 +37,10 @@ examples/               # SDK listener usage samples
 
 Commander.js, **two-level subprocess dispatch**. `src/cli.ts` registers each platform as a Commander `executableFile` subcommand → forks that platform's own `cli.ts` as a child process. Only `policy` (in-process) and `tui` (subprocess) are non-platform commands. Each `src/platforms/<p>/cli.ts` is a standalone Commander program: imports `<x>Command` from `./commands/index.ts`, registers a `preAction` hook that runs `ensure<P>Auth()` (skipped for `auth` subcommands), then parses argv. A command file exports one `const <group>Command = new Command('<group>')` with `.action(<group>Action)` handlers. Handler shape: load creds → `client.login()` → policy gate → API call → `console.log(formatOutput(data, opts.pretty))`, all wrapped in `try/catch { handleError(e) }`.
 
+## Platform Notes
+
+Each platform lives in `src/platforms/<name>/` and follows the same convention (cli, index, client, types, credential-manager, ensure-auth, commands). **iMessage (`agent-imessage`) is the one platform that must run on a Mac:** Apple has no public API, so it shells out to the local [imsg](https://github.com/openclaw/imsg) CLI and talks to it over JSON-RPC (stdin/stdout) — there is no network/server. Its client (`ImsgClient`, over an `ImsgRpc` transport) spawns a long-lived `imsg rpc` child for chats/history/watch/send, and shells out to `imsg react` for standard tapbacks. Credentials are provider-aware (`{ provider: "imsg", binaryPath?, region? }`) with no secrets — it relies on macOS Full Disk Access + Automation permissions.
+
 ## TypeScript Execution Model
 
 ### Local Development

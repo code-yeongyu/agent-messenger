@@ -1,0 +1,99 @@
+---
+title: iMessage
+description: Complete reference for the agent-imessage CLI.
+---
+
+> **Tip**: After `npm install -g agent-messenger`, `agent-imessage` is available directly. For one-off execution without a global install you can use `npm exec --package agent-messenger agent-imessage ...`, `pnpm dlx --package agent-messenger agent-imessage ...`, `yarn dlx agent-messenger agent-imessage ...`, or `bunx --package agent-messenger agent-imessage ...`.
+
+## Requirements
+
+Apple provides no public iMessage API, so `agent-imessage` runs **on a Mac** and drives Messages through [imsg](https://github.com/openclaw/imsg), a native Swift CLI:
+
+- The agent must run **on the Mac itself** — imsg is local-only (no network, no server).
+- `agent-imessage` spawns `imsg` and communicates over JSON-RPC (stdin/stdout).
+- Requires macOS 14+, imsg installed (`brew install steipete/tap/imsg`), **Full Disk Access** (read), and **Automation → Messages** (send). macOS grants these to the launching parent process.
+- Basic send/read/watch/standard tapbacks need **no SIP changes**. Typing, edit/unsend, group management, and targeted/custom reactions require imsg's bridge (`imsg launch` + SIP) and are a later tier.
+
+See the [setup guide](https://github.com/agent-messenger/agent-messenger/blob/main/skills/agent-imessage/references/setup.md) and [permissions guide](https://github.com/agent-messenger/agent-messenger/blob/main/skills/agent-imessage/references/permissions.md).
+
+## Quick Start
+
+```bash
+agent-imessage setup                 # guided check + save account
+agent-imessage doctor                # diagnose imsg + permissions
+
+agent-imessage chat list             # chat ids/guids
+agent-imessage message send 42 "Hello"
+agent-imessage message send "+15551234567" "Hi"
+agent-imessage message list 42 --limit 20
+agent-imessage message watch --chat all --jsonl
+agent-imessage message react 42 love
+```
+
+## Chat references
+
+What a `<chat>` argument accepts depends on the command:
+
+- **`message send`** — a **chat id** (integer rowid), a portable **guid/identifier** (e.g. `iMessage;-;+15551234567`, passed straight through to imsg), or a **phone/email recipient**.
+- **`message list` / `message react` / `message watch --chat`** — a **chat id** is recommended. A guid/identifier also works as a convenience, but since imsg exposes no guid→id lookup it is resolved by scanning the **1000 most recent chats**; an older chat outside that window returns `chat_not_found`. Use the numeric chat id from `chat list` for those.
+
+Get chat ids and guids from `agent-imessage chat list`.
+
+## Authentication
+
+iMessage uses macOS permissions, not tokens. Configure the imsg binary/region:
+
+```bash
+agent-imessage auth set --bin /opt/homebrew/bin/imsg --region US --current
+agent-imessage auth list
+agent-imessage auth use <account-id>
+agent-imessage auth remove <account-id>
+agent-imessage auth logout
+```
+
+Environment overrides (runtime only, never persisted): `AGENT_IMESSAGE_BIN`, `AGENT_IMESSAGE_REGION`.
+
+## Commands
+
+### chat
+
+```bash
+agent-imessage chat list [--limit <n>]
+agent-imessage chat search <query> [--limit <n>]
+```
+
+### message
+
+```bash
+agent-imessage message list <chat> [--limit <n>] [--start <iso>]
+agent-imessage message send <chat> <text>
+agent-imessage message react <chat> <love|like|dislike|laugh|emphasis|question>
+agent-imessage message watch [--chat <ref|all>] [--since-rowid <n>] [--jsonl]
+```
+
+`message react` reacts to the **most recent incoming message** in the chat (an imsg limitation without the bridge). `message watch` streams new messages; pass `--since-rowid` to replay from a message rowid then continue live.
+
+### whoami / doctor / setup
+
+```bash
+agent-imessage whoami
+agent-imessage doctor [--account <id>] [--test-chat <chatId>]
+agent-imessage setup
+```
+
+All commands accept `--account <id>` and `--pretty`.
+
+## Output Format
+
+JSON by default; `--pretty` for indented output. `message watch --jsonl` emits one JSON object per line.
+
+## Feature Tiers
+
+| Feature                                                     | Available  | Requires                          |
+| ----------------------------------------------------------- | :--------: | --------------------------------- |
+| List/search chats, send text, read/watch, standard tapbacks |     ✅     | imsg core (no SIP)                |
+| Targeted/custom reactions, typing, edit/unsend, group mgmt  | ⏳ planned | imsg bridge (`imsg launch` + SIP) |
+
+## Notes
+
+`agent-imessage` is backend-agnostic by design (the credential record carries a `provider` field). Today the only provider is the local imsg tool. Networked backends are intentionally out of scope for this on-Mac integration.
