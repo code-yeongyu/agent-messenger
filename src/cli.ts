@@ -69,6 +69,10 @@ program.command('channeltalk', 'Interact with Channel Talk', {
   executableFile: join(__dirname, 'platforms', 'channeltalk', `cli${ext}`),
 })
 
+program.command('imessage', 'Interact with iMessage via imsg (local, on-Mac)', {
+  executableFile: join(__dirname, 'platforms', 'imessage', `cli${ext}`),
+})
+
 program.command('channeltalkbot', 'Interact with Channel Talk using API credentials', {
   executableFile: join(__dirname, 'platforms', 'channeltalkbot', `cli${ext}`),
 })

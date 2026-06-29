@@ -2,13 +2,13 @@
 
 # Agent Messenger
 
-[![npm](https://img.shields.io/npm/v/agent-messenger?color=E67E22)](https://www.npmjs.com/package/agent-messenger) [![platform](https://img.shields.io/badge/platform-slack-4A154B)](https://agent-messenger.dev/docs/cli/slack) [![platform](https://img.shields.io/badge/platform-discord-5865F2)](https://agent-messenger.dev/docs/cli/discord) [![platform](https://img.shields.io/badge/platform-teams-6264A7)](https://agent-messenger.dev/docs/cli/teams) [![platform](https://img.shields.io/badge/platform-webex-00BCF2)](https://agent-messenger.dev/docs/cli/webex) [![platform](https://img.shields.io/badge/platform-telegram-2AABEE)](https://agent-messenger.dev/docs/cli/telegram) [![platform](https://img.shields.io/badge/platform-whatsapp-25D366)](https://agent-messenger.dev/docs/cli/whatsapp) [![platform](https://img.shields.io/badge/platform-line-06C755)](https://agent-messenger.dev/docs/cli/line) [![platform](https://img.shields.io/badge/platform-wechat-07C160)](https://agent-messenger.dev/docs/cli/wechatbot) [![platform](https://img.shields.io/badge/platform-instagram-E4405F)](https://agent-messenger.dev/docs/cli/instagram) [![platform](https://img.shields.io/badge/platform-kakaotalk-FEE500)](https://agent-messenger.dev/docs/cli/kakaotalk) [![platform](https://img.shields.io/badge/platform-channel_talk-3B3FE4)](https://agent-messenger.dev/docs/cli/channeltalk)
+[![npm](https://img.shields.io/npm/v/agent-messenger?color=E67E22)](https://www.npmjs.com/package/agent-messenger) [![platform](https://img.shields.io/badge/platform-slack-4A154B)](https://agent-messenger.dev/docs/cli/slack) [![platform](https://img.shields.io/badge/platform-discord-5865F2)](https://agent-messenger.dev/docs/cli/discord) [![platform](https://img.shields.io/badge/platform-teams-6264A7)](https://agent-messenger.dev/docs/cli/teams) [![platform](https://img.shields.io/badge/platform-webex-00BCF2)](https://agent-messenger.dev/docs/cli/webex) [![platform](https://img.shields.io/badge/platform-telegram-2AABEE)](https://agent-messenger.dev/docs/cli/telegram) [![platform](https://img.shields.io/badge/platform-whatsapp-25D366)](https://agent-messenger.dev/docs/cli/whatsapp) [![platform](https://img.shields.io/badge/platform-line-06C755)](https://agent-messenger.dev/docs/cli/line) [![platform](https://img.shields.io/badge/platform-wechat-07C160)](https://agent-messenger.dev/docs/cli/wechatbot) [![platform](https://img.shields.io/badge/platform-imessage-007AFF)](https://agent-messenger.dev/docs/cli/imessage) [![platform](https://img.shields.io/badge/platform-instagram-E4405F)](https://agent-messenger.dev/docs/cli/instagram) [![platform](https://img.shields.io/badge/platform-kakaotalk-FEE500)](https://agent-messenger.dev/docs/cli/kakaotalk) [![platform](https://img.shields.io/badge/platform-channel_talk-3B3FE4)](https://agent-messenger.dev/docs/cli/channeltalk)
 
 **Your agent messages as you — not as a bot**
 
 </div>
 
-One CLI for Slack, Discord, Teams, Webex, Telegram, WhatsApp, LINE, Instagram, KakaoTalk, and Channel Talk. Credentials extracted from desktop apps and browsers, or authenticated in seconds — no API keys, no OAuth, no admin approval. TypeScript SDK included.
+One CLI for Slack, Discord, Teams, Webex, Telegram, WhatsApp, LINE, WeChat, iMessage, Instagram, KakaoTalk, and Channel Talk. Credentials extracted from desktop apps and browsers, or authenticated in seconds — no API keys, no OAuth, no admin approval. TypeScript SDK included.
 
 > [!TIP]
 > 🎉 Agent Messenger powers multi-channel messaging in [TypeClaw](https://github.com/typeclaw/typeclaw), a TypeScript-native agent runtime.
@@ -52,7 +52,7 @@ Agent Messenger reads session tokens from your Slack, Discord, Teams, KakaoTalk,
 - **QR Code Sign-In (Slack & Discord)** — The recommended, safest auth: sign in through the platform's official flow, no credential extraction and no desktop app required (Discord scans with the mobile app)
 - **Auto-Extract Auth** — Reads tokens from Slack, Discord, Teams, KakaoTalk, and Channel Talk desktop apps, with browser fallback and custom Chromium profile paths via `--browser-profile`. Webex and Instagram tokens extracted from Chromium browsers. Telegram and WhatsApp authenticate with a one-time code — still under a minute
 - **Act As Yourself** — Extracts your user session — not a bot token. Your agent sends messages, reacts, and searches as you. Need bot mode? Bot CLIs are included too
-- **One Interface** — Consistent command style across 7 platforms for supported actions (e.g. message send, message search, channel list, snapshot). Learn once
+- **One Interface** — Consistent command style across 12 platforms for supported actions (e.g. message send, message search, channel list, snapshot). Learn once
 - **Agent-Native Output** — JSON by default for LLM tool use. `--pretty` for human-readable. Structured output your agent can parse and act on
 - **Token Efficient** — CLI, not MCP. One skill file, one shell command per action. No server to run, no tool registration. ([Why not MCP?](#philosophy))
 - **Persistent Memory** — Stores workspace IDs, channel mappings, and preferences in ~/.config so your agent never asks twice
@@ -89,6 +89,7 @@ This installs:
 - `agent-whatsappbot` — WhatsApp Bot CLI (Cloud API, for server-side/CI/CD)
 - `agent-line` — LINE CLI (QR code login, Thrift protocol)
 - `agent-wechatbot` — WeChat Bot CLI (Official Account API, for server-side/CI/CD)
+- `agent-imessage` — iMessage CLI (runs on a Mac via the [imsg](https://github.com/openclaw/imsg) tool)
 - `agent-instagram` — Instagram DM CLI (browser cookie extraction + username/password auth)
 - `agent-kakaotalk` — KakaoTalk CLI (sub-device login, LOCO protocol)
 - `agent-channeltalk` — Channel Talk CLI (beta, zero-config, extracted cookies)
@@ -102,7 +103,7 @@ Agent Messenger includes [Agent Skills](https://agentskills.io/) that teach your
 
 SkillPad is a GUI app for Agent Skills. See [skillpad.dev](https://skillpad.dev/) for more details.
 
-[![Available on SkillPad](https://badge.skillpad.dev/agent-slack/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-slack) [![Available on SkillPad](https://badge.skillpad.dev/agent-slackbot/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-slackbot) [![Available on SkillPad](https://badge.skillpad.dev/agent-discord/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-discord) [![Available on SkillPad](https://badge.skillpad.dev/agent-discordbot/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-discordbot) [![Available on SkillPad](https://badge.skillpad.dev/agent-teams/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-teams) [![Available on SkillPad](https://badge.skillpad.dev/agent-webex/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-webex) [![Available on SkillPad](https://badge.skillpad.dev/agent-webexbot/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-webexbot) [![Available on SkillPad](https://badge.skillpad.dev/agent-telegram/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-telegram) [![Available on SkillPad](https://badge.skillpad.dev/agent-telegrambot/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-telegrambot) [![Available on SkillPad](https://badge.skillpad.dev/agent-whatsapp/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-whatsapp) [![Available on SkillPad](https://badge.skillpad.dev/agent-whatsappbot/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-whatsappbot) [![Available on SkillPad](https://badge.skillpad.dev/agent-line/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-line) [![Available on SkillPad](https://badge.skillpad.dev/agent-wechatbot/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-wechatbot) [![Available on SkillPad](https://badge.skillpad.dev/agent-instagram/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-instagram) [![Available on SkillPad](https://badge.skillpad.dev/agent-kakaotalk/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-kakaotalk) [![Available on SkillPad](https://badge.skillpad.dev/agent-channeltalk/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-channeltalk) [![Available on SkillPad](https://badge.skillpad.dev/agent-channeltalkbot/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-channeltalkbot)
+[![Available on SkillPad](https://badge.skillpad.dev/agent-slack/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-slack) [![Available on SkillPad](https://badge.skillpad.dev/agent-slackbot/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-slackbot) [![Available on SkillPad](https://badge.skillpad.dev/agent-discord/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-discord) [![Available on SkillPad](https://badge.skillpad.dev/agent-discordbot/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-discordbot) [![Available on SkillPad](https://badge.skillpad.dev/agent-teams/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-teams) [![Available on SkillPad](https://badge.skillpad.dev/agent-webex/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-webex) [![Available on SkillPad](https://badge.skillpad.dev/agent-webexbot/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-webexbot) [![Available on SkillPad](https://badge.skillpad.dev/agent-telegram/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-telegram) [![Available on SkillPad](https://badge.skillpad.dev/agent-telegrambot/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-telegrambot) [![Available on SkillPad](https://badge.skillpad.dev/agent-whatsapp/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-whatsapp) [![Available on SkillPad](https://badge.skillpad.dev/agent-whatsappbot/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-whatsappbot) [![Available on SkillPad](https://badge.skillpad.dev/agent-line/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-line) [![Available on SkillPad](https://badge.skillpad.dev/agent-wechatbot/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-wechatbot) [![Available on SkillPad](https://badge.skillpad.dev/agent-imessage/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-imessage) [![Available on SkillPad](https://badge.skillpad.dev/agent-instagram/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-instagram) [![Available on SkillPad](https://badge.skillpad.dev/agent-kakaotalk/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-kakaotalk) [![Available on SkillPad](https://badge.skillpad.dev/agent-channeltalk/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-channeltalk) [![Available on SkillPad](https://badge.skillpad.dev/agent-channeltalkbot/dark.svg)](https://skillpad.dev/install/agent-messenger/agent-messenger/agent-channeltalkbot)
 
 ### Skills CLI
 
@@ -156,7 +157,7 @@ export AGENT_MESSENGER_CONFIG_DIR="$HOME/.local/share/agent-messenger"
 agent-slack auth extract
 ```
 
-The variable is read on every CLI/SDK invocation and applies to all platforms (Slack, Discord, Teams, Webex, Telegram, WhatsApp, LINE, WeChat, Instagram, KakaoTalk, Channel Talk, and their bot variants). Explicit `configDir` arguments to credential managers still take precedence.
+The variable is read on every CLI/SDK invocation and applies to all platforms (Slack, Discord, Teams, Webex, Telegram, WhatsApp, LINE, WeChat, iMessage, Instagram, KakaoTalk, Channel Talk, and their bot variants). Explicit `configDir` arguments to credential managers still take precedence.
 
 ## Telegram Quick Start
 
@@ -207,12 +208,13 @@ const slack = await new SlackClient().login({ token: 'xoxc-...', cookie: 'xoxd-.
 | `agent-messenger/whatsappbot` | `WhatsAppBotClient` |
 | `agent-messenger/line` | `LineClient` |
 | `agent-messenger/wechatbot` | `WeChatBotClient` |
+| `agent-messenger/imessage` | `ImsgClient` |
 | `agent-messenger/instagram` | `InstagramClient` |
 | `agent-messenger/kakaotalk` | `KakaoTalkClient` |
 | `agent-messenger/channeltalk` | `ChannelClient` |
 | `agent-messenger/channeltalkbot` | `ChannelBotClient` |
 
-Each module also exports its credential manager, Zod schemas, and TypeScript types:
+Each module also exports its credential manager, Zod schemas, and TypeScript types (except `imessage`, which exports its client, credential manager, and TypeScript types — no Zod schemas):
 
 ```typescript
 import { SlackClient, SlackCredentialManager, SlackMessageSchema } from 'agent-messenger/slack'
@@ -382,7 +384,7 @@ await listener.start()
 
 ## TUI (Experimental)
 
-A unified terminal interface for all your messaging platforms in one screen. Navigate between Slack, Discord, Teams, Webex, Telegram, WhatsApp, LINE, Instagram, KakaoTalk, and Channel Talk — all from your terminal.
+A unified terminal interface for all your messaging platforms in one screen. Navigate between Slack, Discord, Teams, Webex, Telegram, WhatsApp, iMessage, LINE, Instagram, KakaoTalk, and Channel Talk — all from your terminal.
 
 > **Note**: The TUI is a showcase of what's possible with Agent Messenger's SDK. It demonstrates the power of having a unified adapter layer across all platforms.
 
@@ -393,7 +395,7 @@ agent-messenger tui
 ![Agent Messenger TUI](docs/public/tui.png)
 
 Key features:
-- **Multi-platform** — All 10 platforms in one sidebar, auto-login on startup
+- **Multi-platform** — All 11 platforms in one sidebar, auto-login on startup
 - **Real-time messages** — Live message streaming for supported platforms
 - **Fuzzy pickers** — `Ctrl+K` for channels, `Ctrl+W` for workspaces
 - **Interactive auth** — Authenticate platforms that aren't set up yet, right in the TUI
@@ -504,6 +506,8 @@ See [AGENTS.md](AGENTS.md#access-control-module) for the contributor view.
 
 > ⚠️ **Teams tokens expire in 60-90 minutes.** Re-run `agent-teams auth extract` to refresh. See [Teams Guide](skills/agent-teams/SKILL.md) for details.
 
+> 💬 **iMessage** is supported via the local [imsg](https://github.com/openclaw/imsg) tool (`agent-imessage`), not the table above. It runs **on a Mac** (Apple has no API). v1 covers send & list messages, direct & group chats, chat listing, real-time watch, and standard tapbacks. Typing, edit/unsend, group management, and targeted/custom reactions require imsg's bridge (SIP disabled) and are a later tier. See the [iMessage Guide](skills/agent-imessage/SKILL.md).
+
 ## Platform Guides
 
 - **[Slack Guide](https://agent-messenger.dev/docs/cli/slack)** — Full command reference for Slack
@@ -519,10 +523,15 @@ See [AGENTS.md](AGENTS.md#access-control-module) for the contributor view.
 - **[WhatsApp Bot Guide](https://agent-messenger.dev/docs/cli/whatsappbot)** — Cloud API integration for WhatsApp Business
 - **[LINE Guide](https://agent-messenger.dev/docs/cli/line)** — QR code login and Thrift protocol integration
 - **[WeChat Bot Guide](https://agent-messenger.dev/docs/cli/wechatbot)** — Official Account API integration for WeChat
+- **[iMessage Guide](skills/agent-imessage/SKILL.md)** — iMessage on a Mac via the imsg tool
 - **[Instagram Guide](https://agent-messenger.dev/docs/cli/instagram)** — Browser cookie extraction and Instagram DM integration
 - **[KakaoTalk Guide](https://agent-messenger.dev/docs/cli/kakaotalk)** — Sub-device login and LOCO protocol integration
 - **[Channel Talk Guide](https://agent-messenger.dev/docs/cli/channeltalk)** — Full command reference for Channel Talk (beta, zero-config)
 - **[Channel Talk Bot Guide](https://agent-messenger.dev/docs/cli/channeltalkbot)** — Bot API integration for Channel Talk (beta)
+
+### iMessage is different
+
+Most agent-messenger platforms run anywhere. **iMessage is the exception:** Apple provides no API, so `agent-imessage` runs **on a Mac** and drives Messages locally through the [imsg](https://github.com/openclaw/imsg) tool. You still act as yourself with your own Apple ID and run one shell command per action, but the agent must run on the Mac (imsg is local-only — no network or server) with Full Disk Access and Automation granted. See the [setup guide](skills/agent-imessage/references/setup.md).
 
 ## Use Cases
 
@@ -570,7 +579,7 @@ Wire messaging into your CI, scripts, or agent workflows.
 
 ### ...and More
 
-These are just starting points. Your agent has full read/write access to Slack, Discord, Teams, Telegram, WhatsApp, LINE, Instagram, KakaoTalk, and Channel Talk — anything you'd do manually in a chat app, it can handle for you. If you build something cool with Agent Messenger, [let me know](https://x.com/devxoul)!
+These are just starting points. Your agent has full read/write access to Slack, Discord, Teams, Telegram, WhatsApp, LINE, iMessage, Instagram, KakaoTalk, and Channel Talk — anything you'd do manually in a chat app, it can handle for you. If you build something cool with Agent Messenger, [let me know](https://x.com/devxoul)!
 
 ## Philosophy
 

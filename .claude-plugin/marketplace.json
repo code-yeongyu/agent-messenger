@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "agent-messenger",
-  "description": "Messaging platform interaction skills for AI agents - Slack, Discord, Microsoft Teams, Webex, Telegram, Telegram Bot, WhatsApp, LINE, Instagram, KakaoTalk, and Channel Talk",
+  "description": "Messaging platform interaction skills for AI agents - Slack, Discord, Microsoft Teams, Webex, Telegram, Telegram Bot, WhatsApp, LINE, iMessage, Instagram, KakaoTalk, and Channel Talk",
   "owner": {
     "name": "agent-messenger",
     "url": "https://github.com/agent-messenger"
@@ -136,6 +136,19 @@
       "category": "productivity",
       "homepage": "https://github.com/agent-messenger/agent-messenger",
       "keywords": ["channel-talk", "channeltalkbot", "bot", "messaging", "ai-agent", "cli", "ci-cd"]
+    },
+    {
+      "name": "agent-imessage",
+      "description": "Interact with iMessage on a Mac via the imsg tool. Apple has no public API, so it runs locally on macOS (no network, no server) and drives Messages.app through imsg over JSON-RPC. Supports send/list messages, direct & group chats, chat listing, real-time watch, and standard tapbacks. Requires Full Disk Access and Automation permissions.",
+      "version": "2.27.2",
+      "author": {
+        "name": "agent-messenger",
+        "url": "https://github.com/agent-messenger"
+      },
+      "source": "./",
+      "category": "productivity",
+      "homepage": "https://github.com/agent-messenger/agent-messenger",
+      "keywords": ["imessage", "imsg", "macos", "apple", "messaging", "ai-agent", "cli", "communication"]
     }
   ]
 }
