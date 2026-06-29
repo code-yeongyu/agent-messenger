@@ -1,6 +1,6 @@
 # Agent Messenger - Claude Code Plugin
 
-Messaging platform interaction skills for AI agents and Claude Code. Supports Slack, Discord, Microsoft Teams, Telegram, Telegram Bot, WhatsApp, LINE, Instagram, KakaoTalk, and Channel Talk (beta).
+Messaging platform interaction skills for AI agents and Claude Code. Supports Slack, Discord, Microsoft Teams, Webex, Telegram, Telegram Bot, WhatsApp, LINE, iMessage (Mac-only), Instagram, KakaoTalk, and Channel Talk (beta).
 
 ## Installation
 
@@ -108,6 +108,14 @@ Enables AI agents to interact with messaging platforms through CLI interfaces:
 - **QR code login** — authenticates as secondary device
 - **Multi-account support** with easy switching
 
+### iMessage (`agent-imessage`) — Mac-only
+- **Send messages** to chats, groups, and phone/email recipients
+- **Read chats** and message history
+- **List chats** (source of chat ids/guids)
+- **Watch for new messages** in real time (resumable JSON lines)
+- **Standard tapbacks** (love, like, dislike, etc.)
+- **Runs on a Mac** via the [imsg](https://github.com/openclaw/imsg) tool — no API, no network, no server
+
 ### Instagram (`agent-instagram`)
 - **Send messages** to DM conversations
 - **Read chats** and message history
@@ -190,6 +198,7 @@ All commands output JSON by default for easy AI consumption. Use `--pretty` for 
 
 - Desktop app installed and logged in for the platform(s) you want to use (Slack, Discord, Teams, KakaoTalk, and/or Channel Talk). For Slack and Discord, QR code sign-in is the recommended alternative — no desktop app required (Discord needs the mobile app to scan). Instagram uses username/password auth
 - For Telegram: TDLib is bundled; API credentials are auto-provisioned on first login
+- For iMessage: macOS only — requires [imsg](https://github.com/openclaw/imsg) installed, with Full Disk Access and Automation → Messages granted to the launching app/terminal (macOS grants these to the parent process, not the `imsg` binary)
 - Node.js 18+ or Bun runtime
 
 ## Quick Start
@@ -276,6 +285,7 @@ agent-discord file upload <channel-id> ./report.pdf
 - [WhatsApp Skill Documentation](https://github.com/agent-messenger/agent-messenger/blob/main/skills/agent-whatsapp/SKILL.md)
 - [WhatsApp Bot Skill Documentation](https://github.com/agent-messenger/agent-messenger/blob/main/skills/agent-whatsappbot/SKILL.md)
 - [LINE Skill Documentation](https://github.com/agent-messenger/agent-messenger/blob/main/skills/agent-line/SKILL.md)
+- [iMessage Skill Documentation](https://github.com/agent-messenger/agent-messenger/blob/main/skills/agent-imessage/SKILL.md)
 - [Instagram Skill Documentation](https://github.com/agent-messenger/agent-messenger/blob/main/skills/agent-instagram/SKILL.md)
 - [KakaoTalk Skill Documentation](https://github.com/agent-messenger/agent-messenger/blob/main/skills/agent-kakaotalk/SKILL.md)
 - [Channel Talk Skill Documentation](https://github.com/agent-messenger/agent-messenger/blob/main/skills/agent-channeltalk/SKILL.md)

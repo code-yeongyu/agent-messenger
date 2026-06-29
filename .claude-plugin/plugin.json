@@ -1,7 +1,7 @@
 {
   "name": "agent-messenger",
   "version": "2.27.2",
-  "description": "Messaging platform interaction skills for AI agents. Interact with Slack, Discord, Microsoft Teams, Webex, Telegram, Telegram Bot, WhatsApp, LINE, Instagram, KakaoTalk, and Channel Talk - send messages, read channels, manage reactions, upload files, and more through simple CLI interfaces.",
+  "description": "Messaging platform interaction skills for AI agents. Interact with Slack, Discord, Microsoft Teams, Webex, Telegram, Telegram Bot, WhatsApp, LINE, iMessage, Instagram, KakaoTalk, and Channel Talk - send messages, read channels, manage reactions, upload files, and more through simple CLI interfaces.",
   "author": {
     "name": "agent-messenger",
     "url": "https://github.com/agent-messenger"
@@ -18,8 +18,8 @@
     "kakaotalk",
     "channel-talk",
     "line",
-    "instagram",
     "imessage",
+    "instagram",
     "messaging",
     "workspace",
     "guild",
@@ -42,10 +42,10 @@
     "./skills/agent-whatsapp",
     "./skills/agent-whatsappbot",
     "./skills/agent-line",
+    "./skills/agent-imessage",
     "./skills/agent-instagram",
     "./skills/agent-kakaotalk",
     "./skills/agent-channeltalk",
-    "./skills/agent-channeltalkbot",
-    "./skills/agent-imessage"
+    "./skills/agent-channeltalkbot"
   ]
 }
