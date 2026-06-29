@@ -540,6 +540,46 @@ describe('KakaoTalkClient', () => {
       client.close()
     })
 
+    it('normalizes Long-like chat ids from LCHATLIST pages', async () => {
+      const loginResult = {
+        ...DEFAULT_LOGIN_RESULT,
+        eof: false,
+      }
+      mockLogin.mockResolvedValue(loginResult)
+
+      mockGetChatList.mockResolvedValueOnce({
+        body: {
+          chatDatas: [
+            {
+              c: makeLong(300),
+              t: 1,
+              k: ['Dave'],
+              i: [4],
+              a: 1,
+              n: 0,
+              o: 1698000000,
+              l: { authorId: 4, message: 'from paginated chat', sendAt: 1698000000 },
+              ll: makeLong(100),
+            },
+          ],
+          lastTokenId: makeLong(1),
+          lastChatId: makeLong(300),
+          eof: true,
+        },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const chats = await client.getChats({ all: true })
+
+      const paginatedChat = chats.find((chat) => chat.chat_id === '300')
+      expect(paginatedChat?.chat_id).toBe('300')
+      expect(paginatedChat?.display_name).toBe('Dave')
+      expect(paginatedChat?.last_message?.author_name).toBe('Dave')
+      expect(chats.some((chat) => chat.chat_id === '[object Object]')).toBe(false)
+
+      client.close()
+    })
+
     it('wraps errors as KakaoTalkError', async () => {
       mockLogin.mockRejectedValue(new Error('Connection refused'))
 
