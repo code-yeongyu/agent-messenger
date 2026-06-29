@@ -14,10 +14,10 @@
     "whatsappbot",
     "line",
     "wechatbot",
+    "imessage",
     "instagram",
     "kakaotalk",
     "channeltalk",
-    "channeltalkbot",
-    "imessage"
+    "channeltalkbot"
   ]
 }
