@@ -27,7 +27,7 @@ Use one of these entrypoints:
 - **Thread ID** = Instagram's identifier for a DM conversation. Numeric string returned by `chat list`.
 - **Browser cookie extraction** = recommended auth method. Extracts cookies from Chromium browsers (Chrome, Chrome Canary, Edge, Arc, Brave, Vivaldi, Chromium) where you're logged into instagram.com. Zero-config.
 - **Username/password auth** = fallback method. Authenticates using Instagram credentials. Supports two-factor authentication via SMS or authenticator app.
-- **HTTP-based** = each command makes HTTP requests and returns. No persistent connection or background process.
+- **HTTP-based** = each CLI command makes HTTP requests and returns. No persistent connection or background process. The SDK additionally offers real-time listeners (`InstagramHybridListener`, `InstagramRealtimeListener`) for streaming DMs — see [SDK: Real-Time Events](#sdk-real-time-events) below.
 - **Multi-account** = multiple Instagram accounts can be stored. Use `auth list` and `auth use` to switch between them.
 - **DM-only** = this CLI focuses on Instagram Direct Messages. It does not manage posts, stories, or followers.
 
@@ -444,3 +444,73 @@ Instagram invalidates sessions based on device fingerprinting and activity patte
 1. Avoid frequent re-authentication
 2. Space out API calls
 3. Don't switch between multiple IP addresses rapidly
+
+## SDK: Real-Time Events
+
+`InstagramHybridListener` connects over Instagram's MQTToT transport (a persistent TLS connection to `edge-mqtt.facebook.com`) and falls back to polling automatically if the connection fails. It retries realtime with capped exponential backoff. This is the recommended listener for most use cases.
+
+`InstagramRealtimeListener` is the pure-realtime option with no polling fallback — use it when you want direct MQTToT and prefer to handle reconnection yourself.
+
+Both use the unofficial private API, the same risk surface as the existing polling listener.
+
+### Setup
+
+```typescript
+import { InstagramClient, InstagramHybridListener } from 'agent-messenger/instagram'
+
+const client = await new InstagramClient().login()
+const listener = new InstagramHybridListener(client, {
+  pollInterval: 5000,         // fallback poll interval in ms
+  realtimeRetryBaseMs: 2000,  // backoff base for realtime reconnect
+  realtimeRetryMaxMs: 60000,  // backoff cap
+})
+```
+
+Or for pure realtime:
+
+```typescript
+import { InstagramClient, InstagramRealtimeListener } from 'agent-messenger/instagram'
+
+const client = await new InstagramClient().login()
+const listener = new InstagramRealtimeListener(client)
+```
+
+### Listening for Events
+
+```typescript
+listener.on('connected', ({ userId, transport }) => {
+  // transport is 'realtime' or 'polling' (hybrid only)
+  console.log(`Listening as ${userId} via ${transport}`)
+})
+
+listener.on('message', (msg) => {
+  // msg.id, msg.thread_id, msg.from, msg.timestamp
+  // msg.is_outgoing, msg.type, msg.text, msg.media_url
+  if (msg.is_outgoing) return
+  console.log(`[${msg.thread_id}] ${msg.from}: ${msg.text}`)
+})
+
+listener.on('error', (err) => {
+  console.error(err.message)
+})
+
+listener.on('disconnected', () => {
+  // hybrid listener retries realtime automatically
+})
+```
+
+### Lifecycle
+
+```typescript
+await listener.start()  // connects via MQTToT (or starts polling fallback)
+listener.stop()         // clean shutdown
+```
+
+### Event Types
+
+| Event          | Payload (Hybrid)                                          | Payload (Realtime / Polling) | Description                    |
+| -------------- | --------------------------------------------------------- | ---------------------------- | ------------------------------ |
+| `message`      | `InstagramMessageSummary`                                 | `InstagramMessageSummary`    | New DM received                |
+| `connected`    | `{ userId: string; transport: 'realtime' \| 'polling' }` | `{ userId: string }`         | Listener active                |
+| `disconnected` | —                                                         | —                            | Connection closed              |
+| `error`        | `Error`                                                   | `Error`                      | Connection or API error        |

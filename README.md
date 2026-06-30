@@ -382,6 +382,28 @@ listener.on('slash_commands', ({ ack, body }) => {
 await listener.start()
 ```
 
+### Real-time Events (Instagram)
+
+Stream Instagram DMs in real time over Instagram's MQTToT transport (a persistent TLS connection to `edge-mqtt.facebook.com`), with automatic fallback to polling if the connection can't be established.
+
+```typescript
+import { InstagramClient, InstagramHybridListener } from 'agent-messenger/instagram'
+
+const client = await new InstagramClient().login()
+const listener = new InstagramHybridListener(client)
+
+listener.on('message', (msg) => {
+  if (msg.is_outgoing) return
+  console.log(`New DM in ${msg.thread_id}: ${msg.text}`)
+})
+
+listener.on('connected', ({ userId, transport }) => {
+  console.log(`Listening as ${userId} via ${transport}`)
+})
+
+await listener.start()
+```
+
 ## TUI (Experimental)
 
 A unified terminal interface for all your messaging platforms in one screen. Navigate between Slack, Discord, Teams, Webex, Telegram, WhatsApp, iMessage, LINE, Instagram, KakaoTalk, and Channel Talk — all from your terminal.
