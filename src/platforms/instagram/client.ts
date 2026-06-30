@@ -298,6 +298,24 @@ export class InstagramClient {
     return threads.map((t) => this.mapThread(t))
   }
 
+  async fetchIrisBootstrap(): Promise<{ seqId: number; snapshotAtMs: number }> {
+    this.ensureSession()
+    const { data } = await this.request('GET', '/direct_v2/inbox/?limit=1')
+
+    if (data['status'] !== 'ok') {
+      throw new InstagramError('Failed to fetch iris bootstrap', 'inbox_error')
+    }
+
+    const seqId = data['seq_id'] as number | undefined
+    const snapshotAtMs = data['snapshot_at_ms'] as number | undefined
+
+    if (typeof seqId !== 'number' || typeof snapshotAtMs !== 'number') {
+      throw new InstagramError('Iris bootstrap missing seq_id or snapshot_at_ms', 'iris_bootstrap_missing')
+    }
+
+    return { seqId, snapshotAtMs }
+  }
+
   async searchChats(query: string, limit = 20): Promise<InstagramChatSummary[]> {
     const allChats = await this.listChats(Math.max(limit, 50))
     const lower = query.toLowerCase()
@@ -458,6 +476,11 @@ export class InstagramClient {
 
   getUserId(): string | null {
     return this.userId
+  }
+
+  getSessionState(): InstagramSessionState {
+    this.ensureSession()
+    return this.session!
   }
 
   async getProfile(): Promise<{
