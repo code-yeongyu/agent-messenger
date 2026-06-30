@@ -13,6 +13,8 @@ npm install agent-messenger
 import {
   InstagramClient,
   InstagramListener,
+  InstagramRealtimeListener,
+  InstagramHybridListener,
   InstagramError,
   InstagramCredentialManager,
 } from 'agent-messenger/instagram'
@@ -122,7 +124,83 @@ client.setDebugLog((msg) => console.error(`[debug] ${msg}`))
 
 ## Real-Time Events
 
-`InstagramListener` polls the Instagram inbox for new messages at a configurable interval.
+### InstagramHybridListener (Recommended)
+
+`InstagramHybridListener` tries to connect over Instagram's MQTToT transport first (a persistent TLS connection to `edge-mqtt.facebook.com` — the same protocol Instagram's own app uses). If that fails, it falls back to polling automatically and retries the realtime connection with capped exponential backoff.
+
+```typescript
+import { InstagramClient, InstagramHybridListener } from 'agent-messenger/instagram'
+
+const client = await new InstagramClient().login()
+const listener = new InstagramHybridListener(client, {
+  pollInterval: 5000, // fallback poll interval in ms (default: 5000)
+  realtimeRetryBaseMs: 2000, // backoff base for realtime reconnect attempts
+  realtimeRetryMaxMs: 60000, // backoff cap
+  disableRealtime: false, // set true to force polling-only mode
+})
+
+listener.on('message', (msg) => {
+  console.log(`[${msg.thread_id}] ${msg.from}: ${msg.text}`)
+})
+
+listener.on('connected', ({ userId, transport }) => {
+  // transport is 'realtime' or 'polling'
+  console.log(`Listening as ${userId} via ${transport}`)
+})
+
+listener.on('error', (err) => console.error(err))
+listener.on('disconnected', () => console.log('Stopped'))
+
+await listener.start()
+// listener.stop() to disconnect
+```
+
+#### Events
+
+| Event          | Payload                                                  | Description                                   |
+| -------------- | -------------------------------------------------------- | --------------------------------------------- |
+| `message`      | `InstagramMessageSummary`                                | New message received                          |
+| `connected`    | `{ userId: string; transport: 'realtime' \| 'polling' }` | Listener active; `transport` shows which path |
+| `disconnected` | —                                                        | Listener stopped                              |
+| `error`        | `Error`                                                  | Network or API error                          |
+
+### InstagramRealtimeListener
+
+`InstagramRealtimeListener` connects directly over MQTToT with no polling fallback. Use this when you want pure realtime and prefer to handle reconnection yourself.
+
+```typescript
+import { InstagramClient, InstagramRealtimeListener } from 'agent-messenger/instagram'
+
+const client = await new InstagramClient().login()
+const listener = new InstagramRealtimeListener(client)
+
+listener.on('message', (msg) => {
+  console.log(`[${msg.thread_id}] ${msg.from}: ${msg.text}`)
+})
+
+listener.on('connected', ({ userId }) => {
+  console.log(`Listening as ${userId}`)
+})
+
+listener.on('error', (err) => console.error(err))
+listener.on('disconnected', () => console.log('Disconnected'))
+
+await listener.start()
+// listener.stop() to disconnect
+```
+
+#### Events
+
+| Event          | Payload                   | Description                   |
+| -------------- | ------------------------- | ----------------------------- |
+| `message`      | `InstagramMessageSummary` | New message received          |
+| `connected`    | `{ userId: string }`      | MQTToT connection established |
+| `disconnected` | —                         | Connection closed             |
+| `error`        | `Error`                   | Connection or protocol error  |
+
+### InstagramListener (Polling Only)
+
+`InstagramListener` polls the Instagram inbox for new messages at a configurable interval. It's the original listener and remains available for environments where a persistent connection isn't suitable.
 
 ```typescript
 import { InstagramClient, InstagramListener } from 'agent-messenger/instagram'
@@ -145,7 +223,7 @@ await listener.start()
 // listener.stop() to disconnect
 ```
 
-### Events
+#### Events
 
 | Event          | Payload                   | Description                             |
 | -------------- | ------------------------- | --------------------------------------- |
@@ -220,6 +298,9 @@ import type {
   InstagramMessageSummary,
   InstagramSessionState,
   InstagramListenerEventMap,
+  InstagramRealtimeListenerEventMap,
+  InstagramHybridListenerEventMap,
+  InstagramHybridListenerOptions,
 } from 'agent-messenger/instagram'
 ```
 
@@ -304,17 +385,21 @@ if (alice) {
 
 ### Message Monitor
 
-Watch for new DMs using the real-time listener.
+Watch for new DMs using the hybrid listener, which tries realtime first and falls back to polling automatically.
 
 ```typescript
-import { InstagramClient, InstagramListener } from 'agent-messenger/instagram'
+import { InstagramClient, InstagramHybridListener } from 'agent-messenger/instagram'
 
 const client = await new InstagramClient().login()
-const listener = new InstagramListener(client, { pollInterval: 10_000 })
+const listener = new InstagramHybridListener(client)
 
 listener.on('message', (msg) => {
   if (msg.is_outgoing) return
   console.log(`New DM from ${msg.from}: ${msg.text ?? `[${msg.type}]`}`)
+})
+
+listener.on('connected', ({ userId, transport }) => {
+  console.log(`Listening as ${userId} via ${transport}`)
 })
 
 listener.on('error', (err) => {
