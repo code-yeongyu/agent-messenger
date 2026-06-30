@@ -182,7 +182,7 @@ Thread IDs are numeric strings returned by `chat list` (e.g. `340282366841710300
 
 ## Limitations
 
-- **HTTP on demand**: Each command makes HTTP requests and returns. No persistent daemon or WebSocket connection.
+- **HTTP on demand**: Each command makes HTTP requests and returns. No persistent daemon or WebSocket connection. The CLI does not expose real-time events, but the SDK does — via `InstagramHybridListener` (realtime over MQTToT with polling fallback) and `InstagramRealtimeListener`. See the [SDK reference](../sdk/instagram#real-time-events).
 - **Ban risk**: Instagram monitors for automated behavior. Avoid high-volume messaging, rapid-fire sends, or bulk operations. Space out commands when sending multiple messages.
 - **No file uploads or downloads**
 - **No voice or video calls**
