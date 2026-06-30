@@ -323,6 +323,39 @@ agent-instagram message send-to alice "Hello!"
 agent-instagram message send 12345678901 "Hello!"
 ```
 
+## Pattern 11: Real-Time DM Monitor (SDK)
+
+**Use case**: Receive new DMs as they arrive, without polling
+
+The SDK's `InstagramHybridListener` is the right tool for continuous DM monitoring. It connects over Instagram's MQTToT transport and falls back to polling automatically — no manual loop or `sleep` needed.
+
+```typescript
+import { InstagramClient, InstagramHybridListener } from 'agent-messenger/instagram'
+
+const client = await new InstagramClient().login()
+const listener = new InstagramHybridListener(client)
+
+listener.on('connected', ({ userId, transport }) => {
+  console.log(`Listening as ${userId} via ${transport}`)
+})
+
+listener.on('message', (msg) => {
+  if (msg.is_outgoing) return
+  console.log(`[${msg.thread_id}] ${msg.from}: ${msg.text ?? `[${msg.type}]`}`)
+})
+
+listener.on('error', (err) => {
+  console.error('Listener error:', err.message)
+})
+
+await listener.start()
+// Runs until listener.stop() is called
+```
+
+**When to use**: Any time you need to react to incoming DMs in real time — notifications, bots, monitoring dashboards. Prefer this over a polling shell loop.
+
+**Contrast with shell polling**: The `monitor-chat.sh` template uses `sleep` + `message list` in a loop. That works for simple scripts but makes one HTTP request per interval and can't react faster than the interval. The SDK listener holds a persistent connection and delivers messages as they arrive.
+
 ## Anti-Patterns
 
 ### Don't Poll Too Frequently
@@ -340,6 +373,8 @@ while true; do
   sleep 30
 done
 ```
+
+For real-time monitoring, the SDK's `InstagramHybridListener` is a better alternative — it holds a persistent connection and avoids repeated HTTP requests entirely. See [Pattern 11](#pattern-11-real-time-dm-monitor-sdk) above.
 
 ### Don't Spam Threads
 
@@ -360,3 +395,4 @@ agent-instagram message send "$THREAD" "$MESSAGE"
 ## See Also
 
 - [Authentication Guide](authentication.md) - Setting up credentials
+- For real-time events, use the `InstagramHybridListener` SDK (see SKILL.md → SDK: Real-Time Events)

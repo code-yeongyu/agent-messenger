@@ -12,6 +12,11 @@
 # Example:
 #   ./monitor-chat.sh 340282366841710300949128138443434234567
 #   ./monitor-chat.sh 340282366841710300949128138443434234567 10
+#
+# NOTE: For real-time monitoring, prefer the SDK's InstagramHybridListener over
+# this poll-based approach. It connects over Instagram's MQTToT transport and
+# delivers messages as they arrive, with automatic fallback to polling if needed.
+# See SKILL.md -> SDK: Real-Time Events for setup and usage.
 
 set -euo pipefail
 
