@@ -73,6 +73,7 @@ export interface InstagramSessionState {
   authorization?: string
   user_id?: string
   mid?: string
+  www_claim?: string
   challenge_path?: string
 }
 
