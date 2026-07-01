@@ -1,4 +1,4 @@
-import { constants, createCipheriv, publicEncrypt, randomBytes, randomUUID } from 'node:crypto'
+import { constants, createCipheriv, createHmac, publicEncrypt, randomBytes, randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 
@@ -15,18 +15,43 @@ import {
 
 const IG_BASE_URL = 'https://i.instagram.com/api/v1'
 const IG_APP_ID = '567067343352427'
-const IG_VERSION = '312.1.0.34.111'
-const IG_VERSION_CODE = '556927984'
-const ANDROID_VERSION = '13.0'
-const ANDROID_RELEASE = '33'
+const IG_VERSION = '428.0.0.47.67'
+const IG_VERSION_CODE = '719358530'
+// HMAC-SHA256 key for signing request bodies (signed_body); mandated by the private mobile API.
+const IG_SIGNATURE_KEY = '9193488027538fd3450b83b7d05286d4ca9599a0f7eeed90d8c85925698a05dc'
+const IG_SIGNATURE_VERSION = '4'
+// Bloks client versioning id; required header for Bloks endpoints (2FA / CAA flows).
+const IG_BLOKS_VERSION_ID = '5f56efad68e1edec7801f630b5c122704ec5378adbee6609a448f105f34a9c73'
+const IG_CAPABILITIES = '3brTv10='
+const ANDROID_VERSION = '14'
+const ANDROID_RELEASE = '34'
 const DEVICE_DPI = '480dpi'
-const DEVICE_RESOLUTION = '1080x2340'
-const DEVICE_MANUFACTURER = 'samsung'
-const DEVICE_MODEL = 'SM-S911B'
-const DEVICE_CHIPSET = 'qcom'
+const DEVICE_RESOLUTION = '1344x2992'
+const DEVICE_MANUFACTURER = 'Google/google'
+const DEVICE_MODEL = 'Pixel 8 Pro'
+const DEVICE_NAME = 'husky'
+const DEVICE_CHIPSET = 'husky'
 
 export function generateDeviceString(): string {
-  return `${ANDROID_VERSION}/${ANDROID_RELEASE}; ${DEVICE_DPI}; ${DEVICE_RESOLUTION}; ${DEVICE_MANUFACTURER}; ${DEVICE_MODEL}; ${DEVICE_MODEL}; ${DEVICE_CHIPSET}; en_US; ${IG_VERSION_CODE}`
+  return `${ANDROID_RELEASE}/${ANDROID_VERSION}; ${DEVICE_DPI}; ${DEVICE_RESOLUTION}; ${DEVICE_MANUFACTURER}; ${DEVICE_MODEL}; ${DEVICE_NAME}; ${DEVICE_CHIPSET}; en_US; ${IG_VERSION_CODE}`
+}
+
+function signBody(payload: Record<string, unknown>): Record<string, string> {
+  const json = JSON.stringify(payload)
+  const signature = createHmac('sha256', IG_SIGNATURE_KEY).update(json).digest('hex')
+  return {
+    signed_body: `${signature}.${json}`,
+    ig_sig_key_version: IG_SIGNATURE_VERSION,
+  }
+}
+
+// jazoest = "2" + sum of ASCII byte values of the input; an anti-bot checksum expected by login.
+function createJazoest(input: string): string {
+  let sum = 0
+  for (let i = 0; i < input.length; i++) {
+    sum += input.charCodeAt(i)
+  }
+  return `2${sum}`
 }
 
 function buildUserAgent(deviceString: string): string {
@@ -114,28 +139,34 @@ export class InstagramClient {
     this.session = { cookies: '', device }
 
     const encryptionKey = await this.preLoginFlow()
-    let encPassword: string
-    try {
-      if (encryptionKey) {
-        this.debugLog?.(`encrypting password with key_id=${encryptionKey.keyId}`)
-        encPassword = this.encryptPassword(password, encryptionKey)
-      } else {
-        this.debugLog?.('no encryption key, using plaintext password format')
-        encPassword = this.plaintextPassword(password)
-      }
-    } catch (err) {
-      this.debugLog?.(`encryption failed: ${err}, falling back to plaintext`)
-      encPassword = this.plaintextPassword(password)
+    if (!encryptionKey) {
+      throw new InstagramError(
+        'Instagram did not return a password encryption key. Login cannot proceed safely.',
+        'encryption_key_missing',
+      )
     }
 
-    const { status, data } = await this.request('POST', '/accounts/login/', {
-      username,
-      enc_password: encPassword,
-      guid: device.uuid,
-      phone_id: device.phone_id,
-      device_id: device.android_device_id,
-      login_attempt_count: '0',
-    })
+    this.debugLog?.(`encrypting password with key_id=${encryptionKey.keyId}`)
+    const encPassword = this.encryptPassword(password, encryptionKey)
+
+    const { status, data } = await this.request(
+      'POST',
+      '/accounts/login/',
+      {
+        username,
+        enc_password: encPassword,
+        guid: device.uuid,
+        phone_id: device.phone_id,
+        _csrftoken: this.cookies.get('csrftoken') ?? 'missing',
+        device_id: device.android_device_id,
+        adid: device.advertising_id,
+        google_tokens: '[]',
+        login_attempt_count: '0',
+        country_codes: JSON.stringify([{ country_code: '1', source: ['default'] }]),
+        jazoest: createJazoest(device.phone_id),
+      },
+      { signed: true },
+    )
 
     this.debugLog?.(`login response status=${status} body=${JSON.stringify(data)}`)
 
@@ -166,14 +197,32 @@ export class InstagramClient {
   }
 
   async twoFactorLogin(username: string, code: string, twoFactorIdentifier: string): Promise<{ userId: string }> {
-    const { status, data } = await this.request('POST', '/accounts/two_factor_login/', {
-      username,
-      verification_code: code,
-      two_factor_identifier: twoFactorIdentifier,
-      trust_this_device: '1',
-      guid: this.session?.device.uuid ?? '',
-      device_id: this.session?.device.android_device_id ?? '',
-    })
+    const device = this.session?.device
+    const { status, data } = await this.request(
+      'POST',
+      '/accounts/two_factor_login/',
+      {
+        username,
+        verification_code: code,
+        two_factor_identifier: twoFactorIdentifier,
+        trust_this_device: '1',
+        verification_method: '3',
+        _csrftoken: this.cookies.get('csrftoken') ?? 'missing',
+        guid: device?.uuid ?? '',
+        phone_id: device?.phone_id ?? '',
+        device_id: device?.android_device_id ?? '',
+      },
+      { signed: true },
+    )
+
+    if (this.isBloksTwoFactorFallback(status, data)) {
+      this.debugLog?.('legacy two_factor_login rejected, retrying via Bloks flow')
+      const bloksContext =
+        typeof data['two_step_verification_context'] === 'string'
+          ? data['two_step_verification_context']
+          : twoFactorIdentifier
+      return this.bloksTwoFactorLogin(code, bloksContext)
+    }
 
     if (status !== 200 || data['status'] !== 'ok') {
       const message = (data['message'] as string) ?? 'Two-factor authentication failed'
@@ -182,6 +231,60 @@ export class InstagramClient {
 
     await this.finalizeLogin(data)
     return { userId: this.userId ?? '' }
+  }
+
+  private isBloksTwoFactorFallback(status: number, data: Record<string, unknown>): boolean {
+    if (status === 200 && data['status'] === 'ok') return false
+    const message = ((data['message'] as string) ?? '').trim().toLowerCase()
+    return message === 'invalid parameters' || data['two_step_verification_context'] != null
+  }
+
+  private async bloksTwoFactorLogin(code: string, twoFactorIdentifier: string): Promise<{ userId: string }> {
+    const device = this.session?.device
+    const params = {
+      client_input_params: {
+        code,
+        should_trust_device: 1,
+        family_device_id: device?.phone_id ?? '',
+        device_id: device?.android_device_id ?? '',
+        machine_id: this.session?.mid ?? '',
+      },
+      server_params: {
+        challenge: 'totp',
+        two_step_verification_context: twoFactorIdentifier,
+        flow_source: 'two_factor_login',
+      },
+    }
+
+    const { status, data } = await this.request(
+      'POST',
+      '/bloks/async_action/com.bloks.www.two_step_verification.verify_code.async/',
+      { params: JSON.stringify(params), bk_client_context: JSON.stringify({ bloks_version: IG_BLOKS_VERSION_ID }) },
+    )
+
+    if (status !== 200 || (data['status'] != null && data['status'] !== 'ok')) {
+      const message = (data['message'] as string) ?? 'Two-factor authentication failed'
+      throw new InstagramError(message, 'two_factor_failed')
+    }
+
+    const loggedInUser = data['logged_in_user'] as Record<string, unknown> | undefined
+    if (loggedInUser) {
+      await this.finalizeLogin(data)
+      return { userId: this.userId ?? '' }
+    }
+
+    if (this.session?.authorization) {
+      const userId = this.session.user_id ?? this.cookies.get('ds_user_id')
+      if (!userId) {
+        throw new InstagramError('Two-factor authentication failed', 'two_factor_failed')
+      }
+      this.userId = userId
+      this.session.user_id = userId
+      await this.saveSession()
+      return { userId }
+    }
+
+    throw new InstagramError('Two-factor authentication failed', 'two_factor_failed')
   }
 
   async challengeSendCode(
@@ -508,12 +611,20 @@ export class InstagramClient {
     const response = await fetch(url, {
       method: 'POST',
       headers,
-      body: new URLSearchParams({
-        id: this.session!.device.uuid,
-        experiments: 'ig_android_fci,ig_android_device_detection_info_upload,ig_android_device_verification_fb_signup',
-      }).toString(),
+      body: new URLSearchParams(
+        signBody({
+          id: this.session!.device.uuid,
+          experiments:
+            'ig_android_fci,ig_android_device_detection_info_upload,ig_android_device_verification_fb_signup',
+        }),
+      ).toString(),
     })
     this.extractResponseCookies(response.headers)
+
+    const wwwClaim = response.headers.get('x-ig-set-www-claim')
+    if (wwwClaim && this.session) {
+      this.session.www_claim = wwwClaim
+    }
 
     const pubKeyHeader = response.headers.get('ig-set-password-encryption-pub-key')
     const keyIdHeader = response.headers.get('ig-set-password-encryption-key-id')
@@ -542,8 +653,15 @@ export class InstagramClient {
     const pubKeyPem = Buffer.from(key.publicKey, 'base64').toString('utf-8')
     const rsaEncrypted = publicEncrypt({ key: pubKeyPem, padding: constants.RSA_PKCS1_PADDING }, aesKey)
 
+    if (!/^(?:0|[1-9]\d*)$/.test(key.keyId)) {
+      throw new InstagramError(`Invalid password encryption key id: ${key.keyId}`, 'encryption_key_invalid')
+    }
+    const keyIdNum = Number(key.keyId)
+    if (keyIdNum > 255) {
+      throw new InstagramError(`Invalid password encryption key id: ${key.keyId}`, 'encryption_key_invalid')
+    }
+
     // Wire format: version(1) | keyId(1) | iv(12) | rsaLen(2 LE) | rsaEncrypted | tag(16) | aesEncrypted
-    const keyIdNum = Number.parseInt(key.keyId, 10)
     const buf = Buffer.alloc(1 + 1 + 12 + 2 + rsaEncrypted.length + 16 + encrypted.length)
     let offset = 0
     buf.writeUInt8(1, offset)
@@ -563,30 +681,32 @@ export class InstagramClient {
     return `#PWD_INSTAGRAM:4:${timestamp}:${buf.toString('base64')}`
   }
 
-  private plaintextPassword(password: string): string {
-    const timestamp = Math.floor(Date.now() / 1000).toString()
-    return `#PWD_INSTAGRAM:0:${timestamp}:${password}`
-  }
-
   private async request(
     method: string,
     path: string,
     body?: Record<string, string>,
+    options?: { signed?: boolean },
   ): Promise<{ status: number; data: Record<string, unknown> }> {
     const url = `${IG_BASE_URL}${path}`
     const headers = this.buildHeaders()
 
-    const options: RequestInit = { method, headers }
+    const requestInit: RequestInit = { method, headers }
     if (body) {
-      options.body = new URLSearchParams(body).toString()
+      const payload = options?.signed ? signBody(body) : body
+      requestInit.body = new URLSearchParams(payload).toString()
     }
 
-    const response = await fetch(url, options)
+    const response = await fetch(url, requestInit)
     this.extractResponseCookies(response.headers)
 
     const authHeader = response.headers.get('ig-set-authorization')
     if (authHeader && this.session) {
       this.session.authorization = authHeader
+    }
+
+    const wwwClaim = response.headers.get('x-ig-set-www-claim')
+    if (wwwClaim && this.session) {
+      this.session.www_claim = wwwClaim
     }
 
     if (response.status === 429) {
@@ -608,17 +728,22 @@ export class InstagramClient {
     const headers: Record<string, string> = {
       'User-Agent': buildUserAgent(deviceString),
       'X-IG-App-ID': IG_APP_ID,
-      'X-IG-Capabilities': '3brTv10=',
+      'X-IG-Capabilities': IG_CAPABILITIES,
       'X-IG-Connection-Type': 'WIFI',
       'X-IG-Timezone-Offset': String(new Date().getTimezoneOffset() * -60),
+      'X-Bloks-Version-Id': IG_BLOKS_VERSION_ID,
+      'X-FB-HTTP-Engine': 'Liger',
       'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
       Accept: '*/*',
       'Accept-Language': 'en-US,en;q=0.9',
     }
 
+    headers['X-IG-WWW-Claim'] = this.session?.www_claim ?? '0'
+
     if (this.session) {
       headers['X-IG-Device-ID'] = this.session.device.uuid
       headers['X-IG-Android-ID'] = this.session.device.android_device_id
+      headers['X-IG-Family-Device-ID'] = this.session.device.phone_id
       if (this.session.authorization) {
         headers['Authorization'] = this.session.authorization
       }
