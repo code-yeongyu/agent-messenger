@@ -1,4 +1,4 @@
-import { constants, createCipheriv, createHmac, publicEncrypt, randomBytes, randomUUID } from 'node:crypto'
+import { constants, createCipheriv, publicEncrypt, randomBytes, randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 
@@ -17,9 +17,6 @@ const IG_BASE_URL = 'https://i.instagram.com/api/v1'
 const IG_APP_ID = '567067343352427'
 const IG_VERSION = '428.0.0.47.67'
 const IG_VERSION_CODE = '719358530'
-// HMAC-SHA256 key for signing request bodies (signed_body); mandated by the private mobile API.
-const IG_SIGNATURE_KEY = '9193488027538fd3450b83b7d05286d4ca9599a0f7eeed90d8c85925698a05dc'
-const IG_SIGNATURE_VERSION = '4'
 // Bloks client versioning id; required header for Bloks endpoints (2FA / CAA flows).
 const IG_BLOKS_VERSION_ID = '5f56efad68e1edec7801f630b5c122704ec5378adbee6609a448f105f34a9c73'
 const IG_CAPABILITIES = '3brTv10='
@@ -36,13 +33,12 @@ export function generateDeviceString(): string {
   return `${ANDROID_RELEASE}/${ANDROID_VERSION}; ${DEVICE_DPI}; ${DEVICE_RESOLUTION}; ${DEVICE_MANUFACTURER}; ${DEVICE_MODEL}; ${DEVICE_NAME}; ${DEVICE_CHIPSET}; en_US; ${IG_VERSION_CODE}`
 }
 
+// Instagram no longer verifies the body HMAC; the current mobile API expects a literal
+// "SIGNATURE." prefix (per subzeroid/instagrapi, subzeroid/aiograpi). Sending a real HMAC +
+// ig_sig_key_version is rejected as malformed on /accounts/login/, surfacing as a misleading
+// "account not found" error. URLSearchParams url-encodes the value exactly once.
 function signBody(payload: Record<string, unknown>): Record<string, string> {
-  const json = JSON.stringify(payload)
-  const signature = createHmac('sha256', IG_SIGNATURE_KEY).update(json).digest('hex')
-  return {
-    signed_body: `${signature}.${json}`,
-    ig_sig_key_version: IG_SIGNATURE_VERSION,
-  }
+  return { signed_body: `SIGNATURE.${JSON.stringify(payload)}` }
 }
 
 // jazoest = "2" + sum of ASCII byte values of the input; an anti-bot checksum expected by login.
@@ -52,6 +48,10 @@ function createJazoest(input: string): string {
     sum += input.charCodeAt(i)
   }
   return `2${sum}`
+}
+
+function generateToken(): string {
+  return randomBytes(16).toString('hex')
 }
 
 function buildUserAgent(deviceString: string): string {
@@ -73,9 +73,14 @@ export class InstagramClient {
   private sessionPath: string | null = null
   private userId: string | null = null
   private cookies: Map<string, string> = new Map()
+  private countryCode = '1'
 
   constructor(credentialManager?: InstagramCredentialManager) {
     this.credentialManager = credentialManager ?? new InstagramCredentialManager()
+  }
+
+  setCountryCode(code: string): void {
+    this.countryCode = code
   }
 
   async login(credentials?: { username: string; password: string }, accountId?: string): Promise<this> {
@@ -157,12 +162,12 @@ export class InstagramClient {
         enc_password: encPassword,
         guid: device.uuid,
         phone_id: device.phone_id,
-        _csrftoken: this.cookies.get('csrftoken') ?? 'missing',
+        _csrftoken: this.cookies.get('csrftoken') ?? generateToken(),
         device_id: device.android_device_id,
         adid: device.advertising_id,
         google_tokens: '[]',
         login_attempt_count: '0',
-        country_codes: JSON.stringify([{ country_code: '1', source: ['default'] }]),
+        country_codes: JSON.stringify([{ country_code: this.countryCode, source: ['default'] }]),
         jazoest: createJazoest(device.phone_id),
       },
       { signed: true },
@@ -207,7 +212,7 @@ export class InstagramClient {
         two_factor_identifier: twoFactorIdentifier,
         trust_this_device: '1',
         verification_method: '3',
-        _csrftoken: this.cookies.get('csrftoken') ?? 'missing',
+        _csrftoken: this.cookies.get('csrftoken') ?? generateToken(),
         guid: device?.uuid ?? '',
         phone_id: device?.phone_id ?? '',
         device_id: device?.android_device_id ?? '',
