@@ -74,6 +74,15 @@ function urlParamsBody(callIndex = 0): Record<string, string> {
   return Object.fromEntries(new URLSearchParams(raw))
 }
 
+function signedBody(callIndex = 0): Record<string, string> {
+  const raw = fetchCalls[callIndex]?.init?.body
+  if (!raw || typeof raw !== 'string') return {}
+  const signed = new URLSearchParams(raw).get('signed_body')
+  if (!signed) return {}
+  const json = signed.slice(signed.indexOf('.') + 1)
+  return JSON.parse(json) as Record<string, string>
+}
+
 async function loadedClient(): Promise<InstagramClient> {
   const client = new InstagramClient()
   await client.loadSession(sessionPath)
@@ -115,43 +124,39 @@ describe('InstagramClient', () => {
     })
   })
 
-  describe('plaintextPassword format', () => {
-    it('produces #PWD_INSTAGRAM:0:timestamp:rawpassword format', async () => {
-      fetchResponses.push(
-        new Response(null, {
-          status: 200,
-          headers: {},
-        }),
-      )
-      fetchResponses.push(jsonResponse({ status: 'ok', logged_in_user: { pk: '99' } }))
+  function encryptionKeyResponse(): Response {
+    return new Response(null, {
+      status: 200,
+      headers: new Headers({
+        'ig-set-password-encryption-pub-key': rsaPublicKeyBase64,
+        'ig-set-password-encryption-key-id': '7',
+      }),
+    })
+  }
+
+  describe('authenticate password encryption', () => {
+    it('fails closed when Instagram returns no encryption key', async () => {
+      fetchResponses.push(new Response(null, { status: 200, headers: {} }))
 
       const client = new InstagramClient()
-      const before = Math.floor(Date.now() / 1000)
-      await client.authenticate('user', 'mypassword')
-      const after = Math.floor(Date.now() / 1000)
+      const err = await client.authenticate('user', 'mypassword').catch((e: unknown) => e)
 
-      const loginBody = urlParamsBody(1)
-      const encPassword = loginBody['enc_password'] ?? ''
-
-      expect(encPassword).toMatch(/^#PWD_INSTAGRAM:0:\d+:/)
-      const [, , ts, raw] = encPassword.split(':')
-      expect(Number(ts)).toBeGreaterThanOrEqual(before)
-      expect(Number(ts)).toBeLessThanOrEqual(after)
-      expect(raw).toBe('mypassword')
+      expect(err).toBeInstanceOf(InstagramError)
+      expect((err as InstagramError).code).toBe('encryption_key_missing')
     })
-  })
 
-  describe('encryptPassword format', () => {
+    it('never sends a plaintext password', async () => {
+      fetchResponses.push(new Response(null, { status: 200, headers: {} }))
+
+      const client = new InstagramClient()
+      await client.authenticate('user', 'supersecret').catch(() => undefined)
+
+      const preLoginBody = fetchCalls[0]?.init?.body
+      expect(String(preLoginBody ?? '')).not.toContain('supersecret')
+    })
+
     it('produces #PWD_INSTAGRAM:4:timestamp:base64 format when encryption key provided', async () => {
-      fetchResponses.push(
-        new Response(null, {
-          status: 200,
-          headers: new Headers({
-            'ig-set-password-encryption-pub-key': rsaPublicKeyBase64,
-            'ig-set-password-encryption-key-id': '7',
-          }),
-        }),
-      )
+      fetchResponses.push(encryptionKeyResponse())
       fetchResponses.push(jsonResponse({ status: 'ok', logged_in_user: { pk: '99' } }))
 
       const client = new InstagramClient()
@@ -159,7 +164,7 @@ describe('InstagramClient', () => {
       await client.authenticate('user', 'secret')
       const after = Math.floor(Date.now() / 1000)
 
-      const loginBody = urlParamsBody(1)
+      const loginBody = signedBody(1)
       const encPassword = loginBody['enc_password'] ?? ''
 
       expect(encPassword).toMatch(/^#PWD_INSTAGRAM:4:\d+:.+/)
@@ -170,11 +175,50 @@ describe('InstagramClient', () => {
       expect(parts[3]).toBeTruthy()
       expect(() => Buffer.from(parts[3] ?? '', 'base64')).not.toThrow()
     })
+
+    it('signs the login body and includes anti-bot login fields', async () => {
+      fetchResponses.push(encryptionKeyResponse())
+      fetchResponses.push(jsonResponse({ status: 'ok', logged_in_user: { pk: '99' } }))
+
+      const client = new InstagramClient()
+      await client.authenticate('user', 'secret')
+
+      const raw = fetchCalls[1]?.init?.body
+      const params = new URLSearchParams(String(raw ?? ''))
+      const signedBodyRaw = params.get('signed_body') ?? ''
+
+      expect(params.get('ig_sig_key_version')).toBe('4')
+      expect(signedBodyRaw).toMatch(/^[a-f0-9]{64}\./)
+
+      const login = signedBody(1)
+      expect(login['jazoest']).toMatch(/^2\d+$/)
+      expect(login['google_tokens']).toBe('[]')
+      expect(login['adid']).toBeTruthy()
+      expect(login['country_codes']).toContain('country_code')
+    })
+
+    it.each(['7abc', '1.5', '-1', '256'])('rejects malformed encryption key id %p', async (keyId) => {
+      fetchResponses.push(
+        new Response(null, {
+          status: 200,
+          headers: new Headers({
+            'ig-set-password-encryption-pub-key': rsaPublicKeyBase64,
+            'ig-set-password-encryption-key-id': keyId,
+          }),
+        }),
+      )
+
+      const client = new InstagramClient()
+      const err = await client.authenticate('user', 'secret').catch((e: unknown) => e)
+
+      expect(err).toBeInstanceOf(InstagramError)
+      expect((err as InstagramError).code).toBe('encryption_key_invalid')
+    })
   })
 
   describe('buildHeaders', () => {
     it('includes required Instagram headers', async () => {
-      fetchResponses.push(new Response(null, { status: 200, headers: {} }))
+      fetchResponses.push(encryptionKeyResponse())
       fetchResponses.push(jsonResponse({ status: 'ok', logged_in_user: { pk: '99' } }))
 
       const client = new InstagramClient()
@@ -186,6 +230,8 @@ describe('InstagramClient', () => {
       expect(headers['User-Agent']).toMatch(/^Instagram \d+\.\d+\.\d+\.\d+\.\d+ Android \(/)
       expect(headers['X-IG-Capabilities']).toBeTruthy()
       expect(headers['X-IG-Connection-Type']).toBe('WIFI')
+      expect(headers['X-Bloks-Version-Id']).toBeTruthy()
+      expect(headers['X-IG-WWW-Claim']).toBe('0')
       expect(headers['Content-Type']).toContain('application/x-www-form-urlencoded')
     })
 
@@ -386,6 +432,85 @@ describe('InstagramClient', () => {
       expect(body['text']).toBe('Hey there')
       expect(body['action']).toBe('send_item')
       expect(body['client_context']).toBeTruthy()
+    })
+  })
+
+  describe('twoFactorLogin', () => {
+    it('completes via the legacy endpoint and signs the body', async () => {
+      fetchResponses.push(jsonResponse({ status: 'ok', logged_in_user: { pk: '77' } }))
+
+      const client = await loadedClient()
+      const result = await client.twoFactorLogin('user', '123456', 'ident-1')
+
+      expect(result.userId).toBe('77')
+      expect(fetchCalls[0]?.url).toContain('/accounts/two_factor_login/')
+
+      const params = new URLSearchParams(String(fetchCalls[0]?.init?.body ?? ''))
+      expect(params.get('signed_body')).toMatch(/^[a-f0-9]{64}\./)
+      const body = signedBody(0)
+      expect(body['verification_code']).toBe('123456')
+      expect(body['two_factor_identifier']).toBe('ident-1')
+    })
+
+    it('falls back to the Bloks flow when the legacy endpoint rejects params', async () => {
+      fetchResponses.push(jsonResponse({ status: 'fail', message: 'Invalid parameters' }, 400))
+      fetchResponses.push(jsonResponse({ status: 'ok', logged_in_user: { pk: '88' } }))
+
+      const client = await loadedClient()
+      const result = await client.twoFactorLogin('user', '654321', 'ctx-9')
+
+      expect(result.userId).toBe('88')
+      expect(fetchCalls[1]?.url).toContain('two_step_verification.verify_code.async')
+
+      const params = new URLSearchParams(String(fetchCalls[1]?.init?.body ?? ''))
+      expect(params.get('signed_body')).toBeNull()
+      expect(params.get('params')).toContain('654321')
+    })
+
+    it('passes the Bloks context from the failed legacy response, not the legacy identifier', async () => {
+      fetchResponses.push(jsonResponse({ status: 'fail', two_step_verification_context: 'real-bloks-ctx' }, 400))
+      fetchResponses.push(jsonResponse({ status: 'ok', logged_in_user: { pk: '88' } }))
+
+      const client = await loadedClient()
+      await client.twoFactorLogin('user', '654321', 'legacy-ident')
+
+      const params = new URLSearchParams(String(fetchCalls[1]?.init?.body ?? ''))
+      const bloksParams = JSON.parse(params.get('params') ?? '{}') as {
+        server_params: { two_step_verification_context: string }
+      }
+      expect(bloksParams.server_params.two_step_verification_context).toBe('real-bloks-ctx')
+    })
+
+    it('resolves the Bloks 2FA user id from the ds_user_id cookie when no logged_in_user is returned', async () => {
+      fetchResponses.push(jsonResponse({ status: 'fail', message: 'Invalid parameters' }, 400))
+      fetchResponses.push(
+        jsonResponse({ status: 'ok' }, 200, {
+          'ig-set-authorization': 'Bearer IGT:2:token',
+          'set-cookie': 'ds_user_id=555',
+        }),
+      )
+
+      const client = await loadedClient()
+      client.getSessionState().user_id = undefined
+      const result = await client.twoFactorLogin('user', '654321', 'ctx-9')
+
+      expect(result.userId).toBe('555')
+    })
+
+    it('fails the Bloks 2FA flow when no user id can be resolved', async () => {
+      const noUserSession: InstagramSessionState = { ...SESSION, cookies: '', user_id: undefined }
+      const noUserPath = join(testDir, 'no-user-session.json')
+      writeFileSync(noUserPath, JSON.stringify(noUserSession))
+
+      fetchResponses.push(jsonResponse({ status: 'fail', message: 'Invalid parameters' }, 400))
+      fetchResponses.push(jsonResponse({ status: 'ok' }, 200, { 'ig-set-authorization': 'Bearer IGT:2:token' }))
+
+      const client = new InstagramClient()
+      await client.loadSession(noUserPath)
+      const err = await client.twoFactorLogin('user', '654321', 'ctx-9').catch((e: unknown) => e)
+
+      expect(err).toBeInstanceOf(InstagramError)
+      expect((err as InstagramError).code).toBe('two_factor_failed')
     })
   })
 })
