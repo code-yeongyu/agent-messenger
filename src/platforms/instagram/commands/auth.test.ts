@@ -10,7 +10,7 @@ const mockListAccounts = mock(() => Promise.resolve([]))
 const mockSetCurrent = mock(() => Promise.resolve(true))
 const mockRemoveAccount = mock(() => Promise.resolve(true))
 
-import { authCommand } from './auth'
+import { authCommand, sanitizePassword } from './auth'
 
 function resetCommandState(cmd: Command): void {
   for (const sub of cmd.commands) {
@@ -214,6 +214,31 @@ describe('auth commands', () => {
 
       const output = JSON.parse(consoleLogSpy.mock.calls[0][0])
       expect(output.error).toContain('missing_account')
+    })
+  })
+
+  describe('sanitizePassword', () => {
+    it('preserves leading and trailing whitespace', () => {
+      expect(sanitizePassword('  pass word  ')).toBe('  pass word  ')
+      expect(sanitizePassword('\tpw\t')).toBe('\tpw\t')
+    })
+
+    it('preserves internal characters exactly', () => {
+      expect(sanitizePassword('p@$$ w0rd!#')).toBe('p@$$ w0rd!#')
+    })
+
+    it('strips only a trailing carriage return', () => {
+      expect(sanitizePassword('secret\r')).toBe('secret')
+      expect(sanitizePassword('sec\rret')).toBe('sec\rret')
+    })
+
+    it('returns undefined for empty input', () => {
+      expect(sanitizePassword('')).toBeUndefined()
+      expect(sanitizePassword('\r')).toBeUndefined()
+    })
+
+    it('keeps a whitespace-only password (not treated as empty)', () => {
+      expect(sanitizePassword('   ')).toBe('   ')
     })
   })
 })
