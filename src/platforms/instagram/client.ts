@@ -196,11 +196,11 @@ export class InstagramClient {
       throw new InstagramError(
         'This account appears to sign in with Facebook and has no usable Instagram password for CLI login. ' +
           'Most reliable fix: log in to instagram.com in your browser, then run "agent-instagram auth extract". ' +
-          'Alternatively, give the account its own password: in the Instagram app go to ' +
+          'Alternatively, give the account its own password. Most reliably, unlink Facebook first: in the Instagram app go to ' +
+          'Menu > Settings and privacy > Accounts Center > Manage accounts > (your Facebook profile) Manage > ' +
+          'Move out of this Account Center > Move account > Continue; removing it prompts you to create an Instagram password. ' +
+          'If Facebook is already unlinked, set one directly under ' +
           'Menu > Settings and privacy > Accounts Center > Password and security > Change password. ' +
-          'If it will not let you set one, unlink Facebook in the same app under ' +
-          'Menu > Settings and privacy > Accounts Center > Accounts > Remove (next to Facebook); ' +
-          'removing it prompts you to create an Instagram password. ' +
           'Setting a password may enable "auth login", though Instagram can still reject automated logins from a new device.',
         'facebook_linked',
       )

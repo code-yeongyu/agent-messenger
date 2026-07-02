@@ -269,6 +269,7 @@ describe('InstagramClient', () => {
       expect((err as InstagramError).message).toContain('auth extract')
       expect((err as InstagramError).message).toContain('password')
       expect((err as InstagramError).message).toContain('unlink Facebook')
+      expect((err as InstagramError).message).toContain('Move out of this Account Center')
     })
 
     it('throws the generic login error for a real bad_password without the Facebook button', async () => {
