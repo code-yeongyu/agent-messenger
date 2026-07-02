@@ -404,28 +404,42 @@ describe('InstagramClient', () => {
   })
 
   describe('email login flow', () => {
-    it('sends the recovery flow email and reports the contact point', async () => {
+    it('looks up the user id then triggers one_click_login with auto_send', async () => {
+      fetchResponses.push(jsonResponse({ status: 'ok', user_id: '4242' }))
       fetchResponses.push(jsonResponse({ status: 'ok', obfuscated_email: 'j***@example.com' }))
 
       const client = new InstagramClient()
-      const result = await client.sendRecoveryFlowEmail('user')
+      const result = await client.sendOneClickLoginEmail('user')
 
-      expect(fetchCalls[0]?.url).toContain('/accounts/send_recovery_flow_email/')
-      const body = urlParamsBody(0)
-      expect(body['query']).toBe('user')
-      expect(body['guid']).toBeTruthy()
-      expect(body['device_id']).toBeTruthy()
+      expect(fetchCalls[0]?.url).toContain('/users/lookup/')
+      expect(fetchCalls[1]?.url).toContain('/accounts/one_click_login/')
+      const body = urlParamsBody(1)
+      expect(body['uid']).toBe('4242')
+      expect(body['source']).toBe('one_click_login_email')
+      expect(body['auto_send']).toBe('true')
+      expect(body['token']).toBeUndefined()
       expect(result).toEqual({ sent: true, contactPoint: 'j***@example.com' })
     })
 
-    it('throws when the recovery email request fails', async () => {
-      fetchResponses.push(jsonResponse({ status: 'fail', message: 'No account found' }))
+    it('throws when the username cannot be resolved to a user id', async () => {
+      fetchResponses.push(jsonResponse({ status: 'fail', message: 'User not found' }))
 
       const client = new InstagramClient()
-      const err = await client.sendRecoveryFlowEmail('nobody').catch((e: unknown) => e)
+      const err = await client.sendOneClickLoginEmail('nobody').catch((e: unknown) => e)
 
       expect(err).toBeInstanceOf(InstagramError)
-      expect((err as InstagramError).code).toBe('recovery_email_failed')
+      expect((err as InstagramError).code).toBe('user_lookup_failed')
+    })
+
+    it('throws when the one_click_login auto_send request fails', async () => {
+      fetchResponses.push(jsonResponse({ status: 'ok', user_id: '4242' }))
+      fetchResponses.push(jsonResponse({ status: 'fail', message: 'Please wait a few minutes' }))
+
+      const client = new InstagramClient()
+      const err = await client.sendOneClickLoginEmail('user').catch((e: unknown) => e)
+
+      expect(err).toBeInstanceOf(InstagramError)
+      expect((err as InstagramError).code).toBe('one_click_email_failed')
     })
 
     it('redeems a one-click login token for a session', async () => {
