@@ -199,7 +199,8 @@ export class InstagramClient {
           'Alternatively, give the account its own password: in the Instagram app go to ' +
           'Menu > Settings and privacy > Accounts Center > Password and security > Change password. ' +
           'If it will not let you set one, unlink Facebook in the same app under ' +
-          'Menu > Settings and privacy > Accounts Center > Accounts > Remove (next to Facebook); ' +
+          'Menu > Settings and privacy > Accounts Center > Manage accounts > (your Facebook profile) Manage > ' +
+          'Move out of this Account Center > Move account > Continue; ' +
           'removing it prompts you to create an Instagram password. ' +
           'Setting a password may enable "auth login", though Instagram can still reject automated logins from a new device.',
         'facebook_linked',
