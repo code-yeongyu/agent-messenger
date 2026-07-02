@@ -3,7 +3,7 @@ import { generateKeyPairSync } from 'node:crypto'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { InstagramClient } from '@/platforms/instagram/client'
+import { InstagramClient, parseOneClickLoginLink } from '@/platforms/instagram/client'
 import { InstagramCredentialManager } from '@/platforms/instagram/credential-manager'
 import { InstagramError, type InstagramSessionState } from '@/platforms/instagram/types'
 
@@ -330,6 +330,81 @@ describe('InstagramClient', () => {
       const saved = await manager.loadDevice()
       expect(saved).not.toBeNull()
       expect(saved?.android_device_id).toMatch(/^android-[0-9a-f]{16}$/)
+    })
+  })
+
+  describe('parseOneClickLoginLink', () => {
+    it('extracts uid and token from a full web_emaillogin URL', () => {
+      const url = 'https://www.instagram.com/_n/web_emaillogin?uid=ENCODED_UID&token=NONCE123&auto_send=0'
+      expect(parseOneClickLoginLink(url)).toEqual({ uid: 'ENCODED_UID', token: 'NONCE123' })
+    })
+
+    it('extracts from a bare query string without a scheme', () => {
+      expect(parseOneClickLoginLink('uid=abc&token=xyz')).toEqual({ uid: 'abc', token: 'xyz' })
+    })
+
+    it('trims surrounding whitespace', () => {
+      expect(parseOneClickLoginLink('  https://x/?uid=a&token=b  ')).toEqual({ uid: 'a', token: 'b' })
+    })
+
+    it('strips a trailing #fragment so token is not corrupted', () => {
+      const url = 'https://www.instagram.com/_n/web_emaillogin?uid=U1&token=T1#tracking-anchor'
+      expect(parseOneClickLoginLink(url)).toEqual({ uid: 'U1', token: 'T1' })
+    })
+
+    it('returns null when uid or token is missing', () => {
+      expect(parseOneClickLoginLink('https://www.instagram.com/?uid=only')).toBeNull()
+      expect(parseOneClickLoginLink('not a link')).toBeNull()
+    })
+  })
+
+  describe('email login flow', () => {
+    it('sends the recovery flow email and reports the contact point', async () => {
+      fetchResponses.push(jsonResponse({ status: 'ok', obfuscated_email: 'j***@example.com' }))
+
+      const client = new InstagramClient()
+      const result = await client.sendRecoveryFlowEmail('user')
+
+      expect(fetchCalls[0]?.url).toContain('/accounts/send_recovery_flow_email/')
+      const body = urlParamsBody(0)
+      expect(body['query']).toBe('user')
+      expect(body['guid']).toBeTruthy()
+      expect(body['device_id']).toBeTruthy()
+      expect(result).toEqual({ sent: true, contactPoint: 'j***@example.com' })
+    })
+
+    it('throws when the recovery email request fails', async () => {
+      fetchResponses.push(jsonResponse({ status: 'fail', message: 'No account found' }))
+
+      const client = new InstagramClient()
+      const err = await client.sendRecoveryFlowEmail('nobody').catch((e: unknown) => e)
+
+      expect(err).toBeInstanceOf(InstagramError)
+      expect((err as InstagramError).code).toBe('recovery_email_failed')
+    })
+
+    it('redeems a one-click login token for a session', async () => {
+      fetchResponses.push(jsonResponse({ status: 'ok', logged_in_user: { pk: '4242' } }))
+
+      const client = new InstagramClient()
+      const result = await client.oneClickLogin('ENCODED_UID', 'NONCE123')
+
+      expect(fetchCalls[0]?.url).toContain('/accounts/one_click_login/')
+      const body = urlParamsBody(0)
+      expect(body['uid']).toBe('ENCODED_UID')
+      expect(body['token']).toBe('NONCE123')
+      expect(body['source']).toBe('one_click_login_email')
+      expect(result.userId).toBe('4242')
+    })
+
+    it('throws when one-click login returns no session', async () => {
+      fetchResponses.push(jsonResponse({ status: 'fail', message: 'Invalid token' }, 400))
+
+      const client = new InstagramClient()
+      const err = await client.oneClickLogin('uid', 'bad').catch((e: unknown) => e)
+
+      expect(err).toBeInstanceOf(InstagramError)
+      expect((err as InstagramError).code).toBe('one_click_login_failed')
     })
   })
 
