@@ -196,10 +196,21 @@ Session data (cookies and tokens) is stored per account:
 ~/.config/agent-messenger/instagram/<account-id>/
 ```
 
+A device profile (randomized Android device identifiers) is generated once and
+shared across all accounts on this machine, so repeat logins present a
+consistent device fingerprint:
+
+```
+~/.config/agent-messenger/instagram/device.json
+```
+
 ### Security
 
 - Credentials file permissions: `0600` (owner read/write only)
 - Session cookies are stored in plaintext on disk
+- `device.json` holds no secrets — only synthetic device identifiers — but is
+  shared across accounts, so all accounts on this machine share one device
+  fingerprint
 - Keep these files secure. They grant full access to your Instagram account
 - Never commit to version control
 
