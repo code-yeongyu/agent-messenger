@@ -301,6 +301,7 @@ export class InstagramClient {
     const device = await this.ensureDeviceSession()
     const uid = await this.lookupUserId(username)
 
+    this.debugLog?.(`one_click_login auto_send for uid=${uid}`)
     const { status, data } = await this.request('POST', '/accounts/one_click_login/', {
       uid,
       source: 'one_click_login_email',
@@ -309,6 +310,7 @@ export class InstagramClient {
       device_id: device.android_device_id,
       adid: device.advertising_id,
     })
+    this.debugLog?.(`one_click_login response status=${status} body=${JSON.stringify(data)}`)
 
     if (status !== 200 || data['status'] === 'fail') {
       const message = (data['message'] as string) ?? 'Failed to send login email'
@@ -323,7 +325,8 @@ export class InstagramClient {
   private async lookupUserId(username: string): Promise<string> {
     const device = await this.ensureDeviceSession()
 
-    const { data } = await this.request(
+    this.debugLog?.(`users/lookup for ${username}`)
+    const { status, data } = await this.request(
       'POST',
       '/users/lookup/',
       {
@@ -336,6 +339,7 @@ export class InstagramClient {
       },
       { signed: true },
     )
+    this.debugLog?.(`users/lookup response status=${status} body=${JSON.stringify(data)}`)
 
     const userId = (data['user_id'] ?? data['uid'] ?? data['pk']) as string | number | undefined
     if (userId == null || String(userId).length === 0) {
@@ -809,7 +813,15 @@ export class InstagramClient {
     }
 
     if (response.status === 429) {
-      throw new InstagramError('Rate limited by Instagram. Try again later.', 'rate_limited')
+      const body = await response.text().catch(() => '')
+      this.debugLog?.(`429 from ${path} body=${body}`)
+      const igMessage = this.extractJsonMessage(body)
+      throw new InstagramError(
+        igMessage
+          ? `Rate limited by Instagram: ${igMessage} Wait before trying again.`
+          : 'Rate limited by Instagram. Try again later.',
+        'rate_limited',
+      )
     }
 
     let data: Record<string, unknown>
@@ -820,6 +832,15 @@ export class InstagramClient {
     }
 
     return { status: response.status, data }
+  }
+
+  private extractJsonMessage(body: string): string {
+    try {
+      const parsed = JSON.parse(body) as Record<string, unknown>
+      return (parsed['message'] as string) ?? ''
+    } catch {
+      return ''
+    }
   }
 
   private buildHeaders(): Record<string, string> {

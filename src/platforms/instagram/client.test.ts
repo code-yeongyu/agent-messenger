@@ -607,6 +607,21 @@ describe('InstagramClient', () => {
       expect((err as InstagramError).code).toBe('rate_limited')
     })
 
+    it('surfaces Instagram message from a 429 JSON body', async () => {
+      fetchResponses.push(
+        new Response(JSON.stringify({ message: 'Please wait a few minutes before you try again.', status: 'fail' }), {
+          status: 429,
+        }),
+      )
+
+      const client = await loadedClient()
+
+      const err = await client.listChats().catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(InstagramError)
+      expect((err as InstagramError).code).toBe('rate_limited')
+      expect((err as InstagramError).message).toContain('Please wait a few minutes')
+    })
+
     it('throws on JSON parse error', async () => {
       fetchResponses.push(new Response('not json', { status: 200 }))
 
