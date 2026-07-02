@@ -192,6 +192,20 @@ export class InstagramClient {
       return { userId: '', challengeRequired: true, challengePath: challengeApiPath }
     }
 
+    if (this.isFacebookLinkedLogin(data)) {
+      throw new InstagramError(
+        'This account appears to sign in with Facebook and has no usable Instagram password for CLI login. ' +
+          'Most reliable fix: log in to instagram.com in your browser, then run "agent-instagram auth extract". ' +
+          'Alternatively, give the account its own password: in the Instagram app go to ' +
+          'Menu > Settings and privacy > Accounts Center > Password and security > Change password. ' +
+          'If it will not let you set one, unlink Facebook in the same app under ' +
+          'Menu > Settings and privacy > Accounts Center > Accounts > Remove (next to Facebook); ' +
+          'removing it prompts you to create an Instagram password. ' +
+          'Setting a password may enable "auth login", though Instagram can still reject automated logins from a new device.',
+        'facebook_linked',
+      )
+    }
+
     if (status !== 200 || data['status'] !== 'ok') {
       const message = (data['message'] as string) ?? 'Login failed'
       throw new InstagramError(message, errorType ?? 'login_failed')
@@ -236,6 +250,12 @@ export class InstagramClient {
 
     await this.finalizeLogin(data)
     return { userId: this.userId ?? '' }
+  }
+
+  private isFacebookLinkedLogin(data: Record<string, unknown>): boolean {
+    const buttons = data['buttons']
+    if (!Array.isArray(buttons)) return false
+    return buttons.some((button) => (button as Record<string, unknown>)?.['action'] === 'login_with_facebook')
   }
 
   private isBloksTwoFactorFallback(status: number, data: Record<string, unknown>): boolean {
