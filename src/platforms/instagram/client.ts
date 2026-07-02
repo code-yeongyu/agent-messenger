@@ -294,25 +294,59 @@ export class InstagramClient {
     return { userId: this.userId ?? '' }
   }
 
-  async sendRecoveryFlowEmail(query: string): Promise<{ sent: boolean; contactPoint: string }> {
+  // The login dialog's "send_one_click_login_email" button triggers /accounts/one_click_login/
+  // with auto_send=true (NOT /accounts/send_recovery_flow_email/, which is the generic password
+  // reset). It needs the account's numeric user id, resolved via a pre-login /users/lookup/.
+  async sendOneClickLoginEmail(username: string): Promise<{ sent: boolean; contactPoint: string }> {
     const device = await this.ensureDeviceSession()
+    const uid = await this.lookupUserId(username)
 
-    const { data } = await this.request('POST', '/accounts/send_recovery_flow_email/', {
-      _csrftoken: this.cookies.get('csrftoken') ?? generateToken(),
-      adid: device.advertising_id,
+    this.debugLog?.(`one_click_login auto_send for uid=${uid}`)
+    const { status, data } = await this.request('POST', '/accounts/one_click_login/', {
+      uid,
+      source: 'one_click_login_email',
+      auto_send: 'true',
       guid: device.uuid,
       device_id: device.android_device_id,
-      query,
+      adid: device.advertising_id,
     })
+    this.debugLog?.(`one_click_login response status=${status} body=${JSON.stringify(data)}`)
 
-    if (data['status'] === 'fail') {
+    if (status !== 200 || data['status'] === 'fail') {
       const message = (data['message'] as string) ?? 'Failed to send login email'
-      throw new InstagramError(message, 'recovery_email_failed')
+      throw new InstagramError(message, 'one_click_email_failed')
     }
 
     const contactPoint =
       (data['obfuscated_email'] as string) ?? (data['email'] as string) ?? (data['contact_point'] as string) ?? ''
     return { sent: true, contactPoint }
+  }
+
+  private async lookupUserId(username: string): Promise<string> {
+    const device = await this.ensureDeviceSession()
+
+    this.debugLog?.(`users/lookup for ${username}`)
+    const { status, data } = await this.request(
+      'POST',
+      '/users/lookup/',
+      {
+        q: username,
+        directly_sign_in: 'true',
+        _csrftoken: this.cookies.get('csrftoken') ?? generateToken(),
+        guid: device.uuid,
+        device_id: device.android_device_id,
+        country_codes: JSON.stringify([{ country_code: this.countryCode, source: ['default'] }]),
+      },
+      { signed: true },
+    )
+    this.debugLog?.(`users/lookup response status=${status} body=${JSON.stringify(data)}`)
+
+    const userId = (data['user_id'] ?? data['uid'] ?? data['pk']) as string | number | undefined
+    if (userId == null || String(userId).length === 0) {
+      const message = (data['message'] as string) ?? `Could not find an Instagram account for "${username}".`
+      throw new InstagramError(message, 'user_lookup_failed')
+    }
+    return String(userId)
   }
 
   async oneClickLogin(uid: string, token: string, source = 'one_click_login_email'): Promise<{ userId: string }> {
@@ -834,7 +868,15 @@ export class InstagramClient {
     }
 
     if (response.status === 429) {
-      throw new InstagramError('Rate limited by Instagram. Try again later.', 'rate_limited')
+      const body = await response.text().catch(() => '')
+      this.debugLog?.(`429 from ${path} body=${body}`)
+      const igMessage = this.extractJsonMessage(body)
+      throw new InstagramError(
+        igMessage
+          ? `Rate limited by Instagram: ${igMessage} Wait before trying again.`
+          : 'Rate limited by Instagram. Try again later.',
+        'rate_limited',
+      )
     }
 
     let data: Record<string, unknown>
@@ -845,6 +887,15 @@ export class InstagramClient {
     }
 
     return { status: response.status, data }
+  }
+
+  private extractJsonMessage(body: string): string {
+    try {
+      const parsed = JSON.parse(body) as Record<string, unknown>
+      return (parsed['message'] as string) ?? ''
+    } catch {
+      return ''
+    }
   }
 
   private buildHeaders(): Record<string, string> {

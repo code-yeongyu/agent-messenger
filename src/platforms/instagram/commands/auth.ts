@@ -197,7 +197,7 @@ async function loginAction(options: LoginOptions): Promise<void> {
       if (interactive) {
         await runEmailLogin(manager, username, options, client)
       } else {
-        const { contactPoint } = await client.sendRecoveryFlowEmail(username)
+        const { contactPoint } = await client.sendOneClickLoginEmail(username)
         console.log(
           formatOutput(
             {
@@ -283,7 +283,7 @@ async function loginEmailAction(options: LoginEmailOptions): Promise<void> {
     if (options.debug) client.setDebugLog((msg) => debug(`[debug] ${msg}`))
 
     if (!interactive) {
-      const { contactPoint } = await client.sendRecoveryFlowEmail(username)
+      const { contactPoint } = await client.sendOneClickLoginEmail(username)
       console.log(
         formatOutput(
           {
@@ -310,7 +310,7 @@ async function runEmailLogin(
   options: LoginEmailOptions,
   client: InstagramClient,
 ): Promise<void> {
-  const { contactPoint } = await client.sendRecoveryFlowEmail(username)
+  const { contactPoint } = await client.sendOneClickLoginEmail(username)
 
   info(contactPoint ? `\n  Login email sent to: ${contactPoint}` : '\n  Login email sent.')
   info('  Open the email, copy the "Login as ..." link, and paste it here.')
