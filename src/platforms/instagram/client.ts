@@ -109,7 +109,28 @@ export class InstagramClient {
 
   async login(credentials?: { username: string; password: string }, accountId?: string): Promise<this> {
     if (credentials) {
-      await this.authenticate(credentials.username, credentials.password)
+      const result = await this.authenticate(credentials.username, credentials.password)
+      if (!result.userId) {
+        if (result.requiresTwoFactor) {
+          throw new InstagramError(
+            'Two-factor authentication required. Use the CLI (auth login/verify) to complete 2FA.',
+            'two_factor_required',
+          )
+        }
+        if (result.challengeRequired) {
+          throw new InstagramError(
+            'Instagram requires a security challenge. Use the CLI (auth login/challenge) to resolve it.',
+            'challenge_required',
+          )
+        }
+        if (result.oneClickEmailAvailable) {
+          throw new InstagramError(
+            'Password login was rejected; this account can log in by email. Use the CLI "auth login-email" to complete it.',
+            'one_click_email_available',
+          )
+        }
+        throw new InstagramError('Login did not complete.', 'login_incomplete')
+      }
       return this
     }
 
@@ -154,6 +175,7 @@ export class InstagramClient {
     twoFactorInfo?: Record<string, unknown>
     challengeRequired?: boolean
     challengePath?: string
+    oneClickEmailAvailable?: boolean
   }> {
     const device = await this.resolveDevice()
     this.session = { cookies: '', device }
@@ -219,6 +241,11 @@ export class InstagramClient {
           'Setting a password may enable "auth login", though Instagram can still reject automated logins from a new device.',
         'facebook_linked',
       )
+    }
+
+    if (this.hasLoginButton(data, 'send_one_click_login_email')) {
+      this.session.cookies = this.serializeCookies()
+      return { userId: '', oneClickEmailAvailable: true }
     }
 
     if (status !== 200 || data['status'] !== 'ok') {
@@ -321,9 +348,13 @@ export class InstagramClient {
   }
 
   private isFacebookLinkedLogin(data: Record<string, unknown>): boolean {
+    return this.hasLoginButton(data, 'login_with_facebook')
+  }
+
+  private hasLoginButton(data: Record<string, unknown>, action: string): boolean {
     const buttons = data['buttons']
     if (!Array.isArray(buttons)) return false
-    return buttons.some((button) => (button as Record<string, unknown>)?.['action'] === 'login_with_facebook')
+    return buttons.some((button) => (button as Record<string, unknown>)?.['action'] === action)
   }
 
   private isBloksTwoFactorFallback(status: number, data: Record<string, unknown>): boolean {
