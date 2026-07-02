@@ -107,7 +107,20 @@ export class InstagramAdapter implements PlatformAdapter {
       if (!code) throw new Error('Verification code is required')
       const challengeResult = await client.challengeSubmitCode(result.challengePath, code)
       userId = challengeResult.userId || userId
+    } else if (result.oneClickEmailAvailable) {
+      const { parseOneClickLoginLink } = await import('@/platforms/instagram/client')
+      io.print('Password login was rejected; this account can log in by email. Sending a login email...')
+      const { contactPoint } = await client.sendRecoveryFlowEmail(username)
+      io.print(contactPoint ? `Login email sent to ${contactPoint}.` : 'Login email sent.')
+      const link = await io.prompt('Paste the "Login as ..." link from the email')
+      if (!link) throw new Error('Login link is required')
+      const parsed = parseOneClickLoginLink(link)
+      if (!parsed) throw new Error('Could not read uid and token from the pasted link')
+      const emailResult = await client.oneClickLogin(parsed.uid, parsed.token)
+      userId = emailResult.userId || userId
     }
+
+    if (!userId) throw new Error('Login did not complete')
 
     const now = new Date().toISOString()
     await this.credManager.setAccount({

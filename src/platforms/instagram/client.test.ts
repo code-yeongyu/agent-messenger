@@ -293,6 +293,51 @@ describe('InstagramClient', () => {
       expect(err).toBeInstanceOf(InstagramError)
       expect((err as InstagramError).code).toBe('bad_password')
     })
+
+    it('surfaces oneClickEmailAvailable when Instagram offers send_one_click_login_email', async () => {
+      fetchResponses.push(encryptionKeyResponse())
+      fetchResponses.push(
+        jsonResponse(
+          {
+            status: 'fail',
+            error_type: 'bad_password',
+            message: 'We can send you an email to help you get back into your account.',
+            buttons: [
+              { title: 'Send email', action: 'send_one_click_login_email' },
+              { title: 'Try again', action: 'dismiss' },
+            ],
+          },
+          400,
+        ),
+      )
+
+      const client = new InstagramClient()
+      const result = await client.authenticate('user', 'secret')
+
+      expect(result.oneClickEmailAvailable).toBe(true)
+      expect(result.userId).toBe('')
+    })
+
+    it('login(credentials) throws instead of returning an unauthenticated client on one-click email', async () => {
+      fetchResponses.push(encryptionKeyResponse())
+      fetchResponses.push(
+        jsonResponse(
+          {
+            status: 'fail',
+            error_type: 'bad_password',
+            buttons: [{ title: 'Send email', action: 'send_one_click_login_email' }],
+          },
+          400,
+        ),
+      )
+
+      const client = new InstagramClient()
+      const err = await client.login({ username: 'user', password: 'secret' }).catch((e: unknown) => e)
+
+      expect(err).toBeInstanceOf(InstagramError)
+      expect((err as InstagramError).code).toBe('one_click_email_available')
+      expect(client.getUserId()).toBeNull()
+    })
   })
 
   describe('device persistence', () => {

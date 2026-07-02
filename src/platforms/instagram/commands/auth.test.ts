@@ -363,4 +363,33 @@ describe('auth commands', () => {
       oneClickSpy.mockRestore()
     })
   })
+
+  describe('login email fallback', () => {
+    it('non-interactively sends the login email when password login offers it', async () => {
+      const authSpy = spyOn(InstagramClient.prototype, 'authenticate').mockResolvedValue({
+        userId: '',
+        oneClickEmailAvailable: true,
+      })
+      const sendEmailSpy = spyOn(InstagramClient.prototype, 'sendRecoveryFlowEmail').mockResolvedValue({
+        sent: true,
+        contactPoint: 'j***@example.com',
+      })
+      const ensurePathsSpy = spyOn(InstagramCredentialManager.prototype, 'ensureAccountPaths').mockResolvedValue({
+        account_dir: '/tmp/x',
+        session_path: '/tmp/x/session.json',
+      })
+
+      await authCommand.parseAsync(['login', '--username', 'alice', '--password', 'wrong', '--pretty'], {
+        from: 'user',
+      })
+
+      expect(sendEmailSpy).toHaveBeenCalledWith('alice')
+      const output = JSON.parse(consoleLogSpy.mock.calls[0]![0] as string)
+      expect(output.one_click_email_available).toBe(true)
+      expect(output.email_sent).toBe(true)
+      expect(output.contact_point).toBe('j***@example.com')
+
+      for (const spy of [authSpy, sendEmailSpy, ensurePathsSpy]) spy.mockRestore()
+    })
+  })
 })
