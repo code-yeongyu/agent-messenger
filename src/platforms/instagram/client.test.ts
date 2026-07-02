@@ -243,6 +243,51 @@ describe('InstagramClient', () => {
     })
   })
 
+  describe('authenticate Facebook-linked accounts', () => {
+    it('throws a clear facebook_linked error when Instagram offers login_with_facebook', async () => {
+      fetchResponses.push(encryptionKeyResponse())
+      fetchResponses.push(
+        jsonResponse(
+          {
+            status: 'fail',
+            error_type: 'bad_password',
+            message: 'You can log in with your linked Facebook account.',
+            buttons: [
+              { title: 'Use Facebook', action: 'login_with_facebook' },
+              { title: 'Try again', action: 'dismiss' },
+            ],
+          },
+          400,
+        ),
+      )
+
+      const client = new InstagramClient()
+      const err = await client.authenticate('user', 'secret').catch((e: unknown) => e)
+
+      expect(err).toBeInstanceOf(InstagramError)
+      expect((err as InstagramError).code).toBe('facebook_linked')
+      expect((err as InstagramError).message).toContain('auth extract')
+      expect((err as InstagramError).message).toContain('password')
+      expect((err as InstagramError).message).toContain('unlink Facebook')
+    })
+
+    it('throws the generic login error for a real bad_password without the Facebook button', async () => {
+      fetchResponses.push(encryptionKeyResponse())
+      fetchResponses.push(
+        jsonResponse(
+          { status: 'fail', error_type: 'bad_password', message: 'The password you entered is incorrect.' },
+          400,
+        ),
+      )
+
+      const client = new InstagramClient()
+      const err = await client.authenticate('user', 'secret').catch((e: unknown) => e)
+
+      expect(err).toBeInstanceOf(InstagramError)
+      expect((err as InstagramError).code).toBe('bad_password')
+    })
+  })
+
   describe('buildHeaders', () => {
     it('includes required Instagram headers', async () => {
       fetchResponses.push(encryptionKeyResponse())
