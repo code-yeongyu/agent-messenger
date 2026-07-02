@@ -187,14 +187,41 @@ describe('InstagramClient', () => {
       const params = new URLSearchParams(String(raw ?? ''))
       const signedBodyRaw = params.get('signed_body') ?? ''
 
-      expect(params.get('ig_sig_key_version')).toBe('4')
-      expect(signedBodyRaw).toMatch(/^[a-f0-9]{64}\./)
+      expect(params.get('ig_sig_key_version')).toBeNull()
+      expect(signedBodyRaw).toMatch(/^SIGNATURE\./)
 
       const login = signedBody(1)
       expect(login['jazoest']).toMatch(/^2\d+$/)
       expect(login['google_tokens']).toBe('[]')
       expect(login['adid']).toBeTruthy()
       expect(login['country_codes']).toContain('country_code')
+      expect(login['_csrftoken']).toBeTruthy()
+      expect(login['_csrftoken']).not.toBe('missing')
+    })
+
+    it('signs bodies with the literal SIGNATURE. prefix and no key version', async () => {
+      fetchResponses.push(encryptionKeyResponse())
+      fetchResponses.push(jsonResponse({ status: 'ok', logged_in_user: { pk: '99' } }))
+
+      const client = new InstagramClient()
+      await client.authenticate('user', 'secret')
+
+      const preLogin = new URLSearchParams(String(fetchCalls[0]?.init?.body ?? ''))
+      expect(preLogin.get('signed_body')).toMatch(/^SIGNATURE\./)
+      expect(preLogin.get('ig_sig_key_version')).toBeNull()
+    })
+
+    it('uses the configured country code in the login body', async () => {
+      fetchResponses.push(encryptionKeyResponse())
+      fetchResponses.push(jsonResponse({ status: 'ok', logged_in_user: { pk: '99' } }))
+
+      const client = new InstagramClient()
+      client.setCountryCode('82')
+      await client.authenticate('user', 'secret')
+
+      const login = signedBody(1)
+      const countryCodes = JSON.parse(login['country_codes'] ?? '[]') as Array<{ country_code: string }>
+      expect(countryCodes[0]?.country_code).toBe('82')
     })
 
     it.each(['7abc', '1.5', '-1', '256'])('rejects malformed encryption key id %p', async (keyId) => {
@@ -446,7 +473,8 @@ describe('InstagramClient', () => {
       expect(fetchCalls[0]?.url).toContain('/accounts/two_factor_login/')
 
       const params = new URLSearchParams(String(fetchCalls[0]?.init?.body ?? ''))
-      expect(params.get('signed_body')).toMatch(/^[a-f0-9]{64}\./)
+      expect(params.get('signed_body')).toMatch(/^SIGNATURE\./)
+      expect(params.get('ig_sig_key_version')).toBeNull()
       const body = signedBody(0)
       expect(body['verification_code']).toBe('123456')
       expect(body['two_factor_identifier']).toBe('ident-1')
