@@ -110,7 +110,7 @@ export class InstagramAdapter implements PlatformAdapter {
     } else if (result.oneClickEmailAvailable) {
       const { parseOneClickLoginLink } = await import('@/platforms/instagram/client')
       io.print('Password login was rejected; this account can log in by email. Sending a login email...')
-      const { contactPoint } = await client.sendRecoveryFlowEmail(username)
+      const { contactPoint } = await client.sendOneClickLoginEmail(username)
       io.print(contactPoint ? `Login email sent to ${contactPoint}.` : 'Login email sent.')
       const link = await io.prompt('Paste the "Login as ..." link from the email')
       if (!link) throw new Error('Login link is required')

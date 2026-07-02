@@ -294,7 +294,7 @@ describe('auth commands', () => {
 
     it('errors on an invalid --link instead of sending a new email', async () => {
       const oneClickSpy = spyOn(InstagramClient.prototype, 'oneClickLogin').mockResolvedValue({ userId: '1' })
-      const sendEmailSpy = spyOn(InstagramClient.prototype, 'sendRecoveryFlowEmail').mockResolvedValue({
+      const sendEmailSpy = spyOn(InstagramClient.prototype, 'sendOneClickLoginEmail').mockResolvedValue({
         sent: true,
         contactPoint: '',
       })
@@ -314,7 +314,7 @@ describe('auth commands', () => {
     })
 
     it('errors when only --uid is provided without --token', async () => {
-      const sendEmailSpy = spyOn(InstagramClient.prototype, 'sendRecoveryFlowEmail').mockResolvedValue({
+      const sendEmailSpy = spyOn(InstagramClient.prototype, 'sendOneClickLoginEmail').mockResolvedValue({
         sent: true,
         contactPoint: '',
       })
@@ -332,7 +332,7 @@ describe('auth commands', () => {
 
     it('treats an explicit empty --link as redeem intent and fails closed', async () => {
       const oneClickSpy = spyOn(InstagramClient.prototype, 'oneClickLogin').mockResolvedValue({ userId: '1' })
-      const sendEmailSpy = spyOn(InstagramClient.prototype, 'sendRecoveryFlowEmail').mockResolvedValue({
+      const sendEmailSpy = spyOn(InstagramClient.prototype, 'sendOneClickLoginEmail').mockResolvedValue({
         sent: true,
         contactPoint: '',
       })
@@ -370,7 +370,7 @@ describe('auth commands', () => {
         userId: '',
         oneClickEmailAvailable: true,
       })
-      const sendEmailSpy = spyOn(InstagramClient.prototype, 'sendRecoveryFlowEmail').mockResolvedValue({
+      const sendEmailSpy = spyOn(InstagramClient.prototype, 'sendOneClickLoginEmail').mockResolvedValue({
         sent: true,
         contactPoint: 'j***@example.com',
       })
