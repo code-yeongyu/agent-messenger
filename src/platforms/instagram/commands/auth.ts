@@ -26,6 +26,13 @@ async function promptText(message: string): Promise<string | undefined> {
   }
 }
 
+// Never trim passwords: they may contain leading/trailing spaces. Trimming corrupts them and
+// Instagram rejects the login as bad_password. Only strip the trailing CR some terminals add.
+export function sanitizePassword(raw: string): string | undefined {
+  const password = raw.replace(/\r$/, '')
+  return password.length > 0 ? password : undefined
+}
+
 async function promptHidden(message: string): Promise<string | undefined> {
   const { createInterface } = await import('node:readline/promises')
   const hiddenOutput = new (class extends Writable {
@@ -41,7 +48,7 @@ async function promptHidden(message: string): Promise<string | undefined> {
     process.stdout.write(`${message}: `)
     const answer = await rl.question('')
     process.stdout.write('\n')
-    return answer.trim() || undefined
+    return sanitizePassword(answer)
   } finally {
     hiddenOutput.muted = false
     rl.close()
