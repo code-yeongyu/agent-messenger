@@ -193,6 +193,27 @@ async function loginAction(options: LoginOptions): Promise<void> {
       return
     }
 
+    if (result.oneClickEmailAvailable) {
+      if (interactive) {
+        await runEmailLogin(manager, username, options, client)
+      } else {
+        const { contactPoint } = await client.sendRecoveryFlowEmail(username)
+        console.log(
+          formatOutput(
+            {
+              one_click_email_available: true,
+              email_sent: true,
+              contact_point: contactPoint,
+              message:
+                'Password login was rejected, but this account can log in by email. A login email was sent. Open the "Login as <username>" link and run "agent-instagram auth login-email --username <username> --link <url>" to finish.',
+            },
+            options.pretty,
+          ),
+        )
+      }
+      return
+    }
+
     await saveAccountAndPrint(manager, accountId, username, result.userId, options.pretty)
   } catch (error) {
     handleError(error as Error)
@@ -261,9 +282,8 @@ async function loginEmailAction(options: LoginEmailOptions): Promise<void> {
     const client = new InstagramClient(manager)
     if (options.debug) client.setDebugLog((msg) => debug(`[debug] ${msg}`))
 
-    const { contactPoint } = await client.sendRecoveryFlowEmail(username)
-
     if (!interactive) {
+      const { contactPoint } = await client.sendRecoveryFlowEmail(username)
       console.log(
         formatOutput(
           {
@@ -278,24 +298,35 @@ async function loginEmailAction(options: LoginEmailOptions): Promise<void> {
       return
     }
 
-    info(contactPoint ? `\n  Login email sent to: ${contactPoint}` : '\n  Login email sent.')
-    info('  Open the email, copy the "Login as ..." link, and paste it here.')
-    const link = await promptText('Login link')
-    if (!link) {
-      stderrError('Login link is required.')
-      process.exit(1)
-    }
-
-    const parsed = parseOneClickLoginLink(link)
-    if (!parsed) {
-      stderrError('Could not read uid and token from the pasted link.')
-      process.exit(1)
-    }
-
-    await redeemLoginEmail(manager, parsed.uid, parsed.token, username, options, client)
+    await runEmailLogin(manager, username, options, client)
   } catch (error) {
     handleError(error as Error)
   }
+}
+
+async function runEmailLogin(
+  manager: InstagramCredentialManager,
+  username: string,
+  options: LoginEmailOptions,
+  client: InstagramClient,
+): Promise<void> {
+  const { contactPoint } = await client.sendRecoveryFlowEmail(username)
+
+  info(contactPoint ? `\n  Login email sent to: ${contactPoint}` : '\n  Login email sent.')
+  info('  Open the email, copy the "Login as ..." link, and paste it here.')
+  const link = await promptText('Login link')
+  if (!link) {
+    stderrError('Login link is required.')
+    process.exit(1)
+  }
+
+  const parsed = parseOneClickLoginLink(link)
+  if (!parsed) {
+    stderrError('Could not read uid and token from the pasted link.')
+    process.exit(1)
+  }
+
+  await redeemLoginEmail(manager, parsed.uid, parsed.token, username, options, client)
 }
 
 function resolveOneClickCredentials(options: LoginEmailOptions): { uid: string; token: string } | null {
