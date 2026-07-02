@@ -61,16 +61,18 @@ export interface InstagramMessageSummary {
   client_context?: string
 }
 
+export interface InstagramDevice {
+  phone_id: string
+  uuid: string
+  android_device_id: string
+  advertising_id: string
+  client_session_id: string
+  device_string: string
+}
+
 export interface InstagramSessionState {
   cookies: string
-  device: {
-    phone_id: string
-    uuid: string
-    android_device_id: string
-    advertising_id: string
-    client_session_id: string
-    device_string: string
-  }
+  device: InstagramDevice
   authorization?: string
   user_id?: string
   mid?: string

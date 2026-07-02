@@ -3,7 +3,8 @@ import { generateKeyPairSync } from 'node:crypto'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { InstagramClient } from '@/platforms/instagram/client'
+import { InstagramClient, parseOneClickLoginLink } from '@/platforms/instagram/client'
+import { InstagramCredentialManager } from '@/platforms/instagram/credential-manager'
 import { InstagramError, type InstagramSessionState } from '@/platforms/instagram/types'
 
 const testDir = join(import.meta.dir, `.test-client-${Date.now()}`)
@@ -23,10 +24,13 @@ const SESSION: InstagramSessionState = {
 }
 
 let rsaPublicKeyBase64: string
+const originalConfigDir = process.env['AGENT_MESSENGER_CONFIG_DIR']
 
 beforeAll(() => {
   mkdirSync(testDir, { recursive: true })
   writeFileSync(sessionPath, JSON.stringify(SESSION))
+  // Sandbox default-manager writes (e.g. device.json) so tests never touch the real config dir.
+  process.env['AGENT_MESSENGER_CONFIG_DIR'] = join(testDir, 'config')
 
   const { publicKey } = generateKeyPairSync('rsa', { modulusLength: 1024 })
   const pem = publicKey.export({ type: 'pkcs1', format: 'pem' }) as string
@@ -34,6 +38,8 @@ beforeAll(() => {
 })
 
 afterAll(() => {
+  if (originalConfigDir === undefined) delete process.env['AGENT_MESSENGER_CONFIG_DIR']
+  else process.env['AGENT_MESSENGER_CONFIG_DIR'] = originalConfigDir
   rmSync(testDir, { recursive: true, force: true })
 })
 
@@ -240,6 +246,210 @@ describe('InstagramClient', () => {
 
       expect(err).toBeInstanceOf(InstagramError)
       expect((err as InstagramError).code).toBe('encryption_key_invalid')
+    })
+  })
+
+  describe('authenticate Facebook-linked accounts', () => {
+    it('throws a clear facebook_linked error when Instagram offers login_with_facebook', async () => {
+      fetchResponses.push(encryptionKeyResponse())
+      fetchResponses.push(
+        jsonResponse(
+          {
+            status: 'fail',
+            error_type: 'bad_password',
+            message: 'You can log in with your linked Facebook account.',
+            buttons: [
+              { title: 'Use Facebook', action: 'login_with_facebook' },
+              { title: 'Try again', action: 'dismiss' },
+            ],
+          },
+          400,
+        ),
+      )
+
+      const client = new InstagramClient()
+      const err = await client.authenticate('user', 'secret').catch((e: unknown) => e)
+
+      expect(err).toBeInstanceOf(InstagramError)
+      expect((err as InstagramError).code).toBe('facebook_linked')
+      expect((err as InstagramError).message).toContain('auth extract')
+      expect((err as InstagramError).message).toContain('password')
+      expect((err as InstagramError).message).toContain('unlink Facebook')
+      expect((err as InstagramError).message).toContain('Move out of this Account Center')
+    })
+
+    it('throws the generic login error for a real bad_password without the Facebook button', async () => {
+      fetchResponses.push(encryptionKeyResponse())
+      fetchResponses.push(
+        jsonResponse(
+          { status: 'fail', error_type: 'bad_password', message: 'The password you entered is incorrect.' },
+          400,
+        ),
+      )
+
+      const client = new InstagramClient()
+      const err = await client.authenticate('user', 'secret').catch((e: unknown) => e)
+
+      expect(err).toBeInstanceOf(InstagramError)
+      expect((err as InstagramError).code).toBe('bad_password')
+    })
+
+    it('surfaces oneClickEmailAvailable when Instagram offers send_one_click_login_email', async () => {
+      fetchResponses.push(encryptionKeyResponse())
+      fetchResponses.push(
+        jsonResponse(
+          {
+            status: 'fail',
+            error_type: 'bad_password',
+            message: 'We can send you an email to help you get back into your account.',
+            buttons: [
+              { title: 'Send email', action: 'send_one_click_login_email' },
+              { title: 'Try again', action: 'dismiss' },
+            ],
+          },
+          400,
+        ),
+      )
+
+      const client = new InstagramClient()
+      const result = await client.authenticate('user', 'secret')
+
+      expect(result.oneClickEmailAvailable).toBe(true)
+      expect(result.userId).toBe('')
+    })
+
+    it('login(credentials) throws instead of returning an unauthenticated client on one-click email', async () => {
+      fetchResponses.push(encryptionKeyResponse())
+      fetchResponses.push(
+        jsonResponse(
+          {
+            status: 'fail',
+            error_type: 'bad_password',
+            buttons: [{ title: 'Send email', action: 'send_one_click_login_email' }],
+          },
+          400,
+        ),
+      )
+
+      const client = new InstagramClient()
+      const err = await client.login({ username: 'user', password: 'secret' }).catch((e: unknown) => e)
+
+      expect(err).toBeInstanceOf(InstagramError)
+      expect((err as InstagramError).code).toBe('one_click_email_available')
+      expect(client.getUserId()).toBeNull()
+    })
+  })
+
+  describe('device persistence', () => {
+    function loginResponses(): void {
+      fetchResponses.push(encryptionKeyResponse())
+      fetchResponses.push(jsonResponse({ status: 'ok', logged_in_user: { pk: '99' } }))
+    }
+
+    it('reuses the same persisted device across separate authenticate calls', async () => {
+      const dir = join(testDir, `device-reuse-${Math.random().toString(36).slice(2)}`)
+      const manager = new InstagramCredentialManager(dir)
+
+      loginResponses()
+      await new InstagramClient(manager).authenticate('user', 'secret')
+      const firstHeaders = (fetchCalls[1]?.init?.headers ?? {}) as Record<string, string>
+      const firstAndroidId = firstHeaders['X-IG-Android-ID']
+
+      loginResponses()
+      await new InstagramClient(manager).authenticate('user', 'secret')
+      const secondHeaders = (fetchCalls[3]?.init?.headers ?? {}) as Record<string, string>
+      const secondAndroidId = secondHeaders['X-IG-Android-ID']
+
+      expect(firstAndroidId).toBeTruthy()
+      expect(secondAndroidId).toBe(firstAndroidId)
+    })
+
+    it('persists a device the first time authenticate runs', async () => {
+      const dir = join(testDir, `device-create-${Math.random().toString(36).slice(2)}`)
+      const manager = new InstagramCredentialManager(dir)
+      expect(await manager.loadDevice()).toBeNull()
+
+      loginResponses()
+      await new InstagramClient(manager).authenticate('user', 'secret')
+
+      const saved = await manager.loadDevice()
+      expect(saved).not.toBeNull()
+      expect(saved?.android_device_id).toMatch(/^android-[0-9a-f]{16}$/)
+    })
+  })
+
+  describe('parseOneClickLoginLink', () => {
+    it('extracts uid and token from a full web_emaillogin URL', () => {
+      const url = 'https://www.instagram.com/_n/web_emaillogin?uid=ENCODED_UID&token=NONCE123&auto_send=0'
+      expect(parseOneClickLoginLink(url)).toEqual({ uid: 'ENCODED_UID', token: 'NONCE123' })
+    })
+
+    it('extracts from a bare query string without a scheme', () => {
+      expect(parseOneClickLoginLink('uid=abc&token=xyz')).toEqual({ uid: 'abc', token: 'xyz' })
+    })
+
+    it('trims surrounding whitespace', () => {
+      expect(parseOneClickLoginLink('  https://x/?uid=a&token=b  ')).toEqual({ uid: 'a', token: 'b' })
+    })
+
+    it('strips a trailing #fragment so token is not corrupted', () => {
+      const url = 'https://www.instagram.com/_n/web_emaillogin?uid=U1&token=T1#tracking-anchor'
+      expect(parseOneClickLoginLink(url)).toEqual({ uid: 'U1', token: 'T1' })
+    })
+
+    it('returns null when uid or token is missing', () => {
+      expect(parseOneClickLoginLink('https://www.instagram.com/?uid=only')).toBeNull()
+      expect(parseOneClickLoginLink('not a link')).toBeNull()
+    })
+  })
+
+  describe('email login flow', () => {
+    it('sends the recovery flow email and reports the contact point', async () => {
+      fetchResponses.push(jsonResponse({ status: 'ok', obfuscated_email: 'j***@example.com' }))
+
+      const client = new InstagramClient()
+      const result = await client.sendRecoveryFlowEmail('user')
+
+      expect(fetchCalls[0]?.url).toContain('/accounts/send_recovery_flow_email/')
+      const body = urlParamsBody(0)
+      expect(body['query']).toBe('user')
+      expect(body['guid']).toBeTruthy()
+      expect(body['device_id']).toBeTruthy()
+      expect(result).toEqual({ sent: true, contactPoint: 'j***@example.com' })
+    })
+
+    it('throws when the recovery email request fails', async () => {
+      fetchResponses.push(jsonResponse({ status: 'fail', message: 'No account found' }))
+
+      const client = new InstagramClient()
+      const err = await client.sendRecoveryFlowEmail('nobody').catch((e: unknown) => e)
+
+      expect(err).toBeInstanceOf(InstagramError)
+      expect((err as InstagramError).code).toBe('recovery_email_failed')
+    })
+
+    it('redeems a one-click login token for a session', async () => {
+      fetchResponses.push(jsonResponse({ status: 'ok', logged_in_user: { pk: '4242' } }))
+
+      const client = new InstagramClient()
+      const result = await client.oneClickLogin('ENCODED_UID', 'NONCE123')
+
+      expect(fetchCalls[0]?.url).toContain('/accounts/one_click_login/')
+      const body = urlParamsBody(0)
+      expect(body['uid']).toBe('ENCODED_UID')
+      expect(body['token']).toBe('NONCE123')
+      expect(body['source']).toBe('one_click_login_email')
+      expect(result.userId).toBe('4242')
+    })
+
+    it('throws when one-click login returns no session', async () => {
+      fetchResponses.push(jsonResponse({ status: 'fail', message: 'Invalid token' }, 400))
+
+      const client = new InstagramClient()
+      const err = await client.oneClickLogin('uid', 'bad').catch((e: unknown) => e)
+
+      expect(err).toBeInstanceOf(InstagramError)
+      expect((err as InstagramError).code).toBe('one_click_login_failed')
     })
   })
 

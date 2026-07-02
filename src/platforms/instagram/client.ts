@@ -9,6 +9,7 @@ import {
   extractMessageText,
   getMessageType,
   type InstagramChatSummary,
+  type InstagramDevice,
   type InstagramMessageSummary,
   type InstagramSessionState,
 } from './types'
@@ -62,6 +63,29 @@ export function generateAndroidDeviceId(): string {
   return `android-${randomBytes(8).toString('hex')}`
 }
 
+export function generateDevice(): InstagramDevice {
+  return {
+    phone_id: randomUUID(),
+    uuid: randomUUID(),
+    android_device_id: generateAndroidDeviceId(),
+    advertising_id: randomUUID(),
+    client_session_id: randomUUID(),
+    device_string: generateDeviceString(),
+  }
+}
+
+export function parseOneClickLoginLink(input: string): { uid: string; token: string } | null {
+  const trimmed = input.trim()
+  let query = trimmed.includes('?') ? trimmed.slice(trimmed.indexOf('?') + 1) : trimmed
+  const hashIdx = query.indexOf('#')
+  if (hashIdx !== -1) query = query.slice(0, hashIdx)
+  const params = new URLSearchParams(query)
+  const uid = params.get('uid')
+  const token = params.get('token')
+  if (uid && token) return { uid, token }
+  return null
+}
+
 // Instagram DM timestamps are in microseconds
 function microsecondsToISO(us: number): string {
   return new Date(us / 1000).toISOString()
@@ -85,7 +109,28 @@ export class InstagramClient {
 
   async login(credentials?: { username: string; password: string }, accountId?: string): Promise<this> {
     if (credentials) {
-      await this.authenticate(credentials.username, credentials.password)
+      const result = await this.authenticate(credentials.username, credentials.password)
+      if (!result.userId) {
+        if (result.requiresTwoFactor) {
+          throw new InstagramError(
+            'Two-factor authentication required. Use the CLI (auth login/verify) to complete 2FA.',
+            'two_factor_required',
+          )
+        }
+        if (result.challengeRequired) {
+          throw new InstagramError(
+            'Instagram requires a security challenge. Use the CLI (auth login/challenge) to resolve it.',
+            'challenge_required',
+          )
+        }
+        if (result.oneClickEmailAvailable) {
+          throw new InstagramError(
+            'Password login was rejected; this account can log in by email. Use the CLI "auth login-email" to complete it.',
+            'one_click_email_available',
+          )
+        }
+        throw new InstagramError('Login did not complete.', 'login_incomplete')
+      }
       return this
     }
 
@@ -130,17 +175,9 @@ export class InstagramClient {
     twoFactorInfo?: Record<string, unknown>
     challengeRequired?: boolean
     challengePath?: string
+    oneClickEmailAvailable?: boolean
   }> {
-    const deviceString = generateDeviceString()
-    const device = {
-      phone_id: randomUUID(),
-      uuid: randomUUID(),
-      android_device_id: generateAndroidDeviceId(),
-      advertising_id: randomUUID(),
-      client_session_id: randomUUID(),
-      device_string: deviceString,
-    }
-
+    const device = await this.resolveDevice()
     this.session = { cookies: '', device }
 
     const encryptionKey = await this.preLoginFlow()
@@ -192,6 +229,25 @@ export class InstagramClient {
       return { userId: '', challengeRequired: true, challengePath: challengeApiPath }
     }
 
+    if (this.isFacebookLinkedLogin(data)) {
+      throw new InstagramError(
+        'This account appears to sign in with Facebook and has no usable Instagram password for CLI login. ' +
+          'Most reliable fix: log in to instagram.com in your browser, then run "agent-instagram auth extract". ' +
+          'Alternatively, give the account its own password. Most reliably, unlink Facebook first: in the Instagram app go to ' +
+          'Menu > Settings and privacy > Accounts Center > Manage accounts > (your Facebook profile) Manage > ' +
+          'Move out of this Account Center > Move account > Continue; removing it prompts you to create an Instagram password. ' +
+          'If Facebook is already unlinked, set one directly under ' +
+          'Menu > Settings and privacy > Accounts Center > Password and security > Change password. ' +
+          'Setting a password may enable "auth login", though Instagram can still reject automated logins from a new device.',
+        'facebook_linked',
+      )
+    }
+
+    if (this.hasLoginButton(data, 'send_one_click_login_email')) {
+      this.session.cookies = this.serializeCookies()
+      return { userId: '', oneClickEmailAvailable: true }
+    }
+
     if (status !== 200 || data['status'] !== 'ok') {
       const message = (data['message'] as string) ?? 'Login failed'
       throw new InstagramError(message, errorType ?? 'login_failed')
@@ -236,6 +292,69 @@ export class InstagramClient {
 
     await this.finalizeLogin(data)
     return { userId: this.userId ?? '' }
+  }
+
+  async sendRecoveryFlowEmail(query: string): Promise<{ sent: boolean; contactPoint: string }> {
+    const device = await this.ensureDeviceSession()
+
+    const { data } = await this.request('POST', '/accounts/send_recovery_flow_email/', {
+      _csrftoken: this.cookies.get('csrftoken') ?? generateToken(),
+      adid: device.advertising_id,
+      guid: device.uuid,
+      device_id: device.android_device_id,
+      query,
+    })
+
+    if (data['status'] === 'fail') {
+      const message = (data['message'] as string) ?? 'Failed to send login email'
+      throw new InstagramError(message, 'recovery_email_failed')
+    }
+
+    const contactPoint =
+      (data['obfuscated_email'] as string) ?? (data['email'] as string) ?? (data['contact_point'] as string) ?? ''
+    return { sent: true, contactPoint }
+  }
+
+  async oneClickLogin(uid: string, token: string, source = 'one_click_login_email'): Promise<{ userId: string }> {
+    const device = await this.ensureDeviceSession()
+
+    const { status, data } = await this.request('POST', '/accounts/one_click_login/', {
+      uid,
+      token,
+      source,
+      device_id: device.android_device_id,
+      guid: device.uuid,
+      adid: device.advertising_id,
+    })
+
+    if (status !== 200 || (data['status'] != null && data['status'] !== 'ok')) {
+      const message = (data['message'] as string) ?? 'One-click login failed'
+      throw new InstagramError(message, 'one_click_login_failed')
+    }
+
+    if (!data['logged_in_user']) {
+      throw new InstagramError('One-click login did not return a session', 'one_click_login_failed')
+    }
+
+    await this.finalizeLogin(data)
+    return { userId: this.userId ?? '' }
+  }
+
+  private async ensureDeviceSession(): Promise<InstagramDevice> {
+    if (!this.session) {
+      this.session = { cookies: '', device: await this.resolveDevice() }
+    }
+    return this.session.device
+  }
+
+  private isFacebookLinkedLogin(data: Record<string, unknown>): boolean {
+    return this.hasLoginButton(data, 'login_with_facebook')
+  }
+
+  private hasLoginButton(data: Record<string, unknown>, action: string): boolean {
+    const buttons = data['buttons']
+    if (!Array.isArray(buttons)) return false
+    return buttons.some((button) => (button as Record<string, unknown>)?.['action'] === action)
   }
 
   private isBloksTwoFactorFallback(status: number, data: Record<string, unknown>): boolean {
@@ -819,6 +938,16 @@ export class InstagramClient {
     }
 
     await this.saveSession()
+  }
+
+  // Reuse one persisted device per machine so repeat logins present a consistent fingerprint.
+  // Regenerating device ids each attempt looks like a brand-new phone and hurts login trust.
+  private async resolveDevice(): Promise<InstagramDevice> {
+    const existing = await this.credentialManager.loadDevice()
+    if (existing) return existing
+    const device = generateDevice()
+    await this.credentialManager.saveDevice(device)
+    return device
   }
 
   private async saveSession(): Promise<void> {
