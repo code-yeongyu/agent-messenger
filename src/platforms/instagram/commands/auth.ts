@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { Writable } from 'node:stream'
 
@@ -10,7 +9,7 @@ import { isInteractive } from '@/shared/utils/interactive'
 import { formatOutput } from '@/shared/utils/output'
 import { info, warn, error as stderrError, debug } from '@/shared/utils/stderr'
 
-import { InstagramClient, generateAndroidDeviceId, generateDeviceString } from '../client'
+import { InstagramClient, generateDevice, parseOneClickLoginLink } from '../client'
 import { InstagramCredentialManager } from '../credential-manager'
 import { InstagramTokenExtractor } from '../token-extractor'
 import { createAccountId } from '../types'
@@ -24,6 +23,13 @@ async function promptText(message: string): Promise<string | undefined> {
   } finally {
     rl.close()
   }
+}
+
+// Never trim passwords: they may contain leading/trailing spaces. Trimming corrupts them and
+// Instagram rejects the login as bad_password. Only strip the trailing CR some terminals add.
+export function sanitizePassword(raw: string): string | undefined {
+  const password = raw.replace(/\r$/, '')
+  return password.length > 0 ? password : undefined
 }
 
 async function promptHidden(message: string): Promise<string | undefined> {
@@ -41,7 +47,7 @@ async function promptHidden(message: string): Promise<string | undefined> {
     process.stdout.write(`${message}: `)
     const answer = await rl.question('')
     process.stdout.write('\n')
-    return answer.trim() || undefined
+    return sanitizePassword(answer)
   } finally {
     hiddenOutput.muted = false
     rl.close()
@@ -187,10 +193,165 @@ async function loginAction(options: LoginOptions): Promise<void> {
       return
     }
 
+    if (result.oneClickEmailAvailable) {
+      if (interactive) {
+        await runEmailLogin(manager, username, options, client)
+      } else {
+        const { contactPoint } = await client.sendRecoveryFlowEmail(username)
+        console.log(
+          formatOutput(
+            {
+              one_click_email_available: true,
+              email_sent: true,
+              contact_point: contactPoint,
+              message:
+                'Password login was rejected, but this account can log in by email. A login email was sent. Open the "Login as <username>" link and run "agent-instagram auth login-email --username <username> --link <url>" to finish.',
+            },
+            options.pretty,
+          ),
+        )
+      }
+      return
+    }
+
     await saveAccountAndPrint(manager, accountId, username, result.userId, options.pretty)
   } catch (error) {
     handleError(error as Error)
   }
+}
+
+interface LoginEmailOptions {
+  username?: string
+  link?: string
+  uid?: string
+  token?: string
+  pretty?: boolean
+  debug?: boolean
+}
+
+async function loginEmailAction(options: LoginEmailOptions): Promise<void> {
+  try {
+    const interactive = isInteractive()
+    const manager = new InstagramCredentialManager()
+
+    // Presence (not truthiness) signals redeem intent: an explicit empty --link "" must still
+    // fail closed here rather than falling through to the send-email branch and re-emailing.
+    const redeemAttempted = options.link !== undefined || options.uid !== undefined || options.token !== undefined
+    if (redeemAttempted) {
+      if (!options.username) {
+        console.log(
+          formatOutput({ error: '--username is required when redeeming a login email link.' }, options.pretty),
+        )
+        process.exit(1)
+      }
+      const redeem = resolveOneClickCredentials(options)
+      if (!redeem) {
+        console.log(
+          formatOutput(
+            { error: 'Invalid login link. Provide a valid --link <url>, or both --uid and --token.' },
+            options.pretty,
+          ),
+        )
+        process.exit(1)
+      }
+      await redeemLoginEmail(manager, redeem.uid, redeem.token, options.username, options)
+      return
+    }
+
+    let username = options.username
+    if (!username) {
+      if (!interactive) {
+        console.log(
+          formatOutput(
+            {
+              error:
+                'Username required. Use --username <username> to send the login email, then --link <url> (or --uid and --token) to complete.',
+            },
+            options.pretty,
+          ),
+        )
+        process.exit(1)
+      }
+      username = await promptText('Instagram username')
+      if (!username) {
+        stderrError('Username is required.')
+        process.exit(1)
+      }
+    }
+
+    const client = new InstagramClient(manager)
+    if (options.debug) client.setDebugLog((msg) => debug(`[debug] ${msg}`))
+
+    if (!interactive) {
+      const { contactPoint } = await client.sendRecoveryFlowEmail(username)
+      console.log(
+        formatOutput(
+          {
+            email_sent: true,
+            contact_point: contactPoint,
+            message:
+              'Login email sent. Open the "Login as <username>" link and run "agent-instagram auth login-email --username <username> --link <url>" to finish.',
+          },
+          options.pretty,
+        ),
+      )
+      return
+    }
+
+    await runEmailLogin(manager, username, options, client)
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
+async function runEmailLogin(
+  manager: InstagramCredentialManager,
+  username: string,
+  options: LoginEmailOptions,
+  client: InstagramClient,
+): Promise<void> {
+  const { contactPoint } = await client.sendRecoveryFlowEmail(username)
+
+  info(contactPoint ? `\n  Login email sent to: ${contactPoint}` : '\n  Login email sent.')
+  info('  Open the email, copy the "Login as ..." link, and paste it here.')
+  const link = await promptText('Login link')
+  if (!link) {
+    stderrError('Login link is required.')
+    process.exit(1)
+  }
+
+  const parsed = parseOneClickLoginLink(link)
+  if (!parsed) {
+    stderrError('Could not read uid and token from the pasted link.')
+    process.exit(1)
+  }
+
+  await redeemLoginEmail(manager, parsed.uid, parsed.token, username, options, client)
+}
+
+function resolveOneClickCredentials(options: LoginEmailOptions): { uid: string; token: string } | null {
+  if (options.link) return parseOneClickLoginLink(options.link)
+  if (options.uid && options.token) return { uid: options.uid, token: options.token }
+  return null
+}
+
+async function redeemLoginEmail(
+  manager: InstagramCredentialManager,
+  uid: string,
+  token: string,
+  username: string,
+  options: LoginEmailOptions,
+  existingClient?: InstagramClient,
+): Promise<void> {
+  const client = existingClient ?? new InstagramClient(manager)
+  if (!existingClient && options.debug) client.setDebugLog((msg) => debug(`[debug] ${msg}`))
+
+  const accountId = createAccountId(username)
+  const paths = await manager.ensureAccountPaths(accountId)
+  client.setSessionPath(paths.session_path)
+
+  const result = await client.oneClickLogin(uid, token)
+  await saveAccountAndPrint(manager, accountId, username, result.userId, options.pretty)
 }
 
 async function handleInteractiveChallenge(
@@ -414,6 +575,12 @@ async function extractAction(options: { pretty?: boolean; debug?: boolean; brows
 
     const manager = new InstagramCredentialManager()
 
+    let device = await manager.loadDevice()
+    if (!device) {
+      device = generateDevice()
+      await manager.saveDevice(device)
+    }
+
     for (const extracted of results) {
       const session = {
         cookies: [
@@ -426,14 +593,7 @@ async function extractAction(options: { pretty?: boolean; debug?: boolean; brows
         ]
           .filter(Boolean)
           .join('; '),
-        device: {
-          phone_id: randomUUID(),
-          uuid: randomUUID(),
-          android_device_id: generateAndroidDeviceId(),
-          advertising_id: randomUUID(),
-          client_session_id: randomUUID(),
-          device_string: generateDeviceString(),
-        },
+        device,
         user_id: extracted.ds_user_id,
         mid: extracted.mid,
       }
@@ -529,6 +689,17 @@ export const authCommand = new Command('auth')
       .option('--pretty', 'Pretty print JSON output')
       .option('--debug', 'Show raw API responses')
       .action(loginAction),
+  )
+  .addCommand(
+    new Command('login-email')
+      .description('Log in via a one-click login email link (no password needed)')
+      .option('--username <username>', 'Instagram username (sends the login email)')
+      .option('--link <url>', 'The "Login as <username>" URL from the email')
+      .option('--uid <uid>', 'uid from the email link (alternative to --link)')
+      .option('--token <token>', 'token from the email link (alternative to --link)')
+      .option('--pretty', 'Pretty print JSON output')
+      .option('--debug', 'Show raw API responses')
+      .action(loginEmailAction),
   )
   .addCommand(
     new Command('extract')

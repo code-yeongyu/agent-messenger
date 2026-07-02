@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, mock, spyOn, it } from 'bun:te
 const originalConsoleLog = console.log
 import type { Command } from 'commander'
 
+import { InstagramClient } from '../client'
 import { InstagramCredentialManager } from '../credential-manager'
 
 const mockGetAccount = mock(() => Promise.resolve(null))
@@ -10,7 +11,7 @@ const mockListAccounts = mock(() => Promise.resolve([]))
 const mockSetCurrent = mock(() => Promise.resolve(true))
 const mockRemoveAccount = mock(() => Promise.resolve(true))
 
-import { authCommand } from './auth'
+import { authCommand, sanitizePassword } from './auth'
 
 function resetCommandState(cmd: Command): void {
   for (const sub of cmd.commands) {
@@ -214,6 +215,181 @@ describe('auth commands', () => {
 
       const output = JSON.parse(consoleLogSpy.mock.calls[0][0])
       expect(output.error).toContain('missing_account')
+    })
+  })
+
+  describe('sanitizePassword', () => {
+    it('preserves leading and trailing whitespace', () => {
+      expect(sanitizePassword('  pass word  ')).toBe('  pass word  ')
+      expect(sanitizePassword('\tpw\t')).toBe('\tpw\t')
+    })
+
+    it('preserves internal characters exactly', () => {
+      expect(sanitizePassword('p@$$ w0rd!#')).toBe('p@$$ w0rd!#')
+    })
+
+    it('strips only a trailing carriage return', () => {
+      expect(sanitizePassword('secret\r')).toBe('secret')
+      expect(sanitizePassword('sec\rret')).toBe('sec\rret')
+    })
+
+    it('returns undefined for empty input', () => {
+      expect(sanitizePassword('')).toBeUndefined()
+      expect(sanitizePassword('\r')).toBeUndefined()
+    })
+
+    it('keeps a whitespace-only password (not treated as empty)', () => {
+      expect(sanitizePassword('   ')).toBe('   ')
+    })
+  })
+
+  describe('login-email', () => {
+    it('redeems uid/token non-interactively and saves the account', async () => {
+      const oneClickSpy = spyOn(InstagramClient.prototype, 'oneClickLogin').mockResolvedValue({ userId: '4242' })
+      const setSessionPathSpy = spyOn(InstagramClient.prototype, 'setSessionPath').mockImplementation(() => {})
+      const ensurePathsSpy = spyOn(InstagramCredentialManager.prototype, 'ensureAccountPaths').mockResolvedValue({
+        account_dir: '/tmp/x',
+        session_path: '/tmp/x/session.json',
+      })
+      const setAccountSpy = spyOn(InstagramCredentialManager.prototype, 'setAccount').mockResolvedValue(undefined)
+
+      await authCommand.parseAsync(
+        ['login-email', '--username', 'alice', '--uid', 'ENCODED_UID', '--token', 'NONCE123', '--pretty'],
+        { from: 'user' },
+      )
+
+      expect(oneClickSpy).toHaveBeenCalledWith('ENCODED_UID', 'NONCE123')
+      expect(setAccountSpy).toHaveBeenCalled()
+      const output = JSON.parse(consoleLogSpy.mock.calls[0]![0] as string)
+      expect(output.authenticated).toBe(true)
+      expect(output.username).toBe('alice')
+
+      for (const spy of [oneClickSpy, setSessionPathSpy, ensurePathsSpy, setAccountSpy]) spy.mockRestore()
+    })
+
+    it('parses uid/token from a pasted --link', async () => {
+      const oneClickSpy = spyOn(InstagramClient.prototype, 'oneClickLogin').mockResolvedValue({ userId: '7' })
+      const setSessionPathSpy = spyOn(InstagramClient.prototype, 'setSessionPath').mockImplementation(() => {})
+      const ensurePathsSpy = spyOn(InstagramCredentialManager.prototype, 'ensureAccountPaths').mockResolvedValue({
+        account_dir: '/tmp/x',
+        session_path: '/tmp/x/session.json',
+      })
+      const setAccountSpy = spyOn(InstagramCredentialManager.prototype, 'setAccount').mockResolvedValue(undefined)
+
+      await authCommand.parseAsync(
+        [
+          'login-email',
+          '--username',
+          'bob',
+          '--link',
+          'https://www.instagram.com/_n/web_emaillogin?uid=U1&token=T1&auto_send=0',
+        ],
+        { from: 'user' },
+      )
+
+      expect(oneClickSpy).toHaveBeenCalledWith('U1', 'T1')
+
+      for (const spy of [oneClickSpy, setSessionPathSpy, ensurePathsSpy, setAccountSpy]) spy.mockRestore()
+    })
+
+    it('errors on an invalid --link instead of sending a new email', async () => {
+      const oneClickSpy = spyOn(InstagramClient.prototype, 'oneClickLogin').mockResolvedValue({ userId: '1' })
+      const sendEmailSpy = spyOn(InstagramClient.prototype, 'sendRecoveryFlowEmail').mockResolvedValue({
+        sent: true,
+        contactPoint: '',
+      })
+
+      await expect(
+        authCommand.parseAsync(['login-email', '--username', 'alice', '--link', 'not-a-link', '--pretty'], {
+          from: 'user',
+        }),
+      ).rejects.toThrow('process.exit called')
+
+      expect(sendEmailSpy).not.toHaveBeenCalled()
+      expect(oneClickSpy).not.toHaveBeenCalled()
+      const output = JSON.parse(consoleLogSpy.mock.calls[0]![0] as string)
+      expect(output.error).toContain('Invalid login link')
+
+      for (const spy of [oneClickSpy, sendEmailSpy]) spy.mockRestore()
+    })
+
+    it('errors when only --uid is provided without --token', async () => {
+      const sendEmailSpy = spyOn(InstagramClient.prototype, 'sendRecoveryFlowEmail').mockResolvedValue({
+        sent: true,
+        contactPoint: '',
+      })
+
+      await expect(
+        authCommand.parseAsync(['login-email', '--username', 'alice', '--uid', 'U1', '--pretty'], { from: 'user' }),
+      ).rejects.toThrow('process.exit called')
+
+      expect(sendEmailSpy).not.toHaveBeenCalled()
+      const output = JSON.parse(consoleLogSpy.mock.calls[0]![0] as string)
+      expect(output.error).toContain('Invalid login link')
+
+      sendEmailSpy.mockRestore()
+    })
+
+    it('treats an explicit empty --link as redeem intent and fails closed', async () => {
+      const oneClickSpy = spyOn(InstagramClient.prototype, 'oneClickLogin').mockResolvedValue({ userId: '1' })
+      const sendEmailSpy = spyOn(InstagramClient.prototype, 'sendRecoveryFlowEmail').mockResolvedValue({
+        sent: true,
+        contactPoint: '',
+      })
+
+      await expect(
+        authCommand.parseAsync(['login-email', '--username', 'alice', '--link', '', '--pretty'], { from: 'user' }),
+      ).rejects.toThrow('process.exit called')
+
+      expect(sendEmailSpy).not.toHaveBeenCalled()
+      expect(oneClickSpy).not.toHaveBeenCalled()
+      const output = JSON.parse(consoleLogSpy.mock.calls[0]![0] as string)
+      expect(output.error).toContain('Invalid login link')
+
+      for (const spy of [oneClickSpy, sendEmailSpy]) spy.mockRestore()
+    })
+
+    it('requires --username when redeeming non-interactively', async () => {
+      const oneClickSpy = spyOn(InstagramClient.prototype, 'oneClickLogin').mockResolvedValue({ userId: '1' })
+
+      await expect(
+        authCommand.parseAsync(['login-email', '--uid', 'U1', '--token', 'T1', '--pretty'], { from: 'user' }),
+      ).rejects.toThrow('process.exit called')
+
+      expect(oneClickSpy).not.toHaveBeenCalled()
+      const output = JSON.parse(consoleLogSpy.mock.calls[0]![0] as string)
+      expect(output.error).toContain('--username is required')
+
+      oneClickSpy.mockRestore()
+    })
+  })
+
+  describe('login email fallback', () => {
+    it('non-interactively sends the login email when password login offers it', async () => {
+      const authSpy = spyOn(InstagramClient.prototype, 'authenticate').mockResolvedValue({
+        userId: '',
+        oneClickEmailAvailable: true,
+      })
+      const sendEmailSpy = spyOn(InstagramClient.prototype, 'sendRecoveryFlowEmail').mockResolvedValue({
+        sent: true,
+        contactPoint: 'j***@example.com',
+      })
+      const ensurePathsSpy = spyOn(InstagramCredentialManager.prototype, 'ensureAccountPaths').mockResolvedValue({
+        account_dir: '/tmp/x',
+        session_path: '/tmp/x/session.json',
+      })
+
+      await authCommand.parseAsync(['login', '--username', 'alice', '--password', 'wrong', '--pretty'], {
+        from: 'user',
+      })
+
+      expect(sendEmailSpy).toHaveBeenCalledWith('alice')
+      const output = JSON.parse(consoleLogSpy.mock.calls[0]![0] as string)
+      expect(output.one_click_email_available).toBe(true)
+      expect(output.email_sent).toBe(true)
+      expect(output.contact_point).toBe('j***@example.com')
+
+      for (const spy of [authSpy, sendEmailSpy, ensurePathsSpy]) spy.mockRestore()
     })
   })
 })

@@ -3,17 +3,39 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { getConfigDir } from '../../shared/utils/config-dir'
-import { createAccountId, type InstagramAccount, type InstagramAccountPaths, type InstagramConfig } from './types'
+import {
+  createAccountId,
+  type InstagramAccount,
+  type InstagramAccountPaths,
+  type InstagramConfig,
+  type InstagramDevice,
+} from './types'
 
 export class InstagramCredentialManager {
   private configDir: string
   private credentialsPath: string
   private instagramRootDir: string
+  private devicePath: string
 
   constructor(configDir?: string) {
     this.configDir = configDir ?? getConfigDir()
     this.credentialsPath = join(this.configDir, 'instagram-credentials.json')
     this.instagramRootDir = join(this.configDir, 'instagram')
+    this.devicePath = join(this.instagramRootDir, 'device.json')
+  }
+
+  async loadDevice(): Promise<InstagramDevice | null> {
+    if (!existsSync(this.devicePath)) return null
+    try {
+      return JSON.parse(await readFile(this.devicePath, 'utf-8')) as InstagramDevice
+    } catch {
+      return null
+    }
+  }
+
+  async saveDevice(device: InstagramDevice): Promise<void> {
+    await mkdir(this.instagramRootDir, { recursive: true })
+    await writeFile(this.devicePath, JSON.stringify(device, null, 2), { mode: 0o600 })
   }
 
   async loadConfig(): Promise<InstagramConfig> {
