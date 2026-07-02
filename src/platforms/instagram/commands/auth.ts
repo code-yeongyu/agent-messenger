@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { Writable } from 'node:stream'
 
@@ -10,7 +9,7 @@ import { isInteractive } from '@/shared/utils/interactive'
 import { formatOutput } from '@/shared/utils/output'
 import { info, warn, error as stderrError, debug } from '@/shared/utils/stderr'
 
-import { InstagramClient, generateAndroidDeviceId, generateDeviceString } from '../client'
+import { InstagramClient, generateDevice } from '../client'
 import { InstagramCredentialManager } from '../credential-manager'
 import { InstagramTokenExtractor } from '../token-extractor'
 import { createAccountId } from '../types'
@@ -421,6 +420,12 @@ async function extractAction(options: { pretty?: boolean; debug?: boolean; brows
 
     const manager = new InstagramCredentialManager()
 
+    let device = await manager.loadDevice()
+    if (!device) {
+      device = generateDevice()
+      await manager.saveDevice(device)
+    }
+
     for (const extracted of results) {
       const session = {
         cookies: [
@@ -433,14 +438,7 @@ async function extractAction(options: { pretty?: boolean; debug?: boolean; brows
         ]
           .filter(Boolean)
           .join('; '),
-        device: {
-          phone_id: randomUUID(),
-          uuid: randomUUID(),
-          android_device_id: generateAndroidDeviceId(),
-          advertising_id: randomUUID(),
-          client_session_id: randomUUID(),
-          device_string: generateDeviceString(),
-        },
+        device,
         user_id: extracted.ds_user_id,
         mid: extracted.mid,
       }

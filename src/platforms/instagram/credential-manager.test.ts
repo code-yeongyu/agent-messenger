@@ -274,4 +274,34 @@ describe('InstagramCredentialManager', () => {
       expect(paths.session_path).toBe(join(testConfigDir, 'instagram', 'my-account', 'session.json'))
     })
   })
+
+  describe('device persistence', () => {
+    const device = {
+      phone_id: 'phone-1',
+      uuid: 'uuid-1',
+      android_device_id: 'android-abcdef0123456789',
+      advertising_id: 'adid-1',
+      client_session_id: 'csid-1',
+      device_string: '34/14; 480dpi; 1344x2992; Google/google; Pixel 8 Pro; husky; husky; en_US; 719358530',
+    }
+
+    it('returns null when no device is stored', async () => {
+      const manager = setup()
+      expect(await manager.loadDevice()).toBeNull()
+    })
+
+    it('persists and reloads the same device', async () => {
+      const manager = setup()
+      await manager.saveDevice(device)
+      expect(await manager.loadDevice()).toEqual(device)
+    })
+
+    it('shares one device across accounts (machine-level, not per-account)', async () => {
+      const manager = setup()
+      await manager.saveDevice(device)
+      await manager.setAccount(makeAccount({ account_id: 'a' }))
+      await manager.setAccount(makeAccount({ account_id: 'b' }))
+      expect(await manager.loadDevice()).toEqual(device)
+    })
+  })
 })
