@@ -9,6 +9,7 @@ import {
   extractMessageText,
   getMessageType,
   type InstagramChatSummary,
+  type InstagramDevice,
   type InstagramMessageSummary,
   type InstagramSessionState,
 } from './types'
@@ -60,6 +61,17 @@ function buildUserAgent(deviceString: string): string {
 
 export function generateAndroidDeviceId(): string {
   return `android-${randomBytes(8).toString('hex')}`
+}
+
+export function generateDevice(): InstagramDevice {
+  return {
+    phone_id: randomUUID(),
+    uuid: randomUUID(),
+    android_device_id: generateAndroidDeviceId(),
+    advertising_id: randomUUID(),
+    client_session_id: randomUUID(),
+    device_string: generateDeviceString(),
+  }
 }
 
 // Instagram DM timestamps are in microseconds
@@ -131,16 +143,7 @@ export class InstagramClient {
     challengeRequired?: boolean
     challengePath?: string
   }> {
-    const deviceString = generateDeviceString()
-    const device = {
-      phone_id: randomUUID(),
-      uuid: randomUUID(),
-      android_device_id: generateAndroidDeviceId(),
-      advertising_id: randomUUID(),
-      client_session_id: randomUUID(),
-      device_string: deviceString,
-    }
-
+    const device = await this.resolveDevice()
     this.session = { cookies: '', device }
 
     const encryptionKey = await this.preLoginFlow()
@@ -784,6 +787,16 @@ export class InstagramClient {
     }
 
     await this.saveSession()
+  }
+
+  // Reuse one persisted device per machine so repeat logins present a consistent fingerprint.
+  // Regenerating device ids each attempt looks like a brand-new phone and hurts login trust.
+  private async resolveDevice(): Promise<InstagramDevice> {
+    const existing = await this.credentialManager.loadDevice()
+    if (existing) return existing
+    const device = generateDevice()
+    await this.credentialManager.saveDevice(device)
+    return device
   }
 
   private async saveSession(): Promise<void> {

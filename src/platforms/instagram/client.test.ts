@@ -4,6 +4,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { InstagramClient } from '@/platforms/instagram/client'
+import { InstagramCredentialManager } from '@/platforms/instagram/credential-manager'
 import { InstagramError, type InstagramSessionState } from '@/platforms/instagram/types'
 
 const testDir = join(import.meta.dir, `.test-client-${Date.now()}`)
@@ -23,10 +24,13 @@ const SESSION: InstagramSessionState = {
 }
 
 let rsaPublicKeyBase64: string
+const originalConfigDir = process.env['AGENT_MESSENGER_CONFIG_DIR']
 
 beforeAll(() => {
   mkdirSync(testDir, { recursive: true })
   writeFileSync(sessionPath, JSON.stringify(SESSION))
+  // Sandbox default-manager writes (e.g. device.json) so tests never touch the real config dir.
+  process.env['AGENT_MESSENGER_CONFIG_DIR'] = join(testDir, 'config')
 
   const { publicKey } = generateKeyPairSync('rsa', { modulusLength: 1024 })
   const pem = publicKey.export({ type: 'pkcs1', format: 'pem' }) as string
@@ -34,6 +38,8 @@ beforeAll(() => {
 })
 
 afterAll(() => {
+  if (originalConfigDir === undefined) delete process.env['AGENT_MESSENGER_CONFIG_DIR']
+  else process.env['AGENT_MESSENGER_CONFIG_DIR'] = originalConfigDir
   rmSync(testDir, { recursive: true, force: true })
 })
 
@@ -285,6 +291,44 @@ describe('InstagramClient', () => {
 
       expect(err).toBeInstanceOf(InstagramError)
       expect((err as InstagramError).code).toBe('bad_password')
+    })
+  })
+
+  describe('device persistence', () => {
+    function loginResponses(): void {
+      fetchResponses.push(encryptionKeyResponse())
+      fetchResponses.push(jsonResponse({ status: 'ok', logged_in_user: { pk: '99' } }))
+    }
+
+    it('reuses the same persisted device across separate authenticate calls', async () => {
+      const dir = join(testDir, `device-reuse-${Math.random().toString(36).slice(2)}`)
+      const manager = new InstagramCredentialManager(dir)
+
+      loginResponses()
+      await new InstagramClient(manager).authenticate('user', 'secret')
+      const firstHeaders = (fetchCalls[1]?.init?.headers ?? {}) as Record<string, string>
+      const firstAndroidId = firstHeaders['X-IG-Android-ID']
+
+      loginResponses()
+      await new InstagramClient(manager).authenticate('user', 'secret')
+      const secondHeaders = (fetchCalls[3]?.init?.headers ?? {}) as Record<string, string>
+      const secondAndroidId = secondHeaders['X-IG-Android-ID']
+
+      expect(firstAndroidId).toBeTruthy()
+      expect(secondAndroidId).toBe(firstAndroidId)
+    })
+
+    it('persists a device the first time authenticate runs', async () => {
+      const dir = join(testDir, `device-create-${Math.random().toString(36).slice(2)}`)
+      const manager = new InstagramCredentialManager(dir)
+      expect(await manager.loadDevice()).toBeNull()
+
+      loginResponses()
+      await new InstagramClient(manager).authenticate('user', 'secret')
+
+      const saved = await manager.loadDevice()
+      expect(saved).not.toBeNull()
+      expect(saved?.android_device_id).toMatch(/^android-[0-9a-f]{16}$/)
     })
   })
 
