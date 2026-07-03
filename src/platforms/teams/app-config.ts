@@ -3,8 +3,8 @@ export const TEAMS_WEB_CLIENT_ID = '5e3ce6c0-2b1f-4285-8d4b-75ee78787346'
 
 export const CONSUMER_TENANT_ID = '9188040d-6c67-4c5b-b112-36a304b66dad'
 
-export const DEVICE_CODE_SCOPE_TEAMS = 'service::api.fl.teams.microsoft.com::MBI_SSL openid profile'
-export const DEVICE_CODE_SCOPE_SKYPE = 'service::api.fl.spaces.skype.com::MBI_SSL openid profile'
+export const DEVICE_CODE_SCOPE_TEAMS = 'service::api.fl.teams.microsoft.com::MBI_SSL openid profile offline_access'
+export const DEVICE_CODE_SCOPE_SKYPE = 'service::api.fl.spaces.skype.com::MBI_SSL openid profile offline_access'
 
 export const AUTHZ_CONSUMER_URL = 'https://teams.live.com/api/auth/v1.0/authz/consumer'
 export const AUTHZ_WORK_URL = 'https://teams.microsoft.com/api/authsvc/v1.0/authz'
