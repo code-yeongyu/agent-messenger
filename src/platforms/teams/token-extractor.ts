@@ -49,6 +49,12 @@ const TEAMS_HOST_PATTERNS = [
   '.microsoft.com',
 ]
 
+// The trouter real-time WebSocket needs an OAuth Bearer token (a JWE) for its
+// user.authenticate step. Teams stores it in the `authtoken` cookie, prefixed
+// with "Bearer=" and URL-encoded.
+const AUTHTOKEN_COOKIE_NAME = 'authtoken'
+const AUTHTOKEN_HOST_PATTERNS = ['teams.live.com', 'teams.microsoft.com']
+
 const TEAMS_KEYCHAIN_VARIANTS: KeychainVariant[] = [
   { service: 'Microsoft Teams Safe Storage', account: 'Microsoft Teams' },
   {
@@ -250,6 +256,69 @@ export class TeamsTokenExtractor {
   async extract(): Promise<ExtractedTeamsToken[]> {
     await this.decryptor.loadCachedKey()
     return this.extractFromCookiesDB()
+  }
+
+  async extractIdToken(accountType?: TeamsAccountType): Promise<string | null> {
+    await this.decryptor.loadCachedKey()
+
+    const desktopPaths = this.getDesktopCookiesPaths().filter(
+      (p) => accountType === undefined || !p.accountTypeKnown || p.accountType === accountType,
+    )
+    const candidatePaths = [...desktopPaths, ...this.getBrowserCookiesPaths()]
+
+    for (const { path: dbPath } of candidatePaths) {
+      if (!dbPath || !existsSync(dbPath)) continue
+
+      const bearer = await this.extractAuthTokenFromSQLite(dbPath)
+      if (bearer) return bearer
+    }
+
+    return null
+  }
+
+  private async extractAuthTokenFromSQLite(dbPath: string): Promise<string | null> {
+    try {
+      let localStatePath: string | undefined
+      if (this.platform === 'win32') {
+        localStatePath = findLocalStatePath(dbPath) ?? undefined
+      }
+
+      for (const hostPattern of AUTHTOKEN_HOST_PATTERNS) {
+        const sql = `
+          SELECT value, encrypted_value
+          FROM cookies
+          WHERE name = '${AUTHTOKEN_COOKIE_NAME}'
+          AND host_key LIKE '%${hostPattern}%'
+          LIMIT 1
+        `
+
+        type CookieRow = { value?: string; encrypted_value?: Uint8Array | Buffer } | null
+        const row = await this.cookieReader.queryFirst<CookieRow>(dbPath, sql)
+        if (!row) continue
+
+        let value = row.value ?? ''
+        if ((!value || value.length < 20) && row.encrypted_value && row.encrypted_value.length > 0) {
+          const decrypted = this.decryptor.decryptCookieRaw(Buffer.from(row.encrypted_value), localStatePath)
+          if (!decrypted) continue
+          value = ChromiumCookieDecryptor.stripIntegrityHash(decrypted).toString('utf8')
+        }
+
+        const bearer = this.normalizeAuthToken(value)
+        if (bearer) return bearer
+      }
+
+      return null
+    } catch (error) {
+      this.debug(`    authtoken query error: ${(error as Error).message}`)
+      return null
+    }
+  }
+
+  private normalizeAuthToken(rawValue: string): string | null {
+    if (!rawValue) return null
+    const decoded = decodeURIComponent(rawValue)
+    const token = decoded.replace(/^Bearer=/i, '').trim()
+    return token.length > 20 ? token : null
   }
 
   async clearKeyCache(): Promise<void> {

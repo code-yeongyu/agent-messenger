@@ -253,6 +253,28 @@ All commands support these options:
 --team <id>   # Use specific team (overrides current team)
 ```
 
+## Real-time Events (SDK)
+
+Real-time message streaming is available through the SDK's `TeamsListener`, which
+connects to Teams' internal trouter WebSocket as a user — no bot registration and
+no public HTTP endpoint. There is no CLI `watch` command; use the SDK:
+
+```typescript
+import { TeamsClient, TeamsListener } from 'agent-messenger/teams'
+
+const client = await new TeamsClient().login()
+const listener = new TeamsListener(client)
+
+listener.on('message', (message) => {
+  console.log(`New message in ${message.chatId}: ${message.content}`)
+})
+
+await listener.start()
+```
+
+The listener reuses your extracted credentials, so the Teams desktop app must be
+logged in. It reconnects automatically and re-authenticates on token expiry.
+
 ## Key Differences: Teams vs Discord vs Slack
 
 | Concept           | Slack                         | Discord           | Teams                     |

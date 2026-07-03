@@ -482,13 +482,30 @@ await client.addReaction(teams[0].id, channels[0].id, msg.id, 'like')
 await client.uploadFile(teams[0].id, channels[0].id, './report.pdf')
 ```
 
+### Real-time Events
+
+Stream Teams chat messages in real time over the internal trouter WebSocket — as a user, no bot and no public endpoint. Requires the Teams desktop app to be logged in.
+
+```typescript
+import { TeamsClient, TeamsListener } from 'agent-messenger/teams'
+
+const client = await new TeamsClient().login()
+const listener = new TeamsListener(client)
+
+listener.on('message', (message) => {
+  console.log(`New message in ${message.chatId}: ${message.content}`)
+})
+
+await listener.start()
+```
+
 ### Full API Reference
 
 See the [Teams SDK documentation](https://agent-messenger.dev/docs/sdk/teams) for complete method signatures, types, schemas, and examples.
 
 ## Limitations
 
-- No real-time events / WebSocket connection
+- Real-time events are SDK-only (`TeamsListener`); the CLI has no `watch` command
 - No voice/video channel support
 - No team management (create/delete channels, roles)
 - Personal accounts: chats only (no teams/channels); use the `chat` commands
