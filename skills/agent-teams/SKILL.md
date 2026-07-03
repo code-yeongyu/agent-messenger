@@ -33,11 +33,28 @@ agent-teams channel list <team-id>
 
 ## Authentication
 
-Credentials are extracted automatically from the Teams desktop app (or Chromium browser as fallback) on first use. No manual setup required — just run any command and authentication happens silently in the background.
+Two co-equal ways to sign in — pick whichever fits:
 
-Teams tokens expire in 60-90 minutes. The CLI automatically re-extracts a fresh token when the current one expires, so you don't need to manage token lifecycle manually.
+1. **`agent-teams auth login`** (personal Microsoft accounts) — device-code sign-in. Open the printed URL, enter the code, and approve in your browser. No desktop app or browser extraction needed.
+2. **`agent-teams auth extract`** — zero-config extraction from the Teams desktop app, falling back to a Chromium browser. Best when you're already signed into Teams locally.
 
-**IMPORTANT**: Always use `agent-teams auth extract` to obtain tokens. The CLI extracts from the desktop app first, falling back to Chromium browsers if the app isn't installed.
+Credentials are also extracted automatically on first use of any command if none are stored, so `auth extract` can happen silently in the background.
+
+Teams tokens expire in 60-90 minutes (extraction) or a few hours (device-code). Re-run `auth login` or `auth extract` to refresh.
+
+### Non-interactive `auth login` (agents / CI)
+
+When there's no TTY, `auth login` splits into two calls:
+
+```bash
+# 1. Start — returns verification_uri, user_code, and device_code as JSON
+agent-teams auth login
+
+# 2. After the user approves in a browser, finish with the device_code
+agent-teams auth login --device-code <device_code>
+```
+
+`--client-id <id>` overrides the AAD client ID on either call (or set `AGENT_TEAMS_CLIENT_ID`).
 
 ### Multi-Team Support
 
@@ -145,6 +162,10 @@ If a memorized ID returns an error (channel not found, team not found), remove i
 ### Auth Commands
 
 ```bash
+# Sign in via device code (personal Microsoft accounts).
+agent-teams auth login
+agent-teams auth login --device-code <code>   # finish a non-interactive login
+
 # Extract token from Teams desktop app or browser (usually automatic)
 agent-teams auth extract
 agent-teams auth extract --debug
