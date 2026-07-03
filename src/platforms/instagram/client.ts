@@ -21,6 +21,11 @@ const IG_VERSION_CODE = '719358530'
 // Bloks client versioning id; required header for Bloks endpoints (2FA / CAA flows).
 const IG_BLOKS_VERSION_ID = '5f56efad68e1edec7801f630b5c122704ec5378adbee6609a448f105f34a9c73'
 const IG_CAPABILITIES = '3brTv10='
+const IG_LOCALE = 'en_US'
+// Instagram silently holds the socket open (no response) for flagged IPs / fingerprints instead
+// of returning an error, so an unbounded fetch hangs forever. Cap every request and surface a
+// clear, actionable error instead of a frozen process.
+const IG_REQUEST_TIMEOUT_MS = 30_000
 const ANDROID_VERSION = '14'
 const ANDROID_RELEASE = '34'
 const DEVICE_DPI = '480dpi'
@@ -53,6 +58,52 @@ function createJazoest(input: string): string {
 
 function generateToken(): string {
   return randomBytes(16).toString('hex')
+}
+
+function isTimeoutAbort(error: unknown): boolean {
+  // AbortSignal.timeout aborts the connect AND the body stream, surfacing as TimeoutError on the
+  // fetch and AbortError when a stalled body read is aborted mid-stream; both mean "IG stalled".
+  return error instanceof DOMException && (error.name === 'TimeoutError' || error.name === 'AbortError')
+}
+
+function stalledError(path: string): InstagramError {
+  return new InstagramError(
+    `Instagram did not respond within ${IG_REQUEST_TIMEOUT_MS / 1000}s (${path}). The connection stalled, ` +
+      'which usually means the IP is flagged (VPN/datacenter/proxy or prior automated attempts) or the ' +
+      'device fingerprint was rejected. Try "agent-instagram auth extract" from a browser logged into ' +
+      'instagram.com instead of password login.',
+    'request_stalled',
+  )
+}
+
+interface TimedRequest {
+  response: Response
+  readText: () => Promise<string>
+}
+
+// One AbortSignal.timeout covers the whole request lifecycle: connect, headers, AND the body read.
+// Reading the body through readText() keeps a post-header stall mapped to request_stalled instead
+// of leaking out as a generic parse failure.
+async function fetchWithTimeout(url: string, init: RequestInit, path: string): Promise<TimedRequest> {
+  const signal = AbortSignal.timeout(IG_REQUEST_TIMEOUT_MS)
+  let response: Response
+  try {
+    response = await fetch(url, { ...init, signal })
+  } catch (error) {
+    if (isTimeoutAbort(error)) throw stalledError(path)
+    throw error
+  }
+
+  const readText = async (): Promise<string> => {
+    try {
+      return await response.text()
+    } catch (error) {
+      if (isTimeoutAbort(error)) throw stalledError(path)
+      throw error
+    }
+  }
+
+  return { response, readText }
 }
 
 function buildUserAgent(deviceString: string): string {
@@ -711,17 +762,21 @@ export class InstagramClient {
     const url = `${IG_BASE_URL}/qe/sync/`
     const headers = this.buildHeaders()
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: new URLSearchParams(
-        signBody({
-          id: this.session!.device.uuid,
-          experiments:
-            'ig_android_fci,ig_android_device_detection_info_upload,ig_android_device_verification_fb_signup',
-        }),
-      ).toString(),
-    })
+    const { response } = await fetchWithTimeout(
+      url,
+      {
+        method: 'POST',
+        headers,
+        body: new URLSearchParams(
+          signBody({
+            id: this.session!.device.uuid,
+            experiments:
+              'ig_android_fci,ig_android_device_detection_info_upload,ig_android_device_verification_fb_signup',
+          }),
+        ).toString(),
+      },
+      '/qe/sync/',
+    )
     this.extractResponseCookies(response.headers)
 
     const wwwClaim = response.headers.get('x-ig-set-www-claim')
@@ -799,7 +854,7 @@ export class InstagramClient {
       requestInit.body = new URLSearchParams(payload).toString()
     }
 
-    const response = await fetch(url, requestInit)
+    const { response, readText } = await fetchWithTimeout(url, requestInit, path)
     this.extractResponseCookies(response.headers)
 
     const authHeader = response.headers.get('ig-set-authorization')
@@ -812,10 +867,11 @@ export class InstagramClient {
       this.session.www_claim = wwwClaim
     }
 
+    const rawBody = await readText()
+
     if (response.status === 429) {
-      const body = await response.text().catch(() => '')
-      this.debugLog?.(`429 from ${path} body=${body}`)
-      const igMessage = this.extractJsonMessage(body)
+      this.debugLog?.(`429 from ${path} body=${rawBody}`)
+      const igMessage = this.extractJsonMessage(rawBody)
       throw new InstagramError(
         igMessage
           ? `Rate limited by Instagram: ${igMessage} Wait before trying again.`
@@ -826,7 +882,7 @@ export class InstagramClient {
 
     let data: Record<string, unknown>
     try {
-      data = (await response.json()) as Record<string, unknown>
+      data = JSON.parse(rawBody) as Record<string, unknown>
     } catch {
       throw new InstagramError(`Failed to parse response from ${path}`, response.status)
     }
@@ -845,14 +901,29 @@ export class InstagramClient {
 
   private buildHeaders(): Record<string, string> {
     const deviceString = this.session?.device.device_string ?? generateDeviceString()
+    // Instagram's edge silently drops connections whose fingerprint headers don't match a real
+    // Android client. This is a partial alignment toward the current app profile
+    // (per subzeroid/instagrapi) covering the highest-signal headers, not a full fingerprint match
+    // (e.g. X-Tigon-Is-Retry, X-Zero-*, X-IG-Nav-Chain, X-IG-SALT-IDS are intentionally omitted).
     const headers: Record<string, string> = {
       'User-Agent': buildUserAgent(deviceString),
+      'X-IG-App-Locale': IG_LOCALE,
+      'X-IG-Device-Locale': IG_LOCALE,
+      'X-IG-Mapped-Locale': IG_LOCALE,
+      'X-Pigeon-Session-Id': `UFS-${randomUUID()}-0`,
+      'X-Pigeon-Rawclienttime': (Date.now() / 1000).toFixed(3),
+      'X-IG-Bandwidth-Speed-KBPS': '-1.000',
+      'X-IG-Bandwidth-TotalBytes-B': '0',
+      'X-IG-Bandwidth-TotalTime-MS': '0',
+      'X-IG-App-Startup-Country': 'US',
       'X-IG-App-ID': IG_APP_ID,
       'X-IG-Capabilities': IG_CAPABILITIES,
       'X-IG-Connection-Type': 'WIFI',
       'X-IG-Timezone-Offset': String(new Date().getTimezoneOffset() * -60),
       'X-Bloks-Version-Id': IG_BLOKS_VERSION_ID,
-      'X-FB-HTTP-Engine': 'Liger',
+      'X-FB-HTTP-Engine': 'Tigon/MNS/TCP',
+      Priority: 'u=3',
+      'IG-INTENDED-USER-ID': this.userId ?? '0',
       'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
       Accept: '*/*',
       'Accept-Language': 'en-US,en;q=0.9',
