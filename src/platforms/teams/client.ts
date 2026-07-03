@@ -27,6 +27,21 @@ const BASE_BACKOFF_MS = 100
 const DEFAULT_REGION: TeamsRegion = 'amer'
 const REGIONS: TeamsRegion[] = ['amer', 'emea', 'apac']
 
+// Personal (Teams for Life) skypetokens carry a consumer `skypeid` (e.g.
+// "live:..." or "8:live:..."); work/school tokens carry an org identity. Used
+// only to guess the account type when a caller logs in with a bare token.
+function isPersonalToken(token: string): boolean {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8')) as {
+      skypeid?: string
+    }
+    const skypeId = payload.skypeid ?? ''
+    return skypeId.includes('live:') || skypeId.startsWith('8:live:')
+  } catch {
+    return false
+  }
+}
+
 function stripHtml(content: string | undefined): string | undefined {
   if (content === undefined) return undefined
   const stripped = content.replace(/<[^>]*>/g, '')
@@ -85,7 +100,9 @@ export class TeamsClient {
       if (credentials.tokenExpiresAt) {
         this.tokenExpiresAt = new Date(credentials.tokenExpiresAt)
       }
-      this.isPersonalAccount = credentials.accountType === 'personal'
+      this.isPersonalAccount = credentials.accountType
+        ? credentials.accountType === 'personal'
+        : isPersonalToken(credentials.token)
       if (credentials.region) {
         this.region = credentials.region
         this.regionDiscovered = true
@@ -113,6 +130,20 @@ export class TeamsClient {
 
   getRegion(): TeamsRegion {
     return this.region
+  }
+
+  getToken(): string {
+    return this.ensureAuth()
+  }
+
+  getAccountType(): TeamsAccountType {
+    return this.isPersonalAccount ? 'personal' : 'work'
+  }
+
+  async getIdToken(): Promise<string | null> {
+    const { TeamsTokenExtractor } = await import('./token-extractor')
+    const extractor = new TeamsTokenExtractor()
+    return extractor.extractIdToken(this.getAccountType())
   }
 
   private ensureAuth(): string {

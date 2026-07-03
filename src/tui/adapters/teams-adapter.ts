@@ -1,4 +1,5 @@
 import { TeamsClient } from '@/platforms/teams/client'
+import { TeamsListener } from '@/platforms/teams/listener'
 
 import type { AuthHint, AuthIO, PlatformAdapter, UnifiedChannel, UnifiedMessage, Workspace } from './types'
 
@@ -6,6 +7,7 @@ export class TeamsAdapter implements PlatformAdapter {
   readonly name = 'Teams'
 
   private client: TeamsClient | null = null
+  private listener: TeamsListener | null = null
   private teamId: string | null = null
   private teamName: string | null = null
   private teams: Workspace[] = []
@@ -47,6 +49,27 @@ export class TeamsAdapter implements PlatformAdapter {
   async sendMessage(channelId: string, text: string): Promise<void> {
     this.ensureClient()
     await this.client!.sendMessage(this.teamId!, channelId, text)
+  }
+
+  async startListening(onMessage: (msg: UnifiedMessage) => void): Promise<void> {
+    this.ensureClient()
+    const listener = new TeamsListener(this.client!)
+    listener.on('message', (message) => {
+      onMessage({
+        id: message.id,
+        channelId: message.chatId,
+        author: message.author.displayName,
+        content: message.content,
+        timestamp: message.timestamp,
+      })
+    })
+    await listener.start()
+    this.listener = listener
+  }
+
+  stopListening(): void {
+    this.listener?.stop()
+    this.listener = null
   }
 
   async getWorkspaces(): Promise<Workspace[]> {
