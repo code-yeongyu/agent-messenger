@@ -40,7 +40,7 @@ Two co-equal ways to sign in — pick whichever fits:
 
 Credentials are also extracted automatically on first use of any command if none are stored, so `auth extract` can happen silently in the background.
 
-Teams tokens expire in 60-90 minutes (extraction) or a few hours (device-code). Re-run `auth login` or `auth extract` to refresh.
+Teams tokens are short-lived (60-90 minutes for extraction, a few hours for device-code). **Device-code accounts (`auth login`) refresh silently** — the CLI re-mints an expired token from the stored refresh token with no re-login needed. Extraction accounts re-extract automatically as long as you're still signed into the Teams desktop app or a supported browser; if that fails, re-run `auth extract` (or switch to `auth login`).
 
 ### Non-interactive `auth login` (agents / CI)
 
@@ -479,7 +479,7 @@ See the [Teams SDK documentation](https://agent-messenger.dev/docs/sdk/teams) fo
 - No webhook support
 - Plain text messages only (no adaptive cards in v1)
 - User tokens only (no app tokens)
-- **Token expires in 60-90 minutes** - auto-refreshed, but requires Teams desktop app or browser to be logged in
+- **Tokens are short-lived** - device-code (`auth login`) accounts refresh silently from the stored refresh token; extraction accounts auto-refresh but need the Teams desktop app or browser to still be logged in
 
 ## Troubleshooting
 
