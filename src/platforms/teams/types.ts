@@ -67,6 +67,8 @@ export type TeamsAccountType = 'work' | 'personal'
 
 export type TeamsRegion = 'amer' | 'emea' | 'apac'
 
+export type TeamsAuthMethod = 'device-code' | 'browser' | 'extracted' | 'manual'
+
 export interface TeamsAccount {
   token: string
   token_expires_at?: string
@@ -81,6 +83,9 @@ export interface TeamsAccount {
       team_name: string
     }
   >
+  auth_method?: TeamsAuthMethod
+  aad_refresh_token?: string
+  aad_client_id?: string
 }
 
 export interface TeamsConfig {
@@ -166,6 +171,8 @@ export const TeamsAccountTypeSchema = z.enum(['work', 'personal'])
 
 export const TeamsRegionSchema = z.enum(['amer', 'emea', 'apac'])
 
+export const TeamsAuthMethodSchema = z.enum(['device-code', 'browser', 'extracted', 'manual'])
+
 export const TeamsAccountSchema = z.object({
   token: z.string(),
   token_expires_at: z.string().optional(),
@@ -180,6 +187,9 @@ export const TeamsAccountSchema = z.object({
       team_name: z.string(),
     }),
   ),
+  auth_method: TeamsAuthMethodSchema.optional(),
+  aad_refresh_token: z.string().optional(),
+  aad_client_id: z.string().optional(),
 })
 
 export const TeamsConfigSchema = z.object({
