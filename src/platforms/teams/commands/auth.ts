@@ -59,6 +59,7 @@ export async function loginAction(options: LoginOptions): Promise<void> {
 
 async function startNonInteractiveLogin(clientIdOverride?: string): Promise<void> {
   const { info: device, clientId } = await startDeviceCode(clientIdOverride)
+  const clientIdFlag = clientIdOverride ? ` --client-id ${clientIdOverride}` : ''
   console.log(
     formatOutput({
       next_action: 'authorize',
@@ -68,8 +69,7 @@ async function startNonInteractiveLogin(clientIdOverride?: string): Promise<void
       device_code: device.deviceCode,
       client_id: clientId,
       expires_at: Date.now() + device.expiresIn * 1000,
-      message:
-        'Show the user `verification_uri` and `user_code` (or `verification_uri_complete`) and ask them to approve in a browser. After they approve, run `agent-teams auth login --device-code <device_code>` to finish.',
+      message: `Show the user \`verification_uri\` and \`user_code\` (or \`verification_uri_complete\`) and ask them to approve in a browser. After they approve, run \`agent-teams auth login --device-code <device_code>${clientIdFlag}\` to finish.`,
     }),
   )
   process.exit(0)
