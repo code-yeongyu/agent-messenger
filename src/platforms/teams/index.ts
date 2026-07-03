@@ -1,5 +1,6 @@
 export { TeamsClient } from './client'
 export { TeamsCredentialManager } from './credential-manager'
+export { TeamsListener } from './listener'
 export { TeamsError } from './types'
 export type {
   TeamsAccount,
@@ -9,9 +10,12 @@ export type {
   TeamsConfigLegacy,
   TeamsCredentials,
   TeamsFile,
+  TeamsListenerEventMap,
   TeamsMessage,
+  TeamsRealtimeMessage,
   TeamsReaction,
   TeamsTeam,
+  TeamsTrouterGenericEvent,
   TeamsUser,
 } from './types'
 export {
