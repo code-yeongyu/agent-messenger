@@ -241,7 +241,7 @@ export class TeamsClient {
 
   private async request<T>(method: string, path: string, body?: unknown, baseUrl?: string): Promise<T> {
     if (this.isTokenExpired()) {
-      throw new TeamsError('Token has expired. Run "auth extract" to refresh.', 'token_expired')
+      throw new TeamsError('Token has expired. Run "auth login" or "auth extract" to refresh.', 'token_expired')
     }
 
     if (baseUrl === undefined && !this.regionDiscovered) {
@@ -310,7 +310,7 @@ export class TeamsClient {
 
   private async requestFormData<T>(path: string, formData: FormData, baseUrl?: string): Promise<T> {
     if (this.isTokenExpired()) {
-      throw new TeamsError('Token has expired. Run "auth extract" to refresh.', 'token_expired')
+      throw new TeamsError('Token has expired. Run "auth login" or "auth extract" to refresh.', 'token_expired')
     }
 
     if (baseUrl === undefined && !this.regionDiscovered) {

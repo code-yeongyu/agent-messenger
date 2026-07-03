@@ -1,9 +1,16 @@
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { getConfigDir } from '../../shared/utils/config-dir'
-import type { TeamsAccount, TeamsAccountType, TeamsConfig, TeamsConfigLegacy, TeamsRegion } from './types'
+import type {
+  TeamsAccount,
+  TeamsAccountType,
+  TeamsAuthMethod,
+  TeamsConfig,
+  TeamsConfigLegacy,
+  TeamsRegion,
+} from './types'
 
 export class TeamsCredentialManager {
   static accountOverride?: TeamsAccountType
@@ -32,7 +39,9 @@ export class TeamsCredentialManager {
 
   async saveConfig(config: TeamsConfig): Promise<void> {
     await mkdir(this.configDir, { recursive: true })
-    await writeFile(this.credentialsPath, JSON.stringify(config, null, 2), { mode: 0o600 })
+    const tmpPath = `${this.credentialsPath}.tmp`
+    await writeFile(tmpPath, JSON.stringify(config, null, 2), { mode: 0o600 })
+    await rename(tmpPath, this.credentialsPath)
   }
 
   private migrateIfNeeded(raw: TeamsConfig | TeamsConfigLegacy): TeamsConfig {
@@ -114,6 +123,46 @@ export class TeamsCredentialManager {
       config.current_account = accountType
     }
     await this.saveConfig(config)
+  }
+
+  async setDeviceCodeAccount(params: {
+    accountType: TeamsAccountType
+    token: string
+    tokenExpiresAt: string
+    aadRefreshToken?: string
+    aadClientId?: string
+    region?: TeamsRegion
+    userName?: string
+    teams: Record<string, { team_id: string; team_name: string }>
+    currentTeam: string | null
+    authMethod?: TeamsAuthMethod
+  }): Promise<void> {
+    let config = await this.loadConfig()
+    if (!config) {
+      config = { current_account: params.accountType, accounts: {} }
+    }
+    const existing = config.accounts[params.accountType]
+    config.accounts[params.accountType] = {
+      token: params.token,
+      token_expires_at: params.tokenExpiresAt,
+      region: params.region ?? existing?.region,
+      account_type: params.accountType,
+      user_name: params.userName ?? existing?.user_name,
+      current_team: params.currentTeam,
+      teams: params.teams,
+      auth_method: params.authMethod ?? 'device-code',
+      aad_refresh_token: params.aadRefreshToken,
+      aad_client_id: params.aadClientId,
+    }
+    config.current_account = params.accountType
+    await this.saveConfig(config)
+  }
+
+  async getAadRefresh(accountType: TeamsAccountType): Promise<{ refreshToken: string; clientId?: string } | null> {
+    const config = await this.loadConfig()
+    const account = config?.accounts[accountType]
+    if (!account?.aad_refresh_token) return null
+    return { refreshToken: account.aad_refresh_token, clientId: account.aad_client_id }
   }
 
   async getCurrentTeam(): Promise<{ team_id: string; team_name: string } | null> {

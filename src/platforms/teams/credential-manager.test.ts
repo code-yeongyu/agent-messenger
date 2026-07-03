@@ -204,4 +204,24 @@ describe('TeamsCredentialManager', () => {
     expect(config?.accounts?.work?.current_team).toBe('team-1')
     expect(config?.accounts?.work?.teams['team-1']).toEqual({ team_id: 'team-1', team_name: 'Team One' })
   })
+
+  it('setDeviceCodeAccount switches current_account to the just-authenticated account', async () => {
+    const manager = setup()
+    await manager.setToken('work-token', 'work', '2025-12-31T23:59:59Z')
+
+    await manager.setDeviceCodeAccount({
+      accountType: 'personal',
+      token: 'personal-token',
+      tokenExpiresAt: '2025-12-31T23:59:59Z',
+      aadRefreshToken: 'refresh',
+      aadClientId: 'client',
+      teams: {},
+      currentTeam: null,
+    })
+
+    const config = await manager.loadConfig()
+    expect(config?.current_account).toBe('personal')
+    expect(config?.accounts?.personal?.auth_method).toBe('device-code')
+    expect(config?.accounts?.work?.token).toBe('work-token')
+  })
 })
