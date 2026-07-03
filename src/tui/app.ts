@@ -270,7 +270,7 @@ export async function createApp(): Promise<void> {
     left: 0,
     top: 1,
     width: 28,
-    height: '100%-4',
+    height: '100%-5',
     border: { type: 'line' },
     style: {
       border: { fg: '#444444' },
@@ -288,7 +288,7 @@ export async function createApp(): Promise<void> {
     left: 28,
     top: 1,
     right: 0,
-    height: '100%-4',
+    height: '100%-5',
     border: { type: 'line' },
     style: {
       border: { fg: '#444444' },
@@ -304,7 +304,7 @@ export async function createApp(): Promise<void> {
 
   const inputBox = blessed.textarea({
     parent: screen,
-    bottom: 0,
+    bottom: 1,
     left: 0,
     right: 0,
     height: 3,
