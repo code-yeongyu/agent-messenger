@@ -2,13 +2,123 @@ import { Command } from 'commander'
 
 import { collectBrowserProfileOption } from '@/shared/chromium'
 import { handleError } from '@/shared/utils/error-handler'
+import { isInteractive } from '@/shared/utils/interactive'
 import { formatOutput } from '@/shared/utils/output'
-import { debug } from '@/shared/utils/stderr'
+import { debug, info } from '@/shared/utils/stderr'
 
 import { TeamsClient } from '../client'
 import { TeamsCredentialManager } from '../credential-manager'
+import { completeDeviceCode, loginWithDeviceCode, PendingApprovalError, startDeviceCode } from '../device-login'
 import { TeamsTokenExtractor } from '../token-extractor'
 import type { TeamsAccount, TeamsAccountType, TeamsConfig } from '../types'
+
+interface LoginOptions {
+  pretty?: boolean
+  debug?: boolean
+  deviceCode?: string
+  clientId?: string
+}
+
+export async function loginAction(options: LoginOptions): Promise<void> {
+  try {
+    if (options.deviceCode) {
+      await finishDeviceCode(options)
+      return
+    }
+    if (!isInteractive()) {
+      await startNonInteractiveLogin(options.clientId)
+      return
+    }
+
+    const debugLog = options.debug ? (msg: string) => debug(`[debug] ${msg}`) : undefined
+    const result = await loginWithDeviceCode({
+      clientId: options.clientId,
+      onCode: async ({ verificationUri, userCode }) => {
+        info(`\nTo sign in, open ${verificationUri} and enter code ${userCode}\n`)
+        info('Waiting for approval...')
+      },
+      onPending: () => info('Approved. Finishing sign-in...'),
+      debug: debugLog,
+    })
+
+    console.log(
+      formatOutput(
+        {
+          authenticated: true,
+          user: result.userName,
+          teams: result.teams.map((t) => `${t.id}/${t.name}`),
+          current: result.current,
+        },
+        options.pretty,
+      ),
+    )
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
+async function startNonInteractiveLogin(clientIdOverride?: string): Promise<void> {
+  const { info: device, clientId } = await startDeviceCode(clientIdOverride)
+  console.log(
+    formatOutput({
+      next_action: 'authorize',
+      verification_uri: device.verificationUri,
+      verification_uri_complete: device.verificationUriComplete,
+      user_code: device.userCode,
+      device_code: device.deviceCode,
+      client_id: clientId,
+      expires_at: Date.now() + device.expiresIn * 1000,
+      message:
+        'Show the user `verification_uri` and `user_code` (or `verification_uri_complete`) and ask them to approve in a browser. After they approve, run `agent-teams auth login --device-code <device_code>` to finish.',
+    }),
+  )
+  process.exit(0)
+}
+
+async function finishDeviceCode(options: LoginOptions): Promise<void> {
+  const { getTeamsAppClientId } = await import('../app-config')
+  const clientId = options.clientId ?? getTeamsAppClientId().clientId
+  try {
+    const result = await completeDeviceCode(options.deviceCode!, clientId)
+    console.log(
+      formatOutput(
+        {
+          authenticated: true,
+          user: result.userName,
+          teams: result.teams.map((t) => `${t.id}/${t.name}`),
+          current: result.current,
+        },
+        options.pretty,
+      ),
+    )
+  } catch (error) {
+    if (error instanceof PendingApprovalError) {
+      console.log(
+        formatOutput(
+          {
+            next_action: 'still_pending',
+            device_code: options.deviceCode,
+            message:
+              'User has not approved yet. Confirm they completed authorization in the browser, then run `auth login --device-code <device_code>` again.',
+          },
+          options.pretty,
+        ),
+      )
+      process.exit(0)
+    }
+    console.log(
+      formatOutput(
+        {
+          next_action: 'restart',
+          error: (error as Error).message,
+          message: 'This device code is no longer valid. Run `agent-teams auth login` to start over.',
+        },
+        options.pretty,
+      ),
+    )
+    process.exit(1)
+  }
+}
 
 interface ValidatedTeamsToken {
   client: TeamsClient
@@ -308,7 +418,9 @@ export async function logoutAction(options: { pretty?: boolean }): Promise<void>
     const config = await credManager.loadConfig()
 
     if (!config || Object.keys(config.accounts).length === 0) {
-      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
+      console.log(
+        formatOutput({ error: 'Not authenticated. Run "auth login" or "auth extract" first.' }, options.pretty),
+      )
       process.exit(1)
     }
 
@@ -326,7 +438,9 @@ export async function statusAction(options: { pretty?: boolean }): Promise<void>
     const config = await credManager.loadConfig()
 
     if (!config || Object.keys(config.accounts).length === 0) {
-      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
+      console.log(
+        formatOutput({ error: 'Not authenticated. Run "auth login" or "auth extract" first.' }, options.pretty),
+      )
       process.exit(1)
     }
 
@@ -427,6 +541,15 @@ export async function switchAccountAction(accountType: string, options: { pretty
 
 export const authCommand = new Command('auth')
   .description('Authentication commands')
+  .addCommand(
+    new Command('login')
+      .description('Sign in via device code (no desktop app needed). Personal Microsoft accounts.')
+      .option('--pretty', 'Pretty print JSON output')
+      .option('--debug', 'Show debug output for troubleshooting')
+      .option('--device-code <code>', 'Finish a non-interactive login started earlier')
+      .option('--client-id <id>', 'Override the AAD client ID')
+      .action(loginAction),
+  )
   .addCommand(
     new Command('extract')
       .description('Extract token from Microsoft Teams desktop app or a supported Chromium browser')
