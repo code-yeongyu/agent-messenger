@@ -95,9 +95,20 @@ The tool searches within:
 
 ### What Gets Extracted
 
-- **skypetoken_asm**: Authentication token for Teams API
+- **skypetoken_asm**: Authentication token for Teams API (sent as the `X-Skypetoken` header)
 - **teams**: All teams you're a member of
 - **token_extracted_at**: Timestamp for expiry tracking
+
+### Real-time Auth (`authtoken` / id_token)
+
+The real-time `TeamsListener` (SDK) additionally needs an OAuth Bearer token to
+authenticate its trouter WebSocket connection. This is **not** persisted with
+your credentials — the client extracts it on demand from the Teams `authtoken`
+cookie (a JWE, stored URL-encoded with a `Bearer=` prefix), decrypted with the
+same keychain machinery as `skypetoken_asm`. The listener re-extracts it on
+every (re)connection, so it always uses the current cookie value. Because it is
+read live from the desktop app's cookie store, the Teams desktop app must be
+logged in for real-time streaming to work.
 
 ## Multi-Team Management
 

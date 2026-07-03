@@ -292,6 +292,23 @@ listener.on('membership_created', (event) => {
 await listener.start()
 ```
 
+### Real-time Events (Teams)
+
+Stream Teams chat messages in real time over Teams' internal trouter WebSocket — as a user, with no bot registration and no public HTTP endpoint. Requires the Teams desktop app to be logged in (the listener reuses your extracted session credentials).
+
+```typescript
+import { TeamsClient, TeamsListener } from 'agent-messenger/teams'
+
+const client = await new TeamsClient().login()
+const listener = new TeamsListener(client)
+
+listener.on('message', (message) => {
+  console.log(`New message in ${message.chatId}: ${message.content}`)
+})
+
+await listener.start()
+```
+
 ### Real-time Events (KakaoTalk)
 
 ```typescript
@@ -448,7 +465,7 @@ See the [TUI docs](https://agent-messenger.dev/docs/tui) for keybindings, archit
 | Channel management         |  ✅   |    —    |   —   |   —   |    —     |    —     |   —   |   —    |     —     |    —      |         —           |
 | Reminders                  |  ✅   |    —    |   —   |   —   |    —     |    —     |   —   |   —    |     —     |    —      |         —           |
 | User groups                |  ✅   |    —    |   —   |   —   |    —     |    —     |   —   |   —    |     —     |    —      |         —           |
-| Real-time events (SDK)     |  ✅   |    ✅    |   —   |  ✅   |    —     |    —     |  ✅   |   —    |    ✅     |    ✅      |         —           |
+| Real-time events (SDK)     |  ✅   |    ✅    |  ✅   |  ✅   |    —     |    —     |  ✅   |   —    |    ✅     |    ✅      |         —           |
 | Bot support                |  ✅   |   ✅    |   —   |  ✅   |    ✅     |    ✅     |   —   |   ✅    |     —     |    —      |         ✅          |
 
 > ⚠️ **Teams tokens expire in 60-90 minutes.** Re-run `agent-teams auth extract` to refresh. See [Teams Guide](skills/agent-teams/SKILL.md) for details.

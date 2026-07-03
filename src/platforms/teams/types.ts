@@ -200,6 +200,31 @@ export const TeamsConfigLegacySchema = z.object({
   ),
 })
 
+export interface TeamsRealtimeMessage {
+  id: string
+  chatId: string
+  content: string
+  author: {
+    id: string
+    displayName: string
+  }
+  messageType: string
+  timestamp: string
+}
+
+export interface TeamsTrouterGenericEvent {
+  resourceType: string
+  [key: string]: unknown
+}
+
+export interface TeamsListenerEventMap {
+  message: [message: TeamsRealtimeMessage]
+  teams_event: [event: TeamsTrouterGenericEvent]
+  connected: [info: { endpointId: string }]
+  disconnected: []
+  error: [error: Error]
+}
+
 export class TeamsError extends Error {
   code: string
 
