@@ -125,6 +125,43 @@ async function finalize(
   }
 }
 
+export async function refreshDeviceCodeAccount(
+  accountType: TeamsAccountType,
+  credManager: TeamsCredentialManager = new TeamsCredentialManager(),
+  debug?: (message: string) => void,
+): Promise<boolean> {
+  const config = await credManager.loadConfig()
+  const account = config?.accounts[accountType]
+  if (!account || account.auth_method !== 'device-code' || !account.aad_refresh_token) {
+    return false
+  }
+  const clientId = account.aad_client_id ?? getTeamsAppClientId().clientId
+
+  try {
+    debug?.('Silently refreshing skype token...')
+    const skypeScoped = await exchangeForSkypeScope(account.aad_refresh_token, clientId)
+    const minted = await mintConsumerSkypeToken(skypeScoped.accessToken)
+
+    await credManager.setDeviceCodeAccount({
+      accountType,
+      token: minted.skypeToken,
+      tokenExpiresAt: minted.skypeTokenExpiresAt,
+      aadRefreshToken: skypeScoped.refreshToken,
+      aadClientId: clientId,
+      region: account.region,
+      userName: account.user_name,
+      teams: account.teams,
+      currentTeam: account.current_team,
+      authMethod: 'device-code',
+      makeCurrent: false,
+    })
+    return true
+  } catch (error) {
+    debug?.(`Silent refresh failed: ${(error as Error).message}`)
+    return false
+  }
+}
+
 export class PendingApprovalError extends Error {
   constructor() {
     super('Authorization pending. Approve in the browser, then retry.')

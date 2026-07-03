@@ -136,6 +136,7 @@ export class TeamsCredentialManager {
     teams: Record<string, { team_id: string; team_name: string }>
     currentTeam: string | null
     authMethod?: TeamsAuthMethod
+    makeCurrent?: boolean
   }): Promise<void> {
     let config = await this.loadConfig()
     if (!config) {
@@ -154,7 +155,9 @@ export class TeamsCredentialManager {
       aad_refresh_token: params.aadRefreshToken,
       aad_client_id: params.aadClientId,
     }
-    config.current_account = params.accountType
+    if (params.makeCurrent ?? true) {
+      config.current_account = params.accountType
+    }
     await this.saveConfig(config)
   }
 
