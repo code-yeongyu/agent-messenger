@@ -2,6 +2,7 @@ import { warn } from '@/shared/utils/stderr'
 
 import { TeamsClient } from './client'
 import { TeamsCredentialManager } from './credential-manager'
+import { refreshDeviceCodeAccount } from './device-login'
 import { TeamsTokenExtractor } from './token-extractor'
 import type { TeamsAccount, TeamsAccountType, TeamsConfig } from './types'
 
@@ -11,6 +12,8 @@ export async function ensureTeamsAuth(): Promise<void> {
     const config = await credManager.loadConfig()
 
     if (config && hasValidToken(config)) return
+
+    if (config && (await trySilentRefresh(config, credManager))) return
 
     const extractor = new TeamsTokenExtractor()
     const extracted = await extractor.extract()
@@ -90,6 +93,14 @@ async function resolveAccountType(
     }
   }
   throw lastError ?? new Error('Token validation failed')
+}
+
+async function trySilentRefresh(config: TeamsConfig, credManager: TeamsCredentialManager): Promise<boolean> {
+  const key = TeamsCredentialManager.accountOverride ?? config.current_account
+  if (!key) return false
+  const account = config.accounts[key]
+  if (account?.auth_method !== 'device-code' || !account.aad_refresh_token) return false
+  return refreshDeviceCodeAccount(key as TeamsAccountType, credManager)
 }
 
 function hasValidToken(config: TeamsConfig): boolean {
