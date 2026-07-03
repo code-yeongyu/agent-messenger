@@ -486,6 +486,22 @@ describe('InstagramClient', () => {
       expect(headers['Content-Type']).toContain('application/x-www-form-urlencoded')
     })
 
+    it('sends the current Android fingerprint headers so IG does not silently drop the login', async () => {
+      fetchResponses.push(encryptionKeyResponse())
+      fetchResponses.push(jsonResponse({ status: 'ok', logged_in_user: { pk: '99' } }))
+
+      const client = new InstagramClient()
+      await client.authenticate('user', 'pass')
+
+      const headers = fetchCalls[0]?.init?.headers as Record<string, string>
+
+      expect(headers['X-FB-HTTP-Engine']).toBe('Tigon/MNS/TCP')
+      expect(headers['IG-INTENDED-USER-ID']).toBe('0')
+      expect(headers['X-IG-App-Locale']).toBe('en_US')
+      expect(headers['X-Pigeon-Session-Id']).toMatch(/^UFS-/)
+      expect(headers['Priority']).toBe('u=3')
+    })
+
     it('includes device headers when session is set', async () => {
       fetchResponses.push(jsonResponse({ status: 'ok', inbox: { threads: [] } }))
 
@@ -637,6 +653,43 @@ describe('InstagramClient', () => {
       const chats = await client.listChats()
 
       expect(chats).toEqual([])
+    })
+
+    it('passes an abort signal so a stalled connection cannot hang forever', async () => {
+      fetchResponses.push(jsonResponse({ status: 'ok', inbox: { threads: [] } }))
+
+      const client = await loadedClient()
+      await client.listChats()
+
+      expect(fetchCalls[0]?.init?.signal).toBeInstanceOf(AbortSignal)
+    })
+
+    it('surfaces request_stalled when the request times out', async () => {
+      ;(globalThis as Record<string, unknown>).fetch = (): Promise<Response> =>
+        Promise.reject(new DOMException('The operation timed out.', 'TimeoutError'))
+
+      const client = await loadedClient()
+
+      const err = await client.listChats().catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(InstagramError)
+      expect((err as InstagramError).code).toBe('request_stalled')
+      expect((err as InstagramError).message).toContain('auth extract')
+    })
+
+    it('surfaces request_stalled when the body stalls after headers arrive', async () => {
+      const stalledBody = {
+        status: 200,
+        headers: new Headers(),
+        text: () => Promise.reject(new DOMException('The operation was aborted.', 'AbortError')),
+      } as unknown as Response
+      ;(globalThis as Record<string, unknown>).fetch = (): Promise<Response> => Promise.resolve(stalledBody)
+
+      const client = await loadedClient()
+
+      const err = await client.listChats().catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(InstagramError)
+      expect((err as InstagramError).code).toBe('request_stalled')
+      expect((err as InstagramError).message).toContain('auth extract')
     })
   })
 
