@@ -154,9 +154,7 @@ export class TeamsCredentialManager {
       aad_refresh_token: params.aadRefreshToken,
       aad_client_id: params.aadClientId,
     }
-    if (!config.current_account) {
-      config.current_account = params.accountType
-    }
+    config.current_account = params.accountType
     await this.saveConfig(config)
   }
 
