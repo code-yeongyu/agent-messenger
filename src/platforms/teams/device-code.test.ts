@@ -55,6 +55,7 @@ describe('requestDeviceCode', () => {
     expect(calls[0].url).toContain('/9188040d-6c67-4c5b-b112-36a304b66dad/oauth2/v2.0/devicecode')
     expect(calls[0].body.get('client_id')).toBe(CLIENT_ID)
     expect(calls[0].body.get('scope')).toContain('api.fl.teams.microsoft.com')
+    expect(calls[0].body.get('scope')).toContain('offline_access')
     expect(info.verificationUriComplete).toBe('https://microsoft.com/devicelogin?otc=ABCD-1234')
     expect(info.interval).toBe(5)
   })
@@ -111,6 +112,7 @@ describe('exchangeForSkypeScope', () => {
     const token = await exchangeForSkypeScope('RT1', CLIENT_ID)
     expect(calls[0].body.get('grant_type')).toBe('refresh_token')
     expect(calls[0].body.get('scope')).toContain('api.fl.spaces.skype.com')
+    expect(calls[0].body.get('scope')).toContain('offline_access')
     expect(token).toEqual({ accessToken: 'SKYPE_AT', refreshToken: 'RT2' })
   })
 
