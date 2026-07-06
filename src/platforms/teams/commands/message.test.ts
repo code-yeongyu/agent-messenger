@@ -2,10 +2,11 @@ import { afterEach, beforeEach, expect, mock, spyOn, it } from 'bun:test'
 
 import { TeamsClient } from '../client'
 import { TeamsCredentialManager } from '../credential-manager'
-import { deleteAction, getAction, listAction, sendAction } from './message'
+import { deleteAction, getAction, listAction, repliesAction, sendAction } from './message'
 
 let clientSendMessageSpy: ReturnType<typeof spyOn>
 let clientGetMessagesSpy: ReturnType<typeof spyOn>
+let clientGetThreadRepliesSpy: ReturnType<typeof spyOn>
 let clientGetMessageSpy: ReturnType<typeof spyOn>
 let clientDeleteMessageSpy: ReturnType<typeof spyOn>
 let credManagerLoadSpy: ReturnType<typeof spyOn>
@@ -37,6 +38,18 @@ beforeEach(() => {
     },
   ])
 
+  clientGetThreadRepliesSpy = spyOn(TeamsClient.prototype, 'getThreadReplies').mockResolvedValue([
+    {
+      id: 'reply_123',
+      channel_id: 'ch_456',
+      author: { id: 'user_789', displayName: 'Test User' },
+      content: 'Thread reply',
+      timestamp: '2025-01-29T10:02:00Z',
+      root_message_id: 'msg_123',
+      is_thread_reply: true,
+    },
+  ])
+
   clientGetMessageSpy = spyOn(TeamsClient.prototype, 'getMessage').mockResolvedValue({
     id: 'msg_123',
     channel_id: 'ch_456',
@@ -63,6 +76,7 @@ beforeEach(() => {
 afterEach(() => {
   clientSendMessageSpy?.mockRestore()
   clientGetMessagesSpy?.mockRestore()
+  clientGetThreadRepliesSpy?.mockRestore()
   clientGetMessageSpy?.mockRestore()
   clientDeleteMessageSpy?.mockRestore()
   credManagerLoadSpy?.mockRestore()
@@ -90,6 +104,19 @@ it('list: returns array of messages', async () => {
   const output = consoleSpy.mock.calls[0][0]
   expect(output).toContain('msg_123')
   expect(output).toContain('msg_124')
+})
+
+it('replies: returns array of thread replies', async () => {
+  const consoleSpy = mock((_msg: string) => {})
+  console.log = consoleSpy
+
+  await repliesAction('team_123', 'ch_456', 'msg_123', { limit: 10, pretty: false })
+
+  expect(clientGetThreadRepliesSpy).toHaveBeenCalledWith('team_123', 'ch_456', 'msg_123', 10)
+  expect(consoleSpy).toHaveBeenCalled()
+  const output = consoleSpy.mock.calls[0][0]
+  expect(output).toContain('reply_123')
+  expect(output).toContain('msg_123')
 })
 
 it('get: returns single message', async () => {
