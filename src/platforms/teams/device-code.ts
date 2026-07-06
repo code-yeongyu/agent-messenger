@@ -165,7 +165,10 @@ export async function resolveWorkTenantId(accessToken: string): Promise<string> 
   const tenants = await fetchTenants(accessToken)
   const redeemed = tenants.find((tenant) => tenant.isInvitationRedeemed !== false) ?? tenants[0]
   if (!redeemed) {
-    throw new TeamsError('No Microsoft Teams tenant is associated with this account.', 'teams_tenant_missing')
+    throw new TeamsError(
+      'No Microsoft Teams tenant is associated with this account. If this is a personal Microsoft account, run `agent-teams auth login --account-type personal`.',
+      'teams_tenant_missing',
+    )
   }
   if (redeemed.isInvitationRedeemed === false) {
     throw new TeamsError(
@@ -199,7 +202,7 @@ async function fetchTenants(accessToken: string): Promise<TeamsTenant[]> {
     .filter((tenant): tenant is TeamsTenant => tenant !== null)
 }
 
-function decodeJwtTid(token: string): string | undefined {
+export function decodeJwtTid(token: string): string | undefined {
   const payload = token.split('.')[1]
   if (!payload) return undefined
   try {
@@ -208,6 +211,14 @@ function decodeJwtTid(token: string): string | undefined {
   } catch {
     return undefined
   }
+}
+
+// The consumer tenant unambiguously marks a personal account: it has no org
+// tenant, so a work login carrying it can never resolve a Teams tenant. The
+// Microsoft Services placeholder is intentionally excluded — it also appears on
+// legitimate work tokens, which resolveWorkTenantId() resolves via discovery.
+export function isConsumerTenant(tenantId: string): boolean {
+  return tenantId === CONSUMER_TENANT_ID
 }
 
 function isPlaceholderTenant(tenantId: string): boolean {

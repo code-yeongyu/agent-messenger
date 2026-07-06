@@ -2,8 +2,10 @@ import { afterEach, describe, expect, it, mock } from 'bun:test'
 
 import { getTeamsAppClientId } from './app-config'
 import {
+  decodeJwtTid,
   exchangeDeviceCode,
   exchangeForSkypeScope,
+  isConsumerTenant,
   mintConsumerSkypeToken,
   mintSkypeToken,
   pollDeviceToken,
@@ -232,10 +234,41 @@ describe('resolveWorkTenantId', () => {
     )
   })
 
-  it('throws when no tenant is associated with the account', async () => {
+  it('throws when no tenant is associated with the account and points to the personal flow', async () => {
     mockFetch(() => ({ json: [] }))
 
-    await expect(resolveWorkTenantId(fakeJwt({ tid: 'organizations' }))).rejects.toThrow(/No Microsoft Teams tenant/)
+    await expect(resolveWorkTenantId(fakeJwt({ tid: 'organizations' }))).rejects.toThrow(/--account-type personal/)
+  })
+})
+
+describe('decodeJwtTid', () => {
+  it('returns the tid claim from a JWT access token', () => {
+    expect(decodeJwtTid(fakeJwt({ tid: '9188040d-6c67-4c5b-b112-36a304b66dad' }))).toBe(
+      '9188040d-6c67-4c5b-b112-36a304b66dad',
+    )
+  })
+
+  it('returns undefined for a malformed token', () => {
+    expect(decodeJwtTid('not-a-jwt')).toBeUndefined()
+  })
+
+  it('returns undefined when the tid claim is absent', () => {
+    expect(decodeJwtTid(fakeJwt({ sub: 'user' }))).toBeUndefined()
+  })
+})
+
+describe('isConsumerTenant', () => {
+  it('recognizes the consumer tenant as personal', () => {
+    expect(isConsumerTenant('9188040d-6c67-4c5b-b112-36a304b66dad')).toBe(true)
+  })
+
+  it('does not treat the Microsoft Services placeholder as personal (work tokens carry it too)', () => {
+    expect(isConsumerTenant('f8cdef31-a31e-4b4a-93e4-5f571e91255a')).toBe(false)
+  })
+
+  it('does not treat the organizations placeholder or a real tenant as personal', () => {
+    expect(isConsumerTenant('organizations')).toBe(false)
+    expect(isConsumerTenant(REAL_TENANT_ID)).toBe(false)
   })
 })
 
