@@ -31,6 +31,21 @@ export interface TeamsMessage {
   is_thread_reply?: boolean
 }
 
+export interface TeamsSearchResult {
+  id: string
+  content: string
+  author: {
+    id: string
+    displayName: string
+  }
+  channel_id: string
+  thread_id?: string
+  team_name?: string
+  channel_name?: string
+  timestamp: string
+  permalink?: string
+}
+
 export interface TeamsUser {
   id: string
   displayName: string
@@ -136,6 +151,21 @@ export const TeamsMessageSchema = z.object({
   root_message_id: z.string().optional(),
   parent_message_id: z.string().optional(),
   is_thread_reply: z.boolean().optional(),
+})
+
+export const TeamsSearchResultSchema = z.object({
+  id: z.string(),
+  content: z.string(),
+  author: z.object({
+    id: z.string(),
+    displayName: z.string(),
+  }),
+  channel_id: z.string(),
+  thread_id: z.string().optional(),
+  team_name: z.string().optional(),
+  channel_name: z.string().optional(),
+  timestamp: z.string(),
+  permalink: z.string().optional(),
 })
 
 export const TeamsUserSchema = z.object({
@@ -248,5 +278,14 @@ export class TeamsError extends Error {
     super(message)
     this.name = 'TeamsError'
     this.code = code
+  }
+}
+
+export class TeamsAuthCapabilityError extends Error {
+  constructor() {
+    super(
+      'Requires `agent-teams auth login` — cookie-based auth (`auth extract`) can only provide a Skype token, not the Microsoft token needed for search.',
+    )
+    this.name = 'TeamsAuthCapabilityError'
   }
 }

@@ -2,15 +2,17 @@ import { afterEach, beforeEach, expect, mock, spyOn, it } from 'bun:test'
 
 import { TeamsClient } from '../client'
 import { TeamsCredentialManager } from '../credential-manager'
-import { deleteAction, getAction, listAction, repliesAction, sendAction } from './message'
+import { deleteAction, getAction, listAction, repliesAction, searchAction, sendAction, strictParseInt } from './message'
 
 let clientSendMessageSpy: ReturnType<typeof spyOn>
 let clientGetMessagesSpy: ReturnType<typeof spyOn>
 let clientGetThreadRepliesSpy: ReturnType<typeof spyOn>
 let clientGetMessageSpy: ReturnType<typeof spyOn>
 let clientDeleteMessageSpy: ReturnType<typeof spyOn>
+let clientSearchMessagesSpy: ReturnType<typeof spyOn>
 let credManagerLoadSpy: ReturnType<typeof spyOn>
 const originalConsoleLog = console.log
+const originalConsoleError = console.error
 
 beforeEach(() => {
   clientSendMessageSpy = spyOn(TeamsClient.prototype, 'sendMessage').mockResolvedValue({
@@ -60,6 +62,20 @@ beforeEach(() => {
 
   clientDeleteMessageSpy = spyOn(TeamsClient.prototype, 'deleteMessage').mockResolvedValue(undefined)
 
+  clientSearchMessagesSpy = spyOn(TeamsClient.prototype, 'searchMessages').mockResolvedValue([
+    {
+      id: 'search_123',
+      content: 'Deploy complete',
+      author: { id: 'user_789', displayName: 'Test User' },
+      channel_id: 'ch_456',
+      thread_id: 'thread_123',
+      team_name: 'Test Team',
+      channel_name: 'General',
+      timestamp: '2025-01-29T10:03:00Z',
+      permalink: 'https://teams.microsoft.com/l/message/search_123',
+    },
+  ])
+
   credManagerLoadSpy = spyOn(TeamsCredentialManager.prototype, 'loadConfig').mockResolvedValue({
     current_account: 'work',
     accounts: {
@@ -79,8 +95,10 @@ afterEach(() => {
   clientGetThreadRepliesSpy?.mockRestore()
   clientGetMessageSpy?.mockRestore()
   clientDeleteMessageSpy?.mockRestore()
+  clientSearchMessagesSpy?.mockRestore()
   credManagerLoadSpy?.mockRestore()
   console.log = originalConsoleLog
+  console.error = originalConsoleError
 })
 
 it('send: returns message with id', async () => {
@@ -117,6 +135,55 @@ it('replies: returns array of thread replies', async () => {
   const output = consoleSpy.mock.calls[0][0]
   expect(output).toContain('reply_123')
   expect(output).toContain('msg_123')
+})
+
+it('search: returns search results and passes pagination options', async () => {
+  const consoleSpy = mock((_msg: string) => {})
+  console.log = consoleSpy
+
+  await searchAction('deploy', { limit: 10, from: 5, pretty: false })
+
+  expect(clientSearchMessagesSpy).toHaveBeenCalledWith('deploy', { limit: 10, from: 5 })
+  expect(consoleSpy).toHaveBeenCalled()
+  const output = consoleSpy.mock.calls[0][0]
+  expect(output).toContain('search_123')
+  expect(output).toContain('Deploy complete')
+})
+
+it.each([
+  ['abc', Number.NaN],
+  ['1.5', Number.NaN],
+  ['1abc', Number.NaN],
+  ['', Number.NaN],
+  ['10', 10],
+  [' 10 ', 10],
+  ['-1', -1],
+])('strictParseInt(%p) -> %p (rejects truncatable strings)', (input, expected) => {
+  const result = strictParseInt(input)
+  if (Number.isNaN(expected)) {
+    expect(Number.isNaN(result)).toBe(true)
+  } else {
+    expect(result).toBe(expected as number)
+  }
+})
+
+it.each([
+  ['--limit abc', { limit: Number.NaN, from: 0 }],
+  ['--limit 0', { limit: 0, from: 0 }],
+  ['--limit -1', { limit: -1, from: 0 }],
+  ['--from -1', { limit: 20, from: -1 }],
+])('search: rejects invalid pagination %s', async (_label, options) => {
+  const consoleErrorSpy = mock((_msg: string) => {})
+  console.error = consoleErrorSpy
+  const exitSpy = spyOn(process, 'exit').mockImplementation((code?: string | number | null) => {
+    throw new Error(`exit:${code}`)
+  })
+
+  await expect(searchAction('deploy', { ...options, pretty: false })).rejects.toThrow('exit:1')
+
+  expect(consoleErrorSpy).toHaveBeenCalled()
+  expect(clientSearchMessagesSpy).not.toHaveBeenCalled()
+  exitSpy.mockRestore()
 })
 
 it('get: returns single message', async () => {

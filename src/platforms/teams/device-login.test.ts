@@ -64,6 +64,28 @@ describe('refreshDeviceCodeAccount', () => {
     expect(config?.current_account).toBe('personal')
   })
 
+  it('refreshes work device-code accounts and persists the rotated refresh token', async () => {
+    const manager = setup()
+    await manager.setDeviceCodeAccount({
+      accountType: 'work',
+      token: 'old-skype',
+      tokenExpiresAt: '2000-01-01T00:00:00Z',
+      aadRefreshToken: 'old-refresh',
+      aadClientId: 'client',
+      teams: {},
+      currentTeam: null,
+    })
+
+    mockExchangeAndMint('new-skype', 'new-work-refresh')
+    const ok = await refreshDeviceCodeAccount('work', manager)
+
+    expect(ok).toBe(true)
+    const config = await manager.loadConfig()
+    expect(config?.accounts.work?.token).toBe('new-skype')
+    expect(config?.accounts.work?.aad_refresh_token).toBe('new-work-refresh')
+    expect(config?.accounts.work?.auth_method).toBe('device-code')
+  })
+
   it('does not change current_account when refreshing a non-current account', async () => {
     const manager = setup()
     await manager.setDeviceCodeAccount({

@@ -6,6 +6,7 @@ import { formatOutput } from '@/shared/utils/output'
 import { TeamsClient } from '../client'
 import { TeamsCredentialManager } from '../credential-manager'
 import type { TeamsMessage } from '../types'
+import { TeamsAuthCapabilityError } from '../types'
 
 export async function sendAction(
   teamId: string,
@@ -121,6 +122,74 @@ export async function repliesAction(
   }
 }
 
+export async function searchAction(
+  query: string,
+  options: { limit?: number; from?: number; pretty?: boolean },
+): Promise<void> {
+  try {
+    if (!isPositiveInteger(options.limit)) {
+      console.error(formatOutput({ error: '--limit must be a positive integer.' }, options.pretty))
+      process.exit(1)
+    }
+    if (!isNonNegativeInteger(options.from)) {
+      console.error(formatOutput({ error: '--from must be a non-negative integer.' }, options.pretty))
+      process.exit(1)
+    }
+
+    const credManager = new TeamsCredentialManager()
+    const cred = await credManager.getTokenWithExpiry()
+
+    if (!cred) {
+      console.error(formatOutput({ error: new TeamsAuthCapabilityError().message }, options.pretty))
+      process.exit(1)
+    }
+
+    const client = await new TeamsClient().login({
+      token: cred.token,
+      tokenExpiresAt: cred.tokenExpiresAt,
+      accountType: cred.accountType,
+      region: cred.region,
+    })
+    const results = await client.searchMessages(query, { limit: options.limit, from: options.from })
+
+    const output = results.map((result) => ({
+      id: result.id,
+      content: result.content,
+      author: result.author.displayName,
+      author_id: result.author.id,
+      channel_id: result.channel_id,
+      thread_id: result.thread_id,
+      team_name: result.team_name,
+      channel_name: result.channel_name,
+      timestamp: result.timestamp,
+      permalink: result.permalink,
+    }))
+
+    console.log(formatOutput(output, options.pretty))
+  } catch (error) {
+    if (error instanceof TeamsAuthCapabilityError) {
+      console.error(formatOutput({ error: error.message }, options.pretty))
+      process.exit(1)
+    }
+    handleError(error as Error)
+  }
+}
+
+function isPositiveInteger(value: number | undefined): boolean {
+  return value === undefined || (Number.isInteger(value) && value >= 1)
+}
+
+function isNonNegativeInteger(value: number | undefined): boolean {
+  return value === undefined || (Number.isInteger(value) && value >= 0)
+}
+
+// parseInt truncates "1.5"/"1abc" to 1, sneaking malformed input past the integer
+// checks in searchAction, so reject anything that isn't a pure decimal integer up front
+export function strictParseInt(value: string | undefined): number {
+  if (value === undefined) return Number.NaN
+  return /^-?\d+$/.test(value.trim()) ? Number.parseInt(value, 10) : Number.NaN
+}
+
 export async function getAction(
   teamId: string,
   channelId: string,
@@ -233,6 +302,21 @@ export const messageCommand = new Command('message')
       .action((teamId: string, channelId: string, messageId: string, options: any) => {
         return repliesAction(teamId, channelId, messageId, {
           limit: parseInt(options.limit, 10),
+          pretty: options.pretty,
+        })
+      }),
+  )
+  .addCommand(
+    new Command('search')
+      .description('Search Teams messages (requires auth login)')
+      .argument('<query>', 'Search query')
+      .option('--limit <n>', 'Number of results', '20')
+      .option('--from <n>', 'Offset for pagination', '0')
+      .option('--pretty', 'Pretty print JSON output')
+      .action((query: string, options: any) => {
+        return searchAction(query, {
+          limit: strictParseInt(options.limit),
+          from: strictParseInt(options.from),
           pretty: options.pretty,
         })
       }),

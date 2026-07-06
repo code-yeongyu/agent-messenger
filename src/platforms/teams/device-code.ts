@@ -1,10 +1,5 @@
-import {
-  AUTHZ_CONSUMER_URL,
-  consumerDeviceCodeUrl,
-  consumerTokenUrl,
-  DEVICE_CODE_SCOPE_SKYPE,
-  DEVICE_CODE_SCOPE_TEAMS,
-} from './app-config'
+import { authzUrl, deviceCodeSkypeScope, deviceCodeTeamsScope, deviceCodeTokenUrl, deviceCodeUrl } from './app-config'
+import type { TeamsAccountType, TeamsRegion } from './types'
 import { TeamsError } from './types'
 
 const DEFAULT_SKYPE_TOKEN_TTL_SEC = 21600
@@ -26,6 +21,7 @@ export interface AadToken {
 export interface MintedSkypeToken {
   skypeToken: string
   skypeTokenExpiresAt: string
+  region?: TeamsRegion
 }
 
 export type DeviceTokenResult =
@@ -49,10 +45,13 @@ async function postForm(
   return { status: res.status, body }
 }
 
-export async function requestDeviceCode(clientId: string): Promise<DeviceCodeInfo> {
-  const { status, body } = await postForm(consumerDeviceCodeUrl(), {
+export async function requestDeviceCode(
+  clientId: string,
+  accountType: TeamsAccountType = 'personal',
+): Promise<DeviceCodeInfo> {
+  const { status, body } = await postForm(deviceCodeUrl(accountType), {
     client_id: clientId,
-    scope: DEVICE_CODE_SCOPE_TEAMS,
+    scope: deviceCodeTeamsScope(accountType),
   })
   if (status !== 200) {
     throw new TeamsError(`Device code request failed: ${describeAadError(body, status)}`, 'device_code_failed')
@@ -69,8 +68,12 @@ export async function requestDeviceCode(clientId: string): Promise<DeviceCodeInf
   }
 }
 
-export async function exchangeDeviceCode(deviceCode: string, clientId: string): Promise<DeviceTokenResult> {
-  const { status, body } = await postForm(consumerTokenUrl(), {
+export async function exchangeDeviceCode(
+  deviceCode: string,
+  clientId: string,
+  accountType: TeamsAccountType = 'personal',
+): Promise<DeviceTokenResult> {
+  const { status, body } = await postForm(deviceCodeTokenUrl(accountType), {
     client_id: clientId,
     grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
     device_code: deviceCode,
@@ -94,12 +97,13 @@ export async function pollDeviceToken(
   interval: number,
   expiresIn: number,
   clientId: string,
+  accountType: TeamsAccountType = 'personal',
 ): Promise<AadToken> {
   const deadline = Date.now() + expiresIn * 1000
   let waitMs = Math.max(interval, 1) * 1000
   while (Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, waitMs))
-    const result = await exchangeDeviceCode(deviceCode, clientId)
+    const result = await exchangeDeviceCode(deviceCode, clientId, accountType)
     if (result.status === 'success') return result.token
     if (result.status === 'slow_down') {
       waitMs += 5000
@@ -113,12 +117,16 @@ export async function pollDeviceToken(
   throw new TeamsError('Device code expired before approval.', 'device_code_expired')
 }
 
-export async function exchangeForSkypeScope(refreshToken: string, clientId: string): Promise<AadToken> {
-  const { status, body } = await postForm(consumerTokenUrl(), {
+export async function exchangeForSkypeScope(
+  refreshToken: string,
+  clientId: string,
+  accountType: TeamsAccountType = 'personal',
+): Promise<AadToken> {
+  const { status, body } = await postForm(deviceCodeTokenUrl(accountType), {
     client_id: clientId,
     grant_type: 'refresh_token',
     refresh_token: refreshToken,
-    scope: DEVICE_CODE_SCOPE_SKYPE,
+    scope: deviceCodeSkypeScope(accountType),
   })
   if (status !== 200) {
     throw new TeamsError(`Token exchange failed: ${describeAadError(body, status)}`, 'token_exchange_failed')
@@ -129,8 +137,11 @@ export async function exchangeForSkypeScope(refreshToken: string, clientId: stri
   }
 }
 
-export async function mintConsumerSkypeToken(spacesAccessToken: string): Promise<MintedSkypeToken> {
-  const res = await fetch(AUTHZ_CONSUMER_URL, {
+export async function mintSkypeToken(
+  spacesAccessToken: string,
+  accountType: TeamsAccountType = 'personal',
+): Promise<MintedSkypeToken> {
+  const res = await fetch(authzUrl(accountType), {
     method: 'POST',
     headers: { Authorization: `Bearer ${spacesAccessToken}`, Accept: 'application/json; ver=1.0' },
   })
@@ -148,7 +159,12 @@ export async function mintConsumerSkypeToken(spacesAccessToken: string): Promise
   return {
     skypeToken,
     skypeTokenExpiresAt: new Date(Date.now() + ttlSec * 1000).toISOString(),
+    region: parseRegion(body),
   }
+}
+
+export async function mintConsumerSkypeToken(spacesAccessToken: string): Promise<MintedSkypeToken> {
+  return mintSkypeToken(spacesAccessToken, 'personal')
 }
 
 function describeAadError(body: Record<string, unknown>, status: number): string {
@@ -159,4 +175,11 @@ function describeAadError(body: Record<string, unknown>, status: number): string
 function describeAuthzError(body: Record<string, unknown>, status: number): string {
   const statusObj = body.status as { text?: string } | undefined
   return String(body.errorCode ?? body.message ?? statusObj?.text ?? `HTTP ${status}`)
+}
+
+function parseRegion(body: Record<string, unknown>): TeamsRegion | undefined {
+  const regionGtms = body.regionGtms as { region?: string; middleTier?: string; mt?: string } | undefined
+  const raw = regionGtms?.region ?? regionGtms?.middleTier ?? regionGtms?.mt
+  if (raw === 'amer' || raw === 'emea' || raw === 'apac') return raw
+  return undefined
 }
