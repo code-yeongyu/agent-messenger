@@ -9,6 +9,7 @@ import { debug, info } from '@/shared/utils/stderr'
 import { TeamsClient } from '../client'
 import { TeamsCredentialManager } from '../credential-manager'
 import { completeDeviceCode, loginWithDeviceCode, PendingApprovalError, startDeviceCode } from '../device-login'
+import { probeAccountType } from '../realm-discovery'
 import { TeamsTokenExtractor } from '../token-extractor'
 import type { TeamsAccount, TeamsAccountType, TeamsConfig } from '../types'
 
@@ -18,21 +19,26 @@ interface LoginOptions {
   deviceCode?: string
   clientId?: string
   accountType?: string
+  email?: string
 }
 
 export async function loginAction(options: LoginOptions): Promise<void> {
   try {
-    const accountType = resolveLoginAccountType(options.accountType)
+    const explicitAccountType = resolveLoginAccountType(options.accountType)
     if (options.deviceCode) {
-      await finishDeviceCode(options, accountType)
+      await finishDeviceCode(options, explicitAccountType)
       return
     }
     if (!isInteractive()) {
+      const accountType = options.email
+        ? await resolveAccountTypeFromEmail(options, explicitAccountType)
+        : explicitAccountType
       await startNonInteractiveLogin(options.clientId, accountType)
       return
     }
 
     const debugLog = options.debug ? (msg: string) => debug(`[debug] ${msg}`) : undefined
+    const accountType = await resolveAccountTypeFromEmail(options, explicitAccountType)
     const result = await loginWithDeviceCode({
       clientId: options.clientId,
       accountType,
@@ -65,6 +71,37 @@ function resolveLoginAccountType(value: string | undefined): TeamsAccountType {
   if (value === undefined) return 'work'
   if (value === 'work' || value === 'personal') return value
   throw new Error('Invalid account type. Use "work" or "personal".')
+}
+
+// When the user did not force --account-type, look the account up by email so a
+// personal account is routed to the personal flow up front instead of failing
+// after approval. Any misstep falls back to the caller's default account type.
+async function resolveAccountTypeFromEmail(
+  options: LoginOptions,
+  fallback: TeamsAccountType,
+): Promise<TeamsAccountType> {
+  if (options.accountType !== undefined) return fallback
+
+  const email = options.email ?? (isInteractive() ? await promptEmail() : undefined)
+  if (!email) return fallback
+
+  const probed = await probeAccountType(email)
+  if (!probed) return fallback
+  if (probed === 'personal') {
+    info('Detected a personal Microsoft account. Using personal sign-in.')
+  }
+  return probed
+}
+
+async function promptEmail(): Promise<string | undefined> {
+  const { createInterface } = await import('node:readline/promises')
+  const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true })
+  try {
+    const answer = await rl.question('Microsoft email (press Enter to skip): ')
+    return answer.trim() || undefined
+  } finally {
+    rl.close()
+  }
 }
 
 async function startNonInteractiveLogin(
@@ -560,12 +597,13 @@ export const authCommand = new Command('auth')
   .description('Authentication commands')
   .addCommand(
     new Command('login')
-      .description('Sign in via device code (no desktop app needed). Defaults to work/school accounts.')
+      .description('Sign in via device code (no desktop app needed). Detects the account type from your email.')
       .option('--pretty', 'Pretty print JSON output')
       .option('--debug', 'Show debug output for troubleshooting')
       .option('--device-code <code>', 'Finish a non-interactive login started earlier')
       .option('--client-id <id>', 'Override the AAD client ID')
-      .option('--account-type <type>', 'Account type: work or personal (default: work)')
+      .option('--account-type <type>', 'Force account type: work or personal (skips email detection)')
+      .option('--email <email>', 'Microsoft email, used to auto-detect work vs personal')
       .action(loginAction),
   )
   .addCommand(

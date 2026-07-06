@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, expect, spyOn, it } from 'bun:test'
 
+import * as interactive from '@/shared/utils/interactive'
+
 import { TeamsClient } from '../client'
 import { TeamsCredentialManager } from '../credential-manager'
 import * as deviceLogin from '../device-login'
+import * as realmDiscovery from '../realm-discovery'
 import { TeamsTokenExtractor } from '../token-extractor'
 import { getNoTeamsTokenFoundMessage, loginAction } from './auth'
 
@@ -120,4 +123,70 @@ it('login pending hint preserves explicit account type', async () => {
   completeSpy.mockRestore()
   consoleSpy.mockRestore()
   exitSpy.mockRestore()
+})
+
+it('routes to the personal flow when the email probe reports a personal account', async () => {
+  const interactiveSpy = spyOn(interactive, 'isInteractive').mockReturnValue(true)
+  const probeSpy = spyOn(realmDiscovery, 'probeAccountType').mockResolvedValue('personal')
+  const consoleSpy = spyOn(console, 'log').mockImplementation(() => {})
+  const loginSpy = spyOn(deviceLogin, 'loginWithDeviceCode').mockResolvedValue({
+    accountType: 'personal',
+    userName: 'Personal User',
+    teams: [],
+    current: null,
+  })
+
+  await loginAction({ email: 'user@outlook.com', pretty: false })
+
+  expect(probeSpy).toHaveBeenCalledWith('user@outlook.com')
+  expect(loginSpy.mock.calls[0][0].accountType).toBe('personal')
+
+  interactiveSpy.mockRestore()
+  probeSpy.mockRestore()
+  consoleSpy.mockRestore()
+  loginSpy.mockRestore()
+})
+
+it('skips the email probe when an account type is forced explicitly', async () => {
+  const interactiveSpy = spyOn(interactive, 'isInteractive').mockReturnValue(true)
+  const probeSpy = spyOn(realmDiscovery, 'probeAccountType').mockResolvedValue('personal')
+  const consoleSpy = spyOn(console, 'log').mockImplementation(() => {})
+  const loginSpy = spyOn(deviceLogin, 'loginWithDeviceCode').mockResolvedValue({
+    accountType: 'work',
+    userName: 'Work User',
+    teams: [],
+    current: null,
+  })
+
+  await loginAction({ email: 'user@outlook.com', accountType: 'work', pretty: false })
+
+  expect(probeSpy).not.toHaveBeenCalled()
+  expect(loginSpy.mock.calls[0][0].accountType).toBe('work')
+
+  interactiveSpy.mockRestore()
+  probeSpy.mockRestore()
+  consoleSpy.mockRestore()
+  loginSpy.mockRestore()
+})
+
+it('falls back to the default flow when the email probe is inconclusive', async () => {
+  const interactiveSpy = spyOn(interactive, 'isInteractive').mockReturnValue(true)
+  const probeSpy = spyOn(realmDiscovery, 'probeAccountType').mockResolvedValue(undefined)
+  const consoleSpy = spyOn(console, 'log').mockImplementation(() => {})
+  const loginSpy = spyOn(deviceLogin, 'loginWithDeviceCode').mockResolvedValue({
+    accountType: 'work',
+    userName: 'Work User',
+    teams: [],
+    current: null,
+  })
+
+  await loginAction({ email: 'user@unknown.test', pretty: false })
+
+  expect(probeSpy).toHaveBeenCalledWith('user@unknown.test')
+  expect(loginSpy.mock.calls[0][0].accountType).toBe('work')
+
+  interactiveSpy.mockRestore()
+  probeSpy.mockRestore()
+  consoleSpy.mockRestore()
+  loginSpy.mockRestore()
 })

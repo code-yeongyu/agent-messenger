@@ -30,6 +30,8 @@ export const AUTHZ_WORK_URL = 'https://teams.microsoft.com/api/authsvc/v1.0/auth
 // regardless of home region), so we pin the value fossteams uses.
 export const TEAMS_TENANTS_URL = 'https://teams.microsoft.com/api/mt/emea/beta/users/tenants'
 
+export const GET_CREDENTIAL_TYPE_URL = 'https://login.microsoftonline.com/common/GetCredentialType'
+
 export function consumerDeviceCodeUrl(): string {
   return `https://login.microsoftonline.com/${CONSUMER_TENANT_ID}/oauth2/v2.0/devicecode`
 }
