@@ -2,12 +2,14 @@ import { getTeamsAppClientId } from './app-config'
 import { TeamsClient } from './client'
 import { TeamsCredentialManager } from './credential-manager'
 import {
+  type AadToken,
   type DeviceCodeInfo,
   exchangeDeviceCode,
   exchangeForSkypeScope,
   mintSkypeToken,
   pollDeviceToken,
   requestDeviceCode,
+  resolveWorkTenantId,
 } from './device-code'
 import type { TeamsAccountType } from './types'
 
@@ -61,7 +63,7 @@ export async function completeDeviceCode(
           : `Login failed: ${first.message}`,
     )
   }
-  return finalize(first.token.refreshToken, clientId, accountType, credManager)
+  return finalize(first.token, clientId, accountType, credManager)
 }
 
 export async function loginWithDeviceCode(
@@ -79,24 +81,30 @@ export async function loginWithDeviceCode(
 
   const aad = await pollDeviceToken(info.deviceCode, info.interval, info.expiresIn, clientId, accountType)
   callbacks.onPending?.()
-  return finalize(aad.refreshToken, clientId, accountType, credManager, callbacks.debug)
+  return finalize(aad, clientId, accountType, credManager, callbacks.debug)
 }
 
 async function finalize(
-  initialRefreshToken: string | undefined,
+  initialAad: AadToken,
   clientId: string,
   accountType: TeamsAccountType,
   credManager: TeamsCredentialManager,
   debug?: (message: string) => void,
 ): Promise<DeviceLoginResult> {
-  if (!initialRefreshToken) {
+  if (!initialAad.refreshToken) {
     throw new Error(
       'Sign-in did not return a refresh token (needed to mint the Teams token). Retry `auth login`, or use `auth extract` if this persists.',
     )
   }
 
+  let tenantId: string | undefined
+  if (accountType === 'work') {
+    debug?.('Resolving Teams tenant...')
+    tenantId = await resolveWorkTenantId(initialAad.accessToken)
+  }
+
   debug?.('Exchanging token for skype audience...')
-  const skypeScoped = await exchangeForSkypeScope(initialRefreshToken, clientId, accountType)
+  const skypeScoped = await exchangeForSkypeScope(initialAad.refreshToken, clientId, accountType, tenantId)
 
   debug?.('Minting skype token...')
   const minted = await mintSkypeToken(skypeScoped.accessToken, accountType)
@@ -117,6 +125,7 @@ async function finalize(
     tokenExpiresAt: minted.skypeTokenExpiresAt,
     aadRefreshToken: skypeScoped.refreshToken,
     aadClientId: clientId,
+    aadTenantId: tenantId,
     region: minted.region ?? (accountType === 'work' ? client.getRegion() : undefined),
     userName: authInfo.displayName,
     teams: teamMap,
@@ -146,7 +155,8 @@ export async function refreshDeviceCodeAccount(
 
   try {
     debug?.('Silently refreshing skype token...')
-    const skypeScoped = await exchangeForSkypeScope(account.aad_refresh_token, clientId, accountType)
+    const tenantId = accountType === 'work' ? account.aad_tenant_id : undefined
+    const skypeScoped = await exchangeForSkypeScope(account.aad_refresh_token, clientId, accountType, tenantId)
     const minted = await mintSkypeToken(skypeScoped.accessToken, accountType)
 
     await credManager.setDeviceCodeAccount({
@@ -155,6 +165,7 @@ export async function refreshDeviceCodeAccount(
       tokenExpiresAt: minted.skypeTokenExpiresAt,
       aadRefreshToken: skypeScoped.refreshToken,
       aadClientId: clientId,
+      aadTenantId: tenantId,
       region: minted.region ?? account.region,
       userName: account.user_name,
       teams: account.teams,

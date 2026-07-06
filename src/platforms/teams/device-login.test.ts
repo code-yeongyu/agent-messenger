@@ -14,10 +14,12 @@ function setup(): TeamsCredentialManager {
   return new TeamsCredentialManager(dir)
 }
 
-function mockExchangeAndMint(skypeToken: string, rotatedRefresh: string): void {
+function mockExchangeAndMint(skypeToken: string, rotatedRefresh: string): { tokenUrls: string[] } {
+  const tokenUrls: string[] = []
   globalThis.fetch = mock((input: string | URL | Request) => {
     const url = String(input)
     if (url.includes('/oauth2/v2.0/token')) {
+      tokenUrls.push(url)
       return Promise.resolve({
         ok: true,
         status: 200,
@@ -30,6 +32,7 @@ function mockExchangeAndMint(skypeToken: string, rotatedRefresh: string): void {
       json: () => Promise.resolve({ skypeToken: { skypetoken: skypeToken, skypeTokenExpiresIn: 3600 } }),
     } as Response)
   }) as typeof fetch
+  return { tokenUrls }
 }
 
 afterEach(() => {
@@ -84,6 +87,29 @@ describe('refreshDeviceCodeAccount', () => {
     expect(config?.accounts.work?.token).toBe('new-skype')
     expect(config?.accounts.work?.aad_refresh_token).toBe('new-work-refresh')
     expect(config?.accounts.work?.auth_method).toBe('device-code')
+  })
+
+  it('refreshes a work account against its stored tenant authority', async () => {
+    const manager = setup()
+    const tenantId = 'c0ffee00-1111-2222-3333-444455556666'
+    await manager.setDeviceCodeAccount({
+      accountType: 'work',
+      token: 'old-skype',
+      tokenExpiresAt: '2000-01-01T00:00:00Z',
+      aadRefreshToken: 'old-refresh',
+      aadClientId: 'client',
+      aadTenantId: tenantId,
+      teams: {},
+      currentTeam: null,
+    })
+
+    const { tokenUrls } = mockExchangeAndMint('new-skype', 'new-work-refresh')
+    const ok = await refreshDeviceCodeAccount('work', manager)
+
+    expect(ok).toBe(true)
+    expect(tokenUrls.some((url) => url.includes(`/${tenantId}/oauth2/v2.0/token`))).toBe(true)
+    const config = await manager.loadConfig()
+    expect(config?.accounts.work?.aad_tenant_id).toBe(tenantId)
   })
 
   it('does not change current_account when refreshing a non-current account', async () => {

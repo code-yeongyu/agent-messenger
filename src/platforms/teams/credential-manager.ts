@@ -131,6 +131,7 @@ export class TeamsCredentialManager {
     tokenExpiresAt: string
     aadRefreshToken?: string
     aadClientId?: string
+    aadTenantId?: string
     region?: TeamsRegion
     userName?: string
     teams: Record<string, { team_id: string; team_name: string }>
@@ -154,6 +155,7 @@ export class TeamsCredentialManager {
       auth_method: params.authMethod ?? 'device-code',
       aad_refresh_token: params.aadRefreshToken,
       aad_client_id: params.aadClientId,
+      aad_tenant_id: params.aadTenantId ?? existing?.aad_tenant_id,
     }
     if (params.makeCurrent ?? true) {
       config.current_account = params.accountType
