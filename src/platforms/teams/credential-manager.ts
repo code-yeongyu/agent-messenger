@@ -168,6 +168,17 @@ export class TeamsCredentialManager {
     return { refreshToken: account.aad_refresh_token, clientId: account.aad_client_id }
   }
 
+  async updateAadRefreshToken(accountType: TeamsAccountType, refreshToken: string, clientId?: string): Promise<void> {
+    const config = await this.loadConfig()
+    const account = config?.accounts[accountType]
+    if (!config || !account) return
+    account.aad_refresh_token = refreshToken
+    if (clientId !== undefined) {
+      account.aad_client_id = clientId
+    }
+    await this.saveConfig(config)
+  }
+
   async getCurrentTeam(): Promise<{ team_id: string; team_name: string } | null> {
     const config = await this.loadConfig()
     if (!config) return null
