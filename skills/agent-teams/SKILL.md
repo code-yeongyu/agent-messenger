@@ -35,8 +35,8 @@ agent-teams channel list <team-id>
 
 Two co-equal ways to sign in — pick whichever fits:
 
-1. **`agent-teams auth login`** (personal Microsoft accounts) — device-code sign-in. Open the printed URL, enter the code, and approve in your browser. No desktop app or browser extraction needed.
-2. **`agent-teams auth extract`** — zero-config extraction from the Teams desktop app, falling back to a Chromium browser. Best when you're already signed into Teams locally.
+1. **`agent-teams auth login`** (work/school **or** personal Microsoft accounts) — device-code sign-in. Open the printed URL, enter the code, and approve in your browser. No desktop app or browser extraction needed. Defaults to a work/school account; use `--account-type personal` for a personal account. Only `auth login` stores the AAD refresh token required by `message search`.
+2. **`agent-teams auth extract`** — zero-config extraction from the Teams desktop app, falling back to a Chromium browser. Best when you're already signed into Teams locally. Yields a Skype token only — sufficient for messaging, but **not** for `message search` (see below).
 
 Credentials are also extracted automatically on first use of any command if none are stored, so `auth extract` can happen silently in the background.
 
@@ -54,7 +54,7 @@ agent-teams auth login
 agent-teams auth login --device-code <device_code>
 ```
 
-`--client-id <id>` overrides the AAD client ID on either call (or set `AGENT_TEAMS_CLIENT_ID`).
+`--client-id <id>` overrides the AAD client ID on either call (or set `AGENT_TEAMS_CLIENT_ID`). `--account-type <work|personal>` selects the account (default `work`); it is preserved across the two-call flow, so pass it to both calls when signing in to a personal account non-interactively.
 
 ### Multi-Team Support
 
@@ -212,7 +212,13 @@ agent-teams message get <team-id> <channel-id> <message-id>
 
 # Delete a message
 agent-teams message delete <team-id> <channel-id> <message-id> --force
+
+# Search messages across Teams (requires `auth login` — see Authentication)
+agent-teams message search <query>
+agent-teams message search "deploy" --limit 10 --from 0
 ```
+
+`message search` requires an `auth login` account: it queries Microsoft's Substrate search API with an AAD token that `auth extract` (cookie-based) cannot provide. Cookie-only accounts get a clear error telling you to run `auth login`. `--limit` is a positive integer (default 20); `--from` is a non-negative offset for pagination (default 0).
 
 ### Channel Commands
 
@@ -300,7 +306,14 @@ agent-teams file list <team-id> <channel-id>
 
 # Get file info
 agent-teams file info <team-id> <channel-id> <file-id>
+
+# Download a file (to a path or directory; defaults to the current dir)
+agent-teams file download <team-id> <channel-id> <file-id>
+agent-teams file download <team-id> <channel-id> <file-id> ./report.pdf
+agent-teams file download <team-id> <channel-id> <file-id> ./downloads/ --pretty
 ```
+
+`file download` output: `{ "id", "name", "size", "content_type", "path" }` where `path` is where the file was written. Inline/image attachments download with the extracted Skype token and work for any signed-in account; SharePoint/OneDrive documents download via Microsoft Graph and require an `auth login` account (cookie-only `auth extract` accounts get a clear error telling you to run `auth login`).
 
 ### Snapshot Command
 

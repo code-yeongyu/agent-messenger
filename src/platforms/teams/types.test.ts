@@ -8,6 +8,7 @@ import {
   TeamsFileSchema,
   TeamsMessageSchema,
   TeamsReactionSchema,
+  TeamsSearchResultSchema,
   TeamsTeamSchema,
   TeamsUserSchema,
 } from './types'
@@ -85,6 +86,22 @@ it('TeamsMessageSchema rejects missing required fields', () => {
     content: 'Hello world',
   })
   expect(result.success).toBe(false)
+})
+
+it('TeamsSearchResultSchema validates search result shape', () => {
+  const result = TeamsSearchResultSchema.safeParse({
+    id: 'msg-123',
+    content: 'Deploy complete',
+    author: { id: 'user-123', displayName: 'Alice' },
+    channel_id: 'channel-123',
+    thread_id: 'thread-123',
+    team_name: 'Team One',
+    channel_name: 'General',
+    timestamp: '2024-01-01T00:00:00.000Z',
+    permalink: 'https://teams.microsoft.com/l/message/msg-123',
+  })
+
+  expect(result.success).toBe(true)
 })
 
 // TeamsUserSchema tests

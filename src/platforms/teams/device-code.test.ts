@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, mock } from 'bun:test'
 
+import { getTeamsAppClientId } from './app-config'
 import {
   exchangeDeviceCode,
   exchangeForSkypeScope,
@@ -38,6 +39,13 @@ afterEach(() => {
   globalThis.fetch = originalFetch
 })
 
+describe('getTeamsAppClientId', () => {
+  it('keeps the consumer client for personal login and uses Teams desktop client for work login', () => {
+    expect(getTeamsAppClientId('personal').clientId).toBe('5e3ce6c0-2b1f-4285-8d4b-75ee78787346')
+    expect(getTeamsAppClientId('work').clientId).toBe('1fec8e78-bce4-4aaf-ab1b-5451cc387264')
+  })
+})
+
 describe('requestDeviceCode', () => {
   it('posts to consumer devicecode endpoint with teams scope and composes verificationUriComplete', async () => {
     const { calls } = mockFetch(() => ({
@@ -58,6 +66,24 @@ describe('requestDeviceCode', () => {
     expect(calls[0].body.get('scope')).toContain('offline_access')
     expect(info.verificationUriComplete).toBe('https://microsoft.com/devicelogin?otc=ABCD-1234')
     expect(info.interval).toBe(5)
+  })
+
+  it('posts work-account device code requests to organizations authority with Teams scope', async () => {
+    const { calls } = mockFetch(() => ({
+      json: {
+        device_code: 'DC',
+        user_code: 'ABCD-1234',
+        verification_uri: 'https://microsoft.com/devicelogin',
+        expires_in: 900,
+        interval: 5,
+      },
+    }))
+
+    await requestDeviceCode(CLIENT_ID, 'work')
+
+    expect(calls[0].url).toContain('/organizations/oauth2/v2.0/devicecode')
+    expect(calls[0].body.get('client_id')).toBe(CLIENT_ID)
+    expect(calls[0].body.get('scope')).toBe('https://api.spaces.skype.com/.default openid profile offline_access')
   })
 
   it('throws on non-200', async () => {
@@ -120,6 +146,17 @@ describe('exchangeForSkypeScope', () => {
     mockFetch(() => ({ json: { access_token: 'SKYPE_AT' } }))
     const token = await exchangeForSkypeScope('RT1', CLIENT_ID)
     expect(token.refreshToken).toBe('RT1')
+  })
+
+  it('refresh-exchanges work accounts against organizations authority with Teams Skype scope', async () => {
+    const { calls } = mockFetch(() => ({ json: { access_token: 'WORK_SKYPE_AT', refresh_token: 'RT2' } }))
+
+    const token = await exchangeForSkypeScope('RT1', CLIENT_ID, 'work')
+
+    expect(calls[0].url).toContain('/organizations/oauth2/v2.0/token')
+    expect(calls[0].body.get('grant_type')).toBe('refresh_token')
+    expect(calls[0].body.get('scope')).toBe('https://api.spaces.skype.com/.default openid profile offline_access')
+    expect(token).toEqual({ accessToken: 'WORK_SKYPE_AT', refreshToken: 'RT2' })
   })
 })
 

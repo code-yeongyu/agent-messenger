@@ -192,6 +192,25 @@ Credentials are stored in:
 - Keep this file secure - it grants access to your Teams account
 - **Tokens auto-expire in 60-90 minutes** - provides some security
 
+## AAD Tokens (required for `message search`)
+
+Most commands use only the Skype token above. **`message search` is different**: it queries Microsoft's Substrate search API, which requires an AAD Bearer token for the `substrate.office.com` audience — a token the Skype cookie cannot produce.
+
+- **Only `auth login` (device-code) can mint it.** That flow stores an `aad_refresh_token` (and `aad_client_id`) alongside the Skype token. `auth extract` (cookie extraction) yields a Skype token only and therefore **cannot** run `message search` — the CLI returns an actionable error telling you to run `auth login`.
+- **Work and personal accounts** are both supported by `auth login`; it defaults to work/school and accepts `--account-type personal`.
+- At search time, the CLI silently exchanges the stored refresh token for a short-lived Substrate access token (per-scope AAD grant), caches it in memory only (never written to disk), and rotates the refresh token. The same mechanism can mint a Graph token for other AAD-gated features.
+
+Credentials for an `auth login` account therefore include additional fields:
+
+```json
+{
+  "account_type": "work",
+  "auth_method": "device-code",
+  "aad_refresh_token": "0.AXoA...redacted...",
+  "aad_client_id": "5e3ce6c0-2b1f-4285-8d4b-75ee78787346"
+}
+```
+
 ## Authentication Status
 
 Check if you're authenticated:

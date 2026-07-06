@@ -1,10 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
-import { unlinkSync } from 'node:fs'
+import { rmSync, unlinkSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { TeamsClient } from './client'
+import { TeamsCredentialManager } from './credential-manager'
 import { TeamsError } from './types'
 
 const TEMP_FILES_TO_CLEANUP = ['/tmp/test-teams-upload.txt']
+const TEMP_DIRS_TO_CLEANUP: string[] = []
+const SEARCH_TENANT_ID = '11111111-1111-1111-1111-111111111111'
+const SEARCH_USER_ID = '22222222-2222-2222-2222-222222222222'
+const GRAPH_AUDIENCE = 'https://graph.microsoft.com'
 
 describe('TeamsClient', () => {
   const originalFetch = globalThis.fetch
@@ -36,7 +42,62 @@ describe('TeamsClient', () => {
         // File may not exist, ignore
       }
     }
+    for (const dir of TEMP_DIRS_TO_CLEANUP.splice(0)) {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
+
+  const setupCredentialManager = async (): Promise<TeamsCredentialManager> => {
+    const dir = join(import.meta.dir, `.test-teams-client-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+    TEMP_DIRS_TO_CLEANUP.push(dir)
+    const manager = new TeamsCredentialManager(dir)
+    await manager.setDeviceCodeAccount({
+      accountType: 'work',
+      token: 'skype-token',
+      tokenExpiresAt: '2100-01-01T00:00:00Z',
+      aadRefreshToken: 'refresh-token',
+      aadClientId: 'client-id',
+      teams: {},
+      currentTeam: null,
+    })
+    return manager
+  }
+
+  const createSearchJwt = (): string => {
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(
+      JSON.stringify({
+        aud: 'https://substrate.office.com',
+        tid: SEARCH_TENANT_ID,
+        oid: SEARCH_USER_ID,
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      }),
+    ).toString('base64url')
+    return `${header}.${payload}.signature`
+  }
+
+  const createGraphJwt = (): string => {
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(
+      JSON.stringify({
+        aud: GRAPH_AUDIENCE,
+        tid: SEARCH_TENANT_ID,
+        oid: SEARCH_USER_ID,
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      }),
+    ).toString('base64url')
+    return `${header}.${payload}.signature`
+  }
+
+  const headerValue = (init: RequestInit | undefined, name: string): string | undefined => {
+    const headers = init?.headers
+    if (headers instanceof Headers) return headers.get(name) ?? undefined
+    if (Array.isArray(headers)) {
+      const pair = headers.find(([key]) => key.toLowerCase() === name.toLowerCase())
+      return pair?.[1]
+    }
+    return headers?.[name]
+  }
 
   const mockResponse = (body: unknown, status = 200, headers: Record<string, string> = {}) => {
     const defaultHeaders: Record<string, string> = {
@@ -51,6 +112,10 @@ describe('TeamsClient', () => {
         headers: defaultHeaders,
       }),
     )
+  }
+
+  const mockBinaryResponse = (body: string, status = 200) => {
+    fetchResponses.push(new Response(body, { status }))
   }
 
   describe('login', () => {
@@ -325,6 +390,29 @@ describe('TeamsClient', () => {
       expect(fetchCalls[0].options?.method).toBe('POST')
       expect(fetchCalls[0].options?.body).toBe(JSON.stringify({ content: 'Hello world' }))
     })
+
+    it('sends a reply to a channel thread', async () => {
+      mockResponse({
+        id: 'reply1',
+        channel_id: 'ch1',
+        author: { id: '123', displayName: 'Test User' },
+        content: 'Thread reply',
+        timestamp: '2024-01-01T00:01:00.000Z',
+      })
+
+      const client = await new TeamsClient().login({ token: 'test-token', region: 'emea' })
+      const message = await client.sendMessage('111', 'ch1', 'Thread reply', 'root1')
+
+      expect(fetchCalls[0].url).toBe(
+        'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages/root1/replies',
+      )
+      expect(fetchCalls[0].options?.method).toBe('POST')
+      expect(fetchCalls[0].options?.body).toBe(JSON.stringify({ content: 'Thread reply', parentMessageId: 'root1' }))
+      // the reply the API echoes back omits thread ids, so the client normalizes them from the root
+      expect(message.root_message_id).toBe('root1')
+      expect(message.parent_message_id).toBe('root1')
+      expect(message.is_thread_reply).toBe(true)
+    })
   })
 
   describe('getMessages', () => {
@@ -358,6 +446,168 @@ describe('TeamsClient', () => {
       expect(fetchCalls[0].url).toBe(
         'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages?limit=50',
       )
+    })
+
+    it('preserves thread fields for replies without inventing them for top-level messages', async () => {
+      mockResponse([
+        {
+          id: 'reply1',
+          channel_id: 'ch1',
+          author: { id: '123', displayName: 'User 1' },
+          content: 'Reply',
+          timestamp: '2024-01-01T00:01:00.000Z',
+          rootMessageId: 'root1',
+          parentMessageId: 'root1',
+        },
+        {
+          id: 'root1',
+          channel_id: 'ch1',
+          author: { id: '123', displayName: 'User 1' },
+          content: 'Top level',
+          timestamp: '2024-01-01T00:00:00.000Z',
+        },
+      ])
+
+      const client = await new TeamsClient().login({ token: 'test-token', region: 'emea' })
+      const messages = await client.getMessages('111', 'ch1')
+
+      expect(messages[0].root_message_id).toBe('root1')
+      expect(messages[0].parent_message_id).toBe('root1')
+      expect(messages[0].is_thread_reply).toBe(true)
+      expect(messages[1].root_message_id).toBeUndefined()
+      expect(messages[1].is_thread_reply).toBeFalsy()
+    })
+  })
+
+  describe('getThreadReplies', () => {
+    it('returns replies for a channel thread with root metadata', async () => {
+      mockResponse([
+        {
+          id: 'reply1',
+          channel_id: 'ch1',
+          author: { id: '123', displayName: 'User 1' },
+          content: 'Reply 1',
+          timestamp: '2024-01-01T00:01:00.000Z',
+        },
+      ])
+
+      const client = await new TeamsClient().login({ token: 'test-token', region: 'emea' })
+      const replies = await client.getThreadReplies('111', 'ch1', 'root1', 10)
+
+      expect(replies).toHaveLength(1)
+      expect(replies[0].root_message_id).toBe('root1')
+      expect(replies[0].parent_message_id).toBe('root1')
+      expect(replies[0].is_thread_reply).toBe(true)
+      expect(fetchCalls[0].url).toBe(
+        'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages/root1/replies?limit=10',
+      )
+    })
+  })
+
+  describe('searchMessages', () => {
+    it('posts to Substrate search with bearer token, anchor mailbox, and parses nested results', async () => {
+      const manager = await setupCredentialManager()
+      const searchJwt = createSearchJwt()
+      mockResponse({ access_token: searchJwt, refresh_token: 'rotated-refresh', expires_in: 3600 })
+      mockResponse({
+        EntitySets: [
+          {
+            ResultSets: [
+              {
+                Results: [
+                  {
+                    Id: 'msg-1',
+                    Content: '<p>Deploy complete</p>',
+                    Author: { Id: 'author-1', DisplayName: 'Alice' },
+                    ChannelId: 'channel-1',
+                    ThreadId: 'thread-1',
+                    TeamName: 'Team One',
+                    ChannelName: 'General',
+                    DateTimeSent: '2024-01-01T00:00:00.000Z',
+                    WebUrl: 'https://teams.microsoft.com/l/message/msg-1',
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      })
+
+      const client = await new TeamsClient(manager).login({ token: 'skype-token', region: 'emea' })
+      const results = await client.searchMessages('deploy', { limit: 10, from: 5 })
+
+      expect(fetchCalls[1].url).toBe('https://substrate.office.com/searchservice/api/v2/query')
+      expect(fetchCalls[1].options?.method).toBe('POST')
+      expect(headerValue(fetchCalls[1].options, 'Authorization')).toBe(`Bearer ${searchJwt}`)
+      expect(headerValue(fetchCalls[1].options, 'x-anchormailbox')).toBe(`Oid:${SEARCH_USER_ID}@${SEARCH_TENANT_ID}`)
+      const payload = JSON.parse(String(fetchCalls[1].options?.body)) as {
+        entityRequests: Array<{ entityType: string; contentSources: string[]; from: number; size: number }>
+      }
+      expect(payload.entityRequests[0]).toMatchObject({
+        entityType: 'Message',
+        contentSources: ['Teams'],
+        from: 5,
+        size: 10,
+      })
+      expect(results).toEqual([
+        {
+          id: 'msg-1',
+          content: 'Deploy complete',
+          author: { id: 'author-1', displayName: 'Alice' },
+          channel_id: 'channel-1',
+          thread_id: 'thread-1',
+          team_name: 'Team One',
+          channel_name: 'General',
+          timestamp: '2024-01-01T00:00:00.000Z',
+          permalink: 'https://teams.microsoft.com/l/message/msg-1',
+        },
+      ])
+    })
+
+    it('returns an empty array when Substrate has no nested results', async () => {
+      const manager = await setupCredentialManager()
+      mockResponse({ access_token: createSearchJwt(), refresh_token: 'rotated-refresh', expires_in: 3600 })
+      mockResponse({ EntitySets: [] })
+
+      const client = await new TeamsClient(manager).login({ token: 'skype-token', region: 'emea' })
+      const results = await client.searchMessages('zzimprobablequery_xyz')
+
+      expect(results).toEqual([])
+    })
+
+    it('uses the logged-in account refresh token when current account differs', async () => {
+      const manager = await setupCredentialManager()
+      await manager.setDeviceCodeAccount({
+        accountType: 'personal',
+        token: 'personal-skype-token',
+        tokenExpiresAt: '2100-01-01T00:00:00Z',
+        aadRefreshToken: 'personal-refresh-token',
+        aadClientId: 'personal-client-id',
+        teams: {},
+        currentTeam: null,
+      })
+      const searchJwt = createSearchJwt()
+      mockResponse({ access_token: searchJwt, refresh_token: 'work-rotated-refresh', expires_in: 3600 })
+      mockResponse({ EntitySets: [] })
+
+      const client = await new TeamsClient(manager).login({ token: 'skype-token', accountType: 'work', region: 'emea' })
+      await client.searchMessages('deploy')
+
+      const tokenRequestBody = new URLSearchParams(String(fetchCalls[0].options?.body))
+      expect(tokenRequestBody.get('refresh_token')).toBe('refresh-token')
+      expect(tokenRequestBody.get('client_id')).toBe('client-id')
+    })
+
+    it('rejects invalid pagination options', async () => {
+      const manager = await setupCredentialManager()
+      const client = await new TeamsClient(manager).login({ token: 'skype-token', region: 'emea' })
+
+      await expect(client.searchMessages('deploy', { limit: Number.NaN })).rejects.toThrow('positive integer')
+      await expect(client.searchMessages('deploy', { limit: 0 })).rejects.toThrow('positive integer')
+      await expect(client.searchMessages('deploy', { limit: -1 })).rejects.toThrow('positive integer')
+      await expect(client.searchMessages('deploy', { from: -1 })).rejects.toThrow('non-negative integer')
+      await expect(client.searchMessages('deploy', { from: 1.5 })).rejects.toThrow('non-negative integer')
+      expect(fetchCalls).toHaveLength(0)
     })
   })
 
@@ -487,6 +737,90 @@ describe('TeamsClient', () => {
       expect(files).toHaveLength(2)
       expect(files[0].name).toBe('doc.pdf')
       expect(fetchCalls[0].url).toBe('https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/files')
+    })
+  })
+
+  describe('downloadFile', () => {
+    it('downloads SharePoint files through Graph shares with base64url share id', async () => {
+      const manager = await setupCredentialManager()
+      const shareUrl = 'https://contoso.sharepoint.com/sites/team/Shared%20Documents/report.docx'
+      mockResponse([
+        { id: 'file1', name: 'report.docx', size: 11, url: shareUrl, contentType: 'application/vnd.ms-word' },
+      ])
+      mockResponse({ access_token: createGraphJwt(), refresh_token: 'rotated-refresh', expires_in: 3600 })
+      mockBinaryResponse('graph-bytes')
+
+      const client = await new TeamsClient(manager).login({ token: 'skype-token', region: 'emea' })
+      const result = await client.downloadFile('111', 'ch1', 'file1')
+
+      const shareId = `u!${Buffer.from(shareUrl).toString('base64url').replace(/=+$/, '')}`
+      expect(fetchCalls[2].url).toBe(`https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem/content`)
+      expect(headerValue(fetchCalls[2].options, 'Authorization')).toBe(`Bearer ${createGraphJwt()}`)
+      expect(Buffer.from(result.buffer).toString()).toBe('graph-bytes')
+      expect(result.file.id).toBe('file1')
+    })
+
+    it('downloads inline object URLs with the Skype token', async () => {
+      mockResponse([
+        {
+          id: 'file2',
+          name: 'image.png',
+          size: 10,
+          url: 'https://teams.microsoft.com/files/image.png',
+          object_url: 'https://us-api.asm.skype.com/v1/objects/0-weu-d1/image.png',
+          contentType: 'image/png',
+        },
+      ])
+      mockBinaryResponse('image-bytes')
+
+      const client = await new TeamsClient().login({ token: 'skype-token', region: 'emea' })
+      const result = await client.downloadFile('111', 'ch1', 'file2')
+
+      expect(fetchCalls[1].url).toBe('https://us-api.asm.skype.com/v1/objects/0-weu-d1/image.png')
+      expect(headerValue(fetchCalls[1].options, 'Authorization')).toBe('Bearer skype-token')
+      expect(headerValue(fetchCalls[1].options, 'X-Skypetoken')).toBe('skype-token')
+      expect(Buffer.from(result.buffer).toString()).toBe('image-bytes')
+    })
+
+    it('throws TeamsAuthCapabilityError for SharePoint files with cookie-only credentials', async () => {
+      const dir = join(
+        import.meta.dir,
+        `.test-teams-client-cookie-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      )
+      TEMP_DIRS_TO_CLEANUP.push(dir)
+      const manager = new TeamsCredentialManager(dir)
+      await manager.setToken('skype-token', 'work', '2100-01-01T00:00:00Z')
+      mockResponse([
+        {
+          id: 'file3',
+          name: 'deck.pptx',
+          size: 10,
+          url: 'https://contoso.sharepoint.com/sites/team/Shared%20Documents/deck.pptx',
+        },
+      ])
+
+      const client = await new TeamsClient(manager).login({ token: 'skype-token', region: 'emea' })
+
+      await expect(client.downloadFile('111', 'ch1', 'file3')).rejects.toThrow('Requires `agent-teams auth login`')
+      expect(fetchCalls).toHaveLength(1)
+    })
+
+    it('refuses to send the Skype token to an untrusted host', async () => {
+      mockResponse([
+        {
+          id: 'file4',
+          name: 'evil.bin',
+          size: 10,
+          url: 'https://evil.example.com/steal',
+          object_url: 'https://evil.example.com/steal',
+        },
+      ])
+
+      const client = await new TeamsClient().login({ token: 'skype-token', region: 'emea' })
+
+      await expect(client.downloadFile('111', 'ch1', 'file4')).rejects.toThrow('untrusted host')
+      // only the listFiles call happened — no credentialed download fetch to the untrusted host
+      expect(fetchCalls).toHaveLength(1)
     })
   })
 

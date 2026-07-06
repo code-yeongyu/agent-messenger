@@ -5,7 +5,7 @@ import {
   type DeviceCodeInfo,
   exchangeDeviceCode,
   exchangeForSkypeScope,
-  mintConsumerSkypeToken,
+  mintSkypeToken,
   pollDeviceToken,
   requestDeviceCode,
 } from './device-code'
@@ -30,11 +30,15 @@ interface LoginCallbacks {
   onPending?: () => void
   debug?: (message: string) => void
   clientId?: string
+  accountType?: TeamsAccountType
 }
 
-export async function startDeviceCode(clientIdOverride?: string): Promise<{ info: DeviceCodeInfo; clientId: string }> {
-  const clientId = clientIdOverride ?? getTeamsAppClientId().clientId
-  const info = await requestDeviceCode(clientId)
+export async function startDeviceCode(
+  clientIdOverride?: string,
+  accountType: TeamsAccountType = 'personal',
+): Promise<{ info: DeviceCodeInfo; clientId: string }> {
+  const clientId = clientIdOverride ?? getTeamsAppClientId(accountType).clientId
+  const info = await requestDeviceCode(clientId, accountType)
   return { info, clientId }
 }
 
@@ -42,8 +46,9 @@ export async function completeDeviceCode(
   deviceCode: string,
   clientId: string,
   credManager: TeamsCredentialManager = new TeamsCredentialManager(),
+  accountType: TeamsAccountType = 'personal',
 ): Promise<DeviceLoginResult> {
-  const first = await exchangeDeviceCode(deviceCode, clientId)
+  const first = await exchangeDeviceCode(deviceCode, clientId, accountType)
   if (first.status === 'pending' || first.status === 'slow_down') {
     throw new PendingApprovalError()
   }
@@ -56,14 +61,15 @@ export async function completeDeviceCode(
           : `Login failed: ${first.message}`,
     )
   }
-  return finalize(first.token.refreshToken, clientId, credManager)
+  return finalize(first.token.refreshToken, clientId, accountType, credManager)
 }
 
 export async function loginWithDeviceCode(
   callbacks: LoginCallbacks,
   credManager: TeamsCredentialManager = new TeamsCredentialManager(),
 ): Promise<DeviceLoginResult> {
-  const { info, clientId } = await startDeviceCode(callbacks.clientId)
+  const accountType = callbacks.accountType ?? 'personal'
+  const { info, clientId } = await startDeviceCode(callbacks.clientId, accountType)
   await callbacks.onCode({
     verificationUri: info.verificationUri,
     verificationUriComplete: info.verificationUriComplete,
@@ -71,14 +77,15 @@ export async function loginWithDeviceCode(
     expiresAt: Date.now() + info.expiresIn * 1000,
   })
 
-  const aad = await pollDeviceToken(info.deviceCode, info.interval, info.expiresIn, clientId)
+  const aad = await pollDeviceToken(info.deviceCode, info.interval, info.expiresIn, clientId, accountType)
   callbacks.onPending?.()
-  return finalize(aad.refreshToken, clientId, credManager, callbacks.debug)
+  return finalize(aad.refreshToken, clientId, accountType, credManager, callbacks.debug)
 }
 
 async function finalize(
   initialRefreshToken: string | undefined,
   clientId: string,
+  accountType: TeamsAccountType,
   credManager: TeamsCredentialManager,
   debug?: (message: string) => void,
 ): Promise<DeviceLoginResult> {
@@ -89,12 +96,11 @@ async function finalize(
   }
 
   debug?.('Exchanging token for skype audience...')
-  const skypeScoped = await exchangeForSkypeScope(initialRefreshToken, clientId)
+  const skypeScoped = await exchangeForSkypeScope(initialRefreshToken, clientId, accountType)
 
   debug?.('Minting skype token...')
-  const minted = await mintConsumerSkypeToken(skypeScoped.accessToken)
+  const minted = await mintSkypeToken(skypeScoped.accessToken, accountType)
 
-  const accountType: TeamsAccountType = 'personal'
   const client = await new TeamsClient().login({ token: minted.skypeToken, accountType })
   const authInfo = await client.testAuth()
   const teams = await client.listTeams()
@@ -111,6 +117,7 @@ async function finalize(
     tokenExpiresAt: minted.skypeTokenExpiresAt,
     aadRefreshToken: skypeScoped.refreshToken,
     aadClientId: clientId,
+    region: minted.region ?? (accountType === 'work' ? client.getRegion() : undefined),
     userName: authInfo.displayName,
     teams: teamMap,
     currentTeam,
@@ -135,12 +142,12 @@ export async function refreshDeviceCodeAccount(
   if (!account || account.auth_method !== 'device-code' || !account.aad_refresh_token) {
     return false
   }
-  const clientId = account.aad_client_id ?? getTeamsAppClientId().clientId
+  const clientId = account.aad_client_id ?? getTeamsAppClientId(accountType).clientId
 
   try {
     debug?.('Silently refreshing skype token...')
-    const skypeScoped = await exchangeForSkypeScope(account.aad_refresh_token, clientId)
-    const minted = await mintConsumerSkypeToken(skypeScoped.accessToken)
+    const skypeScoped = await exchangeForSkypeScope(account.aad_refresh_token, clientId, accountType)
+    const minted = await mintSkypeToken(skypeScoped.accessToken, accountType)
 
     await credManager.setDeviceCodeAccount({
       accountType,
@@ -148,7 +155,7 @@ export async function refreshDeviceCodeAccount(
       tokenExpiresAt: minted.skypeTokenExpiresAt,
       aadRefreshToken: skypeScoped.refreshToken,
       aadClientId: clientId,
-      region: account.region,
+      region: minted.region ?? account.region,
       userName: account.user_name,
       teams: account.teams,
       currentTeam: account.current_team,

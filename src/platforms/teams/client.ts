@@ -1,7 +1,10 @@
+import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 
+import { SUBSTRATE_SEARCH_URL } from './app-config'
 import { TeamsCredentialManager } from './credential-manager'
+import { TeamsTokenProvider } from './token-provider'
 import type {
   TeamsAccountType,
   TeamsChannel,
@@ -10,6 +13,7 @@ import type {
   TeamsFile,
   TeamsMessage,
   TeamsRegion,
+  TeamsSearchResult,
   TeamsTeam,
   TeamsUser,
 } from './types'
@@ -20,12 +24,20 @@ interface RateLimitBucket {
   resetAt: number
 }
 
+interface RawTeamsMessage extends TeamsMessage {
+  rootMessageId?: string
+  parentMessageId?: string
+}
+
+type JsonRecord = Record<string, unknown>
+
 const PERSONAL_MSG_API_BASE = 'https://msgapi.teams.live.com/v1'
 const CSA_API_BASE = 'https://teams.microsoft.com/api'
 const MAX_RETRIES = 3
 const BASE_BACKOFF_MS = 100
 const DEFAULT_REGION: TeamsRegion = 'amer'
 const REGIONS: TeamsRegion[] = ['amer', 'emea', 'apac']
+const GRAPH_API_BASE = 'https://graph.microsoft.com/v1.0'
 
 // Personal (Teams for Life) skypetokens carry a consumer `skypeid` (e.g.
 // "live:..." or "8:live:..."); work/school tokens carry an org identity. Used
@@ -55,6 +67,169 @@ function stripHtml(content: string | undefined): string | undefined {
     .trim()
 }
 
+function isRecord(value: unknown): value is JsonRecord {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function stringFrom(record: JsonRecord, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = record[key]
+    if (typeof value === 'string' && value.length > 0) return value
+  }
+  return undefined
+}
+
+function recordFrom(record: JsonRecord, keys: string[]): JsonRecord | undefined {
+  for (const key of keys) {
+    const value = record[key]
+    if (isRecord(value)) return value
+  }
+  return undefined
+}
+
+function arrayFrom(record: JsonRecord, keys: string[]): unknown[] {
+  for (const key of keys) {
+    const value = record[key]
+    if (Array.isArray(value)) return value
+  }
+  return []
+}
+
+function propertyValue(record: JsonRecord, names: string[]): string | undefined {
+  const properties = arrayFrom(record, ['Properties', 'properties'])
+  const normalized = names.map((name) => name.toLowerCase())
+  for (const property of properties) {
+    if (!isRecord(property)) continue
+    const name = stringFrom(property, ['Name', 'name', 'Key', 'key'])
+    if (!name || !normalized.includes(name.toLowerCase())) continue
+    const value = property.Value ?? property.value
+    if (typeof value === 'string' && value.length > 0) return value
+  }
+  return undefined
+}
+
+function resultString(record: JsonRecord, keys: string[]): string | undefined {
+  return stringFrom(record, keys) ?? propertyValue(record, keys)
+}
+
+function parseSubstrateResult(value: unknown): TeamsSearchResult | null {
+  if (!isRecord(value)) return null
+  const author = recordFrom(value, ['Author', 'author', 'From', 'from'])
+  const id = resultString(value, ['id', 'Id', 'ReferenceId', 'MessageId'])
+  const channelId = resultString(value, ['channel_id', 'ChannelId', 'ConversationId', 'ThreadId'])
+  if (!id || !channelId) return null
+
+  return {
+    id,
+    content:
+      stripHtml(resultString(value, ['content', 'Content', 'HitHighlightedSummary', 'Summary', 'Preview'])) ?? '',
+    author: {
+      id: author ? (stringFrom(author, ['id', 'Id', 'ObjectId']) ?? '') : (propertyValue(value, ['AuthorId']) ?? ''),
+      displayName: author
+        ? (stringFrom(author, ['displayName', 'DisplayName', 'Name']) ?? 'Unknown')
+        : (propertyValue(value, ['AuthorDisplayName', 'Author']) ?? 'Unknown'),
+    },
+    channel_id: channelId,
+    thread_id: resultString(value, ['thread_id', 'ThreadId']),
+    team_name: resultString(value, ['team_name', 'TeamName']),
+    channel_name: resultString(value, ['channel_name', 'ChannelName']),
+    timestamp: resultString(value, ['timestamp', 'Timestamp', 'DateTimeSent', 'LastModifiedTime']) ?? '',
+    permalink: resultString(value, ['permalink', 'Permalink', 'WebUrl', 'Url']),
+  }
+}
+
+function parseSubstrateResults(data: unknown): TeamsSearchResult[] {
+  if (!isRecord(data)) return []
+  const results: TeamsSearchResult[] = []
+  for (const entitySet of arrayFrom(data, ['EntitySets', 'entitySets'])) {
+    if (!isRecord(entitySet)) continue
+    for (const resultSet of arrayFrom(entitySet, ['ResultSets', 'resultSets'])) {
+      if (!isRecord(resultSet)) continue
+      for (const rawResult of arrayFrom(resultSet, ['Results', 'results'])) {
+        const result = parseSubstrateResult(rawResult)
+        if (result) results.push(result)
+      }
+    }
+  }
+  return results
+}
+
+function validateSearchLimit(value: number | undefined): number {
+  if (value === undefined) return 20
+  if (!Number.isInteger(value) || value < 1) {
+    throw new TeamsError('Search limit must be a positive integer.', 'invalid_pagination')
+  }
+  return value
+}
+
+function validateSearchFrom(value: number | undefined): number {
+  if (value === undefined) return 0
+  if (!Number.isInteger(value) || value < 0) {
+    throw new TeamsError('Search from offset must be a non-negative integer.', 'invalid_pagination')
+  }
+  return value
+}
+
+function isSharePointOrOneDriveUrl(url: string): boolean {
+  try {
+    const { hostname } = new URL(url)
+    const normalizedHost = hostname.toLowerCase()
+    return (
+      normalizedHost.includes('sharepoint.com') ||
+      normalizedHost.includes('-my.sharepoint') ||
+      normalizedHost === '1drv.ms' ||
+      normalizedHost.endsWith('.1drv.ms') ||
+      normalizedHost === 'onedrive.live.com' ||
+      normalizedHost.endsWith('.onedrive.live.com')
+    )
+  } catch {
+    return false
+  }
+}
+
+// Only these hosts receive the Skype token on a raw download fetch. Teams file
+// metadata can carry arbitrary URLs, so we never attach credentials to a host
+// outside this allowlist — that would leak the token to a third party.
+function isTrustedSkypeDownloadHost(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    return (
+      host === 'teams.microsoft.com' ||
+      host.endsWith('.teams.microsoft.com') ||
+      host.endsWith('.asm.skype.com') ||
+      host.endsWith('.asyncgw.teams.microsoft.com') ||
+      host === 'substrate.office.com' ||
+      host.endsWith('.substrate.office.com')
+    )
+  } catch {
+    return false
+  }
+}
+
+function getFileDownloadSource(file: TeamsFile): { route: 'graph' | 'skype'; url: string } {
+  const shareUrl = [file.sharepoint_url, file.url, file.object_url].find((candidate): candidate is string =>
+    Boolean(candidate && isSharePointOrOneDriveUrl(candidate)),
+  )
+  if (shareUrl) return { route: 'graph', url: shareUrl }
+
+  const directUrl = file.object_url ?? file.url
+  if (!directUrl) {
+    throw new TeamsError(`File has no downloadable URL: ${file.id}`, 'file_url_missing')
+  }
+  if (!isTrustedSkypeDownloadHost(directUrl)) {
+    throw new TeamsError(`Refusing to download ${file.id} from an untrusted host: ${directUrl}`, 'file_url_untrusted')
+  }
+  return { route: 'skype', url: directUrl }
+}
+
+async function readDownloadResponse(response: Response, codePrefix: string): Promise<Buffer> {
+  if (!response.ok) {
+    throw new TeamsError(`File download failed with HTTP ${response.status}`, `${codePrefix}_${response.status}`)
+  }
+
+  return Buffer.from(await response.arrayBuffer())
+}
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -62,6 +237,23 @@ function escapeHtml(value: string): string {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;')
+}
+
+function withThreadMetadata(message: RawTeamsMessage, rootMessageId?: string): TeamsMessage {
+  const { rootMessageId: messageRootMessageId, parentMessageId, ...teamsMessage } = message
+  const rawRootMessageId = rootMessageId ?? messageRootMessageId
+  const isThreadReply = Boolean(
+    rootMessageId ||
+    (messageRootMessageId !== undefined && messageRootMessageId !== message.id) ||
+    (parentMessageId !== undefined && parentMessageId !== message.id),
+  )
+
+  return {
+    ...teamsMessage,
+    root_message_id: isThreadReply ? rawRootMessageId : undefined,
+    parent_message_id: isThreadReply ? (parentMessageId ?? rawRootMessageId) : undefined,
+    is_thread_reply: isThreadReply ? true : undefined,
+  }
 }
 
 // groupId => Teams/channel thread (handled by listTeams). "48:notes"/
@@ -83,8 +275,11 @@ export class TeamsClient {
   private isPersonalAccount: boolean = false
   private region: TeamsRegion = DEFAULT_REGION
   private regionDiscovered: boolean = false
+  private tokenProvider?: TeamsTokenProvider
   private buckets: Map<string, RateLimitBucket> = new Map()
   private globalRateLimitUntil: number = 0
+
+  constructor(private credManager: TeamsCredentialManager = new TeamsCredentialManager()) {}
 
   async login(credentials?: {
     token: string
@@ -107,13 +302,15 @@ export class TeamsClient {
         this.region = credentials.region
         this.regionDiscovered = true
       }
+      if (credentials.accountType) {
+        this.getTokenProvider().bindAccount(credentials.accountType)
+      }
       return this
     }
 
     const { ensureTeamsAuth } = await import('./ensure-auth')
     await ensureTeamsAuth()
-    const credManager = new TeamsCredentialManager()
-    const creds = await credManager.getTokenWithExpiry()
+    const creds = await this.credManager.getTokenWithExpiry()
     if (!creds) {
       throw new TeamsError(
         'No Teams credentials found. Make sure Microsoft Teams is logged in via the desktop app or a supported Chromium browser.',
@@ -505,7 +702,17 @@ export class TeamsClient {
     )
   }
 
-  async sendMessage(teamId: string, channelId: string, content: string): Promise<TeamsMessage> {
+  async sendMessage(teamId: string, channelId: string, content: string, rootMessageId?: string): Promise<TeamsMessage> {
+    if (rootMessageId) {
+      const response = await this.request<RawTeamsMessage>(
+        'POST',
+        `/csa/${this.region}/api/v2/teams/${teamId}/channels/${channelId}/messages/${rootMessageId}/replies`,
+        { content, parentMessageId: rootMessageId },
+        CSA_API_BASE,
+      )
+      return withThreadMetadata(response, rootMessageId)
+    }
+
     return this.request<TeamsMessage>(
       'POST',
       `/csa/${this.region}/api/v2/teams/${teamId}/channels/${channelId}/messages`,
@@ -515,12 +722,75 @@ export class TeamsClient {
   }
 
   async getMessages(teamId: string, channelId: string, limit: number = 50): Promise<TeamsMessage[]> {
-    return this.request<TeamsMessage[]>(
+    const messages = await this.request<RawTeamsMessage[]>(
       'GET',
       `/csa/${this.region}/api/v2/teams/${teamId}/channels/${channelId}/messages?limit=${limit}`,
       undefined,
       CSA_API_BASE,
     )
+    return messages.map((message) => withThreadMetadata(message))
+  }
+
+  async getThreadReplies(
+    teamId: string,
+    channelId: string,
+    rootMessageId: string,
+    limit: number = 50,
+  ): Promise<TeamsMessage[]> {
+    const replies = await this.request<RawTeamsMessage[]>(
+      'GET',
+      `/csa/${this.region}/api/v2/teams/${teamId}/channels/${channelId}/messages/${rootMessageId}/replies?limit=${limit}`,
+      undefined,
+      CSA_API_BASE,
+    )
+    return replies.map((reply) => withThreadMetadata(reply, rootMessageId))
+  }
+
+  async searchMessages(query: string, opts: { limit?: number; from?: number } = {}): Promise<TeamsSearchResult[]> {
+    const size = validateSearchLimit(opts.limit)
+    const from = validateSearchFrom(opts.from)
+    const tokenProvider = this.getTokenProvider()
+    const substrateToken = await tokenProvider.getSubstrateToken()
+    const tenantId = await tokenProvider.getTenantId()
+    const userId = await tokenProvider.getUserId()
+
+    const response = await fetch(SUBSTRATE_SEARCH_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${substrateToken}`,
+        'Content-Type': 'application/json',
+        'x-anchormailbox': `Oid:${userId}@${tenantId}`,
+      },
+      body: JSON.stringify({
+        cvid: randomUUID(),
+        logicalId: randomUUID(),
+        query: { queryString: query },
+        entityRequests: [
+          {
+            entityType: 'Message',
+            contentSources: ['Teams'],
+            from,
+            size,
+            query: { queryString: query },
+          },
+        ],
+      }),
+    })
+
+    const data = (await response.json().catch(() => ({}))) as unknown
+    if (!response.ok) {
+      const message = isRecord(data)
+        ? stringFrom(data, ['message', 'Message', 'error_description', 'error'])
+        : undefined
+      throw new TeamsError(message ?? `HTTP ${response.status}`, `substrate_${response.status}`)
+    }
+
+    return parseSubstrateResults(data)
+  }
+
+  private getTokenProvider(): TeamsTokenProvider {
+    this.tokenProvider ??= new TeamsTokenProvider(this.credManager)
+    return this.tokenProvider
   }
 
   async getMessage(teamId: string, channelId: string, messageId: string): Promise<TeamsMessage> {
@@ -588,5 +858,39 @@ export class TeamsClient {
       undefined,
       CSA_API_BASE,
     )
+  }
+
+  async downloadFile(teamId: string, channelId: string, fileId: string): Promise<{ buffer: Buffer; file: TeamsFile }> {
+    const files = await this.listFiles(teamId, channelId)
+    const file = files.find((candidate) => candidate.id === fileId)
+    if (!file) {
+      throw new TeamsError(`File not found: ${fileId}`, 'file_not_found')
+    }
+
+    const source = getFileDownloadSource(file)
+    if (source.route === 'graph') {
+      const graphToken = await new TeamsTokenProvider(this.credManager).getGraphToken()
+      const shareId = `u!${Buffer.from(source.url).toString('base64url').replace(/=+$/, '')}`
+      const response = await fetch(`${GRAPH_API_BASE}/shares/${shareId}/driveItem/content`, {
+        headers: {
+          Authorization: `Bearer ${graphToken}`,
+        },
+        redirect: 'follow',
+      })
+      return { buffer: await readDownloadResponse(response, 'graph_download'), file }
+    }
+
+    if (this.isTokenExpired()) {
+      throw new TeamsError('Token has expired. Run "auth login" or "auth extract" to refresh.', 'token_expired')
+    }
+    const skypeToken = this.getToken()
+    const response = await fetch(source.url, {
+      headers: {
+        Authorization: `Bearer ${skypeToken}`,
+        'X-Skypetoken': skypeToken,
+      },
+      redirect: 'follow',
+    })
+    return { buffer: await readDownloadResponse(response, 'skype_download'), file }
   }
 }

@@ -1,9 +1,13 @@
 import { afterEach, beforeEach, expect, spyOn, it } from 'bun:test'
 
+import * as interactive from '@/shared/utils/interactive'
+import * as stderr from '@/shared/utils/stderr'
+
 import { TeamsClient } from '../client'
 import { TeamsCredentialManager } from '../credential-manager'
+import * as deviceLogin from '../device-login'
 import { TeamsTokenExtractor } from '../token-extractor'
-import { getNoTeamsTokenFoundMessage } from './auth'
+import { getNoTeamsTokenFoundMessage, loginAction } from './auth'
 
 let extractorExtractSpy: ReturnType<typeof spyOn>
 let clientTestAuthSpy: ReturnType<typeof spyOn>
@@ -13,6 +17,7 @@ let credManagerSaveConfigSpy: ReturnType<typeof spyOn>
 let credManagerClearCredentialsSpy: ReturnType<typeof spyOn>
 let credManagerIsTokenExpiredSpy: ReturnType<typeof spyOn>
 let clientGetRegionSpy: ReturnType<typeof spyOn>
+const originalConsoleLog = console.log
 
 beforeEach(() => {
   extractorExtractSpy = spyOn(TeamsTokenExtractor.prototype, 'extract').mockResolvedValue([
@@ -52,6 +57,7 @@ afterEach(() => {
   credManagerClearCredentialsSpy?.mockRestore()
   credManagerIsTokenExpiredSpy?.mockRestore()
   clientGetRegionSpy?.mockRestore()
+  console.log = originalConsoleLog
 })
 
 it('extract: calls TeamsTokenExtractor', async () => {
@@ -97,4 +103,50 @@ it('status: checks token expiry', async () => {
 
 it('no-token message mentions desktop app and browser fallback', () => {
   expect(getNoTeamsTokenFoundMessage()).toContain('desktop app or a supported Chromium browser')
+})
+
+it('login pending hint preserves explicit account type', async () => {
+  const completeSpy = spyOn(deviceLogin, 'completeDeviceCode').mockRejectedValue(new deviceLogin.PendingApprovalError())
+  const consoleSpy = spyOn(console, 'log').mockImplementation(() => {})
+  const exitSpy = spyOn(process, 'exit').mockImplementation((code?: string | number | null) => {
+    throw new Error(`exit:${code}`)
+  })
+
+  await expect(loginAction({ deviceCode: 'device-code', accountType: 'personal', pretty: false })).rejects.toThrow(
+    'exit:1',
+  )
+
+  expect(completeSpy).toHaveBeenCalled()
+  expect(exitSpy.mock.calls[0][0]).toBe(0)
+  const output = consoleSpy.mock.calls[0][0]
+  expect(output).toContain('agent-teams auth login --device-code <device_code> --account-type personal')
+  completeSpy.mockRestore()
+  consoleSpy.mockRestore()
+  exitSpy.mockRestore()
+})
+
+it('interactive login shows the prefilled verification link alongside the code', async () => {
+  const interactiveSpy = spyOn(interactive, 'isInteractive').mockReturnValue(true)
+  const infoSpy = spyOn(stderr, 'info').mockImplementation(() => {})
+  const consoleSpy = spyOn(console, 'log').mockImplementation(() => {})
+  const loginSpy = spyOn(deviceLogin, 'loginWithDeviceCode').mockImplementation(async ({ onCode }) => {
+    await onCode({
+      verificationUri: 'https://login.microsoft.com/device',
+      verificationUriComplete: 'https://login.microsoft.com/device?otc=ABCD1234',
+      userCode: 'ABCD1234',
+      expiresAt: Date.now() + 900_000,
+    })
+    return { accountType: 'work', userName: 'Test User', teams: [], current: null }
+  })
+
+  await loginAction({ pretty: false })
+
+  const messages = infoSpy.mock.calls.map((call) => call[0]).join('\n')
+  expect(messages).toContain('https://login.microsoft.com/device?otc=ABCD1234')
+  expect(messages).toContain('ABCD1234')
+
+  interactiveSpy.mockRestore()
+  infoSpy.mockRestore()
+  consoleSpy.mockRestore()
+  loginSpy.mockRestore()
 })
