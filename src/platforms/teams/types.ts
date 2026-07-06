@@ -26,6 +26,9 @@ export interface TeamsMessage {
   }
   content: string
   timestamp: string
+  root_message_id?: string
+  parent_message_id?: string
+  is_thread_reply?: boolean
 }
 
 export interface TeamsUser {
@@ -130,6 +133,9 @@ export const TeamsMessageSchema = z.object({
   }),
   content: z.string(),
   timestamp: z.string(),
+  root_message_id: z.string().optional(),
+  parent_message_id: z.string().optional(),
+  is_thread_reply: z.boolean().optional(),
 })
 
 export const TeamsUserSchema = z.object({
