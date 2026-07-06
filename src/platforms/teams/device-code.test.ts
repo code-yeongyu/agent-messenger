@@ -5,12 +5,20 @@ import {
   exchangeDeviceCode,
   exchangeForSkypeScope,
   mintConsumerSkypeToken,
+  mintSkypeToken,
   pollDeviceToken,
   requestDeviceCode,
+  resolveWorkTenantId,
 } from './device-code'
 
 const CLIENT_ID = '5e3ce6c0-2b1f-4285-8d4b-75ee78787346'
+const REAL_TENANT_ID = 'c0ffee00-1111-2222-3333-444455556666'
 const originalFetch = globalThis.fetch
+
+function fakeJwt(claims: Record<string, unknown>): string {
+  const payload = Buffer.from(JSON.stringify(claims)).toString('base64url')
+  return `header.${payload}.signature`
+}
 
 interface FakeResponse {
   status?: number
@@ -18,13 +26,13 @@ interface FakeResponse {
 }
 
 function mockFetch(responder: (url: string, init: RequestInit) => FakeResponse): {
-  calls: Array<{ url: string; body: URLSearchParams }>
+  calls: Array<{ url: string; body: URLSearchParams; init: RequestInit }>
 } {
-  const calls: Array<{ url: string; body: URLSearchParams }> = []
+  const calls: Array<{ url: string; body: URLSearchParams; init: RequestInit }> = []
   globalThis.fetch = mock((input: string | URL | Request, init?: RequestInit) => {
     const url = String(input)
     const raw = (init?.body as string) ?? ''
-    calls.push({ url, body: new URLSearchParams(raw) })
+    calls.push({ url, body: new URLSearchParams(raw), init: init ?? {} })
     const { status = 200, json } = responder(url, init ?? {})
     return Promise.resolve({
       ok: status >= 200 && status < 300,
@@ -158,6 +166,77 @@ describe('exchangeForSkypeScope', () => {
     expect(calls[0].body.get('scope')).toBe('https://api.spaces.skype.com/.default openid profile offline_access')
     expect(token).toEqual({ accessToken: 'WORK_SKYPE_AT', refreshToken: 'RT2' })
   })
+
+  it('targets the tenant-specific authority when a tenant id is provided', async () => {
+    const { calls } = mockFetch(() => ({ json: { access_token: 'TENANT_SKYPE_AT', refresh_token: 'RT2' } }))
+
+    await exchangeForSkypeScope('RT1', CLIENT_ID, 'work', REAL_TENANT_ID)
+
+    expect(calls[0].url).toContain(`/${REAL_TENANT_ID}/oauth2/v2.0/token`)
+    expect(calls[0].url).not.toContain('/organizations/')
+  })
+})
+
+describe('resolveWorkTenantId', () => {
+  it('uses the token tid directly when it is already a real tenant guid', async () => {
+    const { calls } = mockFetch(() => ({ json: [] }))
+
+    const tenantId = await resolveWorkTenantId(fakeJwt({ tid: REAL_TENANT_ID }))
+
+    expect(tenantId).toBe(REAL_TENANT_ID)
+    // given a concrete tenant, discovery must be skipped
+    expect(calls).toHaveLength(0)
+  })
+
+  it('discovers the tenant when the token tid is the organizations placeholder', async () => {
+    const { calls } = mockFetch(() => ({
+      json: [{ tenantId: REAL_TENANT_ID, tenantName: 'Contoso', isInvitationRedeemed: true }],
+    }))
+
+    const tenantId = await resolveWorkTenantId(fakeJwt({ tid: 'organizations' }))
+
+    expect(tenantId).toBe(REAL_TENANT_ID)
+    expect(calls[0].url).toContain('/api/mt/emea/beta/users/tenants')
+    expect((calls[0].init.headers as Record<string, string>).Authorization).toContain('Bearer ')
+  })
+
+  it('discovers the tenant when the token tid is the Microsoft Services placeholder', async () => {
+    const { calls } = mockFetch(() => ({
+      json: [{ tenantId: REAL_TENANT_ID, isInvitationRedeemed: true }],
+    }))
+
+    const tenantId = await resolveWorkTenantId(fakeJwt({ tid: 'f8cdef31-a31e-4b4a-93e4-5f571e91255a' }))
+
+    expect(tenantId).toBe(REAL_TENANT_ID)
+    expect(calls[0].url).toContain('/api/mt/emea/beta/users/tenants')
+  })
+
+  it('prefers the first redeemed tenant over an unredeemed one', async () => {
+    mockFetch(() => ({
+      json: [
+        { tenantId: 'guest-tenant', isInvitationRedeemed: false },
+        { tenantId: REAL_TENANT_ID, isInvitationRedeemed: true },
+      ],
+    }))
+
+    const tenantId = await resolveWorkTenantId(fakeJwt({ tid: 'organizations' }))
+
+    expect(tenantId).toBe(REAL_TENANT_ID)
+  })
+
+  it('throws an actionable error when only an unredeemed guest tenant exists', async () => {
+    mockFetch(() => ({ json: [{ tenantId: 'guest-tenant', isInvitationRedeemed: false }] }))
+
+    await expect(resolveWorkTenantId(fakeJwt({ tid: 'organizations' }))).rejects.toThrow(
+      /invitation has not been accepted/,
+    )
+  })
+
+  it('throws when no tenant is associated with the account', async () => {
+    mockFetch(() => ({ json: [] }))
+
+    await expect(resolveWorkTenantId(fakeJwt({ tid: 'organizations' }))).rejects.toThrow(/No Microsoft Teams tenant/)
+  })
 })
 
 describe('mintConsumerSkypeToken', () => {
@@ -188,5 +267,12 @@ describe('mintConsumerSkypeToken', () => {
   it('throws when no skype token present', async () => {
     mockFetch(() => ({ status: 403, json: { errorCode: 'UserLicenseNotPresentForbidden', message: 'Teams disabled' } }))
     await expect(mintConsumerSkypeToken('AT')).rejects.toThrow(/UserLicenseNotPresentForbidden/)
+  })
+
+  it('augments GuestUserNotRedeemed with an actionable hint', async () => {
+    mockFetch(() => ({ status: 400, json: { errorCode: 'GuestUserNotRedeemed' } }))
+    await expect(mintSkypeToken('AT', 'work')).rejects.toThrow(/GuestUserNotRedeemed/)
+    mockFetch(() => ({ status: 400, json: { errorCode: 'GuestUserNotRedeemed' } }))
+    await expect(mintSkypeToken('AT', 'work')).rejects.toThrow(/--account-type personal/)
   })
 })
