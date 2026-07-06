@@ -38,7 +38,7 @@ export async function loginAction(options: LoginOptions): Promise<void> {
       accountType,
       onCode: async ({ verificationUri, userCode }) => {
         info(`\nTo sign in, open ${verificationUri} and enter code ${userCode}\n`)
-        info('Waiting for approval...')
+        info(`Waiting for approval of code ${userCode}...`)
       },
       onPending: () => info('Approved. Finishing sign-in...'),
       debug: debugLog,

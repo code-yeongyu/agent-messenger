@@ -4,14 +4,19 @@ import { TeamsCredentialManager } from './credential-manager'
 import {
   type AadToken,
   type DeviceCodeInfo,
+  decodeJwtTid,
   exchangeDeviceCode,
   exchangeForSkypeScope,
+  isConsumerTenant,
   mintSkypeToken,
   pollDeviceToken,
   requestDeviceCode,
   resolveWorkTenantId,
 } from './device-code'
-import type { TeamsAccountType } from './types'
+import { type TeamsAccountType, TeamsError } from './types'
+
+const PERSONAL_ACCOUNT_HINT =
+  'This looks like a personal Microsoft account. Run `agent-teams auth login --account-type personal` to sign in.'
 
 export interface DeviceCodePrompt {
   verificationUri: string
@@ -80,8 +85,21 @@ export async function loginWithDeviceCode(
   })
 
   const aad = await pollDeviceToken(info.deviceCode, info.interval, info.expiresIn, clientId, accountType)
+
+  // A work login can resolve to a personal (MSA) account, whose token carries a
+  // consumer tenant. Such accounts have no org tenant and can't be finished on
+  // the work flow, so stop with an actionable hint rather than fail obscurely.
+  if (accountType === 'work' && isPersonalAccount(aad)) {
+    throw new TeamsError(PERSONAL_ACCOUNT_HINT, 'teams_personal_account_on_work_login')
+  }
+
   callbacks.onPending?.()
   return finalize(aad, clientId, accountType, credManager, callbacks.debug)
+}
+
+function isPersonalAccount(aad: AadToken): boolean {
+  const tid = decodeJwtTid(aad.accessToken)
+  return tid !== undefined && isConsumerTenant(tid)
 }
 
 async function finalize(
