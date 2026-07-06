@@ -74,6 +74,8 @@ export interface TeamsFile {
   size: number
   url: string
   contentType?: string
+  sharepoint_url?: string
+  object_url?: string
 }
 
 export interface TeamsCredentials {
@@ -196,6 +198,8 @@ export const TeamsFileSchema = z.object({
   size: z.number(),
   url: z.string(),
   contentType: z.string().optional(),
+  sharepoint_url: z.string().optional(),
+  object_url: z.string().optional(),
 })
 
 export const TeamsCredentialsSchema = z.object({
@@ -284,7 +288,7 @@ export class TeamsError extends Error {
 export class TeamsAuthCapabilityError extends Error {
   constructor() {
     super(
-      'Requires `agent-teams auth login` — cookie-based auth (`auth extract`) can only provide a Skype token, not the Microsoft token needed for search.',
+      'Requires `agent-teams auth login` — cookie-based auth (`auth extract`) can only provide a Skype token, not the Microsoft token needed for search or SharePoint/OneDrive file downloads.',
     )
     this.name = 'TeamsAuthCapabilityError'
   }
