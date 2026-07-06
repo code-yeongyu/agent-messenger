@@ -106,6 +106,7 @@ export interface TeamsAccount {
   auth_method?: TeamsAuthMethod
   aad_refresh_token?: string
   aad_client_id?: string
+  aad_tenant_id?: string
 }
 
 export interface TeamsConfig {
@@ -230,6 +231,7 @@ export const TeamsAccountSchema = z.object({
   auth_method: TeamsAuthMethodSchema.optional(),
   aad_refresh_token: z.string().optional(),
   aad_client_id: z.string().optional(),
+  aad_tenant_id: z.string().optional(),
 })
 
 export const TeamsConfigSchema = z.object({
