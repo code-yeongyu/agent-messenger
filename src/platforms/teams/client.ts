@@ -1,7 +1,10 @@
+import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 
+import { SUBSTRATE_SEARCH_URL } from './app-config'
 import { TeamsCredentialManager } from './credential-manager'
+import { TeamsTokenProvider } from './token-provider'
 import type {
   TeamsAccountType,
   TeamsChannel,
@@ -10,6 +13,7 @@ import type {
   TeamsFile,
   TeamsMessage,
   TeamsRegion,
+  TeamsSearchResult,
   TeamsTeam,
   TeamsUser,
 } from './types'
@@ -24,6 +28,8 @@ interface RawTeamsMessage extends TeamsMessage {
   rootMessageId?: string
   parentMessageId?: string
 }
+
+type JsonRecord = Record<string, unknown>
 
 const PERSONAL_MSG_API_BASE = 'https://msgapi.teams.live.com/v1'
 const CSA_API_BASE = 'https://teams.microsoft.com/api'
@@ -58,6 +64,109 @@ function stripHtml(content: string | undefined): string | undefined {
     .replace(/&#39;/g, "'")
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+function isRecord(value: unknown): value is JsonRecord {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function stringFrom(record: JsonRecord, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = record[key]
+    if (typeof value === 'string' && value.length > 0) return value
+  }
+  return undefined
+}
+
+function recordFrom(record: JsonRecord, keys: string[]): JsonRecord | undefined {
+  for (const key of keys) {
+    const value = record[key]
+    if (isRecord(value)) return value
+  }
+  return undefined
+}
+
+function arrayFrom(record: JsonRecord, keys: string[]): unknown[] {
+  for (const key of keys) {
+    const value = record[key]
+    if (Array.isArray(value)) return value
+  }
+  return []
+}
+
+function propertyValue(record: JsonRecord, names: string[]): string | undefined {
+  const properties = arrayFrom(record, ['Properties', 'properties'])
+  const normalized = names.map((name) => name.toLowerCase())
+  for (const property of properties) {
+    if (!isRecord(property)) continue
+    const name = stringFrom(property, ['Name', 'name', 'Key', 'key'])
+    if (!name || !normalized.includes(name.toLowerCase())) continue
+    const value = property.Value ?? property.value
+    if (typeof value === 'string' && value.length > 0) return value
+  }
+  return undefined
+}
+
+function resultString(record: JsonRecord, keys: string[]): string | undefined {
+  return stringFrom(record, keys) ?? propertyValue(record, keys)
+}
+
+function parseSubstrateResult(value: unknown): TeamsSearchResult | null {
+  if (!isRecord(value)) return null
+  const author = recordFrom(value, ['Author', 'author', 'From', 'from'])
+  const id = resultString(value, ['id', 'Id', 'ReferenceId', 'MessageId'])
+  const channelId = resultString(value, ['channel_id', 'ChannelId', 'ConversationId', 'ThreadId'])
+  if (!id || !channelId) return null
+
+  return {
+    id,
+    content:
+      stripHtml(resultString(value, ['content', 'Content', 'HitHighlightedSummary', 'Summary', 'Preview'])) ?? '',
+    author: {
+      id: author ? (stringFrom(author, ['id', 'Id', 'ObjectId']) ?? '') : (propertyValue(value, ['AuthorId']) ?? ''),
+      displayName: author
+        ? (stringFrom(author, ['displayName', 'DisplayName', 'Name']) ?? 'Unknown')
+        : (propertyValue(value, ['AuthorDisplayName', 'Author']) ?? 'Unknown'),
+    },
+    channel_id: channelId,
+    thread_id: resultString(value, ['thread_id', 'ThreadId']),
+    team_name: resultString(value, ['team_name', 'TeamName']),
+    channel_name: resultString(value, ['channel_name', 'ChannelName']),
+    timestamp: resultString(value, ['timestamp', 'Timestamp', 'DateTimeSent', 'LastModifiedTime']) ?? '',
+    permalink: resultString(value, ['permalink', 'Permalink', 'WebUrl', 'Url']),
+  }
+}
+
+function parseSubstrateResults(data: unknown): TeamsSearchResult[] {
+  if (!isRecord(data)) return []
+  const results: TeamsSearchResult[] = []
+  for (const entitySet of arrayFrom(data, ['EntitySets', 'entitySets'])) {
+    if (!isRecord(entitySet)) continue
+    for (const resultSet of arrayFrom(entitySet, ['ResultSets', 'resultSets'])) {
+      if (!isRecord(resultSet)) continue
+      for (const rawResult of arrayFrom(resultSet, ['Results', 'results'])) {
+        const result = parseSubstrateResult(rawResult)
+        if (result) results.push(result)
+      }
+    }
+  }
+  return results
+}
+
+function validateSearchLimit(value: number | undefined): number {
+  if (value === undefined) return 20
+  if (!Number.isInteger(value) || value < 1) {
+    throw new TeamsError('Search limit must be a positive integer.', 'invalid_pagination')
+  }
+  return value
+}
+
+function validateSearchFrom(value: number | undefined): number {
+  if (value === undefined) return 0
+  if (!Number.isInteger(value) || value < 0) {
+    throw new TeamsError('Search from offset must be a non-negative integer.', 'invalid_pagination')
+  }
+  return value
 }
 
 function escapeHtml(value: string): string {
@@ -105,8 +214,11 @@ export class TeamsClient {
   private isPersonalAccount: boolean = false
   private region: TeamsRegion = DEFAULT_REGION
   private regionDiscovered: boolean = false
+  private tokenProvider?: TeamsTokenProvider
   private buckets: Map<string, RateLimitBucket> = new Map()
   private globalRateLimitUntil: number = 0
+
+  constructor(private credManager: TeamsCredentialManager = new TeamsCredentialManager()) {}
 
   async login(credentials?: {
     token: string
@@ -129,13 +241,15 @@ export class TeamsClient {
         this.region = credentials.region
         this.regionDiscovered = true
       }
+      if (credentials.accountType) {
+        this.getTokenProvider().bindAccount(credentials.accountType)
+      }
       return this
     }
 
     const { ensureTeamsAuth } = await import('./ensure-auth')
     await ensureTeamsAuth()
-    const credManager = new TeamsCredentialManager()
-    const creds = await credManager.getTokenWithExpiry()
+    const creds = await this.credManager.getTokenWithExpiry()
     if (!creds) {
       throw new TeamsError(
         'No Teams credentials found. Make sure Microsoft Teams is logged in via the desktop app or a supported Chromium browser.',
@@ -569,6 +683,53 @@ export class TeamsClient {
       CSA_API_BASE,
     )
     return replies.map((reply) => withThreadMetadata(reply, rootMessageId))
+  }
+
+  async searchMessages(query: string, opts: { limit?: number; from?: number } = {}): Promise<TeamsSearchResult[]> {
+    const size = validateSearchLimit(opts.limit)
+    const from = validateSearchFrom(opts.from)
+    const tokenProvider = this.getTokenProvider()
+    const substrateToken = await tokenProvider.getSubstrateToken()
+    const tenantId = await tokenProvider.getTenantId()
+    const userId = await tokenProvider.getUserId()
+
+    const response = await fetch(SUBSTRATE_SEARCH_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${substrateToken}`,
+        'Content-Type': 'application/json',
+        'x-anchormailbox': `Oid:${userId}@${tenantId}`,
+      },
+      body: JSON.stringify({
+        cvid: randomUUID(),
+        logicalId: randomUUID(),
+        query: { queryString: query },
+        entityRequests: [
+          {
+            entityType: 'Message',
+            contentSources: ['Teams'],
+            from,
+            size,
+            query: { queryString: query },
+          },
+        ],
+      }),
+    })
+
+    const data = (await response.json().catch(() => ({}))) as unknown
+    if (!response.ok) {
+      const message = isRecord(data)
+        ? stringFrom(data, ['message', 'Message', 'error_description', 'error'])
+        : undefined
+      throw new TeamsError(message ?? `HTTP ${response.status}`, `substrate_${response.status}`)
+    }
+
+    return parseSubstrateResults(data)
+  }
+
+  private getTokenProvider(): TeamsTokenProvider {
+    this.tokenProvider ??= new TeamsTokenProvider(this.credManager)
+    return this.tokenProvider
   }
 
   async getMessage(teamId: string, channelId: string, messageId: string): Promise<TeamsMessage> {
