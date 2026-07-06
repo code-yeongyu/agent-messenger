@@ -325,6 +325,29 @@ describe('TeamsClient', () => {
       expect(fetchCalls[0].options?.method).toBe('POST')
       expect(fetchCalls[0].options?.body).toBe(JSON.stringify({ content: 'Hello world' }))
     })
+
+    it('sends a reply to a channel thread', async () => {
+      mockResponse({
+        id: 'reply1',
+        channel_id: 'ch1',
+        author: { id: '123', displayName: 'Test User' },
+        content: 'Thread reply',
+        timestamp: '2024-01-01T00:01:00.000Z',
+      })
+
+      const client = await new TeamsClient().login({ token: 'test-token', region: 'emea' })
+      const message = await client.sendMessage('111', 'ch1', 'Thread reply', 'root1')
+
+      expect(fetchCalls[0].url).toBe(
+        'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages/root1/replies',
+      )
+      expect(fetchCalls[0].options?.method).toBe('POST')
+      expect(fetchCalls[0].options?.body).toBe(JSON.stringify({ content: 'Thread reply', parentMessageId: 'root1' }))
+      // the reply the API echoes back omits thread ids, so the client normalizes them from the root
+      expect(message.root_message_id).toBe('root1')
+      expect(message.parent_message_id).toBe('root1')
+      expect(message.is_thread_reply).toBe(true)
+    })
   })
 
   describe('getMessages', () => {
@@ -357,6 +380,61 @@ describe('TeamsClient', () => {
 
       expect(fetchCalls[0].url).toBe(
         'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages?limit=50',
+      )
+    })
+
+    it('preserves thread fields for replies without inventing them for top-level messages', async () => {
+      mockResponse([
+        {
+          id: 'reply1',
+          channel_id: 'ch1',
+          author: { id: '123', displayName: 'User 1' },
+          content: 'Reply',
+          timestamp: '2024-01-01T00:01:00.000Z',
+          rootMessageId: 'root1',
+          parentMessageId: 'root1',
+        },
+        {
+          id: 'root1',
+          channel_id: 'ch1',
+          author: { id: '123', displayName: 'User 1' },
+          content: 'Top level',
+          timestamp: '2024-01-01T00:00:00.000Z',
+        },
+      ])
+
+      const client = await new TeamsClient().login({ token: 'test-token', region: 'emea' })
+      const messages = await client.getMessages('111', 'ch1')
+
+      expect(messages[0].root_message_id).toBe('root1')
+      expect(messages[0].parent_message_id).toBe('root1')
+      expect(messages[0].is_thread_reply).toBe(true)
+      expect(messages[1].root_message_id).toBeUndefined()
+      expect(messages[1].is_thread_reply).toBeFalsy()
+    })
+  })
+
+  describe('getThreadReplies', () => {
+    it('returns replies for a channel thread with root metadata', async () => {
+      mockResponse([
+        {
+          id: 'reply1',
+          channel_id: 'ch1',
+          author: { id: '123', displayName: 'User 1' },
+          content: 'Reply 1',
+          timestamp: '2024-01-01T00:01:00.000Z',
+        },
+      ])
+
+      const client = await new TeamsClient().login({ token: 'test-token', region: 'emea' })
+      const replies = await client.getThreadReplies('111', 'ch1', 'root1', 10)
+
+      expect(replies).toHaveLength(1)
+      expect(replies[0].root_message_id).toBe('root1')
+      expect(replies[0].parent_message_id).toBe('root1')
+      expect(replies[0].is_thread_reply).toBe(true)
+      expect(fetchCalls[0].url).toBe(
+        'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages/root1/replies?limit=10',
       )
     })
   })

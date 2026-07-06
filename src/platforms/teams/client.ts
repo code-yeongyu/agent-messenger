@@ -20,6 +20,11 @@ interface RateLimitBucket {
   resetAt: number
 }
 
+interface RawTeamsMessage extends TeamsMessage {
+  rootMessageId?: string
+  parentMessageId?: string
+}
+
 const PERSONAL_MSG_API_BASE = 'https://msgapi.teams.live.com/v1'
 const CSA_API_BASE = 'https://teams.microsoft.com/api'
 const MAX_RETRIES = 3
@@ -62,6 +67,23 @@ function escapeHtml(value: string): string {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;')
+}
+
+function withThreadMetadata(message: RawTeamsMessage, rootMessageId?: string): TeamsMessage {
+  const { rootMessageId: messageRootMessageId, parentMessageId, ...teamsMessage } = message
+  const rawRootMessageId = rootMessageId ?? messageRootMessageId
+  const isThreadReply = Boolean(
+    rootMessageId ||
+    (messageRootMessageId !== undefined && messageRootMessageId !== message.id) ||
+    (parentMessageId !== undefined && parentMessageId !== message.id),
+  )
+
+  return {
+    ...teamsMessage,
+    root_message_id: isThreadReply ? rawRootMessageId : undefined,
+    parent_message_id: isThreadReply ? (parentMessageId ?? rawRootMessageId) : undefined,
+    is_thread_reply: isThreadReply ? true : undefined,
+  }
 }
 
 // groupId => Teams/channel thread (handled by listTeams). "48:notes"/
@@ -505,7 +527,17 @@ export class TeamsClient {
     )
   }
 
-  async sendMessage(teamId: string, channelId: string, content: string): Promise<TeamsMessage> {
+  async sendMessage(teamId: string, channelId: string, content: string, rootMessageId?: string): Promise<TeamsMessage> {
+    if (rootMessageId) {
+      const response = await this.request<RawTeamsMessage>(
+        'POST',
+        `/csa/${this.region}/api/v2/teams/${teamId}/channels/${channelId}/messages/${rootMessageId}/replies`,
+        { content, parentMessageId: rootMessageId },
+        CSA_API_BASE,
+      )
+      return withThreadMetadata(response, rootMessageId)
+    }
+
     return this.request<TeamsMessage>(
       'POST',
       `/csa/${this.region}/api/v2/teams/${teamId}/channels/${channelId}/messages`,
@@ -515,12 +547,28 @@ export class TeamsClient {
   }
 
   async getMessages(teamId: string, channelId: string, limit: number = 50): Promise<TeamsMessage[]> {
-    return this.request<TeamsMessage[]>(
+    const messages = await this.request<RawTeamsMessage[]>(
       'GET',
       `/csa/${this.region}/api/v2/teams/${teamId}/channels/${channelId}/messages?limit=${limit}`,
       undefined,
       CSA_API_BASE,
     )
+    return messages.map((message) => withThreadMetadata(message))
+  }
+
+  async getThreadReplies(
+    teamId: string,
+    channelId: string,
+    rootMessageId: string,
+    limit: number = 50,
+  ): Promise<TeamsMessage[]> {
+    const replies = await this.request<RawTeamsMessage[]>(
+      'GET',
+      `/csa/${this.region}/api/v2/teams/${teamId}/channels/${channelId}/messages/${rootMessageId}/replies?limit=${limit}`,
+      undefined,
+      CSA_API_BASE,
+    )
+    return replies.map((reply) => withThreadMetadata(reply, rootMessageId))
   }
 
   async getMessage(teamId: string, channelId: string, messageId: string): Promise<TeamsMessage> {
