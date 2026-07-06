@@ -36,9 +36,8 @@ export async function loginAction(options: LoginOptions): Promise<void> {
     const result = await loginWithDeviceCode({
       clientId: options.clientId,
       accountType,
-      onCode: async ({ verificationUri, verificationUriComplete, userCode }) => {
-        info(`\nTo sign in, open ${verificationUri} and enter code ${userCode}`)
-        info(`Or open this direct link (code prefilled): ${verificationUriComplete}\n`)
+      onCode: async ({ verificationUri, userCode }) => {
+        info(`\nTo sign in, open ${verificationUri} and enter code ${userCode}\n`)
         info('Waiting for approval...')
       },
       onPending: () => info('Approved. Finishing sign-in...'),

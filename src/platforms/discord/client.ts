@@ -226,8 +226,12 @@ export class DiscordClient {
     return this.request<DiscordChannel>('GET', `/channels/${channelId}`)
   }
 
-  async sendMessage(channelId: string, content: string): Promise<DiscordMessage> {
-    return this.request<DiscordMessage>('POST', `/channels/${channelId}/messages`, { content })
+  async sendMessage(channelId: string, content: string, options?: { reply_to?: string }): Promise<DiscordMessage> {
+    const body: Record<string, unknown> = { content }
+    if (options?.reply_to) {
+      body.message_reference = { message_id: options.reply_to }
+    }
+    return this.request<DiscordMessage>('POST', `/channels/${channelId}/messages`, body)
   }
 
   async replyToMessage(channelId: string, replyToMessageId: string, content: string): Promise<DiscordMessage> {
@@ -280,11 +284,14 @@ export class DiscordClient {
     return this.request<DiscordUser>('GET', `/users/${userId}`)
   }
 
-  async uploadFile(channelId: string, filePath: string): Promise<DiscordFile> {
+  async uploadFile(channelId: string, filePath: string, options?: { reply_to?: string }): Promise<DiscordFile> {
     const fileBuffer = await readFile(filePath)
     const filename = filePath.split('/').pop() || 'file'
 
     const formData = new FormData()
+    if (options?.reply_to) {
+      formData.append('payload_json', JSON.stringify({ message_reference: { message_id: options.reply_to } }))
+    }
     formData.append('files[0]', new Blob([fileBuffer]), filename)
 
     interface MessageWithAttachments extends DiscordMessage {
