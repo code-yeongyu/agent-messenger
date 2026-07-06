@@ -13,7 +13,9 @@ import {
   TeamsFileSchema,
   TeamsMessageSchema,
   TeamsReactionSchema,
+  TeamsSearchResultSchema,
   TeamsTeamSchema,
+  TeamsTokenProvider,
   TeamsUserSchema,
 } from '@/platforms/teams/index'
 
@@ -29,6 +31,10 @@ it('TeamsCredentialManager is exported from barrel', () => {
   expect(typeof TeamsCredentialManager).toBe('function')
 })
 
+it('TeamsTokenProvider is exported from barrel', () => {
+  expect(typeof TeamsTokenProvider).toBe('function')
+})
+
 it('TeamsTeamSchema is exported from barrel', () => {
   expect(typeof TeamsTeamSchema.parse).toBe('function')
 })
@@ -39,6 +45,10 @@ it('TeamsChannelSchema is exported from barrel', () => {
 
 it('TeamsMessageSchema is exported from barrel', () => {
   expect(typeof TeamsMessageSchema.parse).toBe('function')
+})
+
+it('TeamsSearchResultSchema is exported from barrel', () => {
+  expect(typeof TeamsSearchResultSchema.parse).toBe('function')
 })
 
 it('TeamsUserSchema is exported from barrel', () => {
