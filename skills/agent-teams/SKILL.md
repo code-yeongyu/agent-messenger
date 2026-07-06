@@ -306,7 +306,14 @@ agent-teams file list <team-id> <channel-id>
 
 # Get file info
 agent-teams file info <team-id> <channel-id> <file-id>
+
+# Download a file (to a path or directory; defaults to the current dir)
+agent-teams file download <team-id> <channel-id> <file-id>
+agent-teams file download <team-id> <channel-id> <file-id> ./report.pdf
+agent-teams file download <team-id> <channel-id> <file-id> ./downloads/ --pretty
 ```
+
+`file download` output: `{ "id", "name", "size", "content_type", "path" }` where `path` is where the file was written. Inline/image attachments download with the extracted Skype token and work for any signed-in account; SharePoint/OneDrive documents download via Microsoft Graph and require an `auth login` account (cookie-only `auth extract` accounts get a clear error telling you to run `auth login`).
 
 ### Snapshot Command
 

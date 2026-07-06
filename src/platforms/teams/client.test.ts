@@ -10,6 +10,7 @@ const TEMP_FILES_TO_CLEANUP = ['/tmp/test-teams-upload.txt']
 const TEMP_DIRS_TO_CLEANUP: string[] = []
 const SEARCH_TENANT_ID = '11111111-1111-1111-1111-111111111111'
 const SEARCH_USER_ID = '22222222-2222-2222-2222-222222222222'
+const GRAPH_AUDIENCE = 'https://graph.microsoft.com'
 
 describe('TeamsClient', () => {
   const originalFetch = globalThis.fetch
@@ -75,6 +76,19 @@ describe('TeamsClient', () => {
     return `${header}.${payload}.signature`
   }
 
+  const createGraphJwt = (): string => {
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(
+      JSON.stringify({
+        aud: GRAPH_AUDIENCE,
+        tid: SEARCH_TENANT_ID,
+        oid: SEARCH_USER_ID,
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      }),
+    ).toString('base64url')
+    return `${header}.${payload}.signature`
+  }
+
   const headerValue = (init: RequestInit | undefined, name: string): string | undefined => {
     const headers = init?.headers
     if (headers instanceof Headers) return headers.get(name) ?? undefined
@@ -98,6 +112,10 @@ describe('TeamsClient', () => {
         headers: defaultHeaders,
       }),
     )
+  }
+
+  const mockBinaryResponse = (body: string, status = 200) => {
+    fetchResponses.push(new Response(body, { status }))
   }
 
   describe('login', () => {
@@ -719,6 +737,90 @@ describe('TeamsClient', () => {
       expect(files).toHaveLength(2)
       expect(files[0].name).toBe('doc.pdf')
       expect(fetchCalls[0].url).toBe('https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/files')
+    })
+  })
+
+  describe('downloadFile', () => {
+    it('downloads SharePoint files through Graph shares with base64url share id', async () => {
+      const manager = await setupCredentialManager()
+      const shareUrl = 'https://contoso.sharepoint.com/sites/team/Shared%20Documents/report.docx'
+      mockResponse([
+        { id: 'file1', name: 'report.docx', size: 11, url: shareUrl, contentType: 'application/vnd.ms-word' },
+      ])
+      mockResponse({ access_token: createGraphJwt(), refresh_token: 'rotated-refresh', expires_in: 3600 })
+      mockBinaryResponse('graph-bytes')
+
+      const client = await new TeamsClient(manager).login({ token: 'skype-token', region: 'emea' })
+      const result = await client.downloadFile('111', 'ch1', 'file1')
+
+      const shareId = `u!${Buffer.from(shareUrl).toString('base64url').replace(/=+$/, '')}`
+      expect(fetchCalls[2].url).toBe(`https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem/content`)
+      expect(headerValue(fetchCalls[2].options, 'Authorization')).toBe(`Bearer ${createGraphJwt()}`)
+      expect(Buffer.from(result.buffer).toString()).toBe('graph-bytes')
+      expect(result.file.id).toBe('file1')
+    })
+
+    it('downloads inline object URLs with the Skype token', async () => {
+      mockResponse([
+        {
+          id: 'file2',
+          name: 'image.png',
+          size: 10,
+          url: 'https://teams.microsoft.com/files/image.png',
+          object_url: 'https://us-api.asm.skype.com/v1/objects/0-weu-d1/image.png',
+          contentType: 'image/png',
+        },
+      ])
+      mockBinaryResponse('image-bytes')
+
+      const client = await new TeamsClient().login({ token: 'skype-token', region: 'emea' })
+      const result = await client.downloadFile('111', 'ch1', 'file2')
+
+      expect(fetchCalls[1].url).toBe('https://us-api.asm.skype.com/v1/objects/0-weu-d1/image.png')
+      expect(headerValue(fetchCalls[1].options, 'Authorization')).toBe('Bearer skype-token')
+      expect(headerValue(fetchCalls[1].options, 'X-Skypetoken')).toBe('skype-token')
+      expect(Buffer.from(result.buffer).toString()).toBe('image-bytes')
+    })
+
+    it('throws TeamsAuthCapabilityError for SharePoint files with cookie-only credentials', async () => {
+      const dir = join(
+        import.meta.dir,
+        `.test-teams-client-cookie-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      )
+      TEMP_DIRS_TO_CLEANUP.push(dir)
+      const manager = new TeamsCredentialManager(dir)
+      await manager.setToken('skype-token', 'work', '2100-01-01T00:00:00Z')
+      mockResponse([
+        {
+          id: 'file3',
+          name: 'deck.pptx',
+          size: 10,
+          url: 'https://contoso.sharepoint.com/sites/team/Shared%20Documents/deck.pptx',
+        },
+      ])
+
+      const client = await new TeamsClient(manager).login({ token: 'skype-token', region: 'emea' })
+
+      await expect(client.downloadFile('111', 'ch1', 'file3')).rejects.toThrow('Requires `agent-teams auth login`')
+      expect(fetchCalls).toHaveLength(1)
+    })
+
+    it('refuses to send the Skype token to an untrusted host', async () => {
+      mockResponse([
+        {
+          id: 'file4',
+          name: 'evil.bin',
+          size: 10,
+          url: 'https://evil.example.com/steal',
+          object_url: 'https://evil.example.com/steal',
+        },
+      ])
+
+      const client = await new TeamsClient().login({ token: 'skype-token', region: 'emea' })
+
+      await expect(client.downloadFile('111', 'ch1', 'file4')).rejects.toThrow('untrusted host')
+      // only the listFiles call happened — no credentialed download fetch to the untrusted host
+      expect(fetchCalls).toHaveLength(1)
     })
   })
 

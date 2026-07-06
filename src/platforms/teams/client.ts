@@ -37,6 +37,7 @@ const MAX_RETRIES = 3
 const BASE_BACKOFF_MS = 100
 const DEFAULT_REGION: TeamsRegion = 'amer'
 const REGIONS: TeamsRegion[] = ['amer', 'emea', 'apac']
+const GRAPH_API_BASE = 'https://graph.microsoft.com/v1.0'
 
 // Personal (Teams for Life) skypetokens carry a consumer `skypeid` (e.g.
 // "live:..." or "8:live:..."); work/school tokens carry an org identity. Used
@@ -167,6 +168,66 @@ function validateSearchFrom(value: number | undefined): number {
     throw new TeamsError('Search from offset must be a non-negative integer.', 'invalid_pagination')
   }
   return value
+}
+
+function isSharePointOrOneDriveUrl(url: string): boolean {
+  try {
+    const { hostname } = new URL(url)
+    const normalizedHost = hostname.toLowerCase()
+    return (
+      normalizedHost.includes('sharepoint.com') ||
+      normalizedHost.includes('-my.sharepoint') ||
+      normalizedHost === '1drv.ms' ||
+      normalizedHost.endsWith('.1drv.ms') ||
+      normalizedHost === 'onedrive.live.com' ||
+      normalizedHost.endsWith('.onedrive.live.com')
+    )
+  } catch {
+    return false
+  }
+}
+
+// Only these hosts receive the Skype token on a raw download fetch. Teams file
+// metadata can carry arbitrary URLs, so we never attach credentials to a host
+// outside this allowlist — that would leak the token to a third party.
+function isTrustedSkypeDownloadHost(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    return (
+      host === 'teams.microsoft.com' ||
+      host.endsWith('.teams.microsoft.com') ||
+      host.endsWith('.asm.skype.com') ||
+      host.endsWith('.asyncgw.teams.microsoft.com') ||
+      host === 'substrate.office.com' ||
+      host.endsWith('.substrate.office.com')
+    )
+  } catch {
+    return false
+  }
+}
+
+function getFileDownloadSource(file: TeamsFile): { route: 'graph' | 'skype'; url: string } {
+  const shareUrl = [file.sharepoint_url, file.url, file.object_url].find((candidate): candidate is string =>
+    Boolean(candidate && isSharePointOrOneDriveUrl(candidate)),
+  )
+  if (shareUrl) return { route: 'graph', url: shareUrl }
+
+  const directUrl = file.object_url ?? file.url
+  if (!directUrl) {
+    throw new TeamsError(`File has no downloadable URL: ${file.id}`, 'file_url_missing')
+  }
+  if (!isTrustedSkypeDownloadHost(directUrl)) {
+    throw new TeamsError(`Refusing to download ${file.id} from an untrusted host: ${directUrl}`, 'file_url_untrusted')
+  }
+  return { route: 'skype', url: directUrl }
+}
+
+async function readDownloadResponse(response: Response, codePrefix: string): Promise<Buffer> {
+  if (!response.ok) {
+    throw new TeamsError(`File download failed with HTTP ${response.status}`, `${codePrefix}_${response.status}`)
+  }
+
+  return Buffer.from(await response.arrayBuffer())
 }
 
 function escapeHtml(value: string): string {
@@ -797,5 +858,39 @@ export class TeamsClient {
       undefined,
       CSA_API_BASE,
     )
+  }
+
+  async downloadFile(teamId: string, channelId: string, fileId: string): Promise<{ buffer: Buffer; file: TeamsFile }> {
+    const files = await this.listFiles(teamId, channelId)
+    const file = files.find((candidate) => candidate.id === fileId)
+    if (!file) {
+      throw new TeamsError(`File not found: ${fileId}`, 'file_not_found')
+    }
+
+    const source = getFileDownloadSource(file)
+    if (source.route === 'graph') {
+      const graphToken = await new TeamsTokenProvider(this.credManager).getGraphToken()
+      const shareId = `u!${Buffer.from(source.url).toString('base64url').replace(/=+$/, '')}`
+      const response = await fetch(`${GRAPH_API_BASE}/shares/${shareId}/driveItem/content`, {
+        headers: {
+          Authorization: `Bearer ${graphToken}`,
+        },
+        redirect: 'follow',
+      })
+      return { buffer: await readDownloadResponse(response, 'graph_download'), file }
+    }
+
+    if (this.isTokenExpired()) {
+      throw new TeamsError('Token has expired. Run "auth login" or "auth extract" to refresh.', 'token_expired')
+    }
+    const skypeToken = this.getToken()
+    const response = await fetch(source.url, {
+      headers: {
+        Authorization: `Bearer ${skypeToken}`,
+        'X-Skypetoken': skypeToken,
+      },
+      redirect: 'follow',
+    })
+    return { buffer: await readDownloadResponse(response, 'skype_download'), file }
   }
 }
