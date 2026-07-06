@@ -1,5 +1,6 @@
 export { TeamsClient } from './client'
 export { TeamsCredentialManager } from './credential-manager'
+export { TeamsTokenProvider } from './token-provider'
 export {
   completeDeviceCode,
   loginWithDeviceCode,
@@ -9,7 +10,7 @@ export {
 } from './device-login'
 export type { DeviceCodePrompt, DeviceLoginResult } from './device-login'
 export { TeamsListener } from './listener'
-export { TeamsError } from './types'
+export { TeamsAuthCapabilityError, TeamsError } from './types'
 export type {
   TeamsAccount,
   TeamsAccountType,
@@ -22,6 +23,7 @@ export type {
   TeamsMessage,
   TeamsRealtimeMessage,
   TeamsReaction,
+  TeamsSearchResult,
   TeamsTeam,
   TeamsTrouterGenericEvent,
   TeamsUser,
@@ -36,6 +38,7 @@ export {
   TeamsFileSchema,
   TeamsMessageSchema,
   TeamsReactionSchema,
+  TeamsSearchResultSchema,
   TeamsTeamSchema,
   TeamsUserSchema,
 } from './types'

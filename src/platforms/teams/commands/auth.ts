@@ -17,24 +17,28 @@ interface LoginOptions {
   debug?: boolean
   deviceCode?: string
   clientId?: string
+  accountType?: string
 }
 
 export async function loginAction(options: LoginOptions): Promise<void> {
   try {
+    const accountType = resolveLoginAccountType(options.accountType)
     if (options.deviceCode) {
-      await finishDeviceCode(options)
+      await finishDeviceCode(options, accountType)
       return
     }
     if (!isInteractive()) {
-      await startNonInteractiveLogin(options.clientId)
+      await startNonInteractiveLogin(options.clientId, accountType)
       return
     }
 
     const debugLog = options.debug ? (msg: string) => debug(`[debug] ${msg}`) : undefined
     const result = await loginWithDeviceCode({
       clientId: options.clientId,
-      onCode: async ({ verificationUri, userCode }) => {
-        info(`\nTo sign in, open ${verificationUri} and enter code ${userCode}\n`)
+      accountType,
+      onCode: async ({ verificationUri, verificationUriComplete, userCode }) => {
+        info(`\nTo sign in, open ${verificationUri} and enter code ${userCode}`)
+        info(`Or open this direct link (code prefilled): ${verificationUriComplete}\n`)
         info('Waiting for approval...')
       },
       onPending: () => info('Approved. Finishing sign-in...'),
@@ -45,6 +49,7 @@ export async function loginAction(options: LoginOptions): Promise<void> {
       formatOutput(
         {
           authenticated: true,
+          account_type: result.accountType,
           user: result.userName,
           teams: result.teams.map((t) => `${t.id}/${t.name}`),
           current: result.current,
@@ -57,33 +62,45 @@ export async function loginAction(options: LoginOptions): Promise<void> {
   }
 }
 
-async function startNonInteractiveLogin(clientIdOverride?: string): Promise<void> {
-  const { info: device, clientId } = await startDeviceCode(clientIdOverride)
+function resolveLoginAccountType(value: string | undefined): TeamsAccountType {
+  if (value === undefined) return 'work'
+  if (value === 'work' || value === 'personal') return value
+  throw new Error('Invalid account type. Use "work" or "personal".')
+}
+
+async function startNonInteractiveLogin(
+  clientIdOverride: string | undefined,
+  accountType: TeamsAccountType,
+): Promise<void> {
+  const { info: device, clientId } = await startDeviceCode(clientIdOverride, accountType)
   const clientIdFlag = clientIdOverride ? ` --client-id ${clientIdOverride}` : ''
+  const accountTypeFlag = accountType === 'personal' ? ' --account-type personal' : ''
   console.log(
     formatOutput({
       next_action: 'authorize',
+      account_type: accountType,
       verification_uri: device.verificationUri,
       verification_uri_complete: device.verificationUriComplete,
       user_code: device.userCode,
       device_code: device.deviceCode,
       client_id: clientId,
       expires_at: Date.now() + device.expiresIn * 1000,
-      message: `Show the user \`verification_uri\` and \`user_code\` (or \`verification_uri_complete\`) and ask them to approve in a browser. After they approve, run \`agent-teams auth login --device-code <device_code>${clientIdFlag}\` to finish.`,
+      message: `Show the user \`verification_uri\` and \`user_code\` (or \`verification_uri_complete\`) and ask them to approve in a browser. After they approve, run \`agent-teams auth login --device-code <device_code>${clientIdFlag}${accountTypeFlag}\` to finish.`,
     }),
   )
   process.exit(0)
 }
 
-async function finishDeviceCode(options: LoginOptions): Promise<void> {
+async function finishDeviceCode(options: LoginOptions, accountType: TeamsAccountType): Promise<void> {
   const { getTeamsAppClientId } = await import('../app-config')
-  const clientId = options.clientId ?? getTeamsAppClientId().clientId
+  const clientId = options.clientId ?? getTeamsAppClientId(accountType).clientId
   try {
-    const result = await completeDeviceCode(options.deviceCode!, clientId)
+    const result = await completeDeviceCode(options.deviceCode!, clientId, undefined, accountType)
     console.log(
       formatOutput(
         {
           authenticated: true,
+          account_type: result.accountType,
           user: result.userName,
           teams: result.teams.map((t) => `${t.id}/${t.name}`),
           current: result.current,
@@ -93,13 +110,14 @@ async function finishDeviceCode(options: LoginOptions): Promise<void> {
     )
   } catch (error) {
     if (error instanceof PendingApprovalError) {
+      const clientIdFlag = options.clientId ? ` --client-id ${options.clientId}` : ''
+      const accountTypeFlag = options.accountType ? ` --account-type ${accountType}` : ''
       console.log(
         formatOutput(
           {
             next_action: 'still_pending',
             device_code: options.deviceCode,
-            message:
-              'User has not approved yet. Confirm they completed authorization in the browser, then run `auth login --device-code <device_code>` again.',
+            message: `User has not approved yet. Confirm they completed authorization in the browser, then run \`agent-teams auth login --device-code <device_code>${clientIdFlag}${accountTypeFlag}\` again.`,
           },
           options.pretty,
         ),
@@ -543,11 +561,12 @@ export const authCommand = new Command('auth')
   .description('Authentication commands')
   .addCommand(
     new Command('login')
-      .description('Sign in via device code (no desktop app needed). Personal Microsoft accounts.')
+      .description('Sign in via device code (no desktop app needed). Defaults to work/school accounts.')
       .option('--pretty', 'Pretty print JSON output')
       .option('--debug', 'Show debug output for troubleshooting')
       .option('--device-code <code>', 'Finish a non-interactive login started earlier')
       .option('--client-id <id>', 'Override the AAD client ID')
+      .option('--account-type <type>', 'Account type: work or personal (default: work)')
       .action(loginAction),
   )
   .addCommand(
