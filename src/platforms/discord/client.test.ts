@@ -164,6 +164,38 @@ describe('DiscordClient', () => {
       expect(fetchCalls[0].options?.method).toBe('POST')
       expect(fetchCalls[0].options?.body).toBe(JSON.stringify({ content: 'Hello world' }))
     })
+
+    it('includes message_reference when reply_to is provided', async () => {
+      mockResponse({
+        id: 'msg1',
+        channel_id: 'ch1',
+        author: { id: '123', username: 'bot' },
+        content: 'Reply text',
+        timestamp: '2024-01-01T00:00:00.000Z',
+      })
+
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      await client.sendMessage('ch1', 'Reply text', { reply_to: 'parent123' })
+
+      expect(fetchCalls[0].options?.body).toBe(
+        JSON.stringify({ content: 'Reply text', message_reference: { message_id: 'parent123' } }),
+      )
+    })
+
+    it('omits message_reference when reply_to is not provided', async () => {
+      mockResponse({
+        id: 'msg1',
+        channel_id: 'ch1',
+        author: { id: '123', username: 'bot' },
+        content: 'Hello world',
+        timestamp: '2024-01-01T00:00:00.000Z',
+      })
+
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      await client.sendMessage('ch1', 'Hello world')
+
+      expect(fetchCalls[0].options?.body).toBe(JSON.stringify({ content: 'Hello world' }))
+    })
   })
 
   describe('getMessages', () => {
@@ -307,6 +339,60 @@ describe('DiscordClient', () => {
       expect(file.filename).toBe('test-upload.txt')
       expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/channels/ch1/messages')
       expect(fetchCalls[0].options?.method).toBe('POST')
+    })
+
+    it('includes payload_json with message_reference when reply_to is provided', async () => {
+      const tempFile = '/tmp/test-upload-reply.txt'
+      await Bun.write(tempFile, 'test content')
+
+      mockResponse({
+        id: 'msg1',
+        channel_id: 'ch1',
+        author: { id: '123', username: 'bot' },
+        content: '',
+        timestamp: '2024-01-01T00:00:00.000Z',
+        attachments: [
+          {
+            id: 'att1',
+            filename: 'test-upload-reply.txt',
+            size: 12,
+            url: 'https://cdn.discord.com/attachments/ch1/att1/test-upload-reply.txt',
+          },
+        ],
+      })
+
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      await client.uploadFile('ch1', tempFile, { reply_to: 'parent123' })
+
+      const formData = fetchCalls[0].options?.body as FormData
+      expect(formData.get('payload_json')).toBe(JSON.stringify({ message_reference: { message_id: 'parent123' } }))
+    })
+
+    it('omits payload_json when reply_to is not provided', async () => {
+      const tempFile = '/tmp/test-upload-no-reply.txt'
+      await Bun.write(tempFile, 'test content')
+
+      mockResponse({
+        id: 'msg1',
+        channel_id: 'ch1',
+        author: { id: '123', username: 'bot' },
+        content: '',
+        timestamp: '2024-01-01T00:00:00.000Z',
+        attachments: [
+          {
+            id: 'att1',
+            filename: 'test-upload-no-reply.txt',
+            size: 12,
+            url: 'https://cdn.discord.com/attachments/ch1/att1/test-upload-no-reply.txt',
+          },
+        ],
+      })
+
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      await client.uploadFile('ch1', tempFile)
+
+      const formData = fetchCalls[0].options?.body as FormData
+      expect(formData.get('payload_json')).toBeNull()
     })
   })
 
