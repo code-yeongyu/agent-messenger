@@ -1,9 +1,31 @@
-import { afterAll, afterEach, describe, expect, it, mock } from 'bun:test'
+import { afterAll, afterEach, describe, expect, it, mock, spyOn } from 'bun:test'
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { TeamsClient } from './client'
 import { TeamsCredentialManager } from './credential-manager'
-import { refreshDeviceCodeAccount } from './device-login'
+import * as deviceCode from './device-code'
+import type { DeviceCodeInfo } from './device-code'
+import { loginWithDeviceCode, refreshDeviceCodeAccount } from './device-login'
+
+const CONSUMER_TENANT_ID = '9188040d-6c67-4c5b-b112-36a304b66dad'
+const MICROSOFT_SERVICES_TENANT_ID = 'f8cdef31-a31e-4b4a-93e4-5f571e91255a'
+const REAL_TENANT_ID = 'c0ffee00-1111-2222-3333-444455556666'
+
+function fakeJwt(claims: Record<string, unknown>): string {
+  return `header.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.signature`
+}
+
+function fakeDeviceCodeInfo(): DeviceCodeInfo {
+  return {
+    deviceCode: 'device-code',
+    userCode: 'USER-CODE',
+    verificationUri: 'https://microsoft.com/devicelogin',
+    verificationUriComplete: 'https://microsoft.com/devicelogin?otc=USER-CODE',
+    expiresIn: 900,
+    interval: 1,
+  }
+}
 
 const testDirs: string[] = []
 const originalFetch = globalThis.fetch
@@ -162,5 +184,105 @@ describe('refreshDeviceCodeAccount', () => {
     expect(ok).toBe(false)
     const config = await manager.loadConfig()
     expect(config?.accounts.personal?.token).toBe('old-skype')
+  })
+})
+
+describe('loginWithDeviceCode personal-account detection', () => {
+  const spies: Array<ReturnType<typeof spyOn>> = []
+
+  function spy<T extends object, K extends keyof T>(obj: T, key: K): ReturnType<typeof spyOn> {
+    const s = spyOn(obj, key as never)
+    spies.push(s)
+    return s
+  }
+
+  afterEach(() => {
+    for (const s of spies.splice(0)) s.mockRestore()
+  })
+
+  function stubFinalizeChain(): void {
+    spy(deviceCode, 'exchangeForSkypeScope').mockResolvedValue({ accessToken: 'spaces-at', refreshToken: 'rt' })
+    spy(deviceCode, 'mintSkypeToken').mockResolvedValue({
+      skypeToken: 'skype',
+      skypeTokenExpiresAt: '2100-01-01T00:00:00Z',
+    })
+    spy(TeamsClient.prototype, 'login').mockResolvedValue(new TeamsClient())
+    spy(TeamsClient.prototype, 'testAuth').mockResolvedValue({
+      id: 'u',
+      displayName: 'Work User',
+      email: 'w@example.com',
+    })
+    spy(TeamsClient.prototype, 'listTeams').mockResolvedValue([])
+    spy(TeamsClient.prototype, 'getRegion').mockReturnValue('emea')
+    spy(TeamsCredentialManager.prototype, 'setDeviceCodeAccount').mockResolvedValue(undefined)
+  }
+
+  it('stops with an actionable hint when a work login resolves to a consumer account', async () => {
+    const requestSpy = spy(deviceCode, 'requestDeviceCode').mockResolvedValue(fakeDeviceCodeInfo())
+    spy(deviceCode, 'pollDeviceToken').mockResolvedValue({
+      accessToken: fakeJwt({ tid: CONSUMER_TENANT_ID }),
+      refreshToken: 'work-rt',
+    })
+    const tenantSpy = spy(deviceCode, 'resolveWorkTenantId')
+    const exchangeSpy = spy(deviceCode, 'exchangeForSkypeScope')
+
+    // given: a work login whose token carries a consumer tenant
+    // then: it throws --account-type personal guidance without minting a token
+    await expect(loginWithDeviceCode({ accountType: 'work', onCode: () => {} })).rejects.toThrow(
+      /--account-type personal/,
+    )
+    expect(requestSpy).toHaveBeenCalledTimes(1)
+    expect(tenantSpy).not.toHaveBeenCalled()
+    expect(exchangeSpy).not.toHaveBeenCalled()
+  })
+
+  it('finishes a work login normally when it resolves to a real organizational tenant', async () => {
+    const requestSpy = spy(deviceCode, 'requestDeviceCode').mockResolvedValue(fakeDeviceCodeInfo())
+    spy(deviceCode, 'pollDeviceToken').mockResolvedValue({
+      accessToken: fakeJwt({ tid: REAL_TENANT_ID }),
+      refreshToken: 'work-rt',
+    })
+    const tenantSpy = spy(deviceCode, 'resolveWorkTenantId').mockResolvedValue(REAL_TENANT_ID)
+    stubFinalizeChain()
+
+    const result = await loginWithDeviceCode({ accountType: 'work', onCode: () => {} })
+
+    expect(requestSpy).toHaveBeenCalledTimes(1)
+    expect(tenantSpy).toHaveBeenCalledTimes(1)
+    expect(result.accountType).toBe('work')
+  })
+
+  it('runs tenant discovery for a work login carrying the Microsoft Services placeholder', async () => {
+    // given: a work token whose tid is the MSA-passthrough placeholder, which
+    // legitimate work accounts also carry and which discovery can still resolve
+    spy(deviceCode, 'requestDeviceCode').mockResolvedValue(fakeDeviceCodeInfo())
+    spy(deviceCode, 'pollDeviceToken').mockResolvedValue({
+      accessToken: fakeJwt({ tid: MICROSOFT_SERVICES_TENANT_ID }),
+      refreshToken: 'work-rt',
+    })
+    const tenantSpy = spy(deviceCode, 'resolveWorkTenantId').mockResolvedValue(REAL_TENANT_ID)
+    stubFinalizeChain()
+
+    // then: it is not rejected early — discovery runs and the login completes
+    const result = await loginWithDeviceCode({ accountType: 'work', onCode: () => {} })
+
+    expect(tenantSpy).toHaveBeenCalledTimes(1)
+    expect(result.accountType).toBe('work')
+  })
+
+  it('finishes a personal login without tenant discovery', async () => {
+    const requestSpy = spy(deviceCode, 'requestDeviceCode').mockResolvedValue(fakeDeviceCodeInfo())
+    spy(deviceCode, 'pollDeviceToken').mockResolvedValue({
+      accessToken: fakeJwt({ tid: CONSUMER_TENANT_ID }),
+      refreshToken: 'personal-rt',
+    })
+    const tenantSpy = spy(deviceCode, 'resolveWorkTenantId')
+    stubFinalizeChain()
+
+    const result = await loginWithDeviceCode({ accountType: 'personal', onCode: () => {} })
+
+    expect(requestSpy.mock.calls[0][1]).toBe('personal')
+    expect(tenantSpy).not.toHaveBeenCalled()
+    expect(result.accountType).toBe('personal')
   })
 })

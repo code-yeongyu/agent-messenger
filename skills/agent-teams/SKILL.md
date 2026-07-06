@@ -1,7 +1,7 @@
 ---
 name: agent-teams
 description: Interact with Microsoft Teams - send messages, read channels, manage reactions
-version: 2.28.0
+version: 2.29.0
 allowed-tools: Bash(agent-teams:*)
 metadata:
   openclaw:
@@ -35,7 +35,7 @@ agent-teams channel list <team-id>
 
 Two co-equal ways to sign in — pick whichever fits:
 
-1. **`agent-teams auth login`** (work/school **or** personal Microsoft accounts) — device-code sign-in. Open the printed URL, enter the code, and approve in your browser. No desktop app or browser extraction needed. Defaults to a work/school account; use `--account-type personal` for a personal account. Only `auth login` stores the AAD refresh token required by `message search`.
+1. **`agent-teams auth login`** (work/school **or** personal Microsoft accounts) — device-code sign-in. Open the printed URL, enter the code, and approve in your browser. No desktop app or browser extraction needed. It prompts for your Microsoft email (or pass `--email <email>`) and auto-detects work vs personal, then starts the matching flow; pass `--account-type work|personal` to force it and skip detection. Only `auth login` stores the AAD refresh token required by `message search`.
 2. **`agent-teams auth extract`** — zero-config extraction from the Teams desktop app, falling back to a Chromium browser. Best when you're already signed into Teams locally. Yields a Skype token only — sufficient for messaging, but **not** for `message search` (see below).
 
 Credentials are also extracted automatically on first use of any command if none are stored, so `auth extract` can happen silently in the background.
@@ -47,8 +47,10 @@ Teams tokens are short-lived (60-90 minutes for extraction, a few hours for devi
 When there's no TTY, `auth login` splits into two calls:
 
 ```bash
-# 1. Start — returns verification_uri, user_code, and device_code as JSON
-agent-teams auth login
+# 1. Start — returns verification_uri, user_code, and device_code as JSON.
+#    Pass --email to auto-detect the account type (no prompt without a TTY),
+#    or --account-type work|personal to force it.
+agent-teams auth login --email <email>
 
 # 2. After the user approves in a browser, finish with the device_code
 agent-teams auth login --device-code <device_code>
