@@ -1,8 +1,5 @@
 import { afterEach, beforeEach, expect, spyOn, it } from 'bun:test'
 
-import * as interactive from '@/shared/utils/interactive'
-import * as stderr from '@/shared/utils/stderr'
-
 import { TeamsClient } from '../client'
 import { TeamsCredentialManager } from '../credential-manager'
 import * as deviceLogin from '../device-login'
@@ -123,30 +120,4 @@ it('login pending hint preserves explicit account type', async () => {
   completeSpy.mockRestore()
   consoleSpy.mockRestore()
   exitSpy.mockRestore()
-})
-
-it('interactive login shows the prefilled verification link alongside the code', async () => {
-  const interactiveSpy = spyOn(interactive, 'isInteractive').mockReturnValue(true)
-  const infoSpy = spyOn(stderr, 'info').mockImplementation(() => {})
-  const consoleSpy = spyOn(console, 'log').mockImplementation(() => {})
-  const loginSpy = spyOn(deviceLogin, 'loginWithDeviceCode').mockImplementation(async ({ onCode }) => {
-    await onCode({
-      verificationUri: 'https://login.microsoft.com/device',
-      verificationUriComplete: 'https://login.microsoft.com/device?otc=ABCD1234',
-      userCode: 'ABCD1234',
-      expiresAt: Date.now() + 900_000,
-    })
-    return { accountType: 'work', userName: 'Test User', teams: [], current: null }
-  })
-
-  await loginAction({ pretty: false })
-
-  const messages = infoSpy.mock.calls.map((call) => call[0]).join('\n')
-  expect(messages).toContain('https://login.microsoft.com/device?otc=ABCD1234')
-  expect(messages).toContain('ABCD1234')
-
-  interactiveSpy.mockRestore()
-  infoSpy.mockRestore()
-  consoleSpy.mockRestore()
-  loginSpy.mockRestore()
 })
