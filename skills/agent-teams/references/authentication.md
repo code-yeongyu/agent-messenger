@@ -197,7 +197,7 @@ Credentials are stored in:
 Most commands use only the Skype token above. **`message search` is different**: it queries Microsoft's Substrate search API, which requires an AAD Bearer token for the `substrate.office.com` audience — a token the Skype cookie cannot produce.
 
 - **Only `auth login` (device-code) can mint it.** That flow stores an `aad_refresh_token` (and `aad_client_id`) alongside the Skype token. `auth extract` (cookie extraction) yields a Skype token only and therefore **cannot** run `message search` — the CLI returns an actionable error telling you to run `auth login`.
-- **Work and personal accounts** are both supported by `auth login`; it defaults to work/school and accepts `--account-type personal`.
+- **Work and personal accounts** are both supported by `auth login`. It detects the account type from your Microsoft email (prompted interactively, or via `--email <email>`) and starts the matching flow; `--account-type work|personal` forces it and skips detection. If a personal account still reaches the work flow, the CLI stops with an actionable hint to rerun with `--account-type personal`.
 - At search time, the CLI silently exchanges the stored refresh token for a short-lived Substrate access token (per-scope AAD grant), caches it in memory only (never written to disk), and rotates the refresh token. The same mechanism can mint a Graph token for other AAD-gated features.
 
 Credentials for an `auth login` account therefore include additional fields:
