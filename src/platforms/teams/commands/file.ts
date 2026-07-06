@@ -1,4 +1,5 @@
-import { resolve } from 'node:path'
+import { statSync, writeFileSync } from 'node:fs'
+import { basename, join, resolve } from 'node:path'
 
 import { Command } from 'commander'
 
@@ -8,6 +9,7 @@ import { formatOutput } from '@/shared/utils/output'
 import { TeamsClient } from '../client'
 import { TeamsCredentialManager } from '../credential-manager'
 import type { TeamsFile } from '../types'
+import { TeamsAuthCapabilityError } from '../types'
 
 export async function uploadAction(
   teamId: string,
@@ -122,6 +124,69 @@ export async function infoAction(
   }
 }
 
+export async function downloadAction(
+  teamId: string,
+  channelId: string,
+  fileId: string,
+  outputPath: string | undefined,
+  options: { pretty?: boolean },
+): Promise<void> {
+  try {
+    const credManager = new TeamsCredentialManager()
+    const cred = await credManager.getTokenWithExpiry()
+
+    if (!cred) {
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
+      process.exit(1)
+    }
+
+    const client = await new TeamsClient().login({
+      token: cred.token,
+      tokenExpiresAt: cred.tokenExpiresAt,
+      accountType: cred.accountType,
+      region: cred.region,
+    })
+    const { buffer, file } = await client.downloadFile(teamId, channelId, fileId)
+
+    const safeName = basename(file.name.replace(/\\/g, '/'))
+    let destPath = outputPath ? resolve(outputPath) : resolve(safeName)
+    let isDirectory = false
+    try {
+      isDirectory = statSync(destPath).isDirectory()
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException
+      if (err.code !== 'ENOENT') {
+        throw error
+      }
+    }
+
+    if (isDirectory) {
+      destPath = join(destPath, safeName)
+    }
+
+    writeFileSync(destPath, buffer)
+
+    console.log(
+      formatOutput(
+        {
+          id: file.id,
+          name: file.name,
+          size: file.size,
+          content_type: file.contentType || null,
+          path: destPath,
+        },
+        options.pretty,
+      ),
+    )
+  } catch (error) {
+    if (error instanceof TeamsAuthCapabilityError) {
+      console.error(error.message)
+      process.exit(1)
+    }
+    handleError(error as Error)
+  }
+}
+
 export const fileCommand = new Command('file')
   .description('File commands')
   .addCommand(
@@ -149,4 +214,14 @@ export const fileCommand = new Command('file')
       .argument('<file-id>', 'File ID')
       .option('--pretty', 'Pretty print JSON output')
       .action(infoAction),
+  )
+  .addCommand(
+    new Command('download')
+      .description('Download file from channel')
+      .argument('<team-id>', 'Team ID')
+      .argument('<channel-id>', 'Channel ID')
+      .argument('<file-id>', 'File ID')
+      .argument('[output-path]', 'Output file or directory path')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(downloadAction),
   )
