@@ -303,12 +303,23 @@ import { TeamsClient, TeamsListener } from 'agent-messenger/teams'
 const client = await new TeamsClient().login()
 const listener = new TeamsListener(client)
 
-listener.on('message', (message) => {
+listener.on('message', async (message) => {
   console.log(`New message in ${message.chatId}: ${message.content}`)
+
+  // Channel messages carry team/channel context and parsed @mentions, so you
+  // can reply into the channel or act on who was mentioned.
+  if (message.conversationType === 'channel') {
+    for (const mention of message.mentions) {
+      console.log(`Mentioned: ${mention.displayName} (${mention.mri})`)
+    }
+    await client.sendMessage(message.teamId!, message.channelId!, 'On it 👍')
+  }
 })
 
 await listener.start()
 ```
+
+Each `message` is a `TeamsRealtimeMessage`: `conversationType` is `'chat'` or `'channel'`, `teamId`/`channelId` are set for channel messages, and `mentions` is always present (empty for messages with no `@mentions`).
 
 ### Real-time Events (KakaoTalk)
 

@@ -206,8 +206,38 @@ import type {
   TeamsAccount,
   TeamsConfig,
   TeamsConfigLegacy,
+  TeamsRealtimeMessage,
+  TeamsMention,
+  TeamsListenerEventMap,
+  TeamsTrouterGenericEvent,
 } from 'agent-messenger/teams'
 ```
+
+The real-time listener emits `TeamsRealtimeMessage`:
+
+```typescript
+interface TeamsRealtimeMessage {
+  id: string
+  chatId: string
+  conversationType: 'chat' | 'channel'
+  teamId?: string // set for channel messages
+  channelId?: string // set for channel messages
+  content: string // HTML-stripped text
+  mentions: TeamsMention[] // always present; empty when no @mentions
+  author: { id: string; displayName: string }
+  messageType: string
+  timestamp: string
+}
+
+interface TeamsMention {
+  id: string // positional mention index
+  mri?: string // Skype MRI of the mentioned user/tag
+  displayName: string
+}
+```
+
+These are type-only exports (no Zod schema — the listener constructs the event
+internally rather than parsing untrusted input).
 
 ### Zod Schemas
 
