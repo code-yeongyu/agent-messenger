@@ -20,6 +20,7 @@ export type {
   TeamsCredentials,
   TeamsFile,
   TeamsListenerEventMap,
+  TeamsMention,
   TeamsMessage,
   TeamsRealtimeMessage,
   TeamsReaction,

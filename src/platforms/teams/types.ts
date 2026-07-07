@@ -252,10 +252,20 @@ export const TeamsConfigLegacySchema = z.object({
   ),
 })
 
+export interface TeamsMention {
+  id: string
+  mri?: string
+  displayName: string
+}
+
 export interface TeamsRealtimeMessage {
   id: string
   chatId: string
+  conversationType: 'chat' | 'channel'
+  teamId?: string
+  channelId?: string
   content: string
+  mentions: TeamsMention[]
   author: {
     id: string
     displayName: string
