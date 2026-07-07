@@ -589,6 +589,34 @@ export class TeamsClient {
     return Array.from(teamsMap.values())
   }
 
+  // Realtime messages only carry a conversation id; a channel's parent teamId
+  // (== groupId) lives on the conversation, so the listener resolves it through
+  // this channelId -> teamId map.
+  async buildChannelTeamMap(): Promise<Map<string, string>> {
+    interface Conversation {
+      id: string
+      threadProperties?: {
+        groupId?: string
+        productThreadType?: string
+        threadType?: string
+      }
+    }
+    interface ConversationsResponse {
+      conversations: Conversation[]
+    }
+    const data = await this.request<ConversationsResponse>('GET', '/users/ME/conversations')
+
+    const channelToTeam = new Map<string, string>()
+    for (const conv of data.conversations ?? []) {
+      const tp = conv.threadProperties
+      if (!tp?.groupId) continue
+      if (!tp.productThreadType?.includes('Teams') && tp.threadType !== 'space') continue
+      channelToTeam.set(conv.id, tp.groupId)
+    }
+
+    return channelToTeam
+  }
+
   async listChats(): Promise<TeamsChat[]> {
     interface ConversationMessage {
       content?: string
