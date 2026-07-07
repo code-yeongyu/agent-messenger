@@ -11,6 +11,8 @@ import {
   decodeMessageBody,
   extractChatId,
   isMessageLossFrame,
+  isThreadConversation,
+  parseMentions,
   parseRequestFrame,
   type TrouterInfo,
 } from './trouter'
@@ -111,4 +113,62 @@ it('decodeMessageBody unwraps nested gp (base64) payloads', () => {
   const gp = Buffer.from(inner).toString('base64')
   const decoded = decodeMessageBody({}, JSON.stringify({ gp }))
   expect(decoded).toEqual({ resourceType: 'NewMessage' })
+})
+
+it('isThreadConversation flags @thread ids and rejects 1:1 conversations', () => {
+  expect(isThreadConversation('19:abc@thread.tacv2')).toBe(true)
+  expect(isThreadConversation('19:abc@thread.v2')).toBe(true)
+  expect(isThreadConversation('19:uni01_abc@unq.gbl.spaces')).toBe(false)
+  expect(isThreadConversation('8:orgid:user@oneToOne.skype')).toBe(false)
+})
+
+it('parseMentions prefers the authoritative properties.mentions array', () => {
+  const properties = {
+    mentions: [
+      { itemid: '0', mri: '8:orgid:aaa', mentionType: 'person', displayName: 'Alice' },
+      { itemid: '1', mri: '8:orgid:bbb', mentionType: 'person', displayName: 'Bob' },
+    ],
+  }
+  const content =
+    '<span itemtype="http://schema.skype.com/Mention" itemscope itemid="0">Alice</span> ' +
+    '<span itemtype="http://schema.skype.com/Mention" itemscope itemid="1">Bob</span> hi'
+  expect(parseMentions(properties, content)).toEqual([
+    { id: '0', mri: '8:orgid:aaa', displayName: 'Alice' },
+    { id: '1', mri: '8:orgid:bbb', displayName: 'Bob' },
+  ])
+})
+
+it('parseMentions accepts JSON-stringified properties and mentions', () => {
+  const properties = JSON.stringify({
+    mentions: JSON.stringify([{ itemid: '0', mri: '8:orgid:aaa', displayName: 'Alice' }]),
+  })
+  expect(parseMentions(properties, '')).toEqual([{ id: '0', mri: '8:orgid:aaa', displayName: 'Alice' }])
+})
+
+it('parseMentions keeps tag mentions', () => {
+  const properties = { mentions: [{ itemid: '0', mri: 'tag:eng', mentionType: 'tag', displayName: 'Engineering' }] }
+  expect(parseMentions(properties, '')).toEqual([{ id: '0', mri: 'tag:eng', displayName: 'Engineering' }])
+})
+
+it('parseMentions falls back to content spans when properties are absent', () => {
+  const content =
+    '<readonly class="skipProofing" itemtype="http://schema.skype.com/Mention" contenteditable="false">' +
+    '<span itemtype="http://schema.skype.com/Mention" itemscope itemid="0">Alice</span></readonly> hi'
+  expect(parseMentions(undefined, content)).toEqual([{ id: '0', displayName: 'Alice' }])
+})
+
+it('parseMentions skips property entries missing itemid', () => {
+  const properties = {
+    mentions: [
+      { mri: '8:orgid:aaa', displayName: 'Alice' },
+      { itemid: '1', displayName: 'Bob' },
+    ],
+  }
+  expect(parseMentions(properties, '')).toEqual([{ id: '1', mri: undefined, displayName: 'Bob' }])
+})
+
+it('parseMentions returns an empty array for malformed data', () => {
+  expect(parseMentions('not-json', '')).toEqual([])
+  expect(parseMentions({ mentions: 'not-json' }, '')).toEqual([])
+  expect(parseMentions(null, 'plain text with no mentions')).toEqual([])
 })

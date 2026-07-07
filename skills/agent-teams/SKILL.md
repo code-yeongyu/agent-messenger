@@ -473,12 +473,35 @@ import { TeamsClient, TeamsListener } from 'agent-messenger/teams'
 const client = await new TeamsClient().login()
 const listener = new TeamsListener(client)
 
-listener.on('message', (message) => {
+listener.on('message', async (message) => {
   console.log(`New message in ${message.chatId}: ${message.content}`)
+
+  // Channel messages carry team/channel context and parsed @mentions.
+  if (message.conversationType === 'channel') {
+    for (const mention of message.mentions) {
+      console.log(`Mentioned: ${mention.displayName} (${mention.mri})`)
+    }
+    await client.sendMessage(message.teamId!, message.channelId!, 'On it 👍')
+  }
 })
 
 await listener.start()
 ```
+
+Each `message` is a `TeamsRealtimeMessage`:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `string` | Message id |
+| `chatId` | `string` | Conversation id (unchanged) |
+| `conversationType` | `'chat' \| 'channel'` | `'channel'` for team-channel messages |
+| `teamId` | `string?` | Set for channel messages (use with `sendMessage`) |
+| `channelId` | `string?` | Set for channel messages (use with `sendMessage`) |
+| `content` | `string` | HTML-stripped text (unchanged) |
+| `mentions` | `TeamsMention[]` | Always present; empty when no `@mentions`. Each is `{ id, mri?, displayName }` |
+| `author` | `{ id, displayName }` | Sender (unchanged) |
+| `messageType` | `string` | e.g. `Text`, `RichText/Html` |
+| `timestamp` | `string` | ISO timestamp |
 
 ### Full API Reference
 
