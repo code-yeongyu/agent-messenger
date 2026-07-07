@@ -265,12 +265,26 @@ import { TeamsClient, TeamsListener } from 'agent-messenger/teams'
 const client = await new TeamsClient().login()
 const listener = new TeamsListener(client)
 
-listener.on('message', (message) => {
+listener.on('message', async (message) => {
   console.log(`New message in ${message.chatId}: ${message.content}`)
+
+  // Channel messages carry team/channel context and parsed @mentions.
+  if (message.conversationType === 'channel') {
+    for (const mention of message.mentions) {
+      console.log(`Mentioned: ${mention.displayName} (${mention.mri})`)
+    }
+    await client.sendMessage(message.teamId!, message.channelId!, 'On it 👍')
+  }
 })
 
 await listener.start()
 ```
+
+Each `message` is a `TeamsRealtimeMessage`. Alongside the unchanged
+`chatId`/`content`/`author`, it carries `conversationType` (`'chat'` or
+`'channel'`), `teamId`/`channelId` (set for channel messages, for use with
+`sendMessage`), and `mentions` (always present, empty when there are no
+`@mentions`; each is `{ id, mri?, displayName }`).
 
 The listener reuses your extracted credentials, so the Teams desktop app must be
 logged in. It reconnects automatically and re-authenticates on token expiry.

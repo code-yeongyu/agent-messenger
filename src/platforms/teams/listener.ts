@@ -16,6 +16,8 @@ import {
   fetchTrouterInfo,
   fetchTrouterSessionId,
   isMessageLossFrame,
+  isThreadConversation,
+  parseMentions,
   parseRequestFrame,
   registerEndpoint,
   type TrouterInfo,
@@ -40,6 +42,7 @@ interface IncomingResource {
   imdisplayname?: string
   conversationLink?: string
   resourceLink?: string
+  properties?: unknown
 }
 
 export class TeamsListener {
@@ -56,6 +59,9 @@ export class TeamsListener {
   private reregisterTimer: ReturnType<typeof setInterval> | null = null
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private seenMessageIds = new Set<string>()
+  private channelTeamMap = new Map<string, string>()
+  private channelMapRefreshing: Promise<void> | null = null
+  private nonChannelThreads = new Set<string>()
 
   constructor(client: TeamsClient) {
     this.client = client
@@ -65,6 +71,7 @@ export class TeamsListener {
     if (this.running) return
     this.running = true
     this.reconnectAttempts = 0
+    await this.refreshChannelMap()
     await this.connect()
   }
 
@@ -214,7 +221,9 @@ export class TeamsListener {
         resource?: IncomingResource
       }
       if (decoded.resourceType === 'NewMessage' && decoded.resource) {
-        this.emitMessage(decoded.resource)
+        void this.emitMessage(decoded.resource).catch((error) => {
+          this.emitter.emit('error', error instanceof Error ? error : new Error(String(error)))
+        })
       }
       this.emitter.emit('teams_event', { resourceType: decoded.resourceType ?? 'unknown', ...decoded })
     } catch (error) {
@@ -222,18 +231,29 @@ export class TeamsListener {
     }
   }
 
-  private emitMessage(resource: IncomingResource): void {
+  private async emitMessage(resource: IncomingResource): Promise<void> {
     if (!resource.messagetype || !TEXT_MESSAGE_TYPES.has(resource.messagetype)) return
 
     const chatId = extractChatId(resource.conversationLink ?? resource.resourceLink)
     if (!chatId || !resource.id) return
+
+    // Dedup before the async classification so duplicate frames don't trigger
+    // redundant channel-map refreshes.
     if (this.seenMessageIds.has(resource.id)) return
     this.rememberMessageId(resource.id)
 
+    const classification = await this.classifyConversation(chatId)
+    if (!this.running) return
+
+    const rawContent = resource.content ?? ''
     const message: TeamsRealtimeMessage = {
       id: resource.id,
       chatId,
-      content: stripHtml(resource.content ?? ''),
+      conversationType: classification.conversationType,
+      teamId: classification.teamId,
+      channelId: classification.channelId,
+      content: stripHtml(rawContent),
+      mentions: parseMentions(resource.properties, rawContent),
       author: {
         id: extractUserId(resource.from) ?? 'unknown',
         displayName: resource.imdisplayname || extractUserId(resource.from) || 'unknown',
@@ -242,6 +262,42 @@ export class TeamsListener {
       timestamp: new Date().toISOString(),
     }
     this.emitter.emit('message', message)
+  }
+
+  private async classifyConversation(
+    chatId: string,
+  ): Promise<Pick<TeamsRealtimeMessage, 'conversationType' | 'teamId' | 'channelId'>> {
+    if (!isThreadConversation(chatId)) return { conversationType: 'chat' }
+
+    let teamId = this.channelTeamMap.get(chatId)
+    // A thread we haven't cached may be a channel created/joined since start;
+    // one best-effort refresh resolves it. Group chats also look like threads
+    // but never carry a groupId, so remember the miss to avoid re-fetching
+    // /users/ME/conversations on every one of their messages.
+    if (!teamId && !this.nonChannelThreads.has(chatId)) {
+      await this.refreshChannelMap()
+      teamId = this.channelTeamMap.get(chatId)
+      if (!teamId) this.nonChannelThreads.add(chatId)
+    }
+    if (!teamId) return { conversationType: 'chat' }
+
+    return { conversationType: 'channel', teamId, channelId: chatId }
+  }
+
+  private async refreshChannelMap(): Promise<void> {
+    if (this.channelMapRefreshing) return this.channelMapRefreshing
+    this.channelMapRefreshing = this.client
+      .buildChannelTeamMap()
+      .then((map) => {
+        this.channelTeamMap = map
+      })
+      .catch((error) => {
+        this.emitter.emit('error', error instanceof Error ? error : new Error(String(error)))
+      })
+      .finally(() => {
+        this.channelMapRefreshing = null
+      })
+    return this.channelMapRefreshing
   }
 
   private rememberMessageId(id: string): void {

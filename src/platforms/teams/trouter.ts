@@ -226,3 +226,98 @@ export function extractChatId(link: string | undefined): string | null {
   const match = link.match(/conversations\/([^/]+)/)
   return match ? decodeURIComponent(match[1]) : null
 }
+
+// `id` is Teams' positional mention index (the content span's `itemid`); `mri`
+// is the target's Skype MRI, present only via `properties.mentions` metadata.
+export interface TrouterMention {
+  id: string
+  mri?: string
+  displayName: string
+}
+
+// 1:1 chats resolve to a unique roster / one-to-one conversation id; anything on
+// a thread (group chat OR team channel) shares the @thread.* family. The thread
+// family alone cannot tell a group chat from a channel — that needs the
+// conversation's groupId, which the realtime resource does not carry.
+export function isThreadConversation(conversationId: string): boolean {
+  return conversationId.includes('@thread.tacv2') || conversationId.includes('@thread.v2')
+}
+
+function parseJsonRecord(value: unknown): Record<string, unknown> | undefined {
+  const source = typeof value === 'string' ? safeJsonParse(value) : value
+  if (typeof source !== 'object' || source === null || Array.isArray(source)) return undefined
+  return source as Record<string, unknown>
+}
+
+function parseJsonArray(value: unknown): unknown[] | undefined {
+  const source = typeof value === 'string' ? safeJsonParse(value) : value
+  return Array.isArray(source) ? source : undefined
+}
+
+function safeJsonParse(value: string): unknown {
+  try {
+    return JSON.parse(value)
+  } catch {
+    return undefined
+  }
+}
+
+// Mentions arrive two ways: the authoritative `properties.mentions` array (JSON
+// or JSON-string) carries real MRIs, while the message content only has
+// positional `<span itemtype=".../Mention" itemid="N">Name</span>` markup with
+// no MRI. Prefer the metadata; fall back to scraping the content spans so a
+// mention is still surfaced when properties are missing. Never throws — bad
+// data yields an empty list.
+export function parseMentions(properties: unknown, content: string): TrouterMention[] {
+  const fromProperties = parseMentionsFromProperties(properties)
+  if (fromProperties.length > 0) return fromProperties
+  return parseMentionsFromContent(content)
+}
+
+function parseMentionsFromProperties(properties: unknown): TrouterMention[] {
+  const record = parseJsonRecord(properties)
+  if (!record) return []
+  const rawMentions = parseJsonArray(record.mentions)
+  if (!rawMentions) return []
+
+  const mentions: TrouterMention[] = []
+  for (const entry of rawMentions) {
+    if (typeof entry !== 'object' || entry === null) continue
+    const item = entry as Record<string, unknown>
+    const id = item.itemid
+    if (typeof id !== 'string' && typeof id !== 'number') continue
+    mentions.push({
+      id: String(id),
+      mri: typeof item.mri === 'string' ? item.mri : undefined,
+      displayName: typeof item.displayName === 'string' ? item.displayName : '',
+    })
+  }
+  return mentions
+}
+
+const MENTION_SPAN_REGEX = /<span\b[^>]*itemtype=["'][^"']*Mention[^"']*["'][^>]*>(.*?)<\/span>/gi
+
+function parseMentionsFromContent(content: string): TrouterMention[] {
+  const mentions: TrouterMention[] = []
+  for (const match of content.matchAll(MENTION_SPAN_REGEX)) {
+    const attributes = match[0]
+    const itemId = attributes.match(/itemid=["']([^"']*)["']/i)?.[1]
+    if (itemId === undefined) continue
+    mentions.push({
+      id: itemId,
+      displayName: stripTags(match[1]),
+    })
+  }
+  return mentions
+}
+
+function stripTags(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim()
+}
