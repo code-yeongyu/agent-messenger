@@ -82,7 +82,7 @@ mock.module('../client', () => ({
 }))
 
 import { DiscordBotCredentialManager } from '../credential-manager'
-import { deleteAction, getAction, listAction, repliesAction, sendAction, updateAction } from './message'
+import { deleteAction, editAction, getAction, listAction, repliesAction, sendAction } from './message'
 
 describe('message commands', () => {
   let tempDir: string
@@ -243,9 +243,9 @@ describe('message commands', () => {
     })
   })
 
-  describe('updateAction', () => {
-    it('updates a message', async () => {
-      const result = await updateAction('general', 'msg1', 'updated text', { _credManager: manager })
+  describe('editAction', () => {
+    it('edits a message', async () => {
+      const result = await editAction('general', 'msg1', 'updated text', { _credManager: manager })
 
       expect(result.id).toBe('msg1')
       expect(result.content).toBe('updated text')
@@ -254,7 +254,7 @@ describe('message commands', () => {
     })
 
     it('resolves channel name', async () => {
-      await updateAction('general', 'msg1', 'new', { _credManager: manager })
+      await editAction('general', 'msg1', 'new', { _credManager: manager })
 
       expect(mockResolveChannel).toHaveBeenCalledWith('guild1', 'general')
     })
@@ -262,7 +262,7 @@ describe('message commands', () => {
     it('returns error on failure', async () => {
       mockEditMessage.mockImplementationOnce(() => Promise.reject(new Error('Cannot edit')))
 
-      const result = await updateAction('general', 'msg1', 'new', { _credManager: manager })
+      const result = await editAction('general', 'msg1', 'new', { _credManager: manager })
 
       expect(result.error).toContain('Cannot edit')
     })
