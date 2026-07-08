@@ -123,6 +123,9 @@ agent-telegram message send @durov "Hello from agent-telegram"
 # Reply to a specific message in a chat (the second argument is the parent message id)
 agent-telegram message reply @durov 12345 "Sounds good"
 
+# Edit one of your own messages (within 48h)
+agent-telegram message edit @durov <message-id> "Updated text"
+
 # Logout
 agent-telegram auth logout
 ```

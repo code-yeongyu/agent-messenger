@@ -336,6 +336,30 @@ export class TelegramTdlibClient {
     return simplifyMessage(message, chat.id)
   }
 
+  async editMessage(reference: string, messageId: number, text: string): Promise<TelegramMessageSummary> {
+    await this.ensureReady()
+    const chat = await this.resolveChat(reference)
+
+    const message = (await this.call({
+      '@type': 'editMessageText',
+      chat_id: chat.id,
+      message_id: messageId,
+      reply_markup: null,
+      input_message_content: {
+        '@type': 'inputMessageText',
+        text: {
+          '@type': 'formattedText',
+          text,
+          entities: [],
+        },
+        link_preview_options: null,
+        clear_draft: false,
+      },
+    })) as TdMessage
+
+    return simplifyMessage(message, chat.id)
+  }
+
   private async ensureReady(): Promise<void> {
     const state = await this.connect()
     if (state?.['@type'] !== 'authorizationStateReady') {

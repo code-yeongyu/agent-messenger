@@ -30,6 +30,15 @@ async function sendAction(
   }
 }
 
+function parseMessageId(messageId: string): number | null {
+  const trimmedMessageId = messageId.trim()
+  const parsedMessageId = Number.parseInt(trimmedMessageId, 10)
+  if (!/^\d+$/.test(trimmedMessageId) || !Number.isSafeInteger(parsedMessageId) || parsedMessageId <= 0) {
+    return null
+  }
+  return parsedMessageId
+}
+
 async function replyAction(
   reference: string,
   messageIdInput: string,
@@ -37,15 +46,48 @@ async function replyAction(
   options: { account?: string; pretty?: boolean },
 ): Promise<void> {
   try {
-    const replyToMessageId = Number(messageIdInput)
-    if (!Number.isSafeInteger(replyToMessageId)) {
-      console.log(formatOutput({ error: `Invalid message id: ${messageIdInput}` }, options.pretty))
+    const replyToMessageId = parseMessageId(messageIdInput)
+    if (replyToMessageId === null) {
+      console.log(
+        formatOutput(
+          { error: 'Invalid message ID. Provide the numeric message ID from "message list".' },
+          options.pretty,
+        ),
+      )
       process.exit(1)
       return
     }
 
     const message = await withTelegramClient(options, async (client) =>
       client.replyToMessage(reference, replyToMessageId, text),
+    )
+    console.log(formatOutput(message, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
+async function editAction(
+  reference: string,
+  messageId: string,
+  text: string,
+  options: { account?: string; pretty?: boolean },
+): Promise<void> {
+  try {
+    const parsedMessageId = parseMessageId(messageId)
+    if (parsedMessageId === null) {
+      console.log(
+        formatOutput(
+          { error: 'Invalid message ID. Provide the numeric message ID from "message list".' },
+          options.pretty,
+        ),
+      )
+      process.exit(1)
+      return
+    }
+
+    const message = await withTelegramClient(options, async (client) =>
+      client.editMessage(reference, parsedMessageId, text),
     )
     console.log(formatOutput(message, options.pretty))
   } catch (error) {
@@ -82,4 +124,14 @@ export const messageCommand = new Command('message')
       .option('--account <id>', 'Use a specific Telegram account')
       .option('--pretty', 'Pretty print JSON output')
       .action(replyAction),
+  )
+  .addCommand(
+    new Command('edit')
+      .description('Edit a text message (your own messages only, within 48h)')
+      .argument('<chat>', 'Chat ID, @username, or title')
+      .argument('<message-id>', 'Message ID')
+      .argument('<text>', 'New message text')
+      .option('--account <id>', 'Use a specific Telegram account')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(editAction),
   )
