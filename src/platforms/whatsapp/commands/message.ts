@@ -29,6 +29,21 @@ async function sendAction(chat: string, text: string, options: { account?: strin
   }
 }
 
+async function editAction(
+  chat: string,
+  messageId: string,
+  text: string,
+  options: { account?: string; pretty?: boolean },
+): Promise<void> {
+  try {
+    const message = await withWhatsAppClient(options, (client) => client.editMessage(chat, messageId, text))
+    console.log(formatOutput(message, options.pretty))
+    process.exit(0)
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
 async function reactAction(
   chat: string,
   messageId: string,
@@ -63,6 +78,16 @@ export const messageCommand = new Command('message')
       .option('--account <id>', 'Use a specific WhatsApp account')
       .option('--pretty', 'Pretty print JSON output')
       .action(sendAction),
+  )
+  .addCommand(
+    new Command('edit')
+      .description('Edit one of your own messages (within ~15 minutes)')
+      .argument('<chat>', 'Chat JID or phone number')
+      .argument('<message-id>', 'Message ID to edit')
+      .argument('<text>', 'New message text')
+      .option('--account <id>', 'Use a specific WhatsApp account')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(editAction),
   )
   .addCommand(
     new Command('react')
