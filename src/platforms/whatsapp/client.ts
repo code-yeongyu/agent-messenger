@@ -48,10 +48,14 @@ function resolveJid(input: string): string {
   return `${digits}@s.whatsapp.net`
 }
 
-function summarizeMessage(msg: WAMessage): WhatsAppMessageSummary {
+export function summarizeMessage(msg: WAMessage): WhatsAppMessageSummary {
   const jid = msg.key.remoteJid ?? ''
   const isGroup = jid.endsWith('@g.us')
   const from = msg.key.fromMe ? '' : isGroup ? (msg.key.participant ?? msg.participant ?? jid) : jid
+
+  // Baileys wraps an edit as a protocolMessage whose editedMessage holds the new
+  // content; unwrap it so the summary reflects the edited text and type.
+  const content = msg.message?.protocolMessage?.editedMessage ?? msg.message
 
   return {
     id: msg.key.id ?? '',
@@ -60,8 +64,8 @@ function summarizeMessage(msg: WAMessage): WhatsAppMessageSummary {
     from_name: msg.pushName ?? undefined,
     timestamp: new Date(toTimestampMs(msg.messageTimestamp)).toISOString(),
     is_outgoing: Boolean(msg.key.fromMe),
-    type: getMessageType(msg.message),
-    text: extractMessageText(msg.message),
+    type: getMessageType(content),
+    text: extractMessageText(content),
   }
 }
 
@@ -658,6 +662,22 @@ export class WhatsAppClient {
     await this.sock.sendMessage(resolvedJid, {
       react: { text: emoji, key: { remoteJid: resolvedJid, fromMe, id: messageId } },
     })
+  }
+
+  async editMessage(jid: string, messageId: string, text: string): Promise<WhatsAppMessageSummary> {
+    if (!this.sock) throw new WhatsAppError('Not connected', 'not_connected')
+
+    const resolvedJid = resolveJid(jid)
+    const result = await this.sock.sendMessage(resolvedJid, {
+      text,
+      edit: { remoteJid: resolvedJid, fromMe: true, id: messageId },
+    })
+
+    if (!result) {
+      throw new WhatsAppError('Failed to edit message', 'edit_failed')
+    }
+
+    return summarizeMessage(result)
   }
 
   async close(): Promise<void> {

@@ -42,6 +42,16 @@ const mockSendMessage = mock(() =>
   }),
 )
 
+const mockEditMessage = mock(() =>
+  Promise.resolve({
+    id: 'msg-2',
+    text: 'Edited text',
+    from: 'me@s.whatsapp.net',
+    timestamp: 3000,
+    fromMe: true,
+  }),
+)
+
 const mockSendReaction = mock(() => Promise.resolve())
 const mockConnect = mock(() => Promise.resolve())
 const mockClose = mock(() => Promise.resolve())
@@ -55,6 +65,7 @@ mock.module('../client', () => ({
     close = mockClose
     getMessages = mockGetMessages
     sendMessage = mockSendMessage
+    editMessage = mockEditMessage
     sendReaction = mockSendReaction
   },
 }))
@@ -71,6 +82,7 @@ describe('message commands', () => {
     mockEnsureAccountPaths.mockReset()
     mockGetMessages.mockReset()
     mockSendMessage.mockReset()
+    mockEditMessage.mockReset()
     mockSendReaction.mockReset()
     mockConnect.mockReset()
     mockClose.mockReset()
@@ -104,6 +116,15 @@ describe('message commands', () => {
         text: 'Hi there',
         from: 'me@s.whatsapp.net',
         timestamp: 2000,
+        fromMe: true,
+      }),
+    )
+    mockEditMessage.mockImplementation(() =>
+      Promise.resolve({
+        id: 'msg-2',
+        text: 'Edited text',
+        from: 'me@s.whatsapp.net',
+        timestamp: 3000,
         fromMe: true,
       }),
     )
@@ -176,6 +197,28 @@ describe('message commands', () => {
       await messageCommand.parseAsync(['send', '12025551234@s.whatsapp.net', 'Hi', '--account', 'my-account'], {
         from: 'user',
       })
+
+      expect(processExitSpy).toHaveBeenCalledWith(0)
+      expect(mockGetAccount).toHaveBeenCalledWith('my-account')
+    })
+  })
+
+  describe('edit', () => {
+    it('edits a message in a chat', async () => {
+      await messageCommand.parseAsync(['edit', '12025551234@s.whatsapp.net', 'msg-2', 'Edited text'], { from: 'user' })
+
+      expect(processExitSpy).toHaveBeenCalledWith(0)
+      expect(mockEditMessage).toHaveBeenCalledWith('12025551234@s.whatsapp.net', 'msg-2', 'Edited text')
+      const output = JSON.parse(consoleLogSpy.mock.calls[0][0])
+      expect(output.id).toBe('msg-2')
+      expect(output.text).toBe('Edited text')
+    })
+
+    it('passes account option to credential manager', async () => {
+      await messageCommand.parseAsync(
+        ['edit', '12025551234@s.whatsapp.net', 'msg-2', 'Edited text', '--account', 'my-account'],
+        { from: 'user' },
+      )
 
       expect(processExitSpy).toHaveBeenCalledWith(0)
       expect(mockGetAccount).toHaveBeenCalledWith('my-account')
