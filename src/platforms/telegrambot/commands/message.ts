@@ -61,7 +61,7 @@ export async function sendAction(
   }
 }
 
-export async function updateAction(
+export async function editAction(
   chat: string,
   messageId: string,
   text: string,
@@ -162,7 +162,7 @@ export const messageCommand = new Command('message')
       ),
   )
   .addCommand(
-    new Command('update')
+    new Command('edit')
       .description("Edit a message (bot's own messages only)")
       .argument('<chat>', 'Chat ID or @username')
       .argument('<message-id>', 'Message ID')
@@ -177,7 +177,7 @@ export const messageCommand = new Command('message')
           text: string,
           opts: BotOption & { parseMode?: 'HTML' | 'Markdown' | 'MarkdownV2' },
         ) => {
-          cliOutput(await updateAction(chat, messageId, text, opts), opts.pretty)
+          cliOutput(await editAction(chat, messageId, text, opts), opts.pretty)
         },
       ),
   )
