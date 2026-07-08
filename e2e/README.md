@@ -171,7 +171,7 @@ When triggering manually, you can select which platform to test:
 | ------------- | -------------------------------------------------------------- |
 | `auth`        | status                                                         |
 | `workspace`   | list, current                                                  |
-| `message`     | send, list, get, update, delete, thread reply, replies, search |
+| `message`     | send, list, get, edit, delete, thread reply, replies, search |
 | `channel`     | list, list --type, info, history                               |
 | `user`        | list, me, info                                                 |
 | `reaction`    | add, list, remove                                              |
@@ -188,7 +188,7 @@ When triggering manually, you can select which platform to test:
 | Command Group | Tests                                                  |
 | ------------- | ------------------------------------------------------ |
 | `auth`        | status                                                 |
-| `message`     | send, list, get, update, delete, thread reply, replies |
+| `message`     | send, list, get, edit, delete, thread reply, replies |
 | `channel`     | list, info                                             |
 | `user`        | list, info                                             |
 | `reaction`    | add, remove                                            |
@@ -228,7 +228,7 @@ When triggering manually, you can select which platform to test:
 | Command Group | Tests                                            |
 | ------------- | ------------------------------------------------ |
 | `auth`        | status                                           |
-| `message`     | send, list, get, update, delete, thread, replies |
+| `message`     | send, list, get, edit, delete, thread, replies |
 | `channel`     | list, info                                       |
 | `user`        | list, info                                       |
 | `reaction`    | add, remove                                      |

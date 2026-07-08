@@ -104,7 +104,7 @@ describe('SlackBot E2E Tests', () => {
       expect(data?.ts).toBe(sent!.ts)
     })
 
-    it('message update modifies message', async () => {
+    it('message edit modifies message', async () => {
       const testId = generateTestId()
       const sendResult = await runCLI('slackbot', ['message', 'send', SLACKBOT_TEST_CHANNEL_ID, `Original ${testId}`])
       const sent = parseJSON<{ ts: string }>(sendResult.stdout)
@@ -115,7 +115,7 @@ describe('SlackBot E2E Tests', () => {
 
       const result = await runCLI('slackbot', [
         'message',
-        'update',
+        'edit',
         SLACKBOT_TEST_CHANNEL_ID,
         sent!.ts,
         `Updated ${testId}`,
