@@ -246,6 +246,28 @@ describe('DiscordClient', () => {
     })
   })
 
+  describe('editMessage', () => {
+    it('edits message with PATCH', async () => {
+      mockResponse({
+        id: 'msg1',
+        channel_id: 'ch1',
+        author: { id: '123', username: 'bot' },
+        content: 'Updated content',
+        timestamp: '2024-01-01T00:00:00.000Z',
+        edited_timestamp: '2024-01-01T00:05:00.000Z',
+      })
+
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      const message = await client.editMessage('ch1', 'msg1', 'Updated content')
+
+      expect(message.content).toBe('Updated content')
+      expect(message.edited_timestamp).toBe('2024-01-01T00:05:00.000Z')
+      expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/channels/ch1/messages/msg1')
+      expect(fetchCalls[0].options?.method).toBe('PATCH')
+      expect(fetchCalls[0].options?.body).toBe(JSON.stringify({ content: 'Updated content' }))
+    })
+  })
+
   describe('deleteMessage', () => {
     it('deletes message', async () => {
       mockResponse(null, 204)
