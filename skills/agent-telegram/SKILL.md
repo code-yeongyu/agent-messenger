@@ -117,6 +117,9 @@ agent-telegram chat get @durov
 # List recent messages
 agent-telegram message list @durov --limit 10
 
+# Edit one of your own messages (within 48h)
+agent-telegram message edit @durov <message-id> "Updated text"
+
 # Logout
 agent-telegram auth logout
 ```
