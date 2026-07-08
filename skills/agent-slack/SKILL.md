@@ -217,8 +217,8 @@ agent-slack message replies general 1234567890.123456 --limit 50
 agent-slack message replies general 1234567890.123456 --oldest 1234567890.000000
 agent-slack message replies general 1234567890.123456 --cursor <next_cursor>
 
-# Update a message
-agent-slack message update <channel> <ts> <new-text>
+# Edit a message
+agent-slack message edit <channel> <ts> <new-text>
 
 # Delete a message
 agent-slack message delete <channel> <ts> --force
