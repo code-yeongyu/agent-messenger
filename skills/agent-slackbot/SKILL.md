@@ -207,8 +207,8 @@ agent-slackbot message get <channel> <ts>
 agent-slackbot message replies <channel> <thread_ts>
 agent-slackbot message replies C0ACZKTDDC0 1234567890.123456 --limit 50
 
-# Update a message (bot's own messages only)
-agent-slackbot message update <channel> <ts> <new-text>
+# Edit a message (bot's own messages only)
+agent-slackbot message edit <channel> <ts> <new-text>
 
 # Delete a message (bot's own messages only)
 agent-slackbot message delete <channel> <ts> --force

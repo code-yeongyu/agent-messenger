@@ -114,7 +114,7 @@ describe('DiscordBot E2E Tests', () => {
       expect(data?.id).toBe(sent!.id)
     })
 
-    it('message update modifies message', async () => {
+    it('message edit modifies message', async () => {
       const testId = generateTestId()
       const sendResult = await runCLI('discordbot', [
         'message',
@@ -130,7 +130,7 @@ describe('DiscordBot E2E Tests', () => {
 
       const result = await runCLI('discordbot', [
         'message',
-        'update',
+        'edit',
         DISCORDBOT_TEST_CHANNEL_ID,
         sent!.id,
         `Updated ${testId}`,

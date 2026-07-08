@@ -95,14 +95,14 @@ describe('Slack E2E Tests', () => {
       expect(data?.text).toContain(testId)
     })
 
-    it('message update modifies message', async () => {
+    it('message edit modifies message', async () => {
       const testId = generateTestId()
       const { id: ts } = await createTestMessage('slack', SLACK_TEST_CHANNEL_ID, `Original ${testId}`)
       testMessages.push(ts)
 
       await waitForRateLimit()
 
-      const result = await runCLI('slack', ['message', 'update', SLACK_TEST_CHANNEL_ID, ts, `Updated ${testId}`])
+      const result = await runCLI('slack', ['message', 'edit', SLACK_TEST_CHANNEL_ID, ts, `Updated ${testId}`])
       expect(result.exitCode).toBe(0)
 
       await waitForRateLimit()

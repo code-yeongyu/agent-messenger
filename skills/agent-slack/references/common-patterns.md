@@ -287,8 +287,8 @@ sleep 5
 agent-slack reaction remove "$CHANNEL" "$MSG_TS" hourglass_flowing_sand
 agent-slack reaction add "$CHANNEL" "$MSG_TS" white_check_mark
 
-# Update message
-agent-slack message update "$CHANNEL" "$MSG_TS" "✅ Deployed v2.1.0 to production successfully!"
+# Edit message
+agent-slack message edit "$CHANNEL" "$MSG_TS" "✅ Deployed v2.1.0 to production successfully!"
 ```
 
 **When to use**: Visual status tracking, workflow states, quick acknowledgments.
