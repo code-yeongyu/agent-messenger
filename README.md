@@ -231,6 +231,18 @@ const client = await new SlackClient().login({ token: 'xoxc-...', cookie: 'xoxd-
 const messages = await client.getMessages('C01234567')
 ```
 
+### Editing Messages
+
+Clients that support message editing expose an `editMessage` method (matching each platform's API, Slack/SlackBot use `updateMessage` and TelegramBot uses `editMessageText`). You can only edit your own messages, subject to each platform's edit window.
+
+```typescript
+import { DiscordClient } from 'agent-messenger/discord'
+
+const discord = await new DiscordClient().login()
+const msg = await discord.sendMessage(channelId, 'Deploying…')
+await discord.editMessage(channelId, msg.id, 'Deployed ✅')
+```
+
 ### QR Code Login (Slack)
 
 Sign in with a QR code from Slack's "Sign in on mobile" screen — no desktop app or browser automation, just HTTP. `dataUrl` is the QR image as a `data:image/png;base64,...` string.
