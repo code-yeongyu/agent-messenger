@@ -235,3 +235,63 @@ describe('sendMessage confirmation', () => {
     expect(result.id).toBe(serverId)
   })
 })
+
+describe('editMessage', () => {
+  it('returns the edited message from the editMessageText response', async () => {
+    const events: any[] = []
+    let editRequest: any = null
+
+    const createClientId = mock(() => 1)
+    const send = mock((_clientId: number, request: any) => {
+      if (request['@type'] === 'getAuthorizationState') {
+        events.push({
+          '@type': 'updateAuthorizationState',
+          authorization_state: { '@type': 'authorizationStateReady' },
+          '@extra': request['@extra'],
+        })
+      }
+
+      if (request['@type'] === 'getChat') {
+        events.push({ '@type': 'chat', id: 42, title: 'test', unread_count: 0, '@extra': request['@extra'] })
+      }
+
+      if (request['@type'] === 'editMessageText') {
+        editRequest = request
+        events.push({
+          '@type': 'message',
+          id: 555,
+          chat_id: 42,
+          date: 1_710_000_002,
+          is_outgoing: true,
+          sender_id: { '@type': 'messageSenderUser', user_id: 1 },
+          content: {
+            '@type': 'messageText',
+            text: { '@type': 'formattedText', text: 'edited text', entities: [] },
+          },
+          '@extra': request['@extra'],
+        })
+      }
+    })
+
+    const receive = mock(() => events.shift() ?? null)
+    const client = new (TelegramTdlibClient as unknown as new (
+      account: TelegramAccount,
+      paths: TelegramAccountPaths,
+      tdjson: any,
+    ) => TelegramTdlibClient)(mockAccount, mockPaths, {
+      createClientId,
+      send,
+      receive,
+      libraryPath: '/mock/lib',
+    })
+
+    const result = await client.editMessage('42', 555, 'edited text')
+
+    expect(result.id).toBe(555)
+    expect(result.text).toBe('edited text')
+    expect(editRequest.chat_id).toBe(42)
+    expect(editRequest.message_id).toBe(555)
+    expect(editRequest.input_message_content['@type']).toBe('inputMessageText')
+    expect(editRequest.input_message_content.text.text).toBe('edited text')
+  })
+})
