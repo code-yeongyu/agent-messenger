@@ -193,6 +193,10 @@ agent-discord message list 1234567890123456789 --limit 50
 agent-discord message get <channel-id> <message-id>
 agent-discord message get 1234567890123456789 9876543210987654321
 
+# Edit a message
+agent-discord message edit <channel-id> <message-id> <content>
+agent-discord message edit 1234567890123456789 9876543210987654321 "Updated text"
+
 # Delete a message
 agent-discord message delete <channel-id> <message-id> --force
 
