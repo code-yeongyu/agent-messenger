@@ -251,6 +251,10 @@ agent-whatsapp message send +1234567890 "Hello!"
 agent-whatsapp message send 123456789-123345@g.us "Hello team!"
 agent-whatsapp message send +1234567890 "Hello!" --account <id>
 
+# Edit one of your own messages (within ~15 minutes)
+agent-whatsapp message edit <chat> <message-id> <text>
+agent-whatsapp message edit +1234567890 ABC123DEF456 "Updated text"
+
 # React to a message
 agent-whatsapp message react <chat> <message-id> <emoji>
 agent-whatsapp message react +1234567890 ABC123DEF456 "👍"
