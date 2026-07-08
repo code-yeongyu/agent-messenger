@@ -59,7 +59,7 @@ async function getAction(channelInput: string, ts: string, options: BotOption): 
   }
 }
 
-async function updateAction(channelInput: string, ts: string, text: string, options: BotOption): Promise<void> {
+async function editAction(channelInput: string, ts: string, text: string, options: BotOption): Promise<void> {
   try {
     const client = await getClient(options)
     const channel = await client.resolveChannel(channelInput)
@@ -158,14 +158,14 @@ export const messageCommand = new Command('message')
       .action(getAction),
   )
   .addCommand(
-    new Command('update')
-      .description('Update a message')
+    new Command('edit')
+      .description('Edit a message')
       .argument('<channel>', 'Channel ID or name')
       .argument('<ts>', 'Message timestamp')
       .argument('<text>', 'New message text')
       .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
-      .action(updateAction),
+      .action(editAction),
   )
   .addCommand(
     new Command('delete')
