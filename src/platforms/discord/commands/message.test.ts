@@ -2,12 +2,22 @@ import { afterEach, beforeEach, expect, mock, spyOn, it } from 'bun:test'
 
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
-import { ackAction, deleteAction, getAction, listAction, replyAction, searchAction, sendAction } from './message'
+import {
+  ackAction,
+  deleteAction,
+  editAction,
+  getAction,
+  listAction,
+  replyAction,
+  searchAction,
+  sendAction,
+} from './message'
 
 let clientSendMessageSpy: ReturnType<typeof spyOn>
 let clientReplyToMessageSpy: ReturnType<typeof spyOn>
 let clientGetMessagesSpy: ReturnType<typeof spyOn>
 let clientGetMessageSpy: ReturnType<typeof spyOn>
+let clientEditMessageSpy: ReturnType<typeof spyOn>
 let clientDeleteMessageSpy: ReturnType<typeof spyOn>
 let clientAckMessageSpy: ReturnType<typeof spyOn>
 let clientSearchMessagesSpy: ReturnType<typeof spyOn>
@@ -54,6 +64,15 @@ beforeEach(() => {
     author: { id: 'user_789', username: 'testuser' },
     content: 'Hello world',
     timestamp: '2025-01-29T10:00:00Z',
+  })
+
+  clientEditMessageSpy = spyOn(DiscordClient.prototype, 'editMessage').mockResolvedValue({
+    id: 'msg_123',
+    channel_id: 'ch_456',
+    author: { id: 'user_789', username: 'testuser' },
+    content: 'Updated content',
+    timestamp: '2025-01-29T10:00:00Z',
+    edited_timestamp: '2025-01-29T10:05:00Z',
   })
 
   clientDeleteMessageSpy = spyOn(DiscordClient.prototype, 'deleteMessage').mockResolvedValue(undefined)
@@ -108,6 +127,7 @@ afterEach(() => {
   clientReplyToMessageSpy?.mockRestore()
   clientGetMessagesSpy?.mockRestore()
   clientGetMessageSpy?.mockRestore()
+  clientEditMessageSpy?.mockRestore()
   clientDeleteMessageSpy?.mockRestore()
   clientAckMessageSpy?.mockRestore()
   clientSearchMessagesSpy?.mockRestore()
@@ -147,6 +167,20 @@ it('get: returns single message', async () => {
   expect(consoleSpy).toHaveBeenCalled()
   const output = consoleSpy.mock.calls[0][0]
   expect(output).toContain('msg_123')
+})
+
+it('edit: returns updated message', async () => {
+  const consoleSpy = mock((_msg: string) => {})
+  console.log = consoleSpy
+
+  await editAction('ch_456', 'msg_123', 'Updated content', { pretty: false })
+
+  expect(clientEditMessageSpy).toHaveBeenCalledWith('ch_456', 'msg_123', 'Updated content')
+  expect(consoleSpy).toHaveBeenCalled()
+  const output = consoleSpy.mock.calls[0][0]
+  expect(output).toContain('msg_123')
+  expect(output).toContain('Updated content')
+  expect(output).toContain('edited_timestamp')
 })
 
 it('delete: returns success', async () => {

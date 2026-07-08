@@ -12,11 +12,13 @@ const mockSendMessage = mock(() => Promise.resolve({ id: 3, text: 'Sent message'
 const mockReplyToMessage = mock(() =>
   Promise.resolve({ id: 4, text: 'Reply message', sender_id: 'user-1', date: 4000 }),
 )
+const mockEditMessage = mock(() => Promise.resolve({ id: 3, text: 'Edited message', sender_id: 'user-1', date: 3000 }))
 
 const mockClient = {
   listMessages: mockListMessages,
   sendMessage: mockSendMessage,
   replyToMessage: mockReplyToMessage,
+  editMessage: mockEditMessage,
 }
 
 mock.module('./shared', () => ({
@@ -44,6 +46,10 @@ describe('message commands', () => {
     mockReplyToMessage.mockReset()
     mockReplyToMessage.mockImplementation(() =>
       Promise.resolve({ id: 4, text: 'Reply message', sender_id: 'user-1', date: 4000 }),
+    )
+    mockEditMessage.mockReset()
+    mockEditMessage.mockImplementation(() =>
+      Promise.resolve({ id: 3, text: 'Edited message', sender_id: 'user-1', date: 3000 }),
     )
     consoleSpy = spyOn(console, 'log').mockImplementation(() => {})
     processExitSpy = spyOn(process, 'exit').mockImplementation((() => {}) as (code?: number) => never)
@@ -127,6 +133,37 @@ describe('message commands', () => {
       // Then: replyToMessage should not be called and process.exit(1) is invoked
       expect(mockReplyToMessage).not.toHaveBeenCalled()
       expect(processExitSpy).toHaveBeenCalledWith(1)
+    })
+  })
+
+  describe('edit subcommand', () => {
+    it('calls editMessage with chat reference, numeric message id, and text', async () => {
+      await messageCommand.parseAsync(['edit', 'chat-123', '3', 'Edited message'], { from: 'user' })
+
+      expect(mockEditMessage).toHaveBeenCalledWith('chat-123', 3, 'Edited message')
+    })
+
+    it('outputs the edited message as JSON', async () => {
+      await messageCommand.parseAsync(['edit', 'chat-123', '3', 'Edited message'], { from: 'user' })
+
+      expect(consoleSpy).toHaveBeenCalled()
+      const output = consoleSpy.mock.calls[0][0] as string
+      const parsed = JSON.parse(output)
+      expect(parsed.text).toBe('Edited message')
+    })
+
+    it('rejects non-decimal, unsafe, or non-positive message ids', async () => {
+      const invalidIds = ['not-a-number', '1e3', '0x10', '0', '9007199254740993']
+
+      for (const invalidId of invalidIds) {
+        mockEditMessage.mockClear()
+        processExitSpy.mockClear()
+
+        await messageCommand.parseAsync(['edit', 'chat-123', invalidId, 'text'], { from: 'user' })
+
+        expect(mockEditMessage).not.toHaveBeenCalled()
+        expect(processExitSpy).toHaveBeenCalledWith(1)
+      }
     })
   })
 })

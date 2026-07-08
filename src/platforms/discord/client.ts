@@ -252,6 +252,10 @@ export class DiscordClient {
     return this.request<DiscordMessage>('GET', `/channels/${channelId}/messages/${messageId}`)
   }
 
+  async editMessage(channelId: string, messageId: string, content: string): Promise<DiscordMessage> {
+    return this.request<DiscordMessage>('PATCH', `/channels/${channelId}/messages/${messageId}`, { content })
+  }
+
   async deleteMessage(channelId: string, messageId: string): Promise<void> {
     return this.request<void>('DELETE', `/channels/${channelId}/messages/${messageId}`)
   }
