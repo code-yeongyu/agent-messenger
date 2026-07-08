@@ -2,7 +2,16 @@ import { afterEach, beforeEach, expect, mock, spyOn, it } from 'bun:test'
 
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
-import { ackAction, deleteAction, editAction, getAction, listAction, replyAction, searchAction, sendAction } from './message'
+import {
+  ackAction,
+  deleteAction,
+  editAction,
+  getAction,
+  listAction,
+  replyAction,
+  searchAction,
+  sendAction,
+} from './message'
 
 let clientSendMessageSpy: ReturnType<typeof spyOn>
 let clientReplyToMessageSpy: ReturnType<typeof spyOn>
