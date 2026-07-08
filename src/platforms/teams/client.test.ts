@@ -330,6 +330,30 @@ describe('TeamsClient', () => {
     })
   })
 
+  describe('editChatMessage', () => {
+    it('PUTs an HTML-escaped edit to a chat message', async () => {
+      mockResponse({ edittime: 1704067200000 })
+
+      const client = await new TeamsClient().login({ token: 'test-token', accountType: 'personal' })
+      const message = await client.editChatMessage('19:1on1@unq.gbl.spaces', 'msg1', 'a <b> & c')
+
+      expect(message.id).toBe('msg1')
+      expect(message.content).toBe('a <b> & c')
+      expect(fetchCalls[0].url).toBe(
+        'https://msgapi.teams.live.com/v1/users/ME/conversations/19%3A1on1%40unq.gbl.spaces/messages/msg1',
+      )
+      expect(fetchCalls[0].options?.method).toBe('PUT')
+      expect(fetchCalls[0].options?.body).toBe(
+        JSON.stringify({
+          content: 'a &lt;b&gt; &amp; c',
+          messagetype: 'RichText/Html',
+          contenttype: 'text',
+          skypeeditedid: 'msg1',
+        }),
+      )
+    })
+  })
+
   describe('getTeam', () => {
     it('returns team info', async () => {
       mockResponse({ id: '111', name: 'Test Team', description: 'A test team' })

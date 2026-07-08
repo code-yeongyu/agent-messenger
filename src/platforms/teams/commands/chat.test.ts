@@ -2,11 +2,12 @@ import { afterEach, beforeEach, expect, mock, spyOn, it } from 'bun:test'
 
 import { TeamsClient } from '../client'
 import { TeamsCredentialManager } from '../credential-manager'
-import { historyAction, listAction, sendAction } from './chat'
+import { editAction, historyAction, listAction, sendAction } from './chat'
 
 let clientListChatsSpy: ReturnType<typeof spyOn>
 let clientGetChatMessagesSpy: ReturnType<typeof spyOn>
 let clientSendChatMessageSpy: ReturnType<typeof spyOn>
+let clientEditChatMessageSpy: ReturnType<typeof spyOn>
 let credManagerLoadSpy: ReturnType<typeof spyOn>
 const originalConsoleLog = console.log
 
@@ -34,6 +35,14 @@ beforeEach(() => {
     timestamp: '2025-01-29T10:00:00Z',
   })
 
+  clientEditChatMessageSpy = spyOn(TeamsClient.prototype, 'editChatMessage').mockResolvedValue({
+    id: 'msg_123',
+    channel_id: '19:1on1@unq.gbl.spaces',
+    author: { id: 'ME', displayName: 'Me' },
+    content: 'Edited content',
+    timestamp: '2025-01-29T10:05:00Z',
+  })
+
   credManagerLoadSpy = spyOn(TeamsCredentialManager.prototype, 'loadConfig').mockResolvedValue({
     current_account: 'personal',
     accounts: {
@@ -51,6 +60,7 @@ afterEach(() => {
   clientListChatsSpy?.mockRestore()
   clientGetChatMessagesSpy?.mockRestore()
   clientSendChatMessageSpy?.mockRestore()
+  clientEditChatMessageSpy?.mockRestore()
   credManagerLoadSpy?.mockRestore()
   console.log = originalConsoleLog
 })
@@ -97,4 +107,16 @@ it('send: returns sent message', async () => {
   expect(consoleSpy).toHaveBeenCalled()
   const output = consoleSpy.mock.calls[0][0]
   expect(output).toContain('Hello world')
+})
+
+it('edit: edits a chat message and returns updated content', async () => {
+  const consoleSpy = mock((_msg: string) => {})
+  console.log = consoleSpy
+
+  await editAction('19:1on1@unq.gbl.spaces', 'msg_123', 'Edited content', { pretty: false })
+
+  expect(clientEditChatMessageSpy).toHaveBeenCalledWith('19:1on1@unq.gbl.spaces', 'msg_123', 'Edited content')
+  expect(consoleSpy).toHaveBeenCalled()
+  const output = consoleSpy.mock.calls[0][0]
+  expect(output).toContain('Edited content')
 })

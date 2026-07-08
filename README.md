@@ -471,7 +471,7 @@ See the [TUI docs](https://agent-messenger.dev/docs/tui) for keybindings, archit
 | Send & list messages       |  ✅   |   ✅    |  ✅   |  ✅   |    ✅     |    ✅     |  ✅   |   —    |    ✅     |    ✅     |         ✅          |
 | Direct messages            |  ✅   |   ✅    |  ✅   |  ✅   |    ✅     |    ✅     |  ✅   |   ✅    |    ✅     |    ✅     |         ✅          |
 | Search messages            |  ✅   |   ✅    |   —   |   —   |    —     |    ✅     |   —   |   —    |    ✅     |    —      |         ✅          |
-| Message edit               |  ✅   |   ✅    |   —   |  ✅   |    —     |    —     |   —   |   —    |     —     |    —      |         —           |
+| Message edit               |  ✅   |   ✅    |  ✅¹  |  ✅   |    —     |    —     |   —   |   —    |     —     |    —      |         —           |
 | Threads                    |  ✅   |   ✅    |   —   |   —   |    —     |    —     |   —   |   —    |     —     |    —      |         —           |
 | Channels & Users           |  ✅   |   ✅    |  ✅   |  ✅   | partial  |    —     |  ✅   |   ✅    |     —     |    —      |         ✅          |
 | Reactions                  |  ✅   |   ✅    |  ✅   |   —   |    —     |    ✅     |   —   |   —    |     —     |    —      |         —           |
@@ -493,6 +493,8 @@ See the [TUI docs](https://agent-messenger.dev/docs/tui) for keybindings, archit
 | Bot support                |  ✅   |   ✅    |   —   |  ✅   |    ✅     |    ✅     |   —   |   ✅    |     —     |    —      |         ✅          |
 
 > ⚠️ **Teams tokens expire in 60-90 minutes.** Re-run `agent-teams auth extract` to refresh. See [Teams Guide](skills/agent-teams/SKILL.md) for details.
+
+> ¹ **Teams message edit** applies to chats/DMs only. Channel messages are not editable through the internal API this client uses.
 
 > 💬 **iMessage** is supported via the local [imsg](https://github.com/openclaw/imsg) tool (`agent-imessage`), not the table above. It runs **on a Mac** (Apple has no API). v1 covers send & list messages, direct & group chats, chat listing, real-time watch, and standard tapbacks. Typing, edit/unsend, group management, and targeted/custom reactions require imsg's bridge (SIP disabled) and are a later tier. See the [iMessage Guide](skills/agent-imessage/SKILL.md).
 

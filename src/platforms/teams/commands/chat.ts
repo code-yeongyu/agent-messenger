@@ -100,6 +100,41 @@ export async function sendAction(chatId: string, content: string, options: { pre
   }
 }
 
+export async function editAction(
+  chatId: string,
+  messageId: string,
+  content: string,
+  options: { pretty?: boolean },
+): Promise<void> {
+  try {
+    const credManager = new TeamsCredentialManager()
+    const cred = await credManager.getTokenWithExpiry()
+
+    if (!cred) {
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
+      process.exit(1)
+    }
+
+    const client = await new TeamsClient().login({
+      token: cred.token,
+      tokenExpiresAt: cred.tokenExpiresAt,
+      accountType: cred.accountType,
+      region: cred.region,
+    })
+    const message = await client.editChatMessage(chatId, messageId, content)
+
+    const output = {
+      id: message.id,
+      content: message.content,
+      timestamp: message.timestamp,
+    }
+
+    console.log(formatOutput(output, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
 export const chatCommand = new Command('chat')
   .description('Chat commands (1:1, group, and self chats)')
   .addCommand(
@@ -128,4 +163,13 @@ export const chatCommand = new Command('chat')
       .argument('<content>', 'Message content')
       .option('--pretty', 'Pretty print JSON output')
       .action(sendAction),
+  )
+  .addCommand(
+    new Command('edit')
+      .description('Edit a message in a chat (your own messages only)')
+      .argument('<chat-id>', 'Chat ID')
+      .argument('<message-id>', 'Message ID')
+      .argument('<content>', 'New message content')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(editAction),
   )
