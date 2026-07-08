@@ -107,8 +107,8 @@ sleep 5
 agent-discordbot reaction remove "$CHANNEL" "$MSG_ID" hourglass
 agent-discordbot reaction add "$CHANNEL" "$MSG_ID" white_check_mark
 
-# Update message with result
-agent-discordbot message update "$CHANNEL" "$MSG_ID" "Request processed successfully!"
+# Edit message with result
+agent-discordbot message edit "$CHANNEL" "$MSG_ID" "Request processed successfully!"
 ```
 
 **When to use**: Visual status tracking, acknowledgments, workflow states.

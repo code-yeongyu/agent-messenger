@@ -47,8 +47,8 @@ sleep 2
 agent-slackbot message send "$CHANNEL" "Deploying to production..." --thread "$THREAD_TS"
 sleep 2
 
-# Update parent with final status
-agent-slackbot message update "$CHANNEL" "$THREAD_TS" "Deployment complete!"
+# Edit parent with final status
+agent-slackbot message edit "$CHANNEL" "$THREAD_TS" "Deployment complete!"
 
 # Add reaction
 agent-slackbot reaction add "$CHANNEL" "$THREAD_TS" white_check_mark
@@ -110,8 +110,8 @@ sleep 5
 agent-slackbot reaction remove "$CHANNEL" "$MSG_TS" hourglass_flowing_sand
 agent-slackbot reaction add "$CHANNEL" "$MSG_TS" white_check_mark
 
-# Update message with result
-agent-slackbot message update "$CHANNEL" "$MSG_TS" "Request processed successfully!"
+# Edit message with result
+agent-slackbot message edit "$CHANNEL" "$MSG_TS" "Request processed successfully!"
 ```
 
 **When to use**: Visual status tracking, acknowledgments, workflow states.
