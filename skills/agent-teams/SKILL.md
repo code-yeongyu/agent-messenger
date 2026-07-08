@@ -249,9 +249,14 @@ agent-teams chat history <chat-id> --limit 100
 
 # Send a message to a chat
 agent-teams chat send <chat-id> "Hello"
+
+# Edit one of your own chat messages
+agent-teams chat edit <chat-id> <message-id> "Updated text"
 ```
 
 Chat IDs look like `19:guid1_guid2@unq.gbl.spaces` (1:1) or `19:guid@thread.tacv2` (group). Get them from `chat list`. The `48:notes` chat (`type: self`) is your personal "to me" notes thread.
+
+`chat edit` only works on your own messages, and only for chats — Teams channel messages are not editable through this API.
 
 ### Team Commands
 

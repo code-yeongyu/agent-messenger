@@ -226,8 +226,8 @@ agent-discordbot message get <channel-id> <message-id>
 agent-discordbot message replies <channel-id> <message-id>
 agent-discordbot message replies 1234567890123456789 9876543210987654321 --limit 50
 
-# Update a message (bot's own messages only)
-agent-discordbot message update <channel-id> <message-id> <new-content>
+# Edit a message (bot's own messages only)
+agent-discordbot message edit <channel-id> <message-id> <new-content>
 
 # Delete a message (bot's own messages only)
 agent-discordbot message delete <channel-id> <message-id> --force

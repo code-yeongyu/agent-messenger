@@ -176,17 +176,17 @@ describe('Message Commands', () => {
     })
   })
 
-  describe('message update', () => {
-    it('updates message text', async () => {
+  describe('message edit', () => {
+    it('edits message text', async () => {
       // Given: A channel, message ts, and new text
       const channel = 'C123'
       const ts = '1234567890.123456'
       const newText = 'Updated message'
 
-      // When: Updating message
+      // When: Editing message
       const result = await mockClient.updateMessage(channel, ts, newText)
 
-      // Then: Should return updated message
+      // Then: Should return edited message
       expect(result.ts).toBe(ts)
       expect(result.text).toBe(newText)
     })

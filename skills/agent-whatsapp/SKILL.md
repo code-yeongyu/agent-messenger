@@ -256,6 +256,10 @@ agent-whatsapp message send +1234567890 "Hello!" --account <id>
 agent-whatsapp message reply <chat> <message-id> <text>
 agent-whatsapp message reply +1234567890 ABC123DEF456 "Got it"
 
+# Edit one of your own messages (within ~15 minutes)
+agent-whatsapp message edit <chat> <message-id> <text>
+agent-whatsapp message edit +1234567890 ABC123DEF456 "Updated text"
+
 # React to a message
 agent-whatsapp message react <chat> <message-id> <emoji>
 agent-whatsapp message react +1234567890 ABC123DEF456 "👍"
@@ -345,6 +349,26 @@ agent-whatsapp message list +1234567890 --limit 1
 
 # React to it
 agent-whatsapp message react +1234567890 <message-id> "👍"
+```
+
+### Edit one of your own messages
+
+```bash
+# Get the message ID of a message you sent
+agent-whatsapp message list +1234567890 --limit 5
+
+# Edit it (only your own messages, within ~15 minutes)
+agent-whatsapp message edit +1234567890 <message-id> "Updated text"
+```
+
+The SDK exposes the same capability via `WhatsAppClient.editMessage`:
+
+```typescript
+import { WhatsAppClient } from 'agent-messenger/whatsapp'
+
+const client = await new WhatsAppClient().login()
+const sent = await client.sendMessage('+1234567890', 'Deploying…')
+await client.editMessage('+1234567890', sent.id, 'Deployed ✅')
 ```
 
 ## Error Handling

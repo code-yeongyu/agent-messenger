@@ -232,6 +232,18 @@ const client = await new SlackClient().login({ token: 'xoxc-...', cookie: 'xoxd-
 const messages = await client.getMessages('C01234567')
 ```
 
+### Editing Messages
+
+Clients that support message editing expose an `editMessage` method (matching each platform's API, Slack/SlackBot use `updateMessage` and TelegramBot uses `editMessageText`). You can only edit your own messages, subject to each platform's edit window.
+
+```typescript
+import { DiscordClient } from 'agent-messenger/discord'
+
+const discord = await new DiscordClient().login()
+const msg = await discord.sendMessage(channelId, 'Deploying…')
+await discord.editMessage(channelId, msg.id, 'Deployed ✅')
+```
+
 ### QR Code Login (Slack)
 
 Sign in with a QR code from Slack's "Sign in on mobile" screen — no desktop app or browser automation, just HTTP. `dataUrl` is the QR image as a `data:image/png;base64,...` string.
@@ -534,6 +546,7 @@ See [AGENTS.md](AGENTS.md#access-control-module) for the contributor view.
 | Send & list messages       |  ✅   |   ✅    |  ✅   |  ✅   |    ✅     |    ✅     |  ✅   |   —    |    ✅     |    ✅     |         ✅          |
 | Direct messages            |  ✅   |   ✅    |  ✅   |  ✅   |    ✅     |    ✅     |  ✅   |   ✅    |    ✅     |    ✅     |         ✅          |
 | Search messages            |  ✅   |   ✅    |   —   |   —   |    —     |    ✅     |   —   |   —    |    ✅     |    —      |         ✅          |
+| Message edit               |  ✅   |   ✅    |  ✅¹  |  ✅   |    —     |    —     |   —   |   —    |     —     |    —      |         —           |
 | Threads                    |  ✅   |   ✅    |   —   |   —   |    —     |    —     |   —   |   —    |     —     |    —      |         —           |
 | Channels & Users           |  ✅   |   ✅    |  ✅   |  ✅   | partial  |    —     |  ✅   |   ✅    |     —     |    —      |         ✅          |
 | Reactions                  |  ✅   |   ✅    |  ✅   |   —   |    —     |    ✅     |   —   |   —    |     —     |    —      |         —           |
@@ -555,6 +568,8 @@ See [AGENTS.md](AGENTS.md#access-control-module) for the contributor view.
 | Bot support                |  ✅   |   ✅    |   —   |  ✅   |    ✅     |    ✅     |   —   |   ✅    |     —     |    —      |         ✅          |
 
 > ⚠️ **Teams tokens expire in 60-90 minutes.** Re-run `agent-teams auth extract` to refresh. See [Teams Guide](skills/agent-teams/SKILL.md) for details.
+
+> ¹ **Teams message edit** applies to chats/DMs only. Channel messages are not editable through the internal API this client uses.
 
 > 💬 **iMessage** is supported via the local [imsg](https://github.com/openclaw/imsg) tool (`agent-imessage`), not the table above. It runs **on a Mac** (Apple has no API). v1 covers send & list messages, direct & group chats, chat listing, real-time watch, and standard tapbacks. Typing, edit/unsend, group management, and targeted/custom reactions require imsg's bridge (SIP disabled) and are a later tier. See the [iMessage Guide](skills/agent-imessage/SKILL.md).
 

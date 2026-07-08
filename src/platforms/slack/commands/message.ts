@@ -131,7 +131,7 @@ async function getAction(channelInput: string, ts: string, options: { pretty?: b
   }
 }
 
-async function updateAction(
+async function editAction(
   channelInput: string,
   ts: string,
   text: string,
@@ -467,13 +467,13 @@ export const messageCommand = new Command('message')
       .action(getAction),
   )
   .addCommand(
-    new Command('update')
-      .description('Update message text')
+    new Command('edit')
+      .description('Edit message text')
       .argument('<channel>', 'Channel ID or name')
       .argument('<ts>', 'Message timestamp')
       .argument('<text>', 'New message text')
       .option('--pretty', 'Pretty print JSON output')
-      .action(updateAction),
+      .action(editAction),
   )
   .addCommand(
     new Command('delete')

@@ -172,7 +172,7 @@ agent-telegrambot message send @username "Silent message" --silent
 agent-telegrambot message send <chat> "Topic message" --thread-id 5
 
 # Edit a message (bot's own messages only)
-agent-telegrambot message update <chat> <message-id> <new-text>
+agent-telegrambot message edit <chat> <message-id> <new-text>
 
 # Delete a message
 agent-telegrambot message delete <chat> <message-id> --force

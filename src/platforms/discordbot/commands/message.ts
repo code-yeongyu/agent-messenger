@@ -119,7 +119,7 @@ export async function getAction(channel: string, messageId: string, options: Bot
   }
 }
 
-export async function updateAction(
+export async function editAction(
   channel: string,
   messageId: string,
   text: string,
@@ -244,8 +244,8 @@ export const messageCommand = new Command('message')
       }),
   )
   .addCommand(
-    new Command('update')
-      .description('Update a message')
+    new Command('edit')
+      .description('Edit a message')
       .argument('<channel>', 'Channel ID or name')
       .argument('<message-id>', 'Message ID')
       .argument('<text>', 'New message text')
@@ -253,7 +253,7 @@ export const messageCommand = new Command('message')
       .option('--server <id>', 'Server ID')
       .option('--pretty', 'Pretty print JSON output')
       .action(async (channel: string, messageId: string, text: string, opts: BotOption) => {
-        cliOutput(await updateAction(channel, messageId, text, opts), opts.pretty)
+        cliOutput(await editAction(channel, messageId, text, opts), opts.pretty)
       }),
   )
   .addCommand(

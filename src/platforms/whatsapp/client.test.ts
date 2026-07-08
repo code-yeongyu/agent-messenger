@@ -5,7 +5,7 @@ import { join } from 'node:path'
 
 import type { WAMessage } from '@whiskeysockets/baileys'
 
-import { WhatsAppClient } from './client'
+import { summarizeMessage, WhatsAppClient } from './client'
 
 type WhatsAppClientInternals = {
   messages: Map<string, WAMessage[]>
@@ -32,7 +32,6 @@ describe('WhatsAppClient store persistence', () => {
   })
 
   it('round-trips a media WAMessage with binary fields through saveStore/loadStore', async () => {
-    // Given: a logged-in client carrying a cached WAMessage whose imageMessage holds Buffer fields
     const fileEncSha256 = Buffer.from('fakeshafileenc1234567890123456789012')
     const fileSha256 = Buffer.from('fakeshafile1234567890123456789012345')
     const mediaKey = Buffer.from('mediakey1234567890123456789012345678')
@@ -53,13 +52,11 @@ describe('WhatsAppClient store persistence', () => {
     const writer = await new WhatsAppClient().login({ authDir })
     asInternals(writer).messages.set('12025551234@s.whatsapp.net', [cached])
 
-    // When: persisting to disk and reloading into a fresh client at the same authDir
     await asInternals(writer).saveStore()
 
     const reader = await new WhatsAppClient().login({ authDir })
     await asInternals(reader).loadStore()
 
-    // Then: the binary fields survive as real Buffers — no keyed-object corruption
     const restored = asInternals(reader).messages.get('12025551234@s.whatsapp.net')?.[0]
     expect(restored).toBeDefined()
     expect(restored!.key.id).toBe('media-msg-1')
@@ -72,5 +69,58 @@ describe('WhatsAppClient store persistence', () => {
     expect((img!.fileSha256 as Buffer).equals(fileSha256)).toBe(true)
     expect(Buffer.isBuffer(img!.mediaKey)).toBe(true)
     expect((img!.mediaKey as Buffer).equals(mediaKey)).toBe(true)
+  })
+})
+
+describe('summarizeMessage', () => {
+  it('summarizes a plain text message', () => {
+    const msg = {
+      key: { id: 'msg-1', remoteJid: '12025551234@s.whatsapp.net', fromMe: true },
+      messageTimestamp: 1_700_000_000,
+      message: { conversation: 'Hello' },
+    } as unknown as WAMessage
+
+    const summary = summarizeMessage(msg)
+
+    expect(summary.id).toBe('msg-1')
+    expect(summary.type).toBe('text')
+    expect(summary.text).toBe('Hello')
+  })
+
+  it('unwraps a Baileys edit protocolMessage to the edited content', () => {
+    const msg = {
+      key: { id: 'msg-2', remoteJid: '12025551234@s.whatsapp.net', fromMe: true },
+      messageTimestamp: 1_700_000_100,
+      message: {
+        protocolMessage: {
+          type: 14,
+          editedMessage: { conversation: 'Edited text' },
+        },
+      },
+    } as unknown as WAMessage
+
+    const summary = summarizeMessage(msg)
+
+    expect(summary.id).toBe('msg-2')
+    expect(summary.type).toBe('text')
+    expect(summary.text).toBe('Edited text')
+  })
+
+  it('unwraps an edit that uses extendedTextMessage', () => {
+    const msg = {
+      key: { id: 'msg-3', remoteJid: '12025551234@s.whatsapp.net', fromMe: true },
+      messageTimestamp: 1_700_000_200,
+      message: {
+        protocolMessage: {
+          type: 14,
+          editedMessage: { extendedTextMessage: { text: 'Edited via extended' } },
+        },
+      },
+    } as unknown as WAMessage
+
+    const summary = summarizeMessage(msg)
+
+    expect(summary.type).toBe('text')
+    expect(summary.text).toBe('Edited via extended')
   })
 })

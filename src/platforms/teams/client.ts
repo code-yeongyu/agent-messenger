@@ -713,6 +713,34 @@ export class TeamsClient {
     }
   }
 
+  async editChatMessage(chatId: string, messageId: string, content: string): Promise<TeamsMessage> {
+    interface EditResponse {
+      edittime?: string | number
+    }
+    const encodedChatId = encodeURIComponent(chatId)
+    const encodedMessageId = encodeURIComponent(messageId)
+    // Skype messaging backend requires skypeeditedid to duplicate the URL message id.
+    const response = await this.request<EditResponse>(
+      'PUT',
+      `/users/ME/conversations/${encodedChatId}/messages/${encodedMessageId}`,
+      {
+        content: escapeHtml(content),
+        messagetype: 'RichText/Html',
+        contenttype: 'text',
+        skypeeditedid: messageId,
+      },
+    )
+
+    const editTime = response?.edittime
+    return {
+      id: messageId,
+      channel_id: chatId,
+      author: { id: 'ME', displayName: 'Me' },
+      content,
+      timestamp: editTime ? new Date(Number(editTime) || editTime).toISOString() : new Date().toISOString(),
+    }
+  }
+
   async getTeam(teamId: string): Promise<TeamsTeam> {
     return this.request<TeamsTeam>('GET', `/csa/api/v1/teams/${teamId}`, undefined, CSA_API_BASE)
   }

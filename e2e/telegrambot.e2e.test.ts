@@ -93,7 +93,7 @@ describe('Telegram Bot E2E Tests', () => {
       if (data?.message?.message_id) trackedMessageIds.push(data.message.message_id)
     })
 
-    it('message update edits previously sent message', async () => {
+    it('message edit edits previously sent message', async () => {
       if (!telegramBotAvailable) return
 
       const testId = generateTestId()
@@ -111,7 +111,7 @@ describe('Telegram Bot E2E Tests', () => {
 
       const updateResult = await runCLI('telegrambot', [
         'message',
-        'update',
+        'edit',
         TELEGRAMBOT_TEST_CHAT_ID,
         String(sent!.message.message_id),
         `Edited ${testId}`,
