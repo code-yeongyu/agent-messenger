@@ -211,7 +211,7 @@
     "oxlint": "^1.51.0",
     "tsc-alias": "^1.8.16",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^7.0.2"
   },
   "optionalDependencies": {
     "koffi": "^2.15.2",
