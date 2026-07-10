@@ -303,6 +303,23 @@ Output includes:
 - `unread_count` — unread message count
 - `last_message` — most recent message preview, including `author_name` when the sender's nickname is known from the chat list (otherwise `null`)
 
+### Chat Leave
+
+```bash
+# Leave a chat room (works on 1:1, group, open, and PlusChat rooms)
+agent-kakaotalk chat leave <chat-id>
+agent-kakaotalk chat leave <chat-id> --pretty
+agent-kakaotalk chat leave <chat-id> --account <account-id>
+```
+
+Output (JSON by default; `--pretty` pretty-prints the same JSON):
+
+```json
+{ "success": true, "status_code": 0, "chat_id": "9876543210" }
+```
+
+The process exits non-zero when `success` is `false`.
+
 ### Member Commands
 
 ```bash
@@ -623,7 +640,7 @@ See the [KakaoTalk SDK documentation](https://agent-messenger.dev/docs/sdk/kakao
 ## Limitations
 
 - Auto-extraction of email/password from the desktop app is **macOS and Windows only** (KakaoTalk desktop is not available on Linux). Linux users must pass `--email` and `--password` (or `--password-file`) explicitly — the LOCO protocol, login flow, and all messaging features work on Linux.
-- No channel/chat room creation or management
+- No chat room creation
 - No friend list management
 - No reactions or emoji
 - No message editing or deletion

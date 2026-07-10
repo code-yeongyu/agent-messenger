@@ -1321,12 +1321,24 @@ export class KakaoTalkClient {
   async leaveChat(chatId: string): Promise<KakaoLeaveChatResult> {
     const parsedChatId = parseChatId(chatId)
 
-    return this.executeWithReconnect(async ({ session }) => {
+    return this.executeWithReconnect(async ({ session, loginResult }) => {
       try {
         const response = await session.leaveChat(parsedChatId)
+        // Throw on transport-level failure (incl. synthetic { statusCode: -1 }
+        // from LocoConnection.handleClose) so executeWithReconnect retries on
+        // a fresh session. The LEAVE command result lives in statusCode.
+        if (response.statusCode !== 0) {
+          throw new Error(`LEAVE failed: statusCode=${response.statusCode}`)
+        }
+        // Evict the departed chat from in-memory caches so subsequent getChats()
+        // calls do not return stale entries for this room.
+        const raw = (loginResult.chatDatas ?? []) as ChatData[]
+        const idx = raw.findIndex((c) => longToString(c.c) === chatId)
+        if (idx !== -1) raw.splice(idx, 1)
+        this.nameCache.forget(chatId)
         return {
-          success: response.statusCode === 0,
-          status_code: response.statusCode,
+          success: true,
+          status_code: 0,
           chat_id: chatId,
         }
       } catch (error) {

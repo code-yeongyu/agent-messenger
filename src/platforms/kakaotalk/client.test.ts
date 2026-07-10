@@ -15,6 +15,7 @@ const mockSyncMessages = mock(() => Promise.resolve({}))
 const mockSendMessage = mock(() => Promise.resolve({}))
 const mockSendReply = mock(() => Promise.resolve({}))
 const mockMarkRead = mock(() => Promise.resolve({}))
+const mockLeaveChat = mock(() => Promise.resolve({}))
 const mockClose = mock(() => {})
 const mockOnClose = mock((_handler: () => void) => {})
 const mockOnPush = mock((_handler: (packet: unknown) => void) => {})
@@ -33,6 +34,7 @@ mock.module('./protocol/session', () => ({
     sendMessage = mockSendMessage
     sendReply = mockSendReply
     markRead = mockMarkRead
+    leaveChat = mockLeaveChat
     close = mockClose
     onClose = mockOnClose
     onPush = mockOnPush
@@ -56,6 +58,7 @@ function resetAllMocks() {
   mockSendMessage.mockReset()
   mockSendReply.mockReset()
   mockMarkRead.mockReset()
+  mockLeaveChat.mockReset()
   mockClose.mockReset()
   mockOnClose.mockReset()
   mockOnPush.mockReset()
@@ -96,7 +99,9 @@ const DEFAULT_LOGIN_RESULT = {
 describe('KakaoTalkClient', () => {
   beforeEach(() => {
     resetAllMocks()
-    mockLogin.mockResolvedValue(DEFAULT_LOGIN_RESULT)
+    // Deep-clone so tests that mutate loginResult.chatDatas (e.g. leaveChat)
+    // don't leak into subsequent tests.
+    mockLogin.mockResolvedValue(structuredClone(DEFAULT_LOGIN_RESULT))
     mockGetChatLogs.mockResolvedValue({ body: { status: 0, chatLogs: [], eof: true } })
     mockGetChatInfo.mockResolvedValue({ body: { l: makeLong(99999) } })
   })
@@ -1233,6 +1238,103 @@ describe('KakaoTalkClient', () => {
       } catch (e) {
         expect(e).toBeInstanceOf(KakaoTalkError)
         expect((e as KakaoTalkError).code).toBe('mark_read_failed')
+      }
+
+      client.close()
+    })
+  })
+
+  describe('leaveChat', () => {
+    it('calls session.leaveChat with parsed chatId and returns success', async () => {
+      mockLeaveChat.mockResolvedValueOnce({ statusCode: 0, body: {} })
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      const result = await client.leaveChat('100')
+
+      expect(result).toEqual({ success: true, status_code: 0, chat_id: '100' })
+      expect(mockLeaveChat).toHaveBeenCalledWith(expect.objectContaining({ low: 100, high: 0 }))
+
+      client.close()
+    })
+
+    it('treats synthetic disconnect packet (statusCode: -1) as transport failure (throws)', async () => {
+      mockLeaveChat.mockResolvedValueOnce({ statusCode: -1, body: { error: 'connection closed' } })
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      try {
+        await client.leaveChat('100')
+        throw new Error('expected to throw')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('leave_chat_failed')
+      }
+
+      client.close()
+    })
+
+    it('evicts the departed chat from getChats cache', async () => {
+      mockLeaveChat.mockResolvedValueOnce({ statusCode: 0, body: {} })
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      const before = await client.getChats()
+      expect(before).toHaveLength(2)
+
+      await client.leaveChat('100')
+
+      const after = await client.getChats()
+      expect(after).toHaveLength(1)
+      expect(after[0].chat_id).toBe('200')
+
+      client.close()
+    })
+
+    it('reconnects and retries leaveChat after silent disconnect (full executeWithReconnect path)', async () => {
+      const closeHandlers: Array<() => void> = []
+      mockOnClose.mockImplementation((handler: () => void) => {
+        closeHandlers.push(handler)
+      })
+
+      mockLeaveChat.mockImplementationOnce(() => {
+        const handler = closeHandlers[0]
+        if (handler) handler()
+        return Promise.resolve({ statusCode: -1, body: { error: 'connection closed' } })
+      })
+      mockLeaveChat.mockResolvedValueOnce({ statusCode: 0, body: {} })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const result = await client.leaveChat('100')
+
+      expect(result.success).toBe(true)
+      expect(mockLeaveChat).toHaveBeenCalledTimes(2)
+      expect(mockLogin).toHaveBeenCalledTimes(2)
+
+      client.close()
+    })
+
+    it('throws KakaoTalkError(invalid_chat_id) for non-numeric chatId', async () => {
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      try {
+        await client.leaveChat('not-a-number')
+        throw new Error('expected to throw')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('invalid_chat_id')
+      }
+
+      client.close()
+    })
+
+    it('wraps transport errors as KakaoTalkError(leave_chat_failed)', async () => {
+      mockLeaveChat.mockRejectedValue(new Error('Socket closed'))
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      try {
+        await client.leaveChat('100')
+        throw new Error('expected to throw')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('leave_chat_failed')
       }
 
       client.close()
