@@ -13,8 +13,11 @@ const mockGetChats = mock(() =>
   ]),
 )
 
+const mockLeaveChat = mock(() => Promise.resolve({ success: true, status_code: 0, chat_id: 'chat-1' }))
+
 const mockClient = {
   getChats: mockGetChats,
+  leaveChat: mockLeaveChat,
 }
 
 mock.module('./shared', () => ({
@@ -29,6 +32,7 @@ describe('chat commands', () => {
   beforeEach(() => {
     mockWithKakaoClient.mockReset()
     mockGetChats.mockReset()
+    mockLeaveChat.mockReset()
 
     mockWithKakaoClient.mockImplementation(async (_options: unknown, fn: (client: unknown) => Promise<unknown>) => {
       return fn(mockClient)
@@ -39,6 +43,7 @@ describe('chat commands', () => {
         { chat_id: 'chat-2', name: 'Direct', type: 'direct', member_count: 2 },
       ]),
     )
+    mockLeaveChat.mockImplementation(() => Promise.resolve({ success: true, status_code: 0, chat_id: 'chat-1' }))
 
     consoleLogSpy = mock((..._args: unknown[]) => {})
     console.log = consoleLogSpy
@@ -89,6 +94,25 @@ describe('chat commands', () => {
 
       const output = JSON.parse(consoleLogSpy.mock.calls[0][0])
       expect(output).toEqual([])
+    })
+  })
+
+  describe('leave', () => {
+    it('leaves a chat room', async () => {
+      await chatCommand.parseAsync(['leave', 'chat-1'], { from: 'user' })
+
+      expect(mockLeaveChat).toHaveBeenCalledWith('chat-1')
+      const output = JSON.parse(consoleLogSpy.mock.calls[0][0])
+      expect(output).toEqual({ success: true, status_code: 0, chat_id: 'chat-1' })
+    })
+
+    it('passes account option to withKakaoClient', async () => {
+      await chatCommand.parseAsync(['leave', 'chat-1', '--account', 'my-account'], { from: 'user' })
+
+      expect(mockWithKakaoClient).toHaveBeenCalledWith(
+        expect.objectContaining({ account: 'my-account' }),
+        expect.any(Function),
+      )
     })
   })
 })

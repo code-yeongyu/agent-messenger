@@ -22,6 +22,21 @@ async function listAction(options: {
   }
 }
 
+async function leaveAction(
+  chatId: string,
+  options: {
+    account?: string
+    pretty?: boolean
+  },
+): Promise<void> {
+  try {
+    const result = await withKakaoClient(options, (client) => client.leaveChat(chatId))
+    console.log(formatOutput(result, options.pretty))
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
 export const chatCommand = new Command('chat')
   .description('KakaoTalk chat commands')
   .addCommand(
@@ -33,4 +48,12 @@ export const chatCommand = new Command('chat')
       .option('--resolve-titles', 'Fetch user-set room titles via CHATINFO (slower; one extra LOCO call per chat)')
       .option('--pretty', 'Pretty print JSON output')
       .action(listAction),
+  )
+  .addCommand(
+    new Command('leave')
+      .description('Leave a chat room')
+      .argument('<chat-id>', 'Chat room ID')
+      .option('--account <id>', 'Use a specific KakaoTalk account')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(leaveAction),
   )

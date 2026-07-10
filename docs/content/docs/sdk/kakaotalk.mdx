@@ -128,6 +128,15 @@ The typed helpers `sendPhoto`, `sendVideo`, `sendAudio`, `sendFile`, and `sendMu
 
 ### Cleanup
 
+### Leave Chat
+
+```typescript
+const result = await client.leaveChat('9876543210')
+// → { success: true, status_code: 0, chat_id: '9876543210' }
+```
+
+Leaves a chat room by its chat ID. Works on 1:1, group, open, and PlusChat rooms. Returns `success: true` on a successful leave.
+
 ```typescript
 // Close the LOCO connection (MUST call when done)
 client.close()

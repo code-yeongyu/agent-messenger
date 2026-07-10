@@ -18,6 +18,7 @@ import {
   KAKAO_MESSAGE_TYPE,
   type KakaoChat,
   type KakaoDeviceType,
+  type KakaoLeaveChatResult,
   type KakaoMarkReadResult,
   type KakaoMember,
   type KakaoMessage,
@@ -1313,6 +1314,23 @@ export class KakaoTalkClient {
         }
       } catch (error) {
         throw wrapError(error, 'mark_read_failed')
+      }
+    })
+  }
+
+  async leaveChat(chatId: string): Promise<KakaoLeaveChatResult> {
+    const parsedChatId = parseChatId(chatId)
+
+    return this.executeWithReconnect(async ({ session }) => {
+      try {
+        const response = await session.leaveChat(parsedChatId)
+        return {
+          success: response.statusCode === 0,
+          status_code: response.statusCode,
+          chat_id: chatId,
+        }
+      } catch (error) {
+        throw wrapError(error, 'leave_chat_failed')
       }
     })
   }
