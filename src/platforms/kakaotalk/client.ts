@@ -1331,11 +1331,14 @@ export class KakaoTalkClient {
           throw new Error(`LEAVE failed: statusCode=${response.statusCode}`)
         }
         // Evict the departed chat from in-memory caches so subsequent getChats()
-        // calls do not return stale entries for this room.
+        // calls do not return stale entries for this room.  Normalize via
+        // longToString(parsedChatId) so the cache key matches the canonical
+        // format used by the server (e.g. "0100" → "100").
+        const normalizedChatId = longToString(parsedChatId)
         const raw = (loginResult.chatDatas ?? []) as ChatData[]
-        const idx = raw.findIndex((c) => longToString(c.c) === chatId)
+        const idx = raw.findIndex((c) => longToString(c.c) === normalizedChatId)
         if (idx !== -1) raw.splice(idx, 1)
-        this.nameCache.forget(chatId)
+        this.nameCache.forget(normalizedChatId)
         return {
           success: true,
           status_code: 0,
