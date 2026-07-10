@@ -7,6 +7,7 @@ import {
   KakaoCredentialManager,
   KakaoChatSchema,
   KakaoConfigSchema,
+  KakaoLeaveChatResultSchema,
   KakaoMessageSchema,
   KakaoSendResultSchema,
   KakaoTalkClient,
@@ -76,4 +77,8 @@ it('KakaoProfileSchema is exported from barrel', () => {
 
 it('classifyKakaoChat is exported from barrel', () => {
   expect(typeof classifyKakaoChat).toBe('function')
+})
+
+it('KakaoLeaveChatResultSchema is exported from barrel', () => {
+  expect(typeof KakaoLeaveChatResultSchema.parse).toBe('function')
 })
