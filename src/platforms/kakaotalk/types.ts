@@ -207,6 +207,12 @@ export interface KakaoMarkReadResult {
   watermark: string
 }
 
+export interface KakaoLeaveChatResult {
+  success: boolean
+  status_code: number
+  chat_id: string
+}
+
 export const KakaoChatSchema = z.object({
   chat_id: z.string(),
   type: z.number(),
@@ -261,6 +267,12 @@ export const KakaoMarkReadResultSchema = z.object({
   status_code: z.number(),
   chat_id: z.string(),
   watermark: z.string(),
+})
+
+export const KakaoLeaveChatResultSchema = z.object({
+  success: z.boolean(),
+  status_code: z.number(),
+  chat_id: z.string(),
 })
 
 export interface KakaoProfile {

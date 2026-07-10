@@ -18,6 +18,7 @@ import {
   KAKAO_MESSAGE_TYPE,
   type KakaoChat,
   type KakaoDeviceType,
+  type KakaoLeaveChatResult,
   type KakaoMarkReadResult,
   type KakaoMember,
   type KakaoMessage,
@@ -1340,6 +1341,38 @@ export class KakaoTalkClient {
         }
       } catch (error) {
         throw wrapError(error, 'mark_read_failed')
+      }
+    })
+  }
+
+  async leaveChat(chatId: string): Promise<KakaoLeaveChatResult> {
+    const parsedChatId = parseChatId(chatId)
+
+    return this.executeWithReconnect(async ({ session, loginResult }) => {
+      try {
+        const response = await session.leaveChat(parsedChatId)
+        // Throw on transport-level failure (incl. synthetic { statusCode: -1 }
+        // from LocoConnection.handleClose) so executeWithReconnect retries on
+        // a fresh session. The LEAVE command result lives in statusCode.
+        if (response.statusCode !== 0) {
+          throw new Error(`LEAVE failed: statusCode=${response.statusCode}`)
+        }
+        // Evict the departed chat from in-memory caches so subsequent getChats()
+        // calls do not return stale entries for this room.  Normalize via
+        // longToString(parsedChatId) so the cache key matches the canonical
+        // format used by the server (e.g. "0100" → "100").
+        const normalizedChatId = longToString(parsedChatId)
+        const raw = (loginResult.chatDatas ?? []) as ChatData[]
+        const idx = raw.findIndex((c) => longToString(c.c) === normalizedChatId)
+        if (idx !== -1) raw.splice(idx, 1)
+        this.nameCache.forget(normalizedChatId)
+        return {
+          success: true,
+          status_code: 0,
+          chat_id: chatId,
+        }
+      } catch (error) {
+        throw wrapError(error, 'leave_chat_failed')
       }
     })
   }
