@@ -289,6 +289,11 @@ export class LocoSession {
    * supply `linkId`; normal chats must omit it (the wire `li` key must be
    * absent, not null/0).
    */
+  async leaveChat(chatId: Long): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    return this.connection.sendPacket('LEAVE', { chatId })
+  }
+
   async markRead(chatId: Long, watermark: Long, linkId?: Long): Promise<LocoPacket> {
     if (!this.connection) throw new Error('Not connected')
     const body: Record<string, unknown> = { chatId, watermark }

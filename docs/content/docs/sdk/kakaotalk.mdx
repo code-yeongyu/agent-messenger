@@ -126,6 +126,15 @@ await client.sendAttachment('9876543210', [
 
 The typed helpers `sendPhoto`, `sendVideo`, `sendAudio`, `sendFile`, and `sendMultiPhoto` remain available when you want to bypass MIME sniffing and dispatch to a specific message_type explicitly.
 
+### Leave Chat
+
+```typescript
+const result = await client.leaveChat('9876543210')
+// → { success: true, status_code: 0, chat_id: '9876543210' }
+```
+
+Leaves a chat room by its chat ID. Works on 1:1, group, open, and PlusChat rooms. Returns `success: true` on a successful leave. The departed chat is immediately evicted from the client's cached chat list — a subsequent `getChats()` call will not include it.
+
 ### Cleanup
 
 ```typescript
