@@ -109,6 +109,15 @@ export interface DiscordSearchResponse {
   messages: DiscordSearchResult[][]
 }
 
+export interface DiscordSearchIndexNotReadyResponse {
+  message: string
+  code: 110000
+  documents_indexed: number
+  retry_after: number
+}
+
+export type DiscordSearchApiResponse = DiscordSearchResponse | DiscordSearchIndexNotReadyResponse
+
 export interface DiscordSearchOptions {
   channelId?: string
   authorId?: string
@@ -265,6 +274,13 @@ export const DiscordSearchResultSchema = z.object({
 export const DiscordSearchResponseSchema = z.object({
   total_results: z.number(),
   messages: z.array(z.array(DiscordSearchResultSchema)),
+})
+
+export const DiscordSearchIndexNotReadyResponseSchema = z.object({
+  message: z.string(),
+  code: z.literal(110000),
+  documents_indexed: z.number(),
+  retry_after: z.number().nonnegative(),
 })
 
 export const DiscordCredentialsSchema = z.object({
