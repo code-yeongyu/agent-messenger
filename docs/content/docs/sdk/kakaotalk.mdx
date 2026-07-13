@@ -135,6 +135,34 @@ const result = await client.leaveChat('9876543210')
 
 Leaves a chat room by its chat ID. Works on 1:1, group, open, and PlusChat rooms. Returns `success: true` on a successful leave. The departed chat is immediately evicted from the client's cached chat list — a subsequent `getChats()` call will not include it.
 
+### Typing Indicator
+
+```typescript
+// Fire a single typing pulse — the recipient sees the animated "…" dots
+const result = await client.sendTyping('9876543210')
+// → KakaoTypingResult { success: true, status_code: 0, chat_id: '9876543210' }
+
+// For OpenChat rooms, pass the linkId
+await client.sendTyping('9876543210', { linkId: '77777' })
+```
+
+The KakaoTalk client-side lifetime is ~5s per pulse — to keep the indicator visible while generating a long reply, re-fire faster than that (e.g. every 3s):
+
+```typescript
+const interval = setInterval(() => {
+  client.sendTyping('9876543210').catch(() => {}) // ignore transient errors
+}, 3000)
+
+try {
+  const reply = await generateReply()
+  await client.sendMessage('9876543210', reply)
+} finally {
+  clearInterval(interval)
+}
+```
+
+Errors follow the same shape as `markRead`: transport-level failures (non-zero `statusCode`, including the synthetic `-1` LocoConnection emits on disconnect) throw `KakaoTalkError('send_typing_failed')` so `executeWithReconnect` can retry on a fresh session. Non-numeric `chatId` / `linkId` throw `invalid_chat_id` / `invalid_link_id`.
+
 ### Cleanup
 
 ```typescript
@@ -248,6 +276,7 @@ import type {
   KakaoMember,
   KakaoMessage,
   KakaoSendResult,
+  KakaoTypingResult,
   KakaoAccountCredentials,
   KakaoConfig,
   KakaoDeviceType,
@@ -265,6 +294,7 @@ import {
   KakaoMemberSchema,
   KakaoMessageSchema,
   KakaoSendResultSchema,
+  KakaoTypingResultSchema,
   KakaoAccountCredentialsSchema,
   KakaoConfigSchema,
 } from 'agent-messenger/kakaotalk'

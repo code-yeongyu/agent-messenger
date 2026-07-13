@@ -16,6 +16,7 @@ const mockSendMessage = mock(() => Promise.resolve({}))
 const mockSendReply = mock(() => Promise.resolve({}))
 const mockMarkRead = mock(() => Promise.resolve({}))
 const mockLeaveChat = mock(() => Promise.resolve({}))
+const mockSendTyping = mock(() => Promise.resolve({}))
 const mockClose = mock(() => {})
 const mockOnClose = mock((_handler: () => void) => {})
 const mockOnPush = mock((_handler: (packet: unknown) => void) => {})
@@ -35,6 +36,7 @@ mock.module('./protocol/session', () => ({
     sendReply = mockSendReply
     markRead = mockMarkRead
     leaveChat = mockLeaveChat
+    sendTyping = mockSendTyping
     close = mockClose
     onClose = mockOnClose
     onPush = mockOnPush
@@ -59,6 +61,7 @@ function resetAllMocks() {
   mockSendReply.mockReset()
   mockMarkRead.mockReset()
   mockLeaveChat.mockReset()
+  mockSendTyping.mockReset()
   mockClose.mockReset()
   mockOnClose.mockReset()
   mockOnPush.mockReset()
@@ -1335,6 +1338,94 @@ describe('KakaoTalkClient', () => {
       } catch (e) {
         expect(e).toBeInstanceOf(KakaoTalkError)
         expect((e as KakaoTalkError).code).toBe('leave_chat_failed')
+      }
+
+      client.close()
+    })
+  })
+
+  describe('sendTyping', () => {
+    it('forwards parsed chatId to session.sendTyping and reports success on statusCode 0', async () => {
+      mockSendTyping.mockResolvedValueOnce({ statusCode: 0, body: {} })
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      const result = await client.sendTyping('12345')
+
+      expect(mockSendTyping).toHaveBeenCalledTimes(1)
+      const [chatIdArg, linkIdArg] = mockSendTyping.mock.calls[0] as [{ toString(): string }, unknown]
+      expect(chatIdArg.toString()).toBe('12345')
+      expect(linkIdArg).toBeUndefined()
+      expect(result).toEqual({ success: true, status_code: 0, chat_id: '12345' })
+
+      client.close()
+    })
+
+    it('passes linkId through when provided (open-chat typing)', async () => {
+      mockSendTyping.mockResolvedValueOnce({ statusCode: 0, body: {} })
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      await client.sendTyping('12345', { linkId: '77777' })
+
+      const [, linkIdArg] = mockSendTyping.mock.calls[0] as [unknown, { toString(): string }]
+      expect(linkIdArg).toBeDefined()
+      expect(linkIdArg.toString()).toBe('77777')
+
+      client.close()
+    })
+
+    it('throws KakaoTalkError(send_typing_failed) on transport-level failure (non-zero statusCode)', async () => {
+      mockSendTyping.mockResolvedValueOnce({ statusCode: -100, body: {} })
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      try {
+        await client.sendTyping('12345')
+        throw new Error('expected to throw')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('send_typing_failed')
+      }
+
+      client.close()
+    })
+
+    it('throws KakaoTalkError(send_typing_failed) when the session throws (transport error)', async () => {
+      mockSendTyping.mockRejectedValue(new Error('ACTION failed: statusCode=-1'))
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      try {
+        await client.sendTyping('12345')
+        throw new Error('expected to throw')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('send_typing_failed')
+      }
+
+      client.close()
+    })
+
+    it('throws KakaoTalkError(invalid_chat_id) for non-numeric chatId', async () => {
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      try {
+        await client.sendTyping('not-a-number')
+        throw new Error('expected to throw')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('invalid_chat_id')
+      }
+
+      client.close()
+    })
+
+    it('throws KakaoTalkError(invalid_link_id) for non-numeric linkId', async () => {
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      try {
+        await client.sendTyping('12345', { linkId: 'not-a-number' })
+        throw new Error('expected to throw')
+      } catch (e) {
+        expect(e).toBeInstanceOf(KakaoTalkError)
+        expect((e as KakaoTalkError).code).toBe('invalid_link_id')
       }
 
       client.close()
