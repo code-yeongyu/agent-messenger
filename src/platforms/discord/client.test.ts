@@ -447,6 +447,127 @@ describe('DiscordClient', () => {
     })
   })
 
+  describe('searchMessages', () => {
+    const searchResult = {
+      id: 'msg1',
+      channel_id: 'ch1',
+      guild_id: 'guild1',
+      author: { id: 'user1', username: 'user1' },
+      content: 'matching message',
+      timestamp: '2026-01-01T00:00:00.000Z',
+      hit: true,
+    }
+
+    it('flattens grouped search results and keeps hits', async () => {
+      mockResponse({
+        doing_deep_historical_index: false,
+        total_results: 1,
+        messages: [[searchResult, { ...searchResult, id: 'context', hit: false }]],
+      })
+
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      const result = await client.searchMessages('guild1', 'matching', { limit: 25 })
+
+      expect(result).toEqual({ results: [searchResult], total: 1 })
+      expect(fetchCalls[0].url).toBe(
+        'https://discord.com/api/v10/guilds/guild1/messages/search?content=matching&limit=25',
+      )
+    })
+
+    it('retries when the search index is not ready', async () => {
+      mockResponse(
+        {
+          message: 'Index not yet available. Try again later',
+          code: 110000,
+          documents_indexed: 0,
+          retry_after: 0,
+        },
+        202,
+      )
+      mockResponse({
+        doing_deep_historical_index: false,
+        total_results: 1,
+        messages: [[searchResult]],
+      })
+
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      const startTime = Date.now()
+      const result = await client.searchMessages('guild1', 'matching')
+      const elapsed = Date.now() - startTime
+
+      expect(result).toEqual({ results: [searchResult], total: 1 })
+      expect(elapsed).toBeGreaterThanOrEqual(50)
+      expect(fetchCalls).toHaveLength(2)
+    })
+
+    it('throws a clear error when the search index remains unavailable', async () => {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        mockResponse(
+          {
+            message: 'Index not yet available. Try again later',
+            code: 110000,
+            documents_indexed: 0,
+            retry_after: 0.001,
+          },
+          202,
+        )
+      }
+
+      const client = await new DiscordClient().login({ token: 'test-token' })
+
+      await expect(client.searchMessages('guild1', 'matching')).rejects.toThrow(
+        'Search index is not ready after retries',
+      )
+      expect(fetchCalls).toHaveLength(4)
+    })
+
+    it('rejects unexpected successful response payloads', async () => {
+      mockResponse(
+        {
+          message: 'Unexpected response',
+          code: 999999,
+          retry_after: 0,
+        },
+        202,
+      )
+
+      const client = await new DiscordClient().login({ token: 'test-token' })
+
+      try {
+        await client.searchMessages('guild1', 'matching')
+        throw new Error('Expected searchMessages to throw')
+      } catch (error) {
+        expect(error).toBeInstanceOf(DiscordError)
+        if (!(error instanceof DiscordError)) throw error
+        expect(error.code).toBe('invalid_search_response')
+      }
+      expect(fetchCalls).toHaveLength(1)
+    })
+
+    it('rejects malformed message and retry payloads', async () => {
+      mockResponse({ total_results: 1, messages: null })
+      mockResponse(
+        {
+          message: 'Index not yet available. Try again later',
+          code: 110000,
+          documents_indexed: 0,
+          retry_after: -1,
+        },
+        202,
+      )
+
+      const client = await new DiscordClient().login({ token: 'test-token' })
+
+      await expect(client.searchMessages('guild1', 'matching')).rejects.toThrow(
+        'Discord returned an invalid search response',
+      )
+      await expect(client.searchMessages('guild1', 'matching')).rejects.toThrow(
+        'Discord returned an invalid search response',
+      )
+      expect(fetchCalls).toHaveLength(2)
+    })
+  })
+
   describe('rate limiting', () => {
     it('waits when bucket is exhausted before making request', async () => {
       mockResponse({ id: '1', username: 'user1' }, 200, {
