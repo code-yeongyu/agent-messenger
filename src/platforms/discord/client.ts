@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 
 import { getDiscordHeaders } from './super-properties'
+import { DiscordSearchIndexNotReadyResponseSchema, DiscordSearchResponseSchema } from './types'
 import type {
   DiscordChannel,
   DiscordDMChannel,
@@ -11,7 +12,6 @@ import type {
   DiscordMessage,
   DiscordRelationship,
   DiscordSearchOptions,
-  DiscordSearchResponse,
   DiscordSearchResult,
   DiscordUser,
   DiscordUserNote,
@@ -37,6 +37,7 @@ interface RateLimitBucket {
 const BASE_URL = 'https://discord.com/api/v10'
 const MAX_RETRIES = 3
 const BASE_BACKOFF_MS = 100
+const MAX_SEARCH_INDEX_RETRY_MS = 30_000
 
 export class DiscordClient {
   private token: string | null = null
@@ -403,28 +404,50 @@ export class DiscordClient {
       params.set('offset', options.offset.toString())
     }
 
-    const response = await this.request<DiscordSearchResponse>(
-      'GET',
-      `/guilds/${guildId}/messages/search?${params.toString()}`,
-    )
+    const path = `/guilds/${guildId}/messages/search?${params.toString()}`
 
-    const results = response.messages
-      .flat()
-      .filter((msg) => msg.hit)
-      .map((msg) => ({
-        id: msg.id,
-        channel_id: msg.channel_id,
-        guild_id: msg.guild_id,
-        content: msg.content,
-        author: msg.author,
-        timestamp: msg.timestamp,
-        hit: msg.hit,
-      }))
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      const response: unknown = await this.request('GET', path)
+      const searchResponse = DiscordSearchResponseSchema.safeParse(response)
 
-    return {
-      results,
-      total: response.total_results,
+      if (searchResponse.success) {
+        const results = searchResponse.data.messages
+          .flat()
+          .filter((msg) => msg.hit)
+          .map((msg) => ({
+            id: msg.id,
+            channel_id: msg.channel_id,
+            guild_id: msg.guild_id,
+            content: msg.content,
+            author: msg.author,
+            timestamp: msg.timestamp,
+            hit: msg.hit,
+          }))
+
+        return {
+          results,
+          total: searchResponse.data.total_results,
+        }
+      }
+
+      const indexNotReadyResponse = DiscordSearchIndexNotReadyResponseSchema.safeParse(response)
+      if (!indexNotReadyResponse.success) {
+        throw new DiscordError('Discord returned an invalid search response', 'invalid_search_response')
+      }
+
+      if (attempt === MAX_RETRIES) {
+        throw new DiscordError('Search index is not ready after retries', 'search_index_not_ready')
+      }
+
+      const requestedDelayMs = indexNotReadyResponse.data.retry_after * 1000
+      const retryDelayMs = Math.min(
+        requestedDelayMs === 0 ? BASE_BACKOFF_MS : requestedDelayMs,
+        MAX_SEARCH_INDEX_RETRY_MS,
+      )
+      await this.sleep(retryDelayMs)
     }
+
+    throw new DiscordError('Search failed after retries', 'max_retries')
   }
 
   async getUserProfile(userId: string): Promise<DiscordUserProfile> {
