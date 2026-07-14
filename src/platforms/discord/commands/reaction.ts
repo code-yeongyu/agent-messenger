@@ -101,7 +101,7 @@ export async function listAction(channelId: string, messageId: string, options: 
       process.exit(1)
     }
 
-    const reactions = (message as any).reactions || []
+    const reactions = message.reactions ?? []
 
     console.log(
       formatOutput(
