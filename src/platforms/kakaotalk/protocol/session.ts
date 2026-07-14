@@ -28,6 +28,36 @@ function longToJsonNumber(value: Long): number {
   return value.toNumber()
 }
 
+// LOCO opcode string emitted on the wire for typing indicator pulses.
+// Reverse-engineered from KakaoTalk 25.x — see `LocoSession.sendTyping` docs.
+export const TYPING_ACTION_METHOD = 'ACTION'
+
+// Builds the BSON body the official KakaoTalk client emits for the typing
+// indicator subtype of the `ACTION` opcode. Exported so protocol tests can lock
+// the exact field shape.
+export function buildTypingActionBody(chatId: Long, linkId?: Long): Record<string, unknown> {
+  const body: Record<string, unknown> = { chatId, type: 1 }
+  // Must omit the field entirely (not `null`) for normal chats — the official
+  // client only populates linkId for OpenChat rooms, and sending null here
+  // would change server routing.
+  if (linkId !== undefined) body.linkId = linkId
+  return body
+}
+
+// The one-and-only delegation from `LocoSession.sendTyping` to a `sendPacket`
+// implementation. Extracting this makes the wire boundary directly testable
+// with a fake connection object — no `LocoSession` instantiation required,
+// which side-steps the `mock.module('./session', …)` set up by `client.test.ts`.
+// `LocoSession.sendTyping` is a 2-line delegation to this helper, so any test
+// that pins this function's behaviour also pins the class method's contract.
+export async function sendTypingPacket(
+  connection: { sendPacket: (method: string, body: Record<string, unknown>) => Promise<LocoPacket> },
+  chatId: Long,
+  linkId?: Long,
+): Promise<LocoPacket> {
+  return connection.sendPacket(TYPING_ACTION_METHOD, buildTypingActionBody(chatId, linkId))
+}
+
 export class LocoSession {
   private connection: LocoConnection | null = null
   private pingTimer: ReturnType<typeof setInterval> | null = null
@@ -330,6 +360,27 @@ export class LocoSession {
       body.li = linkId
     }
     return this.connection.sendPacket('NOTIREAD', body)
+  }
+
+  /**
+   * Fire a single typing pulse to peers of a chat — this is what triggers the
+   * animated "…" dots the recipient sees while somebody is composing.
+   *
+   * Under the hood this sends the LOCO `ACTION` opcode with `type=1`. The
+   * KakaoTalk client-side lifetime is ~5s per pulse, so callers wanting a
+   * sustained indicator must re-fire faster than that.
+   *
+   * Reverse-engineered from KakaoTalk 25.x: the app's LOCO layer emits an
+   * `ACTION` packet with a BSON body of `{chatId, type, linkId?}` when the
+   * user types in a chat. `type=1` is the value the app uses for the typing
+   * indicator; other `type` values may exist for other in-composition states
+   * (recording audio, attaching media, etc.) but haven't been verified. The
+   * `linkId` field is omitted entirely (not sent as null) for normal chats;
+   * it is only populated for OpenChat rooms.
+   */
+  async sendTyping(chatId: Long, linkId?: Long): Promise<LocoPacket> {
+    if (!this.connection) throw new Error('Not connected')
+    return sendTypingPacket(this.connection, chatId, linkId)
   }
 
   onPush(handler: (packet: LocoPacket) => void): void {

@@ -31,6 +31,7 @@ export type {
   KakaoTalkPushMemberEvent,
   KakaoTalkPushMessageEvent,
   KakaoTalkPushReadEvent,
+  KakaoTypingResult,
 } from './types'
 export {
   KAKAO_EMOTICON_KIND_BY_TYPE,
@@ -49,6 +50,7 @@ export {
   KakaoTalkPushMemberEventSchema,
   KakaoTalkPushMessageEventSchema,
   KakaoTalkPushReadEventSchema,
+  KakaoTypingResultSchema,
 } from './types'
 export { attemptLogin, generateDeviceUuid, loginFlow, registerDevice, requestPasscode } from './auth/kakao-login'
 export type { LoginCredentials } from './auth/kakao-login'
