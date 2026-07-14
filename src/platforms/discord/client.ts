@@ -10,13 +10,28 @@ import type {
   DiscordGuildMember,
   DiscordMention,
   DiscordMessage,
+  DiscordReadState,
   DiscordRelationship,
   DiscordSearchOptions,
   DiscordSearchResult,
+  DiscordUnreadMention,
+  DiscordUnreadMentionsResult,
   DiscordUser,
   DiscordUserNote,
   DiscordUserProfile,
 } from './types'
+
+const MENTIONS_WINDOW_DAYS = 7
+const MENTIONS_PAGE_SIZE = 100
+const UNREAD_MENTIONS_MAX = 500
+
+function isSnowflakeNewer(candidate: string, marker: string): boolean {
+  try {
+    return BigInt(candidate) > BigInt(marker)
+  } catch {
+    return false
+  }
+}
 
 export class DiscordError extends Error {
   code: string
@@ -322,7 +337,7 @@ export class DiscordClient {
     })
   }
 
-  async getMentions(options?: { limit?: number; guildId?: string }): Promise<DiscordMention[]> {
+  async getMentions(options?: { limit?: number; guildId?: string; before?: string }): Promise<DiscordMention[]> {
     const params = new URLSearchParams()
     params.set('limit', (options?.limit ?? 25).toString())
     params.set('roles', 'true')
@@ -331,8 +346,98 @@ export class DiscordClient {
     if (options?.guildId) {
       params.set('guild_id', options.guildId)
     }
+    if (options?.before) {
+      params.set('before', options.before)
+    }
 
     return this.request<DiscordMention[]>('GET', `/users/@me/mentions?${params.toString()}`)
+  }
+
+  async fetchReadState(): Promise<DiscordReadState[]> {
+    const { DiscordListener } = await import('./listener')
+    const listener = new DiscordListener(this)
+    try {
+      await listener.start()
+      const readState = listener.getReadState()
+      if (readState === null) {
+        throw new DiscordError('Discord gateway did not deliver read state', 'no_read_state')
+      }
+      return readState
+    } finally {
+      listener.stop()
+    }
+  }
+
+  async getUnreadMentions(options?: { guildId?: string; limit?: number }): Promise<DiscordUnreadMentionsResult> {
+    const limit = options?.limit ?? UNREAD_MENTIONS_MAX
+    const [readState, scan] = await Promise.all([
+      this.fetchReadState(),
+      this.collectMentions({ guildId: options?.guildId, limit }),
+    ])
+
+    const readStateByChannel = new Map(readState.map((state) => [state.channelId, state]))
+
+    const unread: DiscordUnreadMention[] = []
+    for (const mention of scan.mentions) {
+      const state = readStateByChannel.get(mention.channel_id)
+      // A channel with no read-state entry is unknown, not unread: omit rather than assume unread.
+      if (!state || state.mentionCount === 0) continue
+      if (state.lastMessageId !== null && !isSnowflakeNewer(mention.id, state.lastMessageId)) continue
+      unread.push({ ...mention, mention_count: state.mentionCount })
+    }
+
+    // READY read states carry no guild association, so badgeCount is always the
+    // account-wide unread-mention total even when mentions are guild-filtered.
+    const badgeCount = readState.reduce((sum, state) => sum + state.mentionCount, 0)
+
+    return {
+      mentions: unread,
+      count: unread.length,
+      badgeCount,
+      complete: scan.complete,
+      windowDays: MENTIONS_WINDOW_DAYS,
+    }
+  }
+
+  private async collectMentions(options: {
+    guildId?: string
+    limit: number
+  }): Promise<{ mentions: DiscordMention[]; complete: boolean }> {
+    const collected: DiscordMention[] = []
+    const seen = new Set<string>()
+    let before: string | undefined
+
+    while (collected.length < options.limit) {
+      const pageSize = Math.min(MENTIONS_PAGE_SIZE, options.limit - collected.length)
+      const page = await this.getMentions({ limit: pageSize, guildId: options.guildId, before })
+
+      // An empty or short page is the natural end of history: the scan is exhaustive.
+      if (page.length < pageSize) {
+        for (const mention of page) {
+          if (seen.has(mention.id)) continue
+          seen.add(mention.id)
+          collected.push(mention)
+        }
+        return { mentions: collected, complete: true }
+      }
+
+      let added = 0
+      for (const mention of page) {
+        if (collected.length >= options.limit) break
+        if (seen.has(mention.id)) continue
+        seen.add(mention.id)
+        collected.push(mention)
+        added++
+      }
+
+      // Discord returns pages newest-first; a non-advancing cursor means a repeated
+      // page, so stop to avoid looping. Either way the scan did not reach history's end.
+      const oldest = page[page.length - 1].id
+      if (added === 0 || oldest === before) return { mentions: collected, complete: false }
+      before = oldest
+    }
+
+    return { mentions: collected, complete: false }
   }
 
   async getUserNote(userId: string): Promise<DiscordUserNote | null> {

@@ -1,6 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test'
 
 import { DiscordClient, DiscordError } from './client'
+import type { DiscordReadState } from './types'
 
 describe('DiscordClient', () => {
   const originalFetch = globalThis.fetch
@@ -673,6 +674,180 @@ describe('DiscordClient', () => {
       await client.getMessages('987654321')
 
       expect(fetchCalls.length).toBe(2)
+    })
+  })
+
+  describe('getUnreadMentions', () => {
+    const mention = (id: string, channelId: string, guildId?: string) => ({
+      id,
+      channel_id: channelId,
+      author: { id: 'a1', username: 'alice' },
+      content: `mention ${id}`,
+      timestamp: '2024-01-29T10:00:00Z',
+      mention_everyone: false,
+      mentions: [{ id: 'me', username: 'me' }],
+      ...(guildId ? { guild_id: guildId } : {}),
+    })
+
+    const stubReadState = (client: DiscordClient, readState: DiscordReadState[]) =>
+      spyOn(client, 'fetchReadState').mockResolvedValue(readState)
+
+    it('keeps mentions newer than the channel read marker', async () => {
+      // given: one channel with an unread mention (200 > marker 100) and one already read (50 < 100)
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      stubReadState(client, [{ channelId: 'c1', lastMessageId: '100', mentionCount: 1 }])
+      mockResponse([mention('200', 'c1'), mention('50', 'c1')])
+
+      const result = await client.getUnreadMentions()
+
+      // then: only the newer message is unread
+      expect(result.count).toBe(1)
+      expect(result.mentions[0].id).toBe('200')
+      expect(result.mentions[0].mention_count).toBe(1)
+    })
+
+    it('treats an equal snowflake as read', async () => {
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      stubReadState(client, [{ channelId: 'c1', lastMessageId: '100', mentionCount: 1 }])
+      mockResponse([mention('100', 'c1')])
+
+      const result = await client.getUnreadMentions()
+
+      expect(result.count).toBe(0)
+    })
+
+    it('omits mentions for channels with no read-state entry', async () => {
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      stubReadState(client, [])
+      mockResponse([mention('200', 'c1')])
+
+      const result = await client.getUnreadMentions()
+
+      expect(result.count).toBe(0)
+    })
+
+    it('omits channels whose mention_count is zero', async () => {
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      stubReadState(client, [{ channelId: 'c1', lastMessageId: '100', mentionCount: 0 }])
+      mockResponse([mention('200', 'c1')])
+
+      const result = await client.getUnreadMentions()
+
+      expect(result.count).toBe(0)
+    })
+
+    it('includes all mentions when the read marker is null', async () => {
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      stubReadState(client, [{ channelId: 'c1', lastMessageId: null, mentionCount: 2 }])
+      mockResponse([mention('200', 'c1'), mention('50', 'c1')])
+
+      const result = await client.getUnreadMentions()
+
+      expect(result.count).toBe(2)
+    })
+
+    it('reports badgeCount from summed read-state mention counts', async () => {
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      stubReadState(client, [
+        { channelId: 'c1', lastMessageId: '100', mentionCount: 2 },
+        { channelId: 'c2', lastMessageId: '100', mentionCount: 3 },
+      ])
+      mockResponse([mention('200', 'c1')])
+
+      const result = await client.getUnreadMentions()
+
+      expect(result.badgeCount).toBe(5)
+      expect(result.count).toBe(1)
+    })
+
+    it('paginates mention history with a before cursor', async () => {
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      stubReadState(client, [{ channelId: 'c1', lastMessageId: '0', mentionCount: 200 }])
+
+      const firstPage = Array.from({ length: 100 }, (_, i) => mention(String(1000 - i), 'c1'))
+      const secondPage = [mention('900', 'c1')]
+      mockResponse(firstPage)
+      mockResponse(secondPage)
+
+      const result = await client.getUnreadMentions()
+
+      expect(fetchCalls.length).toBe(2)
+      expect(fetchCalls[1].url).toContain('before=901')
+      expect(result.count).toBe(101)
+    })
+
+    it('deduplicates mentions repeated across pages', async () => {
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      stubReadState(client, [{ channelId: 'c1', lastMessageId: '0', mentionCount: 100 }])
+
+      const page = Array.from({ length: 100 }, (_, i) => mention(String(1000 - i), 'c1'))
+      const overlap = [mention('901', 'c1'), mention('800', 'c1')]
+      mockResponse(page)
+      mockResponse(overlap)
+
+      const result = await client.getUnreadMentions()
+
+      const ids = result.mentions.map((m) => m.id)
+      expect(new Set(ids).size).toBe(ids.length)
+    })
+
+    it('caps the scan at limit 1 with a single bounded request', async () => {
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      stubReadState(client, [{ channelId: 'c1', lastMessageId: '0', mentionCount: 5 }])
+      mockResponse([mention('1000', 'c1')])
+
+      const result = await client.getUnreadMentions({ limit: 1 })
+
+      // then: exactly one page requested, capped to the limit, incomplete scan
+      expect(fetchCalls.length).toBe(1)
+      expect(fetchCalls[0].url).toContain('limit=1')
+      expect(result.count).toBe(1)
+      expect(result.complete).toBe(false)
+    })
+
+    it('caps the scan at a custom limit that spans multiple pages', async () => {
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      stubReadState(client, [{ channelId: 'c1', lastMessageId: '0', mentionCount: 200 }])
+
+      const firstPage = Array.from({ length: 100 }, (_, i) => mention(String(1000 - i), 'c1'))
+      const secondPage = Array.from({ length: 50 }, (_, i) => mention(String(900 - i), 'c1'))
+      mockResponse(firstPage)
+      mockResponse(secondPage)
+
+      const result = await client.getUnreadMentions({ limit: 150 })
+
+      // then: second page bounded to remaining 50, scan stops at the cap and is incomplete
+      expect(fetchCalls.length).toBe(2)
+      expect(fetchCalls[1].url).toContain('limit=50')
+      expect(result.count).toBe(150)
+      expect(result.complete).toBe(false)
+    })
+
+    it('marks the scan complete when a short page ends history', async () => {
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      stubReadState(client, [{ channelId: 'c1', lastMessageId: '0', mentionCount: 3 }])
+      mockResponse([mention('1000', 'c1'), mention('999', 'c1')])
+
+      const result = await client.getUnreadMentions()
+
+      expect(result.complete).toBe(true)
+      expect(result.count).toBe(2)
+    })
+
+    it('stops and reports incomplete when the cursor fails to advance', async () => {
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      stubReadState(client, [{ channelId: 'c1', lastMessageId: '0', mentionCount: 200 }])
+
+      const fullPage = Array.from({ length: 100 }, (_, i) => mention(String(1000 - i), 'c1'))
+      const repeatedPage = Array.from({ length: 100 }, (_, i) => mention(String(1000 - i), 'c1'))
+      mockResponse(fullPage)
+      mockResponse(repeatedPage)
+
+      const result = await client.getUnreadMentions()
+
+      // then: the repeated page adds nothing new, so the guard stops the scan as incomplete
+      expect(result.complete).toBe(false)
+      expect(result.count).toBe(100)
     })
   })
 })
