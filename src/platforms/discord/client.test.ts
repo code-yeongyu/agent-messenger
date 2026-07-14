@@ -226,23 +226,50 @@ describe('DiscordClient', () => {
 
       expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/channels/ch1/messages?limit=50')
     })
+
+    it('gets messages around a specific message', async () => {
+      mockResponse([])
+
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      await client.getMessages('ch1', 1, { around: 'msg/1' })
+
+      expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/channels/ch1/messages?around=msg%2F1&limit=1')
+    })
   })
 
   describe('getMessage', () => {
     it('returns single message', async () => {
-      mockResponse({
-        id: 'msg1',
-        channel_id: 'ch1',
-        author: { id: '123', username: 'user1' },
-        content: 'Message 1',
-        timestamp: '2024-01-01T00:00:00.000Z',
-      })
+      mockResponse([
+        {
+          id: 'msg1',
+          channel_id: 'ch1',
+          author: { id: '123', username: 'user1' },
+          content: 'Message 1',
+          timestamp: '2024-01-01T00:00:00.000Z',
+        },
+      ])
 
       const client = await new DiscordClient().login({ token: 'test-token' })
       const message = await client.getMessage('ch1', 'msg1')
 
       expect(message.id).toBe('msg1')
-      expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/channels/ch1/messages/msg1')
+      expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/channels/ch1/messages?around=msg1&limit=1')
+    })
+
+    it('throws when the requested message is not returned', async () => {
+      mockResponse([
+        {
+          id: 'neighbor',
+          channel_id: 'ch1',
+          author: { id: '123', username: 'user1' },
+          content: 'Nearby message',
+          timestamp: '2024-01-01T00:00:00.000Z',
+        },
+      ])
+
+      const client = await new DiscordClient().login({ token: 'test-token' })
+
+      await expect(client.getMessage('ch1', 'missing')).rejects.toEqual(new DiscordError('Message not found', '10008'))
     })
   })
 
@@ -672,6 +699,25 @@ describe('DiscordClient', () => {
       await client.getMessages('123456789')
       await client.getMessages('987654321')
 
+      expect(fetchCalls.length).toBe(2)
+    })
+
+    it('normalizes query strings for the same channel route', async () => {
+      mockResponse([], 200, {
+        'X-RateLimit-Remaining': '0',
+        'X-RateLimit-Reset': String(Date.now() / 1000 + 0.1),
+        'X-RateLimit-Bucket': 'messages-bucket',
+      })
+      mockResponse([])
+
+      const client = await new DiscordClient().login({ token: 'test-token' })
+      await client.getMessages('123456789', 1, { around: 'message-1' })
+
+      const startTime = Date.now()
+      await client.getMessages('123456789', 1, { around: 'message-2' })
+      const elapsed = Date.now() - startTime
+
+      expect(elapsed).toBeGreaterThanOrEqual(50)
       expect(fetchCalls.length).toBe(2)
     })
   })

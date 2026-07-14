@@ -8,9 +8,6 @@ import { formatOutput } from '@/shared/utils/output'
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
 import { assertDiscordWritable } from '../readonly-guard'
-import type { DiscordMessage, DiscordReaction } from '../types'
-
-type DiscordMessageWithReactions = DiscordMessage & { reactions?: DiscordReaction[] }
 
 export async function addAction(
   channelId: string,
@@ -115,7 +112,7 @@ export async function listAction(channelId: string, messageId: string, options: 
       process.exit(1)
     }
 
-    const reactions = (message as DiscordMessageWithReactions).reactions || []
+    const reactions = message.reactions ?? []
 
     console.log(
       formatOutput(

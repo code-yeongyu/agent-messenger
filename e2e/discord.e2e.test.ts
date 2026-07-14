@@ -83,7 +83,7 @@ describe('Discord E2E Tests', () => {
       expect(Array.isArray(data)).toBe(true)
     })
 
-    it.skip('message get retrieves specific message (requires bot token)', async () => {
+    it('message get retrieves specific message', async () => {
       const testId = generateTestId()
       const { id } = await createTestMessage('discord', DISCORD_TEST_CHANNEL_ID, `Get test ${testId}`)
       testMessages.push(id)
@@ -194,7 +194,7 @@ describe('Discord E2E Tests', () => {
   })
 
   describe('reaction', () => {
-    it.skip('reaction add/list/remove lifecycle (requires bot token)', async () => {
+    it('reaction add/list/remove lifecycle', async () => {
       const testId = generateTestId()
       const { id } = await createTestMessage('discord', DISCORD_TEST_CHANNEL_ID, `Reaction test ${testId}`)
       testMessages.push(id)
@@ -210,12 +210,26 @@ describe('Discord E2E Tests', () => {
       // List reactions
       const listResult = await runCLI('discord', ['reaction', 'list', DISCORD_TEST_CHANNEL_ID, id])
       expect(listResult.exitCode).toBe(0)
+      const listed = parseJSON<{ reactions: Array<{ emoji: { name: string | null }; count: number }> }>(
+        listResult.stdout,
+      )
+      const addedReaction = listed?.reactions.find((reaction) => reaction.emoji.name === '👍')
+      expect(addedReaction?.count).toBeGreaterThan(0)
 
       await waitForRateLimit()
 
       // Remove reaction
       const removeResult = await runCLI('discord', ['reaction', 'remove', DISCORD_TEST_CHANNEL_ID, id, '👍'])
       expect(removeResult.exitCode).toBe(0)
+
+      await waitForRateLimit()
+
+      const afterRemoveResult = await runCLI('discord', ['reaction', 'list', DISCORD_TEST_CHANNEL_ID, id])
+      expect(afterRemoveResult.exitCode).toBe(0)
+      const afterRemove = parseJSON<{ reactions: Array<{ emoji: { name: string | null }; count: number }> }>(
+        afterRemoveResult.stdout,
+      )
+      expect(afterRemove?.reactions.find((reaction) => reaction.emoji.name === '👍')).toBeUndefined()
     }, 15000) // Longer timeout for multiple operations
   })
 
