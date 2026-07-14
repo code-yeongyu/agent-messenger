@@ -557,7 +557,7 @@ See [AGENTS.md](AGENTS.md#access-control-module) for the contributor view.
 | Activity feed              |  ✅   |    —    |   —   |   —   |    —     |    —     |   —   |   —    |     —     |    —      |         —           |
 | Drafts                     |  ✅   |    —    |   —   |   —   |    —     |    —     |   —   |   —    |     —     |    —      |         —           |
 | Saved items                |  ✅   |    —    |   —   |   —   |    —     |    —     |   —   |   —    |     —     |    —      |         —           |
-| Unread messages            |  ✅   |    —    |   —   |   —   |    —     |    —     |   —   |   —    |     —     |    —      |         —           |
+| Unread messages            |  ✅   |   ✅²   |   —   |   —   |    —     |    —     |   —   |   —    |     —     |    —      |         —           |
 | Sidebar sections           |  ✅   |    —    |   —   |   —   |    —     |    —     |   —   |   —    |     —     |    —      |         —           |
 | Pins & bookmarks           |  ✅   |    —    |   —   |   —   |    —     |    —     |   —   |   —    |     —     |    —      |         —           |
 | Scheduled messages         |  ✅   |    —    |   —   |   —   |    —     |    —     |   —   |   —    |     —     |    —      |         —           |
@@ -570,6 +570,8 @@ See [AGENTS.md](AGENTS.md#access-control-module) for the contributor view.
 > ⚠️ **Teams tokens expire in 60-90 minutes.** Re-run `agent-teams auth extract` to refresh. See [Teams Guide](skills/agent-teams/SKILL.md) for details.
 
 > ¹ **Teams message edit** applies to chats/DMs only. Channel messages are not editable through the internal API this client uses.
+
+> ² **Discord unread** covers unread **mentions** (`agent-discord mention unread`), not all unread messages. It correlates your recent mention history (last 7 days) with per-channel read state.
 
 > 💬 **iMessage** is supported via the local [imsg](https://github.com/openclaw/imsg) tool (`agent-imessage`), not the table above. It runs **on a Mac** (Apple has no API). v1 covers send & list messages, direct & group chats, chat listing, real-time watch, and standard tapbacks. Typing, edit/unsend, group management, and targeted/custom reactions require imsg's bridge (SIP disabled) and are a later tier. See the [iMessage Guide](skills/agent-imessage/SKILL.md).
 
