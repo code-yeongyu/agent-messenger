@@ -199,10 +199,10 @@ When triggering manually, you can select which platform to test:
 | ------------- | ------------------------------------------ |
 | `auth`        | status                                     |
 | `server`      | list, current, info                        |
-| `message`     | send, list, get\*, delete, ack, search     |
+| `message`     | send, list, get, delete, ack, search       |
 | `channel`     | list, info, history                        |
 | `user`        | list\*, me, info                           |
-| `reaction`    | add\*, list\*, remove\*                    |
+| `reaction`    | add, list, remove                           |
 | `file`        | upload, list, info                         |
 | `snapshot`    | default\*, --channels-only, --users-only\* |
 

@@ -150,6 +150,17 @@ it('DiscordReactionSchema validates reaction with custom emoji', () => {
   expect(result.success).toBe(true)
 })
 
+it('DiscordReactionSchema validates nullable emoji fields', () => {
+  const result = DiscordReactionSchema.safeParse({
+    emoji: {
+      id: null,
+      name: null,
+    },
+    count: 1,
+  })
+  expect(result.success).toBe(true)
+})
+
 it('DiscordReactionSchema rejects missing required fields', () => {
   const result = DiscordReactionSchema.safeParse({
     emoji: {
