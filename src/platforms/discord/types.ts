@@ -91,6 +91,26 @@ export interface DiscordUserNote {
   note: string
 }
 
+export interface DiscordReadState {
+  channelId: string
+  lastMessageId: string | null
+  mentionCount: number
+}
+
+export interface DiscordUnreadMention extends DiscordMention {
+  mention_count: number
+}
+
+export interface DiscordUnreadMentionsResult {
+  mentions: DiscordUnreadMention[]
+  count: number
+  // Account-wide unread-mention badge total; not narrowed by guildId because
+  // READY read states carry no guild association.
+  badgeCount: number
+  complete: boolean
+  windowDays: number
+}
+
 export interface DiscordSearchResult {
   id: string
   channel_id: string
@@ -401,6 +421,24 @@ export interface DiscordGatewayGenericEvent {
   type: string
   [key: string]: unknown
 }
+
+// read_state_type 0 = channel read state (carries last_message_id); non-zero types
+// carry last_acked_id instead and must be filtered out for mention correlation.
+export const DiscordRawReadStateSchema = z.object({
+  id: z.string(),
+  read_state_type: z.number().optional(),
+  last_message_id: z.string().nullish(),
+  mention_count: z.number().optional(),
+})
+
+export type DiscordRawReadState = z.infer<typeof DiscordRawReadStateSchema>
+
+// READY sends read_state as a raw array, or as { entries, version } when the
+// VERSIONED_READ_STATES gateway capability is negotiated.
+export const DiscordReadyReadStateSchema = z.union([
+  z.array(z.unknown()),
+  z.object({ entries: z.array(z.unknown()), version: z.number().optional() }),
+])
 
 export type DiscordGatewayEvent =
   | DiscordGatewayMessageCreateEvent
