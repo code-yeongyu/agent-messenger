@@ -75,7 +75,9 @@ export class DiscordClient {
   }
 
   private getBucketKey(method: string, path: string): string {
-    const normalized = path
+    const queryIndex = path.indexOf('?')
+    const route = queryIndex === -1 ? path : path.slice(0, queryIndex)
+    const normalized = route
       .replace(/\/channels\/\d+/, '/channels/{channel_id}')
       .replace(/\/guilds\/\d+/, '/guilds/{guild_id}')
       .replace(/\/users\/\d+/, '/users/{user_id}')
@@ -235,12 +237,22 @@ export class DiscordClient {
     return this.request<DiscordMessage>('POST', `/channels/${channelId}/messages`, body)
   }
 
-  async getMessages(channelId: string, limit: number = 50): Promise<DiscordMessage[]> {
-    return this.request<DiscordMessage[]>('GET', `/channels/${channelId}/messages?limit=${limit}`)
+  async getMessages(channelId: string, limit: number = 50, options?: { around?: string }): Promise<DiscordMessage[]> {
+    const params = new URLSearchParams()
+    if (options?.around) {
+      params.set('around', options.around)
+    }
+    params.set('limit', limit.toString())
+    return this.request<DiscordMessage[]>('GET', `/channels/${channelId}/messages?${params}`)
   }
 
   async getMessage(channelId: string, messageId: string): Promise<DiscordMessage> {
-    return this.request<DiscordMessage>('GET', `/channels/${channelId}/messages/${messageId}`)
+    const messages = await this.getMessages(channelId, 1, { around: messageId })
+    const message = messages[0]
+    if (!message || message.id !== messageId) {
+      throw new DiscordError('Message not found', '10008')
+    }
+    return message
   }
 
   async editMessage(channelId: string, messageId: string, content: string): Promise<DiscordMessage> {
