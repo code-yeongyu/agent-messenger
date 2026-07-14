@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, spyOn, it } from 'bun:test'
 
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
+import { unreadAction } from './mention'
 
 let clientGetMentionsSpy: ReturnType<typeof spyOn>
 let credManagerLoadSpy: ReturnType<typeof spyOn>
@@ -127,4 +128,87 @@ it('getMentions: includes mention metadata', async () => {
   expect(mention.timestamp).toBeDefined()
   expect(mention.mention_everyone).toBeDefined()
   expect(mention.mentions).toBeDefined()
+})
+
+it('unread command: emits snake_case JSON and forwards guild/limit options', async () => {
+  // given: an authenticated client whose getUnreadMentions returns one unread mention
+  credManagerLoadSpy.mockResolvedValue({
+    token: 'test-token',
+    current_server: null,
+    servers: {},
+  })
+  const loginSpy = spyOn(DiscordClient.prototype, 'login').mockImplementation(async function (this: DiscordClient) {
+    return this
+  })
+  const getUnreadSpy = spyOn(DiscordClient.prototype, 'getUnreadMentions').mockResolvedValue({
+    mentions: [
+      {
+        id: 'msg-1',
+        channel_id: 'ch-1',
+        author: { id: 'user-1', username: 'alice' },
+        content: 'Hey @testuser',
+        timestamp: '2024-01-29T10:00:00Z',
+        mention_everyone: false,
+        mentions: [{ id: 'user-me', username: 'testuser' }],
+        guild_id: 'guild-1',
+        mention_count: 2,
+      },
+    ],
+    count: 1,
+    badgeCount: 2,
+    complete: true,
+    windowDays: 7,
+  })
+  const consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {})
+
+  // when: running the unread action with guild and limit
+  await unreadAction({ guild: 'guild-1', limit: 200 })
+
+  // then: options are forwarded and the emitted JSON uses documented snake_case keys
+  expect(getUnreadSpy).toHaveBeenCalledWith({ guildId: 'guild-1', limit: 200 })
+  const lastCall = consoleLogSpy.mock.calls.at(-1) as [string]
+  const emitted = JSON.parse(lastCall[0])
+  expect(emitted).toEqual({
+    mentions: [
+      {
+        id: 'msg-1',
+        channel_id: 'ch-1',
+        author: 'alice',
+        content: 'Hey @testuser',
+        timestamp: '2024-01-29T10:00:00Z',
+        mention_everyone: false,
+        mentioned_users: ['testuser'],
+        guild_id: 'guild-1',
+      },
+    ],
+    count: 1,
+    badge_count: 2,
+    complete: true,
+    window_days: 7,
+  })
+
+  loginSpy.mockRestore()
+  getUnreadSpy.mockRestore()
+  consoleLogSpy.mockRestore()
+})
+
+it('unread command: exits with error when not authenticated', async () => {
+  // given: no token in credentials
+  credManagerLoadSpy.mockResolvedValue({
+    token: undefined,
+    current_server: null,
+    servers: {},
+  })
+  const consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {})
+  const processExitSpy = spyOn(process, 'exit').mockImplementation((_code?: number) => undefined as never)
+
+  // when: running the unread action
+  await unreadAction({})
+
+  // then: it reports the auth error and exits
+  expect(consoleLogSpy).toHaveBeenCalledWith(JSON.stringify({ error: 'Not authenticated. Run "auth extract" first.' }))
+  expect(processExitSpy).toHaveBeenCalledWith(1)
+
+  consoleLogSpy.mockRestore()
+  processExitSpy.mockRestore()
 })
