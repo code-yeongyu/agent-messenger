@@ -1,7 +1,7 @@
 ---
 name: agent-discord
 description: Read Discord servers with personal tokens - inspect servers, channels, messages, members, mentions, files, snapshots, and readonly credentials. NEVER send messages or perform Discord write automation with agent-discord; use agent-discordbot for bot-token writes.
-version: 2.31.0
+version: 2.32.0
 allowed-tools: Bash(agent-discord:*)
 metadata:
   openclaw:
@@ -537,7 +537,14 @@ const { results } = await client.searchMessages(serverId, 'deployment', {
 
 // Read recent messages
 const messages = await client.getMessages(channelId, 10)
-console.log({ results, messages })
+
+// List unread mentions (correlates mention history with per-channel read state)
+const { mentions, count, badgeCount, complete } = await client.getUnreadMentions()
+// count = enumerated unread mentions; badgeCount = account-wide badge total;
+// complete = true when all available mentions (7-day window) were scanned,
+// false when the scan stopped early at the limit or a non-advancing cursor
+
+console.log({ results, messages, mentions, count, badgeCount, complete })
 ```
 
 ### Real-Time Events (SDK)

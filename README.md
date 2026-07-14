@@ -244,6 +244,17 @@ const msg = await discord.sendMessage(channelId, 'Deploying…')
 await discord.editMessage(channelId, msg.id, 'Deployed ✅')
 ```
 
+### Unread Mentions (Discord)
+
+`getUnreadMentions` returns only the mentions behind Discord's unread-mention badge by correlating your recent mention history (Discord's 7-day window) with per-channel read state. `count` is the enumerated unread mentions, `badgeCount` is Discord's account-wide badge total, and `complete` is `true` when the scan exhausted all available mention history and `false` when it stopped early due to the limit or a non-advancing cursor.
+
+```typescript
+import { DiscordClient } from 'agent-messenger/discord'
+
+const discord = await new DiscordClient().login()
+const { mentions, count, badgeCount, complete } = await discord.getUnreadMentions()
+```
+
 ### QR Code Login (Slack)
 
 Sign in with a QR code from Slack's "Sign in on mobile" screen — no desktop app or browser automation, just HTTP. `dataUrl` is the QR image as a `data:image/png;base64,...` string.
