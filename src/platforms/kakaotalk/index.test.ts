@@ -17,6 +17,7 @@ import {
   KakaoTalkPushMessageEventSchema,
   KakaoProfileSchema,
   KakaoTalkPushReadEventSchema,
+  KakaoTypingResultSchema,
 } from '@/platforms/kakaotalk/index'
 
 it('KakaoTalkClient is exported from barrel', () => {
@@ -81,4 +82,8 @@ it('classifyKakaoChat is exported from barrel', () => {
 
 it('KakaoLeaveChatResultSchema is exported from barrel', () => {
   expect(typeof KakaoLeaveChatResultSchema.parse).toBe('function')
+})
+
+it('KakaoTypingResultSchema is exported from barrel', () => {
+  expect(typeof KakaoTypingResultSchema.parse).toBe('function')
 })
