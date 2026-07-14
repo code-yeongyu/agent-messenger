@@ -269,7 +269,19 @@ agent-discord dm create <user-id>
 agent-discord mention list
 agent-discord mention list --limit 50
 agent-discord mention list --guild <server-id>
+
+# List only unread mentions (the app's unread-mention badge)
+agent-discord mention unread
+agent-discord mention unread --guild <server-id>
+agent-discord mention unread --limit 200
 ```
+
+`mention unread` correlates your recent mention history (last 7 days) with Discord's
+per-channel read state, returning only mentions newer than each channel's read marker.
+Output includes `count` (enumerated unread mentions), `badge_count` (Discord's own
+account-wide unread-mention badge total — not narrowed by `--guild`), and `complete`
+(whether the scan reached the end of history within the 7-day window). `badge_count`
+can exceed `count` when unread mentions fall outside the 7-day window.
 
 ### Friend Commands
 
