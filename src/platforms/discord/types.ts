@@ -38,6 +38,7 @@ export interface DiscordMessage {
   timestamp: string
   edited_timestamp?: string
   thread_id?: string
+  reactions?: DiscordReaction[]
 }
 
 export interface DiscordUser {
@@ -58,8 +59,8 @@ export interface DiscordDMChannel {
 
 export interface DiscordReaction {
   emoji: {
-    id?: string
-    name: string
+    id?: string | null
+    name: string | null
   }
   count: number
 }
@@ -190,6 +191,14 @@ export const DiscordChannelSchema = z.object({
   position: z.number().optional(),
 })
 
+export const DiscordReactionSchema = z.object({
+  emoji: z.object({
+    id: z.string().nullish(),
+    name: z.string().nullable(),
+  }),
+  count: z.number(),
+})
+
 export const DiscordMessageSchema = z.object({
   id: z.string(),
   channel_id: z.string(),
@@ -201,6 +210,7 @@ export const DiscordMessageSchema = z.object({
   timestamp: z.string(),
   edited_timestamp: z.string().optional(),
   thread_id: z.string().optional(),
+  reactions: z.array(DiscordReactionSchema).optional(),
 })
 
 export const DiscordUserSchema = z.object({
@@ -217,14 +227,6 @@ export const DiscordDMChannelSchema = z.object({
   last_message_id: z.string().optional(),
   recipients: z.array(DiscordUserSchema),
   name: z.string().optional(),
-})
-
-export const DiscordReactionSchema = z.object({
-  emoji: z.object({
-    id: z.string().optional(),
-    name: z.string(),
-  }),
-  count: z.number(),
 })
 
 export const DiscordFileSchema = z.object({
