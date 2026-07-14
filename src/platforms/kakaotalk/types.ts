@@ -213,6 +213,12 @@ export interface KakaoLeaveChatResult {
   chat_id: string
 }
 
+export interface KakaoTypingResult {
+  success: boolean
+  status_code: number
+  chat_id: string
+}
+
 export const KakaoChatSchema = z.object({
   chat_id: z.string(),
   type: z.number(),
@@ -270,6 +276,12 @@ export const KakaoMarkReadResultSchema = z.object({
 })
 
 export const KakaoLeaveChatResultSchema = z.object({
+  success: z.boolean(),
+  status_code: z.number(),
+  chat_id: z.string(),
+})
+
+export const KakaoTypingResultSchema = z.object({
   success: z.boolean(),
   status_code: z.number(),
   chat_id: z.string(),

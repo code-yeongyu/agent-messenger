@@ -27,6 +27,7 @@ import {
   type KakaoReplyExtra,
   type KakaoReplyTarget,
   type KakaoSendResult,
+  type KakaoTypingResult,
 } from './types'
 
 export type KakaoSessionEvent =
@@ -1006,6 +1007,30 @@ export class KakaoTalkClient {
         }
       } catch (error) {
         throw wrapError(error, 'reply_message_failed')
+      }
+    })
+  }
+
+  async sendTyping(chatId: string, opts?: { linkId?: string }): Promise<KakaoTypingResult> {
+    const parsedChatId = parseChatId(chatId)
+    const parsedLinkId = opts?.linkId !== undefined ? parseLinkId(opts.linkId) : undefined
+
+    return this.executeWithReconnect(async ({ session }) => {
+      try {
+        const response = await session.sendTyping(parsedChatId, parsedLinkId)
+        // Throw on transport-level failure (incl. synthetic { statusCode: -1 }
+        // from LocoConnection.handleClose) so executeWithReconnect retries on
+        // a fresh session — matches the markRead pattern.
+        if (response.statusCode !== 0) {
+          throw new Error(`ACTION failed: statusCode=${response.statusCode}`)
+        }
+        return {
+          success: true,
+          status_code: response.statusCode,
+          chat_id: chatId,
+        }
+      } catch (error) {
+        throw wrapError(error, 'send_typing_failed')
       }
     })
   }
