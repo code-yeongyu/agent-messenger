@@ -144,7 +144,18 @@ const dm = await client.createDM(userId)
 const mentions = await client.getMentions()
 const filtered = await client.getMentions({ limit: 10, guildId: serverId })
 // → DiscordMention[]
+
+// Get only unread mentions — the messages behind Discord's unread-mention badge
+const unread = await client.getUnreadMentions()
+const scoped = await client.getUnreadMentions({ guildId: serverId, limit: 200 })
+// → DiscordUnreadMentionsResult { mentions, count, badgeCount, complete, windowDays }
+
+// Snapshot per-channel read state directly (one-shot gateway connect)
+const readState = await client.fetchReadState()
+// → DiscordReadState[] { channelId, lastMessageId, mentionCount }
 ```
+
+`getUnreadMentions` correlates recent mention history (Discord's 7-day window) with per-channel read state, returning only mentions newer than each channel's read marker. `count` is the number of enumerated unread mentions; `badgeCount` is Discord's own account-wide unread-mention badge total (not narrowed by `guildId`, since read states carry no guild association); `complete` is `true` when the scan exhausted all available mention history (Discord's 7-day window) and `false` when it stopped early at `limit` or a non-advancing cursor.
 
 ### User Notes
 
@@ -345,6 +356,9 @@ import type {
   DiscordReaction,
   DiscordFile,
   DiscordMention,
+  DiscordReadState,
+  DiscordUnreadMention,
+  DiscordUnreadMentionsResult,
   DiscordUserNote,
   DiscordSearchResult,
   DiscordSearchResponse,
@@ -475,6 +489,30 @@ for (const mention of mentions) {
     ? `${existing.note}\n[${new Date().toISOString()}] Mentioned me: "${mention.content.slice(0, 80)}"`
     : `[${new Date().toISOString()}] Mentioned me: "${mention.content.slice(0, 80)}"`
   await client.setUserNote(mention.author.id, noteText)
+}
+```
+
+### Unread Mentions Digest
+
+Fetch only unread mentions, reply to each, and mark them read.
+
+```typescript
+import { DiscordClient } from 'agent-messenger/discord'
+
+const client = await new DiscordClient().login({ token })
+
+const { mentions, count, badgeCount, complete } = await client.getUnreadMentions()
+
+console.log(`${count} unread mentions fetched (badge shows ${badgeCount})`)
+if (!complete) {
+  console.log('The scan hit the limit — some unread mentions may not have been fetched')
+}
+
+for (const mention of mentions) {
+  await client.sendMessage(mention.channel_id, `On it <@${mention.author.id}>!`)
+
+  // Mark the message read so it drops off the unread badge
+  await client.ackMessage(mention.channel_id, mention.id)
 }
 ```
 

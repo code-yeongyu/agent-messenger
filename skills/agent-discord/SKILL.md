@@ -515,6 +515,12 @@ const { results } = await client.searchMessages(serverId, 'deployment', {
   limit: 5,
 })
 
+// List unread mentions (correlates mention history with per-channel read state)
+const { mentions, count, badgeCount, complete } = await client.getUnreadMentions()
+// count = enumerated unread mentions; badgeCount = account-wide badge total;
+// complete = true when all available mentions (7-day window) were scanned,
+// false when the scan stopped early at the limit or a non-advancing cursor
+
 // Create a thread
 const thread = await client.createThread(channelId, 'Discussion Topic')
 await client.sendMessage(thread.id, 'First message in thread')
