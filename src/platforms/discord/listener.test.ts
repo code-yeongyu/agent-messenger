@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, mock, it } from 'bun:test'
 
-import { DiscordListener } from '@/platforms/discord/listener'
+import { DiscordListener, parseReadStates } from '@/platforms/discord/listener'
 import type {
   DiscordGatewayGenericEvent,
   DiscordGatewayMessageCreateEvent,
@@ -68,7 +68,7 @@ class MockWs {
     this.simulateMessage({ op: 10, d: { heartbeat_interval: interval } })
   }
 
-  simulateReady(sessionId = 'session_123') {
+  simulateReady(sessionId = 'session_123', readState?: unknown) {
     this.simulateMessage({
       op: 0,
       t: 'READY',
@@ -77,6 +77,7 @@ class MockWs {
         session_id: sessionId,
         resume_gateway_url: 'wss://resume.discord.gg',
         user: { id: 'U_SELF', username: 'testbot' },
+        ...(readState === undefined ? {} : { read_state: readState }),
       },
     })
   }
@@ -134,6 +135,33 @@ async function startConnecting(listener: DiscordListener): Promise<MockWs> {
   ws.simulateOpen()
   return ws
 }
+
+describe('parseReadStates', () => {
+  it('filters out non-channel read state types', () => {
+    const result = parseReadStates([
+      { id: 'c1', last_message_id: '100', mention_count: 1 },
+      { id: 'c2', read_state_type: 2, mention_count: 5 },
+    ])
+
+    expect(result).toEqual([{ channelId: 'c1', lastMessageId: '100', mentionCount: 1 }])
+  })
+
+  it('normalizes missing last_message_id and mention_count', () => {
+    const result = parseReadStates([{ id: 'c1' }])
+
+    expect(result).toEqual([{ channelId: 'c1', lastMessageId: null, mentionCount: 0 }])
+  })
+
+  it('skips malformed entries but keeps valid ones', () => {
+    const result = parseReadStates([{ id: 'c1', mention_count: 1 }, { mention_count: 3 }])
+
+    expect(result).toEqual([{ channelId: 'c1', lastMessageId: null, mentionCount: 1 }])
+  })
+
+  it('throws on a non-array, non-versioned payload', () => {
+    expect(() => parseReadStates({ foo: 'bar' })).toThrow(/invalid read_state/)
+  })
+})
 
 describe('DiscordListener', () => {
   let listener: DiscordListener
@@ -232,6 +260,45 @@ describe('DiscordListener', () => {
       expect(connected.length).toBe(1)
       expect(connected[0].user.id).toBe('U_SELF')
       expect(connected[0].sessionId).toBe('session_123')
+    })
+  })
+
+  describe('read state', () => {
+    it('captures raw-array read_state from READY', async () => {
+      const client = createMockClient()
+      listener = new DiscordListener(client)
+
+      const started = listener.start()
+      const ws = await waitForSocket()
+      ws.simulateOpen()
+      ws.simulateHello()
+      ws.simulateReady('session_123', [{ id: 'c1', last_message_id: '100', mention_count: 2 }])
+      await started
+
+      expect(listener.getReadState()).toEqual([{ channelId: 'c1', lastMessageId: '100', mentionCount: 2 }])
+    })
+
+    it('captures versioned { entries } read_state from READY', async () => {
+      const client = createMockClient()
+      listener = new DiscordListener(client)
+
+      const started = listener.start()
+      const ws = await waitForSocket()
+      ws.simulateOpen()
+      ws.simulateHello()
+      ws.simulateReady('session_123', { version: 7, entries: [{ id: 'c1', last_message_id: '100', mention_count: 1 }] })
+      await started
+
+      expect(listener.getReadState()).toEqual([{ channelId: 'c1', lastMessageId: '100', mentionCount: 1 }])
+    })
+
+    it('defaults to an empty read state when READY omits read_state', async () => {
+      const client = createMockClient()
+      listener = new DiscordListener(client)
+
+      await startAndReady(listener)
+
+      expect(listener.getReadState()).toEqual([])
     })
   })
 
