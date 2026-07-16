@@ -18,10 +18,10 @@ import type { KeychainVariant } from '@/shared/chromium'
 
 import type { ExtractedChannelToken } from './types'
 
-type CookieRow = { name: string; value: string; encrypted_value: Uint8Array | Buffer }
+type CookieRow = { name: string; value: string; encrypted_value: Uint8Array | Buffer; host_key: string }
 
 const COOKIE_QUERY = `
-  SELECT name, value, encrypted_value FROM cookies
+  SELECT name, value, encrypted_value, host_key FROM cookies
   WHERE name IN ('x-account', 'ch-session-1', 'ch-session')
   AND (host_key LIKE '%.channel.io%' OR host_key LIKE '%.channel.works%')
 `
@@ -31,6 +31,10 @@ const COOKIE_QUERY = `
 // installs (which keep the old directory around) both resolve.
 const APP_DIR_NAMES = ['Channel Works', 'Channel Talk']
 
+// Cookies for the rebranded channel.works domain and the legacy channel.io domain can coexist in
+// one profile, most likely on a browser that was signed in before and after the rebrand.
+const COOKIE_DOMAINS = ['channel.works', 'channel.io']
+
 function findExistingAppDir(bases: string[]): string | null {
   for (const base of bases) {
     for (const name of APP_DIR_NAMES) {
@@ -39,6 +43,20 @@ function findExistingAppDir(bases: string[]): string | null {
     }
   }
   return null
+}
+
+/**
+ * Split cookie rows into one group per domain, newest domain first, dropping domains with no rows.
+ *
+ * Callers resolve a credential pair from a single group rather than from all rows at once. That
+ * keeps `x-account` and its session cookie from being read off different domains, which would pair
+ * an identity with a session that does not belong to it, and it stops a leftover legacy cookie from
+ * shadowing a live channel.works one.
+ */
+function groupRowsByDomain(rows: CookieRow[]): CookieRow[][] {
+  return COOKIE_DOMAINS.map((domain) => rows.filter((row) => row.host_key.includes(domain))).filter(
+    (group) => group.length > 0,
+  )
 }
 
 export class ChannelTokenExtractor {
@@ -231,12 +249,18 @@ export class ChannelTokenExtractor {
     if (rows.length === 0) return null
 
     const localStatePath = this.getLocalStatePath() ?? undefined
-    const accountCookie = this.getDesktopCookieValue(rows, 'x-account', localStatePath)
-    const sessionCookie =
-      this.getDesktopCookieValue(rows, 'ch-session-1', localStatePath) ??
-      this.getDesktopCookieValue(rows, 'ch-session', localStatePath)
+    for (const group of groupRowsByDomain(rows)) {
+      const accountCookie = this.getDesktopCookieValue(group, 'x-account', localStatePath)
+      if (!accountCookie) continue
 
-    return accountCookie ? { accountCookie, sessionCookie } : null
+      const sessionCookie =
+        this.getDesktopCookieValue(group, 'ch-session-1', localStatePath) ??
+        this.getDesktopCookieValue(group, 'ch-session', localStatePath)
+
+      return { accountCookie, sessionCookie }
+    }
+
+    return null
   }
 
   private async extractFromBrowserCookiePath(cookiePath: string): Promise<ExtractedChannelToken | null> {
@@ -244,12 +268,18 @@ export class ChannelTokenExtractor {
     if (rows.length === 0) return null
 
     const localStatePath = findLocalStatePath(cookiePath) ?? undefined
-    const accountCookie = this.getBrowserCookieValue(rows, 'x-account', localStatePath)
-    const sessionCookie =
-      this.getBrowserCookieValue(rows, 'ch-session-1', localStatePath) ??
-      this.getBrowserCookieValue(rows, 'ch-session', localStatePath)
+    for (const group of groupRowsByDomain(rows)) {
+      const accountCookie = this.getBrowserCookieValue(group, 'x-account', localStatePath)
+      if (!accountCookie) continue
 
-    return accountCookie ? { accountCookie, sessionCookie } : null
+      const sessionCookie =
+        this.getBrowserCookieValue(group, 'ch-session-1', localStatePath) ??
+        this.getBrowserCookieValue(group, 'ch-session', localStatePath)
+
+      return { accountCookie, sessionCookie }
+    }
+
+    return null
   }
 
   private getDesktopCookieValue(rows: CookieRow[], name: string, localStatePath?: string): string | undefined {
