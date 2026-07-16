@@ -20,12 +20,6 @@ import type { ExtractedChannelToken } from './types'
 
 type CookieRow = { name: string; value: string; encrypted_value: Uint8Array | Buffer; host_key: string }
 
-const COOKIE_QUERY = `
-  SELECT name, value, encrypted_value, host_key FROM cookies
-  WHERE name IN ('x-account', 'ch-session-1', 'ch-session')
-  AND (host_key LIKE '%.channel.io%' OR host_key LIKE '%.channel.works%')
-`
-
 // Channel Talk was rebranded to Channel Works: the desktop app now stores its cookies under a
 // "Channel Works" directory. Both names are probed, newest first, so upgraded and legacy
 // installs (which keep the old directory around) both resolve.
@@ -34,6 +28,31 @@ const APP_DIR_NAMES = ['Channel Works', 'Channel Talk']
 // Cookies for the rebranded channel.works domain and the legacy channel.io domain can coexist in
 // one profile, most likely on a browser that was signed in before and after the rebrand.
 const COOKIE_DOMAINS = ['channel.works', 'channel.io']
+
+/**
+ * Match a cookie's host key against a domain on an exact label boundary: the domain itself, or a
+ * subdomain of it.
+ *
+ * Substring matching is not good enough here. `host_key LIKE '%.channel.works%'` also admits an
+ * unrelated host such as `.channel.works.example.com`, so a cookie planted by anyone who controls
+ * a name of that shape could shadow the real one and be sent to the Channel API as our identity.
+ */
+function hostMatchesDomain(hostKey: string, domain: string): boolean {
+  const host = hostKey.startsWith('.') ? hostKey.slice(1) : hostKey
+  return host === domain || host.endsWith(`.${domain}`)
+}
+
+// Mirrors hostMatchesDomain in SQL so the database does the same boundary-aware narrowing. The
+// domains are hardcoded constants, never caller input, so interpolating them is safe.
+const COOKIE_HOST_FILTER = COOKIE_DOMAINS.map((domain) => `host_key = '${domain}' OR host_key LIKE '%.${domain}'`).join(
+  ' OR ',
+)
+
+const COOKIE_QUERY = `
+  SELECT name, value, encrypted_value, host_key FROM cookies
+  WHERE name IN ('x-account', 'ch-session-1', 'ch-session')
+  AND (${COOKIE_HOST_FILTER})
+`
 
 function findExistingAppDir(bases: string[]): string | null {
   for (const base of bases) {
@@ -54,7 +73,7 @@ function findExistingAppDir(bases: string[]): string | null {
  * shadowing a live channel.works one.
  */
 function groupRowsByDomain(rows: CookieRow[]): CookieRow[][] {
-  return COOKIE_DOMAINS.map((domain) => rows.filter((row) => row.host_key.includes(domain))).filter(
+  return COOKIE_DOMAINS.map((domain) => rows.filter((row) => hostMatchesDomain(row.host_key, domain))).filter(
     (group) => group.length > 0,
   )
 }
