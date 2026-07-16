@@ -18,9 +18,59 @@ describe('ChannelTokenExtractor', () => {
   })
 
   describe('getAppDataDir', () => {
+    const originalAppData = process.env.APPDATA
+
+    afterEach(() => {
+      if (originalAppData === undefined) delete process.env.APPDATA
+      else process.env.APPDATA = originalAppData
+    })
+
     it('returns null for unsupported platform', () => {
       const extractor = new ChannelTokenExtractor('freebsd' as NodeJS.Platform)
       expect(extractor.getAppDataDir()).toBeNull()
+    })
+
+    it('resolves the rebranded Channel Works directory', () => {
+      // given
+      const tempDir = mkdtempSync(join(tmpdir(), 'channel-appdata-'))
+      tempDirs.push(tempDir)
+      mkdirSync(join(tempDir, 'Channel Works'), { recursive: true })
+      process.env.APPDATA = tempDir
+
+      // when
+      const extractor = new ChannelTokenExtractor('win32')
+
+      // then
+      expect(extractor.getAppDataDir()).toBe(join(tempDir, 'Channel Works'))
+    })
+
+    it('falls back to the legacy Channel Talk directory', () => {
+      // given
+      const tempDir = mkdtempSync(join(tmpdir(), 'channel-appdata-'))
+      tempDirs.push(tempDir)
+      mkdirSync(join(tempDir, 'Channel Talk'), { recursive: true })
+      process.env.APPDATA = tempDir
+
+      // when
+      const extractor = new ChannelTokenExtractor('win32')
+
+      // then
+      expect(extractor.getAppDataDir()).toBe(join(tempDir, 'Channel Talk'))
+    })
+
+    it('prefers Channel Works when an upgraded install keeps both directories', () => {
+      // given
+      const tempDir = mkdtempSync(join(tmpdir(), 'channel-appdata-'))
+      tempDirs.push(tempDir)
+      mkdirSync(join(tempDir, 'Channel Talk'), { recursive: true })
+      mkdirSync(join(tempDir, 'Channel Works'), { recursive: true })
+      process.env.APPDATA = tempDir
+
+      // when
+      const extractor = new ChannelTokenExtractor('win32')
+
+      // then
+      expect(extractor.getAppDataDir()).toBe(join(tempDir, 'Channel Works'))
     })
   })
 
@@ -171,6 +221,39 @@ describe('ChannelTokenExtractor', () => {
           sessionCookie: 'session-jwt',
         },
       ])
+    })
+
+    it('extracts cookies stored on the rebranded channel.works domain', async () => {
+      const tempDir = mkdtempSync(join(tmpdir(), 'channel-cookie-db-'))
+      tempDirs.push(tempDir)
+      const dbPath = join(tempDir, 'Cookies')
+      await createCookieDatabase(dbPath, [
+        { name: 'x-account', value: 'account-jwt', encrypted_value: Buffer.alloc(0), host_key: '.channel.works' },
+        { name: 'ch-session-1', value: 'session-jwt', encrypted_value: Buffer.alloc(0), host_key: '.channel.works' },
+      ])
+
+      class TestExtractor extends ChannelTokenExtractor {
+        constructor(private dbPath: string) {
+          super('darwin')
+        }
+
+        override getCookiesPath(): string | null {
+          return this.dbPath
+        }
+      }
+
+      const extractor = new TestExtractor(dbPath)
+      // Browser profiles are stubbed out so a real logged-in browser on the host cannot leak in.
+      const browserSpy = spyOn(extractor as any, 'extractAllFromBrowserPaths').mockResolvedValue([])
+
+      expect(await extractor.extract()).toEqual([
+        {
+          accountCookie: 'account-jwt',
+          sessionCookie: 'session-jwt',
+        },
+      ])
+
+      browserSpy.mockRestore()
     })
 
     it('returns token with undefined sessionCookie when only x-account is present', async () => {

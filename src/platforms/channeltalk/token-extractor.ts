@@ -23,8 +23,23 @@ type CookieRow = { name: string; value: string; encrypted_value: Uint8Array | Bu
 const COOKIE_QUERY = `
   SELECT name, value, encrypted_value FROM cookies
   WHERE name IN ('x-account', 'ch-session-1', 'ch-session')
-  AND host_key LIKE '%.channel.io%'
+  AND (host_key LIKE '%.channel.io%' OR host_key LIKE '%.channel.works%')
 `
+
+// Channel Talk was rebranded to Channel Works: the desktop app now stores its cookies under a
+// "Channel Works" directory. Both names are probed, newest first, so upgraded and legacy
+// installs (which keep the old directory around) both resolve.
+const APP_DIR_NAMES = ['Channel Works', 'Channel Talk']
+
+function findExistingAppDir(bases: string[]): string | null {
+  for (const base of bases) {
+    for (const name of APP_DIR_NAMES) {
+      const appDir = join(base, name)
+      if (existsSync(appDir)) return appDir
+    }
+  }
+  return null
+}
 
 export class ChannelTokenExtractor {
   private platform: NodeJS.Platform
@@ -42,7 +57,7 @@ export class ChannelTokenExtractor {
   getAppDataDir(): string | null {
     switch (this.platform) {
       case 'darwin': {
-        const sandboxedPath = join(
+        const sandboxedBase = join(
           homedir(),
           'Library',
           'Containers',
@@ -50,18 +65,13 @@ export class ChannelTokenExtractor {
           'Data',
           'Library',
           'Application Support',
-          'Channel Talk',
         )
-        if (existsSync(sandboxedPath)) {
-          return sandboxedPath
-        }
-        const directPath = join(homedir(), 'Library', 'Application Support', 'Channel Talk')
-        return existsSync(directPath) ? directPath : null
+        const directBase = join(homedir(), 'Library', 'Application Support')
+        return findExistingAppDir([sandboxedBase, directBase])
       }
       case 'win32': {
         const appdata = process.env.APPDATA || join(homedir(), 'AppData', 'Roaming')
-        const appDir = join(appdata, 'Channel Talk')
-        return existsSync(appDir) ? appDir : null
+        return findExistingAppDir([appdata])
       }
       default:
         return null
