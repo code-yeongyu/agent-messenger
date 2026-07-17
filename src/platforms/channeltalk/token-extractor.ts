@@ -18,13 +18,65 @@ import type { KeychainVariant } from '@/shared/chromium'
 
 import type { ExtractedChannelToken } from './types'
 
-type CookieRow = { name: string; value: string; encrypted_value: Uint8Array | Buffer }
+type CookieRow = { name: string; value: string; encrypted_value: Uint8Array | Buffer; host_key: string }
+
+// Channel Talk was rebranded to Channel Works: the desktop app now stores its cookies under a
+// "Channel Works" directory. Both names are probed, newest first, so upgraded and legacy
+// installs (which keep the old directory around) both resolve.
+const APP_DIR_NAMES = ['Channel Works', 'Channel Talk']
+
+// Cookies for the rebranded channel.works domain and the legacy channel.io domain can coexist in
+// one profile, most likely on a browser that was signed in before and after the rebrand.
+const COOKIE_DOMAINS = ['channel.works', 'channel.io']
+
+/**
+ * Match a cookie's host key against a domain on an exact label boundary: the domain itself, or a
+ * subdomain of it.
+ *
+ * Substring matching is not good enough here. `host_key LIKE '%.channel.works%'` also admits an
+ * unrelated host such as `.channel.works.example.com`, so a cookie planted by anyone who controls
+ * a name of that shape could shadow the real one and be sent to the Channel API as our identity.
+ */
+function hostMatchesDomain(hostKey: string, domain: string): boolean {
+  const host = hostKey.startsWith('.') ? hostKey.slice(1) : hostKey
+  return host === domain || host.endsWith(`.${domain}`)
+}
+
+// Mirrors hostMatchesDomain in SQL so the database does the same boundary-aware narrowing. The
+// domains are hardcoded constants, never caller input, so interpolating them is safe.
+const COOKIE_HOST_FILTER = COOKIE_DOMAINS.map((domain) => `host_key = '${domain}' OR host_key LIKE '%.${domain}'`).join(
+  ' OR ',
+)
 
 const COOKIE_QUERY = `
-  SELECT name, value, encrypted_value FROM cookies
+  SELECT name, value, encrypted_value, host_key FROM cookies
   WHERE name IN ('x-account', 'ch-session-1', 'ch-session')
-  AND host_key LIKE '%.channel.io%'
+  AND (${COOKIE_HOST_FILTER})
 `
+
+function findExistingAppDir(bases: string[]): string | null {
+  for (const base of bases) {
+    for (const name of APP_DIR_NAMES) {
+      const appDir = join(base, name)
+      if (existsSync(appDir)) return appDir
+    }
+  }
+  return null
+}
+
+/**
+ * Split cookie rows into one group per domain, newest domain first, dropping domains with no rows.
+ *
+ * Callers resolve a credential pair from a single group rather than from all rows at once. That
+ * keeps `x-account` and its session cookie from being read off different domains, which would pair
+ * an identity with a session that does not belong to it, and it stops a leftover legacy cookie from
+ * shadowing a live channel.works one.
+ */
+function groupRowsByDomain(rows: CookieRow[]): CookieRow[][] {
+  return COOKIE_DOMAINS.map((domain) => rows.filter((row) => hostMatchesDomain(row.host_key, domain))).filter(
+    (group) => group.length > 0,
+  )
+}
 
 export class ChannelTokenExtractor {
   private platform: NodeJS.Platform
@@ -42,7 +94,7 @@ export class ChannelTokenExtractor {
   getAppDataDir(): string | null {
     switch (this.platform) {
       case 'darwin': {
-        const sandboxedPath = join(
+        const sandboxedBase = join(
           homedir(),
           'Library',
           'Containers',
@@ -50,18 +102,13 @@ export class ChannelTokenExtractor {
           'Data',
           'Library',
           'Application Support',
-          'Channel Talk',
         )
-        if (existsSync(sandboxedPath)) {
-          return sandboxedPath
-        }
-        const directPath = join(homedir(), 'Library', 'Application Support', 'Channel Talk')
-        return existsSync(directPath) ? directPath : null
+        const directBase = join(homedir(), 'Library', 'Application Support')
+        return findExistingAppDir([sandboxedBase, directBase])
       }
       case 'win32': {
         const appdata = process.env.APPDATA || join(homedir(), 'AppData', 'Roaming')
-        const appDir = join(appdata, 'Channel Talk')
-        return existsSync(appDir) ? appDir : null
+        return findExistingAppDir([appdata])
       }
       default:
         return null
@@ -221,12 +268,18 @@ export class ChannelTokenExtractor {
     if (rows.length === 0) return null
 
     const localStatePath = this.getLocalStatePath() ?? undefined
-    const accountCookie = this.getDesktopCookieValue(rows, 'x-account', localStatePath)
-    const sessionCookie =
-      this.getDesktopCookieValue(rows, 'ch-session-1', localStatePath) ??
-      this.getDesktopCookieValue(rows, 'ch-session', localStatePath)
+    for (const group of groupRowsByDomain(rows)) {
+      const accountCookie = this.getDesktopCookieValue(group, 'x-account', localStatePath)
+      if (!accountCookie) continue
 
-    return accountCookie ? { accountCookie, sessionCookie } : null
+      const sessionCookie =
+        this.getDesktopCookieValue(group, 'ch-session-1', localStatePath) ??
+        this.getDesktopCookieValue(group, 'ch-session', localStatePath)
+
+      return { accountCookie, sessionCookie }
+    }
+
+    return null
   }
 
   private async extractFromBrowserCookiePath(cookiePath: string): Promise<ExtractedChannelToken | null> {
@@ -234,12 +287,18 @@ export class ChannelTokenExtractor {
     if (rows.length === 0) return null
 
     const localStatePath = findLocalStatePath(cookiePath) ?? undefined
-    const accountCookie = this.getBrowserCookieValue(rows, 'x-account', localStatePath)
-    const sessionCookie =
-      this.getBrowserCookieValue(rows, 'ch-session-1', localStatePath) ??
-      this.getBrowserCookieValue(rows, 'ch-session', localStatePath)
+    for (const group of groupRowsByDomain(rows)) {
+      const accountCookie = this.getBrowserCookieValue(group, 'x-account', localStatePath)
+      if (!accountCookie) continue
 
-    return accountCookie ? { accountCookie, sessionCookie } : null
+      const sessionCookie =
+        this.getBrowserCookieValue(group, 'ch-session-1', localStatePath) ??
+        this.getBrowserCookieValue(group, 'ch-session', localStatePath)
+
+      return { accountCookie, sessionCookie }
+    }
+
+    return null
   }
 
   private getDesktopCookieValue(rows: CookieRow[], name: string, localStatePath?: string): string | undefined {

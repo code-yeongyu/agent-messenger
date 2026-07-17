@@ -438,14 +438,14 @@ npx -y agent-messenger channeltalk snapshot --pretty
 
 ### Channel Talk desktop app not found
 
-The CLI looks for the Channel Talk desktop app's cookie database in these locations:
+The CLI looks for the desktop app's cookie database in these locations. The app was rebranded from Channel Talk to Channel Works, so both names are probed, `Channel Works` first.
 
 **macOS:**
-1. `~/Library/Containers/com.zoyi.channel.desk.osx/Data/Library/Application Support/Channel Talk/Cookies` (Mac App Store version)
-2. `~/Library/Application Support/Channel Talk/Cookies` (direct download / Electron version)
+1. `~/Library/Containers/com.zoyi.channel.desk.osx/Data/Library/Application Support/{Channel Works,Channel Talk}/Cookies` (Mac App Store version)
+2. `~/Library/Application Support/{Channel Works,Channel Talk}/Cookies` (direct download / Electron version)
 
 **Windows:**
-1. `%APPDATA%\Channel Talk\Network\Cookies`
+1. `%APPDATA%\{Channel Works,Channel Talk}\Network\Cookies`
 
 If none exist, log in to Channel Talk in a supported Chromium browser (Chrome, Edge, Arc, Brave) or install the desktop app and log in.
 

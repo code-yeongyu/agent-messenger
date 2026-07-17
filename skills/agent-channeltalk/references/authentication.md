@@ -29,7 +29,7 @@ Use `--browser-profile <path>` for agent-browser profiles, custom Chrome user da
 1. Locates the Channel Talk desktop app's SQLite cookie database
 2. Scans Chromium browser profiles for Channel Talk cookies when the desktop app isn't found, or when custom `--browser-profile` paths are provided
 3. Copies the database to a temp file (avoids locking the original)
-4. Reads `x-account` and `ch-session-1` cookies for `*.channel.io`
+4. Reads `x-account` and `ch-session-1` cookies for `*.channel.io` and `*.channel.works`
 5. Decrypts encrypted cookies if needed (macOS Keychain, Linux peanuts, Windows DPAPI)
 6. Validates cookies against the Channel Talk API
 7. Discovers ALL workspaces you belong to
@@ -48,15 +48,19 @@ When extracting from the desktop app, no Keychain prompt is needed (cookies are 
 
 ### Platform-Specific Paths
 
+The desktop app was rebranded from Channel Talk to Channel Works. Both directory names are probed, `Channel Works` first, so upgraded and legacy installs both work.
+
 **macOS (Mac App Store / sandboxed):**
 
 ```
+~/Library/Containers/com.zoyi.channel.desk.osx/Data/Library/Application Support/Channel Works/Cookies
 ~/Library/Containers/com.zoyi.channel.desk.osx/Data/Library/Application Support/Channel Talk/Cookies
 ```
 
 **macOS (Electron / direct download):**
 
 ```
+~/Library/Application Support/Channel Works/Cookies
 ~/Library/Application Support/Channel Talk/Cookies
 ```
 
@@ -253,10 +257,10 @@ No credentials are configured and auto-extraction failed:
 
 The CLI first checks for the desktop app, then falls back to Chromium browsers.
 
-Desktop app paths:
-1. **macOS (Mac App Store)**: `~/Library/Containers/com.zoyi.channel.desk.osx/Data/Library/Application Support/Channel Talk/Cookies`
-2. **macOS (Electron)**: `~/Library/Application Support/Channel Talk/Cookies`
-3. **Windows**: `%APPDATA%/Channel Talk/Network/Cookies`
+Desktop app paths (`Channel Works` is the current name, `Channel Talk` the legacy one; both are probed):
+1. **macOS (Mac App Store)**: `~/Library/Containers/com.zoyi.channel.desk.osx/Data/Library/Application Support/{Channel Works,Channel Talk}/Cookies`
+2. **macOS (Electron)**: `~/Library/Application Support/{Channel Works,Channel Talk}/Cookies`
+3. **Windows**: `%APPDATA%/{Channel Works,Channel Talk}/Network/Cookies`
 
 If neither the desktop app nor browser cookies are found:
 
