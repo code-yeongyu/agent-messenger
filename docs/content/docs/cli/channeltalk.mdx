@@ -238,16 +238,16 @@ Use **agent-channeltalk** when you want zero-config access acting as yourself. U
 
 ### Channel Talk desktop app not found
 
-The CLI looks for the Channel Talk desktop app's cookie database in:
+The CLI looks for the desktop app's cookie database in the locations below. The app was rebranded from Channel Talk to Channel Works, so both names are probed, `Channel Works` first.
 
 **macOS:**
 
-1. `~/Library/Containers/com.zoyi.channel.desk.osx/Data/Library/Application Support/Channel Talk/Cookies` (Mac App Store)
-2. `~/Library/Application Support/Channel Talk/Cookies` (Electron version)
+1. `~/Library/Containers/com.zoyi.channel.desk.osx/Data/Library/Application Support/{Channel Works,Channel Talk}/Cookies` (Mac App Store)
+2. `~/Library/Application Support/{Channel Works,Channel Talk}/Cookies` (Electron version)
 
 **Windows:**
 
-1. `%APPDATA%\Channel Talk\Network\Cookies`
+1. `%APPDATA%\{Channel Works,Channel Talk}\Network\Cookies`
 
 If none exist, either install the Channel Talk desktop app and log in, or log in via a Chromium browser (Chrome, Edge, Arc, Brave, etc.) — the CLI will fall back to browser extraction automatically.
 

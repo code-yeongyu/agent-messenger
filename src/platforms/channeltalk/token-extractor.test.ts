@@ -18,9 +18,59 @@ describe('ChannelTokenExtractor', () => {
   })
 
   describe('getAppDataDir', () => {
+    const originalAppData = process.env.APPDATA
+
+    afterEach(() => {
+      if (originalAppData === undefined) delete process.env.APPDATA
+      else process.env.APPDATA = originalAppData
+    })
+
     it('returns null for unsupported platform', () => {
       const extractor = new ChannelTokenExtractor('freebsd' as NodeJS.Platform)
       expect(extractor.getAppDataDir()).toBeNull()
+    })
+
+    it('resolves the rebranded Channel Works directory', () => {
+      // given
+      const tempDir = mkdtempSync(join(tmpdir(), 'channel-appdata-'))
+      tempDirs.push(tempDir)
+      mkdirSync(join(tempDir, 'Channel Works'), { recursive: true })
+      process.env.APPDATA = tempDir
+
+      // when
+      const extractor = new ChannelTokenExtractor('win32')
+
+      // then
+      expect(extractor.getAppDataDir()).toBe(join(tempDir, 'Channel Works'))
+    })
+
+    it('falls back to the legacy Channel Talk directory', () => {
+      // given
+      const tempDir = mkdtempSync(join(tmpdir(), 'channel-appdata-'))
+      tempDirs.push(tempDir)
+      mkdirSync(join(tempDir, 'Channel Talk'), { recursive: true })
+      process.env.APPDATA = tempDir
+
+      // when
+      const extractor = new ChannelTokenExtractor('win32')
+
+      // then
+      expect(extractor.getAppDataDir()).toBe(join(tempDir, 'Channel Talk'))
+    })
+
+    it('prefers Channel Works when an upgraded install keeps both directories', () => {
+      // given
+      const tempDir = mkdtempSync(join(tmpdir(), 'channel-appdata-'))
+      tempDirs.push(tempDir)
+      mkdirSync(join(tempDir, 'Channel Talk'), { recursive: true })
+      mkdirSync(join(tempDir, 'Channel Works'), { recursive: true })
+      process.env.APPDATA = tempDir
+
+      // when
+      const extractor = new ChannelTokenExtractor('win32')
+
+      // then
+      expect(extractor.getAppDataDir()).toBe(join(tempDir, 'Channel Works'))
     })
   })
 
@@ -171,6 +221,191 @@ describe('ChannelTokenExtractor', () => {
           sessionCookie: 'session-jwt',
         },
       ])
+    })
+
+    it('ignores look-alike hosts that merely contain a channel domain', async () => {
+      const tempDir = mkdtempSync(join(tmpdir(), 'channel-cookie-db-'))
+      tempDirs.push(tempDir)
+      const dbPath = join(tempDir, 'Cookies')
+      // These hosts all contain a channel domain as a substring but are not the domain nor a
+      // subdomain of it, so nobody who controls one may speak for Channel. They are inserted
+      // first so a substring match would let them shadow the real cookies below.
+      await createCookieDatabase(dbPath, [
+        {
+          name: 'x-account',
+          value: 'imposter-account',
+          encrypted_value: Buffer.alloc(0),
+          host_key: '.channel.works.example.com',
+        },
+        {
+          name: 'ch-session-1',
+          value: 'imposter-session',
+          encrypted_value: Buffer.alloc(0),
+          host_key: '.channel.works.example.com',
+        },
+        { name: 'x-account', value: 'imposter-io', encrypted_value: Buffer.alloc(0), host_key: '.channel.io.evil.net' },
+        { name: 'x-account', value: 'real-account', encrypted_value: Buffer.alloc(0), host_key: '.channel.works' },
+        { name: 'ch-session-1', value: 'real-session', encrypted_value: Buffer.alloc(0), host_key: '.channel.works' },
+      ])
+
+      class TestExtractor extends ChannelTokenExtractor {
+        constructor(private dbPath: string) {
+          super('darwin')
+        }
+
+        override getCookiesPath(): string | null {
+          return this.dbPath
+        }
+      }
+
+      const extractor = new TestExtractor(dbPath)
+      const browserSpy = spyOn(extractor as any, 'extractAllFromBrowserPaths').mockResolvedValue([])
+
+      expect(await extractor.extract()).toEqual([
+        {
+          accountCookie: 'real-account',
+          sessionCookie: 'real-session',
+        },
+      ])
+
+      browserSpy.mockRestore()
+    })
+
+    it('extracts cookies from a subdomain of a channel domain', async () => {
+      const tempDir = mkdtempSync(join(tmpdir(), 'channel-cookie-db-'))
+      tempDirs.push(tempDir)
+      const dbPath = join(tempDir, 'Cookies')
+      // The boundary check must not be so strict that it drops legitimate subdomains.
+      await createCookieDatabase(dbPath, [
+        { name: 'x-account', value: 'account-jwt', encrypted_value: Buffer.alloc(0), host_key: '.desk.channel.works' },
+        { name: 'ch-session-1', value: 'session-jwt', encrypted_value: Buffer.alloc(0), host_key: 'channel.works' },
+      ])
+
+      class TestExtractor extends ChannelTokenExtractor {
+        constructor(private dbPath: string) {
+          super('darwin')
+        }
+
+        override getCookiesPath(): string | null {
+          return this.dbPath
+        }
+      }
+
+      const extractor = new TestExtractor(dbPath)
+      const browserSpy = spyOn(extractor as any, 'extractAllFromBrowserPaths').mockResolvedValue([])
+
+      expect(await extractor.extract()).toEqual([
+        {
+          accountCookie: 'account-jwt',
+          sessionCookie: 'session-jwt',
+        },
+      ])
+
+      browserSpy.mockRestore()
+    })
+
+    it('prefers channel.works cookies over stale legacy channel.io cookies', async () => {
+      const tempDir = mkdtempSync(join(tmpdir(), 'channel-cookie-db-'))
+      tempDirs.push(tempDir)
+      const dbPath = join(tempDir, 'Cookies')
+      // Legacy rows are inserted first so they win a naive find() that ignores the domain.
+      await createCookieDatabase(dbPath, [
+        { name: 'x-account', value: 'stale-account', encrypted_value: Buffer.alloc(0), host_key: '.channel.io' },
+        { name: 'ch-session-1', value: 'stale-session', encrypted_value: Buffer.alloc(0), host_key: '.channel.io' },
+        { name: 'x-account', value: 'live-account', encrypted_value: Buffer.alloc(0), host_key: '.channel.works' },
+        { name: 'ch-session-1', value: 'live-session', encrypted_value: Buffer.alloc(0), host_key: '.channel.works' },
+      ])
+
+      class TestExtractor extends ChannelTokenExtractor {
+        constructor(private dbPath: string) {
+          super('darwin')
+        }
+
+        override getCookiesPath(): string | null {
+          return this.dbPath
+        }
+      }
+
+      const extractor = new TestExtractor(dbPath)
+      const browserSpy = spyOn(extractor as any, 'extractAllFromBrowserPaths').mockResolvedValue([])
+
+      expect(await extractor.extract()).toEqual([
+        {
+          accountCookie: 'live-account',
+          sessionCookie: 'live-session',
+        },
+      ])
+
+      browserSpy.mockRestore()
+    })
+
+    it('never pairs an x-account with a session cookie from the other domain', async () => {
+      const tempDir = mkdtempSync(join(tmpdir(), 'channel-cookie-db-'))
+      tempDirs.push(tempDir)
+      const dbPath = join(tempDir, 'Cookies')
+      // channel.works holds an identity but no session; the only session belongs to channel.io.
+      // The live identity must be returned session-less rather than borrowing the legacy session,
+      // which belongs to a different domain and would not authenticate it.
+      await createCookieDatabase(dbPath, [
+        { name: 'x-account', value: 'works-account', encrypted_value: Buffer.alloc(0), host_key: '.channel.works' },
+        { name: 'x-account', value: 'io-account', encrypted_value: Buffer.alloc(0), host_key: '.channel.io' },
+        { name: 'ch-session-1', value: 'io-session', encrypted_value: Buffer.alloc(0), host_key: '.channel.io' },
+      ])
+
+      class TestExtractor extends ChannelTokenExtractor {
+        constructor(private dbPath: string) {
+          super('darwin')
+        }
+
+        override getCookiesPath(): string | null {
+          return this.dbPath
+        }
+      }
+
+      const extractor = new TestExtractor(dbPath)
+      const browserSpy = spyOn(extractor as any, 'extractAllFromBrowserPaths').mockResolvedValue([])
+
+      expect(await extractor.extract()).toEqual([
+        {
+          accountCookie: 'works-account',
+          sessionCookie: undefined,
+        },
+      ])
+
+      browserSpy.mockRestore()
+    })
+
+    it('extracts cookies stored on the rebranded channel.works domain', async () => {
+      const tempDir = mkdtempSync(join(tmpdir(), 'channel-cookie-db-'))
+      tempDirs.push(tempDir)
+      const dbPath = join(tempDir, 'Cookies')
+      await createCookieDatabase(dbPath, [
+        { name: 'x-account', value: 'account-jwt', encrypted_value: Buffer.alloc(0), host_key: '.channel.works' },
+        { name: 'ch-session-1', value: 'session-jwt', encrypted_value: Buffer.alloc(0), host_key: '.channel.works' },
+      ])
+
+      class TestExtractor extends ChannelTokenExtractor {
+        constructor(private dbPath: string) {
+          super('darwin')
+        }
+
+        override getCookiesPath(): string | null {
+          return this.dbPath
+        }
+      }
+
+      const extractor = new TestExtractor(dbPath)
+      // Browser profiles are stubbed out so a real logged-in browser on the host cannot leak in.
+      const browserSpy = spyOn(extractor as any, 'extractAllFromBrowserPaths').mockResolvedValue([])
+
+      expect(await extractor.extract()).toEqual([
+        {
+          accountCookie: 'account-jwt',
+          sessionCookie: 'session-jwt',
+        },
+      ])
+
+      browserSpy.mockRestore()
     })
 
     it('returns token with undefined sessionCookie when only x-account is present', async () => {
