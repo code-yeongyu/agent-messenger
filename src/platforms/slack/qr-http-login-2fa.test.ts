@@ -298,4 +298,103 @@ describe('loginWithQr confirmation code', () => {
     // Then the deleted session cannot authenticate the user
     await expect(promise).rejects.toThrow(/session/)
   })
+
+  it('does not capture a host-only d cookie set from app.slack.com when querying the workspace host', async () => {
+    // Given a d cookie set with no Domain attribute (host-only) on app.slack.com and a working token endpoint
+    const dataUrl = await qrDataUrl()
+    const fetchImpl = (async (input: string | URL) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.startsWith('https://app.slack.com/t/')) {
+        return redirect(`https://${WORKSPACE}.slack.com/end`, [`d=${D_COOKIE}; Path=/; HttpOnly`])
+      }
+      if (url === `https://${WORKSPACE}.slack.com/end`) return new Response(null, { status: 200 })
+      if (url === `https://${WORKSPACE}.slack.com/ssb/redirect`) {
+        return new Response(`<script>var boot_data={"api_token":"${TOKEN}"}</script>`, { status: 200 })
+      }
+      throw new Error(`unexpected fetch: ${url}`)
+    }) as typeof fetch
+
+    // When login queries the jar for the workspace-scoped session cookie
+    const promise = loginWithQr(dataUrl, { fetchImpl })
+
+    // Then the host-only cookie is not treated as a valid workspace session, so auth fails before minting a token
+    await expect(promise).rejects.toThrow(/Could not establish|expired/)
+  })
+
+  it('does not capture a d cookie scoped to a path outside the token URL', async () => {
+    // Given a d cookie scoped to a path the token URL does not fall under and a working token endpoint
+    const dataUrl = await qrDataUrl()
+    const fetchImpl = (async (input: string | URL) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.startsWith('https://app.slack.com/t/')) {
+        return redirect(`https://${WORKSPACE}.slack.com/end`, [
+          `d=${D_COOKIE}; Domain=.slack.com; Path=/nowhere`,
+        ])
+      }
+      if (url === `https://${WORKSPACE}.slack.com/end`) return new Response(null, { status: 200 })
+      if (url === `https://${WORKSPACE}.slack.com/ssb/redirect`) {
+        return new Response(`<script>var boot_data={"api_token":"${TOKEN}"}</script>`, { status: 200 })
+      }
+      throw new Error(`unexpected fetch: ${url}`)
+    }) as typeof fetch
+
+    // When login queries the jar for a cookie sendable to /ssb/redirect
+    const promise = loginWithQr(dataUrl, { fetchImpl })
+
+    // Then the path-restricted cookie is not returned for the token URL, so auth fails before minting a token
+    await expect(promise).rejects.toThrow(/Could not establish|expired/)
+  })
+
+  it('treats a d cookie with a past Expires date as deleted', async () => {
+    // Given a d cookie set and then invalidated via an Expires date in the past, plus a working token endpoint
+    const dataUrl = await qrDataUrl()
+    const fetchImpl = (async (input: string | URL) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.startsWith('https://app.slack.com/t/')) {
+        return redirect(`https://${WORKSPACE}.slack.com/end`, [
+          `d=${D_COOKIE}; Domain=.slack.com; Path=/`,
+          'd=; Domain=.slack.com; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT',
+        ])
+      }
+      if (url === `https://${WORKSPACE}.slack.com/end`) return new Response(null, { status: 200 })
+      if (url === `https://${WORKSPACE}.slack.com/ssb/redirect`) {
+        return new Response(`<script>var boot_data={"api_token":"${TOKEN}"}</script>`, { status: 200 })
+      }
+      throw new Error(`unexpected fetch: ${url}`)
+    }) as typeof fetch
+
+    // When login processes the expired cookie
+    const promise = loginWithQr(dataUrl, { fetchImpl })
+
+    // Then the expired session is dropped and auth fails before minting a token
+    await expect(promise).rejects.toThrow(/Could not establish|expired/)
+  })
+
+  it('honors a d cookie deletion issued from slack.com root during a later hop', async () => {
+    // Given a workspace-issued d cookie followed by a slack.com-root deletion for the same .slack.com scope
+    const dataUrl = await qrDataUrl()
+    const fetchImpl = (async (input: string | URL) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.startsWith('https://app.slack.com/t/')) {
+        return redirect(`https://${WORKSPACE}.slack.com/hop-2`, [`d=${D_COOKIE}; Domain=.slack.com; Path=/`])
+      }
+      if (url === `https://${WORKSPACE}.slack.com/hop-2`) {
+        return redirect('https://slack.com/checkcookie')
+      }
+      if (url === 'https://slack.com/checkcookie') {
+        return redirect(`https://${WORKSPACE}.slack.com/end`, ['d=; Domain=.slack.com; Path=/; Max-Age=0'])
+      }
+      if (url === `https://${WORKSPACE}.slack.com/end`) return new Response(null, { status: 200 })
+      if (url === `https://${WORKSPACE}.slack.com/ssb/redirect`) {
+        return new Response(`<script>var boot_data={"api_token":"${TOKEN}"}</script>`, { status: 200 })
+      }
+      throw new Error(`unexpected fetch: ${url}`)
+    }) as typeof fetch
+
+    // When login processes the deletion issued from the slack.com root
+    const promise = loginWithQr(dataUrl, { fetchImpl })
+
+    // Then the earlier workspace cookie is not resurrected and auth fails before minting a token
+    await expect(promise).rejects.toThrow(/Could not establish|expired/)
+  })
 })

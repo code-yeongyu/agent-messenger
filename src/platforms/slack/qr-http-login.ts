@@ -6,7 +6,7 @@ import {
   parseConfirmationPage,
   type SlackConfirmationCodeRequest,
 } from './qr-confirmation'
-import { sessionCookieFromResponse, setCookieNames, SlackCookieJar } from './qr-cookie-jar'
+import { setCookieNames, SlackCookieJar } from './qr-cookie-jar'
 import { decodeSlackQr } from './qr-login'
 
 export interface QrSession {
@@ -122,6 +122,7 @@ async function captureDCookie(
   let sessionDenialReason: string | null = null
   let ssoProvider: string | null = null
   const cookieJar = new SlackCookieJar()
+  const sessionCookieUrl = tokenUrl(login.workspace)
 
   for (let hop = 0; hop < maxRedirects; hop++) {
     // Only ever send captured cookies (including the d session cookie) to Slack
@@ -133,7 +134,7 @@ async function captureDCookie(
     }
 
     const response = await cookieJar.fetch(doFetch, url)
-    dCookie = sessionCookieFromResponse(response, url, login.workspace, dCookie)
+    dCookie = await cookieJar.sessionCookie(sessionCookieUrl)
 
     const cookieNames = setCookieNames(response)
     debug?.(`hop ${hop}: ${response.status} set-cookie=[${cookieNames.join(',') || 'none'}]`)
@@ -171,8 +172,7 @@ async function captureDCookie(
           dCookie = await followConfirmationRedirects(
             confirmed,
             confirmedRequest.url,
-            login.workspace,
-            dCookie,
+            sessionCookieUrl,
             cookieJar,
             doFetch,
             maxRedirects,
@@ -219,8 +219,7 @@ function isWorkspaceConfirmationUrl(rawUrl: string, login: ReturnType<typeof dec
 async function followConfirmationRedirects(
   response: Response,
   responseUrl: string,
-  workspace: string,
-  sessionCookie: string | null,
+  sessionCookieUrl: string,
   cookieJar: SlackCookieJar,
   doFetch: typeof fetch,
   maxRedirects: number,
@@ -228,7 +227,7 @@ async function followConfirmationRedirects(
 ): Promise<string | null> {
   let currentResponse = response
   let currentUrl = responseUrl
-  let currentSessionCookie = sessionCookieFromResponse(currentResponse, currentUrl, workspace, sessionCookie)
+  let currentSessionCookie = await cookieJar.sessionCookie(sessionCookieUrl)
   for (let hop = 0; hop < maxRedirects; hop++) {
     if (currentSessionCookie) return currentSessionCookie
     const location =
@@ -238,10 +237,14 @@ async function followConfirmationRedirects(
     if (!isSlackHost(next)) return null
     currentUrl = next
     currentResponse = await cookieJar.fetch(doFetch, currentUrl)
-    currentSessionCookie = sessionCookieFromResponse(currentResponse, currentUrl, workspace, currentSessionCookie)
+    currentSessionCookie = await cookieJar.sessionCookie(sessionCookieUrl)
     debug?.(`confirmation hop ${hop}: ${currentResponse.status}`)
   }
   return currentSessionCookie
+}
+
+function tokenUrl(workspace: string): string {
+  return `https://${workspace}.slack.com/ssb/redirect`
 }
 
 function ssoProviderFromUrl(rawUrl: string): string | null {
@@ -276,9 +279,4 @@ export function isSlackHost(rawUrl: string): boolean {
   } catch {
     return false
   }
-}
-
-export function parseDCookie(setCookieHeader: string): string | null {
-  const match = setCookieHeader.match(/(?:^|,\s*)d=(xoxd-[^;]+)/)
-  return match ? match[1] : null
 }

@@ -3,6 +3,9 @@ import { CookieJar } from 'tough-cookie'
 const BROWSER_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
 
+const SESSION_COOKIE_NAME = 'd'
+const SESSION_COOKIE_PREFIX = 'xoxd-'
+
 export class SlackCookieJar {
   readonly #jar = new CookieJar()
 
@@ -24,6 +27,16 @@ export class SlackCookieJar {
     }
     return response
   }
+
+  async sessionCookie(url: string): Promise<string | null> {
+    const cookies = await this.#jar.getCookies(url)
+    for (const cookie of cookies) {
+      if (cookie.key === SESSION_COOKIE_NAME && cookie.value.startsWith(SESSION_COOKIE_PREFIX)) {
+        return cookie.value
+      }
+    }
+    return null
+  }
 }
 
 export function setCookieNames(response: Response): readonly string[] {
@@ -33,34 +46,9 @@ export function setCookieNames(response: Response): readonly string[] {
   })
 }
 
-export function sessionCookieFromResponse(
-  response: Response,
-  responseUrl: string,
-  workspace: string,
-  current: string | null,
-): string | null {
-  const hostname = new URL(responseUrl).hostname
-  if (hostname !== `${workspace}.slack.com` && hostname !== 'app.slack.com') return current
-  let sessionCookie = current
-  for (const setCookie of getSetCookies(response)) {
-    if (isDeletedSessionCookie(setCookie)) sessionCookie = null
-    else sessionCookie = parseSessionCookie(setCookie) ?? sessionCookie
-  }
-  return sessionCookie
-}
-
 function getSetCookies(response: Response): readonly string[] {
   const withGetter = response.headers as Headers & { getSetCookie?: () => string[] }
   if (typeof withGetter.getSetCookie === 'function') return withGetter.getSetCookie()
   const single = response.headers.get('set-cookie')
   return single ? [single] : []
-}
-
-function parseSessionCookie(setCookie: string): string | null {
-  const match = setCookie.match(/(?:^|,\s*)d=(xoxd-[^;]+)/)
-  return match?.[1] ?? null
-}
-
-function isDeletedSessionCookie(setCookie: string): boolean {
-  return /^d=/i.test(setCookie) && /(?:^|;)\s*max-age=0(?:;|$)/i.test(setCookie)
 }
