@@ -43,11 +43,11 @@ export function buildConfirmationRequest(
   props: SigninProps,
   code: string,
 ): { readonly url: string; readonly body: string } | null {
+  const expected = expectedConfirmationPath(login)
+  if (!expected) return null
   const url = new URL(finalUrl)
   if (url.hostname !== `${login.workspace}.slack.com`) return null
-  if (!url.pathname.includes('/z-app-')) return null
-  const qrSecret = new URL(login.url).pathname.split('/').at(-1)
-  if (!qrSecret || url.pathname.split('/').at(-1) !== qrSecret) return null
+  if (url.pathname !== expected) return null
 
   url.search = ''
   url.searchParams.set('domain', login.workspace)
@@ -64,6 +64,12 @@ export function buildConfirmationRequest(
       '2fa_action': 'submit_primary',
     }).toString(),
   }
+}
+
+export function expectedConfirmationPath(login: SlackQrLogin): string | null {
+  const qrSecret = new URL(login.url).pathname.split('/').at(-1)
+  if (!qrSecret || !qrSecret.startsWith('z-app-')) return null
+  return `/login/${qrSecret}`
 }
 
 function decodeHtml(value: string): string {

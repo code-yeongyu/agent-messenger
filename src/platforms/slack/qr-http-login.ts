@@ -1,6 +1,11 @@
 import { SlackError } from './client'
 import { refreshTokenFromWeb } from './ensure-auth'
-import { buildConfirmationRequest, parseConfirmationPage, type SlackConfirmationCodeRequest } from './qr-confirmation'
+import {
+  buildConfirmationRequest,
+  expectedConfirmationPath,
+  parseConfirmationPage,
+  type SlackConfirmationCodeRequest,
+} from './qr-confirmation'
 import { sessionCookieFromResponse, setCookieNames, SlackCookieJar } from './qr-cookie-jar'
 import { decodeSlackQr } from './qr-login'
 
@@ -193,7 +198,7 @@ async function captureDCookie(
       debug?.(`hop ${hop}: redirect target is not a Slack host (${new URL(next).hostname}), stopping`)
       break
     }
-    if (!dCookie && options.requestConfirmationCode && isWorkspaceConfirmationUrl(next, login.workspace) === false) {
+    if (!dCookie && options.requestConfirmationCode && isWorkspaceConfirmationUrl(next, login) === false) {
       sessionDenialReason = 'invalid_confirmation_origin'
       break
     }
@@ -203,10 +208,12 @@ async function captureDCookie(
   return { cookie: dCookie, denialReason: sessionDenialReason, ssoProvider }
 }
 
-function isWorkspaceConfirmationUrl(rawUrl: string, workspace: string): boolean | null {
+function isWorkspaceConfirmationUrl(rawUrl: string, login: ReturnType<typeof decodeSlackQr>): boolean | null {
+  const expected = expectedConfirmationPath(login)
+  if (!expected) return null
   const url = new URL(rawUrl)
-  if (!url.pathname.includes('/z-app-')) return null
-  return url.hostname === `${workspace}.slack.com`
+  if (url.pathname !== expected) return null
+  return url.hostname === `${login.workspace}.slack.com`
 }
 
 async function followConfirmationRedirects(

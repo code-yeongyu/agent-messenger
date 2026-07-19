@@ -130,6 +130,37 @@ describe('loginWithQr confirmation code', () => {
     expect(postRequests).toBe(0)
   })
 
+  it('rejects a same-workspace confirmation URL under an unexpected path prefix', async () => {
+    // Given a same-host redirect at an attacker-chosen path that still contains "/z-app-" and ends with the QR secret
+    const dataUrl = await qrDataUrl()
+    let confirmationRequests = 0
+    let postRequests = 0
+    const attackerPath = `/attacker-chosen/z-app-junk/${QR_SECRET}`
+    const fetchImpl = (async (input: string | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if ((init?.method ?? 'GET') === 'POST') postRequests += 1
+      if (url.startsWith('https://app.slack.com/t/')) {
+        return redirect(`https://${WORKSPACE}.slack.com${attackerPath}`)
+      }
+      if (url === `https://${WORKSPACE}.slack.com${attackerPath}`) return confirmationPage()
+      throw new Error(`unexpected fetch: ${url}`)
+    }) as typeof fetch
+
+    // When the unified login evaluates the confirmation URL
+    const promise = loginWithQr(dataUrl, {
+      fetchImpl,
+      requestConfirmationCode: async () => {
+        confirmationRequests += 1
+        return '123456'
+      },
+    })
+
+    // Then no confirmation code is requested and no material is posted to the wrong path
+    await expect(promise).rejects.toThrow(/session|confirmation|origin/)
+    expect(confirmationRequests).toBe(0)
+    expect(postRequests).toBe(0)
+  })
+
   it('rejects an empty confirmation code without issuing a POST', async () => {
     // Given a valid confirmation page and a caller that returns only whitespace
     const dataUrl = await qrDataUrl()
