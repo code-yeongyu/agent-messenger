@@ -251,6 +251,32 @@ describe('loginWithQr confirmation code', () => {
     expect(destinationCookies).not.toContain('deleted=gone')
   })
 
+  it('discards a malformed Set-Cookie header without aborting a valid session cookie', async () => {
+    // Given a redirect that emits an unparseable cookie ahead of the valid d session cookie
+    const dataUrl = await qrDataUrl()
+    const fetchImpl = (async (input: string | URL) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.startsWith('https://app.slack.com/t/')) {
+        return redirect(`https://${WORKSPACE}.slack.com/z-app-secret`, [
+          'bogus=1; Domain=.com; Path=/',
+          `d=${D_COOKIE}; Domain=.slack.com; Path=/`,
+        ])
+      }
+      if (url.includes('/z-app-secret')) return new Response(null, { status: 200 })
+      if (url.includes('/ssb/redirect')) {
+        return new Response(`<script>var boot_data={"api_token":"${TOKEN}"}</script>`, { status: 200 })
+      }
+      throw new Error(`unexpected fetch: ${url}`)
+    }) as typeof fetch
+
+    // When login processes the response
+    const session = await loginWithQr(dataUrl, { fetchImpl })
+
+    // Then the malformed cookie is silently discarded and the valid session cookie is captured
+    expect(session.cookie).toBe(D_COOKIE)
+    expect(session.token).toBe(TOKEN)
+  })
+
   it('does not retain a deleted Slack session cookie', async () => {
     // Given a redirect that creates and then deletes the d session cookie
     const dataUrl = await qrDataUrl()

@@ -20,7 +20,7 @@ export class SlackCookieJar {
       },
     })
     for (const setCookie of getSetCookies(response)) {
-      await this.#jar.setCookie(setCookie, url)
+      await this.#jar.setCookie(setCookie, url, { ignoreError: true })
     }
     return response
   }
