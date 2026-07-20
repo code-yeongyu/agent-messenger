@@ -607,7 +607,30 @@ await new SlackCredentialManager().setWorkspace({
 })
 ```
 
-`loginWithQr(dataUrl, options)` accepts an optional `{ debug, fetchImpl, maxRedirects }`. It throws `SlackError` with codes `qr_session_failed` (link expired / no session) or `qr_token_failed` (token could not be retrieved). To decode the QR without logging in, use `decodeSlackQr(dataUrl)` which returns `{ url, workspace, teamId, userId }`.
+`loginWithQr(dataUrl, options)` accepts an optional `{ debug, fetchImpl, maxRedirects, requestConfirmationCode }`. It throws `SlackError` with codes `qr_session_failed` (link expired / no session) or `qr_token_failed` (token could not be retrieved). To decode the QR without logging in, use `decodeSlackQr(dataUrl)` which returns `{ url, workspace, teamId, userId }`.
+
+### Handling Slack confirmation codes (workspace 2FA)
+
+Some workspaces make a QR sign-in surface a confirmation-code page (email code, SMS, TOTP, etc.) before issuing the session cookie. Pass `requestConfirmationCode` to complete that step. The callback is only invoked when Slack actually shows a confirmation page — ordinary QR logins that receive the session cookie directly stay prompt-free.
+
+```typescript
+import { loginWithQr, type SlackConfirmationChallenge } from 'agent-messenger/slack'
+
+const session = await loginWithQr(dataUrl, {
+  requestConfirmationCode: async (challenge: SlackConfirmationChallenge) => {
+    // challenge.email is the address Slack sent the code to.
+    // challenge.type is the mechanism ("email", "sms", "totp", ...) or null if unknown.
+    return await promptUserForCode(challenge)
+  },
+})
+```
+
+Contract:
+
+- Return the raw code as a `string`. Whitespace is trimmed before submission.
+- Return an empty string (or all whitespace) to abort — `loginWithQr` throws `qr_session_failed` and no code is posted.
+- The code is submitted to the exact `https://<workspace>.slack.com/login/<qrSecret>` endpoint bound to the QR payload. Redirects to a different workspace host or an unexpected pathname reject the flow before the callback is invoked.
+- The callback and `email`/`type` fields never appear in `debug` output.
 
 ## SDK: Real-Time Events
 
