@@ -8,6 +8,7 @@ import { formatOutput } from '@/shared/utils/output'
 
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
+import { isListableChannel, isMessageReadableChannel } from '../types'
 import type { DiscordChannel } from '../types'
 
 export async function snapshotAction(options: {
@@ -43,14 +44,11 @@ export async function snapshotAction(options: {
       const messageLimit = options.limit || 20
 
       if (!options.usersOnly) {
-        const channels = engine.filterTargets(
-          'discord',
-          'read',
-          await client.listChannels(serverId),
-          discordChannelToTarget,
-        )
+        const channels = await client.listChannels(serverId)
+        const visibleChannels = engine.filterTargets('discord', 'read', channels, discordChannelToTarget)
+        const listableChannels = visibleChannels.filter(isListableChannel)
 
-        snapshot.channels = channels.map((ch) => ({
+        snapshot.channels = listableChannels.map((ch) => ({
           id: ch.id,
           name: ch.name,
           type: ch.type,
@@ -58,11 +56,10 @@ export async function snapshotAction(options: {
         }))
 
         if (!options.channelsOnly) {
-          const isTextChannel = (ch: DiscordChannel) => ch.type === 0 || ch.type === 5
-          const textChannels = channels.filter(isTextChannel)
+          const readableChannels = listableChannels.filter(isMessageReadableChannel)
 
           const channelMessages = await parallelMap(
-            textChannels,
+            readableChannels,
             async (channel: DiscordChannel) => {
               const messages = await client.getMessages(channel.id, messageLimit)
               return messages.map((msg) => ({
@@ -95,14 +92,10 @@ export async function snapshotAction(options: {
       }
     } else {
       if (!options.usersOnly) {
-        const channels = engine.filterTargets(
-          'discord',
-          'read',
-          await client.listChannels(serverId),
-          discordChannelToTarget,
-        )
-        const textChannels = channels.filter((ch: DiscordChannel) => ch.type === 0 || ch.type === 5)
-        snapshot.channels = textChannels.map((ch) => ({ id: ch.id, name: ch.name }))
+        const channels = await client.listChannels(serverId)
+        const visibleChannels = engine.filterTargets('discord', 'read', channels, discordChannelToTarget)
+        const listableChannels = visibleChannels.filter(isListableChannel)
+        snapshot.channels = listableChannels.map((ch) => ({ id: ch.id, name: ch.name }))
       }
 
       snapshot.hint =

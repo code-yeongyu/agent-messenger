@@ -7,6 +7,7 @@ import { formatOutput } from '@/shared/utils/output'
 
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
+import { isListableChannel } from '../types'
 
 export async function listAction(options: { pretty?: boolean }): Promise<void> {
   try {
@@ -22,14 +23,10 @@ export async function listAction(options: { pretty?: boolean }): Promise<void> {
     const channels = await client.listChannels(config.current_server)
 
     const engine = await getPolicyEngine()
-    const textChannels = engine.filterTargets(
-      'discord',
-      'read',
-      channels.filter((ch) => ch.type === 0),
-      discordChannelToTarget,
-    )
+    const visibleChannels = engine.filterTargets('discord', 'read', channels, discordChannelToTarget)
+    const listableChannels = visibleChannels.filter(isListableChannel)
 
-    const output = textChannels.map((ch) => ({
+    const output = listableChannels.map((ch) => ({
       id: ch.id,
       name: ch.name,
       type: ch.type,
