@@ -1,5 +1,12 @@
 import { SlackError } from './client'
 import { refreshTokenFromWeb } from './ensure-auth'
+import {
+  buildConfirmationRequest,
+  expectedConfirmationPath,
+  parseConfirmationPage,
+  type SlackConfirmationCodeRequest,
+} from './qr-confirmation'
+import { setCookieNames, SlackCookieJar } from './qr-cookie-jar'
 import { decodeSlackQr } from './qr-login'
 
 export interface QrSession {
@@ -12,10 +19,9 @@ export interface QrLoginOptions {
   fetchImpl?: typeof fetch
   maxRedirects?: number
   debug?: (message: string) => void
+  requestConfirmationCode?: SlackConfirmationCodeRequest
 }
 
-const BROWSER_USER_AGENT =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
 const DEFAULT_MAX_REDIRECTS = 10
 
 export async function loginWithQr(dataUrl: string, options: QrLoginOptions = {}): Promise<QrSession> {
@@ -23,7 +29,7 @@ export async function loginWithQr(dataUrl: string, options: QrLoginOptions = {})
   const debug = options.debug
   debug?.(`Decoded QR for workspace ${login.workspace}`)
 
-  const { cookie, denialReason, ssoProvider } = await captureDCookie(login.url, options)
+  const { cookie, denialReason, ssoProvider } = await captureDCookie(login, options)
   if (!cookie) {
     throw new SlackError(
       qrSessionFailureMessage(denialReason, { workspace: login.workspace, ssoProvider }),
@@ -103,16 +109,20 @@ interface CookieCapture {
   ssoProvider: string | null
 }
 
-async function captureDCookie(startUrl: string, options: QrLoginOptions): Promise<CookieCapture> {
+async function captureDCookie(
+  login: ReturnType<typeof decodeSlackQr>,
+  options: QrLoginOptions,
+): Promise<CookieCapture> {
   const doFetch = options.fetchImpl ?? fetch
   const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS
   const debug = options.debug
 
-  let url = startUrl
+  let url = login.url
   let dCookie: string | null = null
   let sessionDenialReason: string | null = null
   let ssoProvider: string | null = null
-  const cookieJar: string[] = []
+  const cookieJar = new SlackCookieJar()
+  const sessionCookieUrl = tokenUrl(login.workspace)
 
   for (let hop = 0; hop < maxRedirects; hop++) {
     // Only ever send captured cookies (including the d session cookie) to Slack
@@ -123,31 +133,56 @@ async function captureDCookie(startUrl: string, options: QrLoginOptions): Promis
       break
     }
 
-    const response = await doFetch(url, {
-      redirect: 'manual',
-      headers: {
-        'User-Agent': BROWSER_USER_AGENT,
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        ...(cookieJar.length ? { Cookie: cookieJar.join('; ') } : {}),
-      },
-    })
+    const response = await cookieJar.fetch(doFetch, url)
+    dCookie = await cookieJar.sessionCookie(sessionCookieUrl)
 
-    const cookieNames: string[] = []
-    for (const setCookie of getSetCookies(response)) {
-      const value = parseDCookie(setCookie)
-      if (value) dCookie = value
-      const name = setCookie.split('=')[0]?.trim()
-      if (name) cookieNames.push(name)
-      const pair = setCookie.split(';')[0]?.trim()
-      if (pair) cookieJar.push(pair)
-    }
-
+    const cookieNames = setCookieNames(response)
     debug?.(`hop ${hop}: ${response.status} set-cookie=[${cookieNames.join(',') || 'none'}]`)
 
     const location = response.status >= 300 && response.status < 400 ? response.headers.get('location') : null
     if (!location) {
-      if (!dCookie) sessionDenialReason = await classifySessionDenial(response)
+      if (!dCookie) {
+        const body = await response.text()
+        const props = parseConfirmationPage(body)
+        if (props && options.requestConfirmationCode) {
+          const request = buildConfirmationRequest(login, url, props, '')
+          if (!request) {
+            sessionDenialReason = 'invalid_confirmation_origin'
+            break
+          }
+          const code = await options.requestConfirmationCode({
+            email: props.emailAddress,
+            type: props.twoFactorType,
+          })
+          if (code.trim() === '') {
+            sessionDenialReason = 'confirmation_failed'
+            break
+          }
+          const confirmedRequest = buildConfirmationRequest(login, url, props, code)
+          if (!confirmedRequest) {
+            sessionDenialReason = 'invalid_confirmation_origin'
+            break
+          }
+          const confirmed = await cookieJar.fetch(doFetch, confirmedRequest.url, {
+            method: 'POST',
+            body: confirmedRequest.body,
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          })
+          debug?.(`confirmation submit: ${confirmed.status}`)
+          dCookie = await followConfirmationRedirects(
+            confirmed,
+            confirmedRequest.url,
+            sessionCookieUrl,
+            cookieJar,
+            doFetch,
+            maxRedirects,
+            debug,
+          )
+          if (!dCookie) sessionDenialReason = 'confirmation_failed'
+        } else {
+          sessionDenialReason = classifySessionDenialBody(body)
+        }
+      }
       break
     }
 
@@ -163,10 +198,53 @@ async function captureDCookie(startUrl: string, options: QrLoginOptions): Promis
       debug?.(`hop ${hop}: redirect target is not a Slack host (${new URL(next).hostname}), stopping`)
       break
     }
+    if (!dCookie && options.requestConfirmationCode && isWorkspaceConfirmationUrl(next, login) === false) {
+      sessionDenialReason = 'invalid_confirmation_origin'
+      break
+    }
     url = next
   }
 
   return { cookie: dCookie, denialReason: sessionDenialReason, ssoProvider }
+}
+
+function isWorkspaceConfirmationUrl(rawUrl: string, login: ReturnType<typeof decodeSlackQr>): boolean | null {
+  const expected = expectedConfirmationPath(login)
+  if (!expected) return null
+  const url = new URL(rawUrl)
+  if (url.pathname !== expected) return null
+  return url.hostname === `${login.workspace}.slack.com`
+}
+
+async function followConfirmationRedirects(
+  response: Response,
+  responseUrl: string,
+  sessionCookieUrl: string,
+  cookieJar: SlackCookieJar,
+  doFetch: typeof fetch,
+  maxRedirects: number,
+  debug?: (message: string) => void,
+): Promise<string | null> {
+  let currentResponse = response
+  let currentUrl = responseUrl
+  let currentSessionCookie = await cookieJar.sessionCookie(sessionCookieUrl)
+  for (let hop = 0; hop < maxRedirects; hop++) {
+    if (currentSessionCookie) return currentSessionCookie
+    const location =
+      currentResponse.status >= 300 && currentResponse.status < 400 ? currentResponse.headers.get('location') : null
+    if (!location) return null
+    const next = new URL(location, currentUrl).toString()
+    if (!isSlackHost(next)) return null
+    currentUrl = next
+    currentResponse = await cookieJar.fetch(doFetch, currentUrl)
+    currentSessionCookie = await cookieJar.sessionCookie(sessionCookieUrl)
+    debug?.(`confirmation hop ${hop}: ${currentResponse.status}`)
+  }
+  return currentSessionCookie
+}
+
+function tokenUrl(workspace: string): string {
+  return `https://${workspace}.slack.com/ssb/redirect`
 }
 
 function ssoProviderFromUrl(rawUrl: string): string | null {
@@ -185,19 +263,12 @@ function ssoProviderFromUrl(rawUrl: string): string | null {
   return null
 }
 
-async function classifySessionDenial(response: Response): Promise<string | null> {
-  try {
-    const body = await response.text()
-    if (/Link Expired/i.test(body) || /trouble signing you in/i.test(body)) {
-      return 'link_expired'
-    }
-    if (/sign in on your other device/i.test(body) || /open Slack/i.test(body) || /confirm/i.test(body)) {
-      return 'awaiting_device_confirmation'
-    }
-    return null
-  } catch {
-    return null
+function classifySessionDenialBody(body: string): string | null {
+  if (/Link Expired/i.test(body) || /trouble signing you in/i.test(body)) return 'link_expired'
+  if (/sign in on your other device/i.test(body) || /open Slack/i.test(body) || /confirm/i.test(body)) {
+    return 'awaiting_device_confirmation'
   }
+  return null
 }
 
 export function isSlackHost(rawUrl: string): boolean {
@@ -208,18 +279,4 @@ export function isSlackHost(rawUrl: string): boolean {
   } catch {
     return false
   }
-}
-
-export function parseDCookie(setCookieHeader: string): string | null {
-  const match = setCookieHeader.match(/(?:^|,\s*)d=(xoxd-[^;]+)/)
-  return match ? match[1] : null
-}
-
-function getSetCookies(response: Response): string[] {
-  const withGetter = response.headers as Headers & { getSetCookie?: () => string[] }
-  if (typeof withGetter.getSetCookie === 'function') {
-    return withGetter.getSetCookie()
-  }
-  const single = response.headers.get('set-cookie')
-  return single ? [single] : []
 }

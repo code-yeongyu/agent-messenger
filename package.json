@@ -193,6 +193,7 @@
     "pngjs": "^7.0.0",
     "qrcode": "^1.5.4",
     "thrift": "^0.20.0",
+    "tough-cookie": "^6.0.2",
     "tweetnacl": "^1.0.3",
     "webex-message-handler": "^0.6.10",
     "ws": "^8.19.0",

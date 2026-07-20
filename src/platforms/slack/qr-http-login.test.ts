@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'bun:test'
 import QRCode from 'qrcode'
 
 import { SlackError } from '@/platforms/slack/client'
-import { isSlackHost, loginWithQr, parseDCookie } from '@/platforms/slack/qr-http-login'
+import { isSlackHost, loginWithQr } from '@/platforms/slack/qr-http-login'
 
 const WORKSPACE = 'acme'
 const ZAPP_URL = `https://app.slack.com/t/${WORKSPACE}/login/z-app-1-2-abcdef?src=qr_code&user_id=U1&team_id=T1`
@@ -24,20 +24,6 @@ const originalFetch = globalThis.fetch
 
 afterEach(() => {
   globalThis.fetch = originalFetch
-})
-
-describe('parseDCookie', () => {
-  it('extracts the d cookie value from a Set-Cookie header', () => {
-    expect(parseDCookie(`d=${D_COOKIE}; Path=/; HttpOnly; Secure`)).toBe(D_COOKIE)
-  })
-
-  it('ignores a non-d cookie', () => {
-    expect(parseDCookie('x=somevalue; Path=/')).toBeNull()
-  })
-
-  it('ignores a d cookie that is not an xoxd value', () => {
-    expect(parseDCookie('d=plainvalue; Path=/')).toBeNull()
-  })
 })
 
 describe('isSlackHost', () => {
@@ -68,7 +54,10 @@ describe('loginWithQr', () => {
         return redirect(`https://${WORKSPACE}.slack.com/app-redir/login/x`)
       }
       if (url.includes('/app-redir/login/')) {
-        return redirect(`https://${WORKSPACE}.slack.com/z-app-secret`, `d=${D_COOKIE}; HttpOnly`)
+        return redirect(
+          `https://${WORKSPACE}.slack.com/z-app-secret`,
+          `d=${D_COOKIE}; Domain=.slack.com; Path=/; HttpOnly`,
+        )
       }
       if (url.includes('/z-app-secret')) {
         return redirect('https://slack.com/checkcookie?redir=x')
@@ -102,7 +91,10 @@ describe('loginWithQr', () => {
       requests.push({ url, cookie: headers.get('cookie') })
 
       if (url.startsWith('https://app.slack.com/t/')) {
-        return redirect(`https://${WORKSPACE}.slack.com/z-app-secret`, `d=${D_COOKIE}; HttpOnly`)
+        return redirect(
+          `https://${WORKSPACE}.slack.com/z-app-secret`,
+          `d=${D_COOKIE}; Domain=.slack.com; Path=/; HttpOnly`,
+        )
       }
       if (url.includes('/z-app-secret')) {
         return redirect('https://idp.example.com/saml/login')
@@ -186,7 +178,7 @@ describe('loginWithQr', () => {
     const stepAFetch = (async (input: string | URL) => {
       const url = typeof input === 'string' ? input : input.toString()
       if (url.startsWith('https://app.slack.com/t/')) {
-        return redirect(`https://${WORKSPACE}.slack.com/end`, `d=${D_COOKIE}; HttpOnly`)
+        return redirect(`https://${WORKSPACE}.slack.com/end`, `d=${D_COOKIE}; Domain=.slack.com; Path=/; HttpOnly`)
       }
       return new Response(null, { status: 200 })
     }) as typeof fetch
