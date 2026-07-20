@@ -42,6 +42,8 @@ agent-discord snapshot --full --limit 10
 
 Start with the brief snapshot for orientation. Use `--full` only when you need recent messages or member context and the extra output is worth it.
 
+`channel list` and snapshots include text, announcement, voice, stage, forum, media, and directory channels. Only text, announcement, voice, and stage channels have directly fetchable message timelines; inspect forum/media posts through their threads instead.
+
 ## Inspect Files
 
 ```bash

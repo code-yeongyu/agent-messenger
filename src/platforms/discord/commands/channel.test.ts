@@ -1,7 +1,8 @@
-import { afterEach, beforeEach, expect, spyOn, it } from 'bun:test'
+import { afterEach, beforeEach, expect, mock, spyOn, it } from 'bun:test'
 
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
+import { listAction } from './channel'
 
 let clientListChannelsSpy: ReturnType<typeof spyOn>
 let clientGetChannelSpy: ReturnType<typeof spyOn>
@@ -12,8 +13,10 @@ beforeEach(() => {
   // Spy on DiscordClient.prototype methods
   clientListChannelsSpy = spyOn(DiscordClient.prototype, 'listChannels').mockResolvedValue([
     { id: 'ch-1', guild_id: 'guild-1', name: 'general', type: 0, topic: 'General discussion' },
-    { id: 'ch-2', guild_id: 'guild-1', name: 'announcements', type: 0, topic: 'Announcements' },
+    { id: 'ch-2', guild_id: 'guild-1', name: 'announcements', type: 5, topic: 'Announcements' },
     { id: 'ch-3', guild_id: 'guild-1', name: 'voice-channel', type: 2, topic: undefined },
+    { id: 'ch-4', guild_id: 'guild-1', name: 'Text Channels', type: 4, topic: undefined },
+    { id: 'ch-5', guild_id: 'guild-1', name: 'a-thread', type: 11, topic: undefined },
   ])
 
   clientGetChannelSpy = spyOn(DiscordClient.prototype, 'getChannel').mockImplementation(async (channelId: string) => {
@@ -72,30 +75,37 @@ afterEach(() => {
   credManagerLoadSpy?.mockRestore()
 })
 
-it('list: returns text channels (type=0) from server', async () => {
-  // given: discord client with channels
-  const client = await new DiscordClient().login({ token: 'test-token' })
-  const channels = await client.listChannels('server-1')
+it('list: includes text, announcement, and voice channels but excludes categories and threads', async () => {
+  // given: a server with mixed channel types
+  const consoleSpy = mock(() => {})
+  const originalLog = console.log
+  console.log = consoleSpy
 
-  // when: filtering text channels
-  const textChannels = channels.filter((ch) => ch.type === 0)
+  // when: listing channels
+  await listAction({ pretty: false })
+  console.log = originalLog
 
-  // then: only text channels are returned
-  expect(textChannels).toHaveLength(2)
-  expect(textChannels[0].name).toBe('general')
-  expect(textChannels[1].name).toBe('announcements')
+  // then: only listable channels are output
+  const output = JSON.parse(consoleSpy.mock.calls[0][0] as string) as Array<{ name: string; type: number }>
+  const names = output.map((ch) => ch.name)
+  expect(names).toEqual(['general', 'announcements', 'voice-channel'])
+  expect(names).not.toContain('Text Channels')
+  expect(names).not.toContain('a-thread')
 })
 
 it('list: includes channel metadata', async () => {
-  // given: discord client with channels
-  const client = await new DiscordClient().login({ token: 'test-token' })
-  const channels = await client.listChannels('server-1')
-  const textChannels = channels.filter((ch) => ch.type === 0)
+  // given: a server with channels
+  const consoleSpy = mock(() => {})
+  const originalLog = console.log
+  console.log = consoleSpy
 
-  // when: checking channel properties
-  const channel = textChannels[0]
+  // when: listing channels
+  await listAction({ pretty: false })
+  console.log = originalLog
 
-  // then: channel has id, name, type, topic
+  // then: each channel carries id, name, type, parent_id, topic
+  const output = JSON.parse(consoleSpy.mock.calls[0][0] as string) as Array<Record<string, unknown>>
+  const channel = output[0]
   expect(channel.id).toBeDefined()
   expect(channel.name).toBeDefined()
   expect(channel.type).toBe(0)

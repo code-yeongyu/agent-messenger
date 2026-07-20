@@ -2,6 +2,7 @@ import { expect, it } from 'bun:test'
 
 import {
   DiscordChannelSchema,
+  DiscordChannelType,
   DiscordConfigSchema,
   DiscordCredentialsSchema,
   DiscordError,
@@ -10,6 +11,8 @@ import {
   DiscordMessageSchema,
   DiscordReactionSchema,
   DiscordUserSchema,
+  isListableChannel,
+  isMessageReadableChannel,
 } from './types'
 
 it('DiscordGuildSchema validates correct guild', () => {
@@ -254,4 +257,46 @@ it('DiscordError has correct name and code', () => {
 it('DiscordError is instance of Error', () => {
   const error = new DiscordError('Test error', 'TEST_CODE')
   expect(error instanceof Error).toBe(true)
+})
+
+it('isListableChannel includes text, announcement, voice, stage, forum, media, and directory', () => {
+  const listable = [
+    DiscordChannelType.GUILD_TEXT,
+    DiscordChannelType.GUILD_ANNOUNCEMENT,
+    DiscordChannelType.GUILD_VOICE,
+    DiscordChannelType.GUILD_STAGE_VOICE,
+    DiscordChannelType.GUILD_FORUM,
+    DiscordChannelType.GUILD_MEDIA,
+    DiscordChannelType.GUILD_DIRECTORY,
+  ]
+  expect(listable.every((type) => isListableChannel({ type }))).toBe(true)
+})
+
+it('isListableChannel excludes categories and threads', () => {
+  const excluded = [
+    DiscordChannelType.GUILD_CATEGORY,
+    DiscordChannelType.ANNOUNCEMENT_THREAD,
+    DiscordChannelType.PUBLIC_THREAD,
+    DiscordChannelType.PRIVATE_THREAD,
+  ]
+  expect(excluded.some((type) => isListableChannel({ type }))).toBe(false)
+})
+
+it('isMessageReadableChannel includes text, announcement, voice, and stage', () => {
+  const readable = [
+    DiscordChannelType.GUILD_TEXT,
+    DiscordChannelType.GUILD_ANNOUNCEMENT,
+    DiscordChannelType.GUILD_VOICE,
+    DiscordChannelType.GUILD_STAGE_VOICE,
+  ]
+  expect(readable.every((type) => isMessageReadableChannel({ type }))).toBe(true)
+})
+
+it('isMessageReadableChannel excludes forum, media, and directory containers', () => {
+  const notReadable = [
+    DiscordChannelType.GUILD_FORUM,
+    DiscordChannelType.GUILD_MEDIA,
+    DiscordChannelType.GUILD_DIRECTORY,
+  ]
+  expect(notReadable.some((type) => isMessageReadableChannel({ type }))).toBe(false)
 })

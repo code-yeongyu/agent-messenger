@@ -27,6 +27,47 @@ export interface DiscordChannel {
   }
 }
 
+// https://discord.com/developers/docs/resources/channel#channel-object-channel-types
+export const DiscordChannelType = {
+  GUILD_TEXT: 0,
+  DM: 1,
+  GUILD_VOICE: 2,
+  GROUP_DM: 3,
+  GUILD_CATEGORY: 4,
+  GUILD_ANNOUNCEMENT: 5,
+  ANNOUNCEMENT_THREAD: 10,
+  PUBLIC_THREAD: 11,
+  PRIVATE_THREAD: 12,
+  GUILD_STAGE_VOICE: 13,
+  GUILD_DIRECTORY: 14,
+  GUILD_FORUM: 15,
+  GUILD_MEDIA: 16,
+} as const
+
+const THREAD_CHANNEL_TYPES: ReadonlySet<number> = new Set([
+  DiscordChannelType.ANNOUNCEMENT_THREAD,
+  DiscordChannelType.PUBLIC_THREAD,
+  DiscordChannelType.PRIVATE_THREAD,
+])
+
+// Channels with no directly fetchable message timeline:
+// forum/media messages live in child posts/threads, and directory channels
+// are hub listings, not message channels. Fetching messages from these aborts.
+const NON_MESSAGE_CHANNEL_TYPES: ReadonlySet<number> = new Set([
+  DiscordChannelType.GUILD_FORUM,
+  DiscordChannelType.GUILD_MEDIA,
+  DiscordChannelType.GUILD_DIRECTORY,
+])
+
+// Voice/stage channels are listed too because they carry embedded text chat.
+export function isListableChannel(channel: Pick<DiscordChannel, 'type'>): boolean {
+  return channel.type !== DiscordChannelType.GUILD_CATEGORY && !THREAD_CHANNEL_TYPES.has(channel.type)
+}
+
+export function isMessageReadableChannel(channel: Pick<DiscordChannel, 'type'>): boolean {
+  return isListableChannel(channel) && !NON_MESSAGE_CHANNEL_TYPES.has(channel.type)
+}
+
 export interface DiscordMessage {
   id: string
   channel_id: string
