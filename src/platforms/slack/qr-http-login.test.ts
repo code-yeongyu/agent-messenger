@@ -54,7 +54,10 @@ describe('loginWithQr', () => {
         return redirect(`https://${WORKSPACE}.slack.com/app-redir/login/x`)
       }
       if (url.includes('/app-redir/login/')) {
-        return redirect(`https://${WORKSPACE}.slack.com/z-app-secret`, `d=${D_COOKIE}; Domain=.slack.com; Path=/; HttpOnly`)
+        return redirect(
+          `https://${WORKSPACE}.slack.com/z-app-secret`,
+          `d=${D_COOKIE}; Domain=.slack.com; Path=/; HttpOnly`,
+        )
       }
       if (url.includes('/z-app-secret')) {
         return redirect('https://slack.com/checkcookie?redir=x')
@@ -88,7 +91,10 @@ describe('loginWithQr', () => {
       requests.push({ url, cookie: headers.get('cookie') })
 
       if (url.startsWith('https://app.slack.com/t/')) {
-        return redirect(`https://${WORKSPACE}.slack.com/z-app-secret`, `d=${D_COOKIE}; Domain=.slack.com; Path=/; HttpOnly`)
+        return redirect(
+          `https://${WORKSPACE}.slack.com/z-app-secret`,
+          `d=${D_COOKIE}; Domain=.slack.com; Path=/; HttpOnly`,
+        )
       }
       if (url.includes('/z-app-secret')) {
         return redirect('https://idp.example.com/saml/login')

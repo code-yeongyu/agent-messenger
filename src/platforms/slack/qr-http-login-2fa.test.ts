@@ -327,9 +327,7 @@ describe('loginWithQr confirmation code', () => {
     const fetchImpl = (async (input: string | URL) => {
       const url = typeof input === 'string' ? input : input.toString()
       if (url.startsWith('https://app.slack.com/t/')) {
-        return redirect(`https://${WORKSPACE}.slack.com/end`, [
-          `d=${D_COOKIE}; Domain=.slack.com; Path=/nowhere`,
-        ])
+        return redirect(`https://${WORKSPACE}.slack.com/end`, [`d=${D_COOKIE}; Domain=.slack.com; Path=/nowhere`])
       }
       if (url === `https://${WORKSPACE}.slack.com/end`) return new Response(null, { status: 200 })
       if (url === `https://${WORKSPACE}.slack.com/ssb/redirect`) {
