@@ -87,12 +87,16 @@ CHANNEL_COUNT=$(echo "$SNAPSHOT" | jq -r '.channels | length')
 echo "Server: $SERVER_NAME"
 echo "Channels: $CHANNEL_COUNT"
 
-# List all text channels
+# List all channels
 echo -e "\nChannels:"
 echo "$SNAPSHOT" | jq -r '.channels[] | "  #\(.name) (\(.id))"'
 
-# Then drill into a specific channel for recent activity
-CHANNEL_ID=$(echo "$SNAPSHOT" | jq -r '.channels[0].id // empty')
+# Then drill into a specific channel for recent activity.
+# Only text (0), announcement (5), voice (2), and stage (13) channels accept
+# `message list`; forum (15), media (16), and directory (14) channels do not.
+# A full snapshot includes `type`, so pick the first message-readable channel.
+FULL=$(agent-discord snapshot --full)
+CHANNEL_ID=$(echo "$FULL" | jq -r '[.channels[] | select(.type == 0 or .type == 5 or .type == 2 or .type == 13)][0].id // empty')
 if [ -n "$CHANNEL_ID" ]; then
   echo -e "\nRecent messages:"
   agent-discord message list "$CHANNEL_ID" --limit 10

@@ -212,7 +212,9 @@ agent-discord message search "hello" --channel <channel-id> --author <user-id>
 ### Channel Commands
 
 ```bash
-# List channels in current server (text channels only)
+# List channels in current server
+# Includes text, announcement, voice/stage (voice channels carry text chat),
+# forum, media, and directory channels. Categories and threads are excluded.
 agent-discord channel list
 
 # Get channel info
@@ -377,8 +379,10 @@ agent-discord snapshot --full --limit 10
 Default returns brief JSON with:
 
 - Server metadata (id, name)
-- Channels (id, name) — text channels only
+- Channels (id, name) — all listable channels (text, announcement, voice/stage, forum, media, directory; excludes categories and threads)
 - Hint for next commands
+
+> Not every listed channel accepts a direct `message list`. Forum, media, and directory channels are containers or hub views with no direct message timeline — their messages live in child posts/threads. Use text, announcement, voice, or stage channels for `message list`.
 
 With `--full`, returns comprehensive JSON with:
 
@@ -556,7 +560,7 @@ See the [Discord SDK documentation](https://agent-messenger.dev/docs/sdk/discord
 
 ## Limitations
 
-- No voice channel support
+- No voice audio support (voice/stage channels are listed and their embedded text chat is readable, but joining voice or streaming audio is unsupported)
 - No server management (create/delete channels, roles)
 - No slash commands
 - No webhook support

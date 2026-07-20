@@ -5,6 +5,7 @@ import { formatOutput } from '@/shared/utils/output'
 
 import { DiscordClient } from '../client'
 import { DiscordCredentialManager } from '../credential-manager'
+import { isListableChannel } from '../types'
 
 export async function listAction(options: { pretty?: boolean }): Promise<void> {
   try {
@@ -19,9 +20,9 @@ export async function listAction(options: { pretty?: boolean }): Promise<void> {
     const client = await new DiscordClient().login({ token: config.token })
     const channels = await client.listChannels(config.current_server)
 
-    const textChannels = channels.filter((ch) => ch.type === 0)
+    const listableChannels = channels.filter(isListableChannel)
 
-    const output = textChannels.map((ch) => ({
+    const output = listableChannels.map((ch) => ({
       id: ch.id,
       name: ch.name,
       type: ch.type,
