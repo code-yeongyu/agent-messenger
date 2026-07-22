@@ -242,6 +242,14 @@ function getOpenLinkId(chat: ChatData): Long | null {
   return bsonToLong(chat.li) ?? null
 }
 
+function getLoginMaxLogId(loginResult: LoginListResponse, chatId: string): Long | null {
+  const chat = (loginResult.chatDatas ?? []).find((entry) => longToString(entry.c) === chatId)
+  if (!chat) return null
+
+  const lastLog = chat.l as Record<string, unknown> | null | undefined
+  return bsonToLong(chat.ll) ?? bsonToLong(lastLog?.logId) ?? null
+}
+
 function matchesSearch(chat: ChatData, term: string): boolean {
   const names = (chat.k ?? []) as string[]
   const lower = term.toLowerCase()
@@ -827,7 +835,7 @@ export class KakaoTalkClient {
   }
 
   async getMessages(chatId: string, options?: { count?: number; from?: string }): Promise<KakaoMessage[]> {
-    return this.executeWithReconnect(async ({ session }) => {
+    return this.executeWithReconnect(async ({ session, loginResult }) => {
       try {
         const count = options?.count ?? 20
         const cursor = options?.from ? parseLong(options.from) : undefined
@@ -880,10 +888,13 @@ export class KakaoTalkClient {
           return formatMessages(allMessages, count, chatId, this.nameCache)
         }
 
-        // Fetch fresh lastLogId via CHATONROOM (not the stale login-time snapshot)
-        const chatInfo = await session.getChatInfo(cid)
-        const chatBody = chatInfo.body as Record<string, unknown>
-        const maxLogId = bsonToLong(chatBody.l)
+        // CHATONROOM represents entering a room and can advance unread state on
+        // the server. Use the login-time chat-list watermark for the read-only
+        // SYNCMSG fallback instead, and skip sync when the cursor is current.
+        const maxLogId = getLoginMaxLogId(loginResult, chatId)
+        if (!maxLogId || maxLogId.lessThanOrEqual(cur)) {
+          return []
+        }
 
         let reachedEnd = false
         for (let page = 0; page < MAX_PAGES; page++) {
