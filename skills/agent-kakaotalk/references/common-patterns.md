@@ -185,7 +185,7 @@ NEW_MESSAGES=$(agent-kakaotalk message list "$CHAT_ID" --from "$LAST_SEEN")
 
 **When to use**: Reading long chat histories, catching up on new messages since last check.
 
-**Pagination details**: The CLI now prefers KakaoTalk's `MCHATLOGS` flow for history reads, fetching message batches from the requested `--from` point and returning the last N messages after deduplication and ascending sort. If that path cannot provide results, it falls back to `CHATONROOM` + `SYNCMSG` for compatibility. As a safety net, both paths are capped at 50 internal pages. A warning is printed to stderr only when that cap is actually hit and the returned history may be incomplete.
+**Pagination details**: The CLI prefers KakaoTalk's `MCHATLOGS` flow for history reads, fetching message batches from the requested `--from` point and returning the last N messages after deduplication and ascending sort. If that path cannot provide results, it reads the maximum log ID from the login chat-list watermark (`ll`, falling back to `l.logId`) and calls `SYNCMSG` directly only when that watermark is ahead of the current cursor. The history path never uses `CHATONROOM`, which avoids room-entry side effects. If the watermark is missing or is not ahead of the cursor, the fallback fails closed and returns `[]`. As a safety net, both message flows are capped at 50 internal pages. A warning is printed to stderr only when that cap is actually hit and the returned history may be incomplete.
 
 ## Pattern 7: Multi-Chat Broadcast
 
