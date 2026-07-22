@@ -850,6 +850,7 @@ export class KakaoTalkClient {
               (log) => longToString(log.chatId) === chatId,
             )
             if (batch.length === 0) {
+              if (allMessages.length === 0) break
               return formatMessages(allMessages, count, chatId, this.nameCache)
             }
 
