@@ -877,6 +877,37 @@ describe('KakaoTalkClient', () => {
       client.close()
     })
 
+    it('uses the last-message log ID when the primary chat-list watermark is missing', async () => {
+      const loginResult = structuredClone(DEFAULT_LOGIN_RESULT)
+      const chat = loginResult.chatDatas[0]! as Record<string, unknown>
+      delete chat.ll
+      chat.l = { logId: makeLong(12) }
+      mockLogin.mockResolvedValueOnce(loginResult)
+      mockGetChatLogs.mockResolvedValueOnce({
+        body: { status: 0, chatLogs: [], eof: true },
+      })
+      mockSyncMessages.mockResolvedValueOnce({
+        body: {
+          status: 0,
+          isOK: true,
+          chatLogs: [
+            { logId: makeLong(12), chatId: 100, type: 1, authorId: 42, message: 'last-log', sendAt: 1700000001 },
+          ],
+        },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const messages = await client.getMessages('100', { from: '11' })
+
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.message).toBe('last-log')
+      expect(mockGetChatInfo).not.toHaveBeenCalled()
+      expect(mockSyncMessages.mock.calls[0]?.[2]?.toString()).toBe('11')
+      expect(mockSyncMessages.mock.calls[0]?.[3]?.toString()).toBe('12')
+
+      client.close()
+    })
+
     it('returns empty without entering the room when no chat-list watermark is available', async () => {
       mockLogin.mockResolvedValueOnce({ ...structuredClone(DEFAULT_LOGIN_RESULT), chatDatas: [] })
       mockGetChatLogs.mockResolvedValueOnce({
