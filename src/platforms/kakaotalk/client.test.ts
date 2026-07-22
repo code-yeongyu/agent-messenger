@@ -107,6 +107,7 @@ describe('KakaoTalkClient', () => {
     mockLogin.mockResolvedValue(structuredClone(DEFAULT_LOGIN_RESULT))
     mockGetChatLogs.mockResolvedValue({ body: { status: 0, chatLogs: [], eof: true } })
     mockGetChatInfo.mockResolvedValue({ body: { l: makeLong(99999) } })
+    mockSyncMessages.mockResolvedValue({ body: { status: 0, isOK: true, chatLogs: [] } })
   })
 
   afterEach(() => {
@@ -803,6 +804,34 @@ describe('KakaoTalkClient', () => {
   })
 
   describe('getMessages', () => {
+    it('falls back to SYNCMSG when MCHATLOGS succeeds with an empty result', async () => {
+      mockGetChatLogs.mockResolvedValueOnce({
+        body: { status: 0, chatLogs: [], eof: true },
+      })
+      mockGetChatInfo.mockResolvedValueOnce({
+        body: { status: 0, l: makeLong(10) },
+      })
+      mockSyncMessages.mockResolvedValueOnce({
+        body: {
+          status: 0,
+          isOK: true,
+          chatLogs: [
+            { logId: makeLong(10), chatId: 100, type: 1, authorId: 42, message: 'fallback', sendAt: 1700000001 },
+          ],
+        },
+      })
+
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+      const messages = await client.getMessages('100')
+
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.message).toBe('fallback')
+      expect(mockGetChatInfo).toHaveBeenCalledTimes(1)
+      expect(mockSyncMessages).toHaveBeenCalledTimes(1)
+
+      client.close()
+    })
+
     it('returns formatted messages', async () => {
       mockGetChatLogs.mockResolvedValueOnce({
         body: {
