@@ -193,6 +193,16 @@ describe('message commands', () => {
   })
 
   describe('listAction', () => {
+    it('forwards the before cursor and limit', async () => {
+      await listAction('general', {
+        _credManager: manager,
+        limit: '100',
+        before: '1546041838622867467',
+      })
+
+      expect(mockGetMessages).toHaveBeenCalledWith('ch1', 100, { before: '1546041838622867467' })
+    })
+
     it('lists messages in channel', async () => {
       const result = await listAction('general', { _credManager: manager })
 

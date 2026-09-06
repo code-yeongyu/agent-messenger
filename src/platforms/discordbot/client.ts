@@ -274,8 +274,10 @@ export class DiscordBotClient {
     })
   }
 
-  async getMessages(channelId: string, limit: number = 50): Promise<DiscordMessage[]> {
-    return this.request<DiscordMessage[]>('GET', `/channels/${channelId}/messages?limit=${limit}`)
+  async getMessages(channelId: string, limit: number = 50, options?: { before?: string }): Promise<DiscordMessage[]> {
+    const params = new URLSearchParams({ limit: limit.toString() })
+    if (options?.before) params.set('before', options.before)
+    return this.request<DiscordMessage[]>('GET', `/channels/${channelId}/messages?${params}`)
   }
 
   async getMessage(channelId: string, messageId: string): Promise<DiscordMessage> {
