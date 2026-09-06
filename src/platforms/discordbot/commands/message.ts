@@ -75,13 +75,18 @@ export async function replyAction(
   }
 }
 
-export async function listAction(channel: string, options: BotOption & { limit?: string }): Promise<MessageResult> {
+export async function listAction(
+  channel: string,
+  options: BotOption & { limit?: string; before?: string },
+): Promise<MessageResult> {
   try {
     const client = await getClient(options)
     const serverId = await getCurrentServer(options)
     const channelId = await client.resolveChannel(serverId, channel)
     const limit = options.limit ? parseInt(options.limit, 10) : 50
-    const messages = await client.getMessages(channelId, limit)
+    const messages = options.before
+      ? await client.getMessages(channelId, limit, { before: options.before })
+      : await client.getMessages(channelId, limit)
 
     return {
       messages: messages.map((msg) => ({
@@ -224,10 +229,11 @@ export const messageCommand = new Command('message')
       .description('List messages in a channel')
       .argument('<channel>', 'Channel ID or name')
       .option('--limit <n>', 'Number of messages to fetch', '50')
+      .option('--before <message-id>', 'Only fetch messages before this ID')
       .option('--bot <id>', 'Use specific bot')
       .option('--server <id>', 'Server ID')
       .option('--pretty', 'Pretty print JSON output')
-      .action(async (channel: string, opts: BotOption & { limit?: string }) => {
+      .action(async (channel: string, opts: BotOption & { limit?: string; before?: string }) => {
         cliOutput(await listAction(channel, opts), opts.pretty)
       }),
   )

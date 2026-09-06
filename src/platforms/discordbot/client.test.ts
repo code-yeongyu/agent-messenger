@@ -134,6 +134,19 @@ describe('DiscordBotClient', () => {
     })
   })
 
+  describe('getMessages', () => {
+    it('serializes the before cursor in the request URL', async () => {
+      mockResponse([])
+      const client = await new DiscordBotClient().login({ token: 'bot-token' })
+
+      await client.getMessages('ch1', 100, { before: '1546041838622867467' })
+
+      expect(fetchCalls[0].url).toBe(
+        'https://discord.com/api/v10/channels/ch1/messages?limit=100&before=1546041838622867467',
+      )
+    })
+  })
+
   describe('sendMessage', () => {
     it('sends message to channel', async () => {
       mockResponse({
