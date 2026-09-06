@@ -75,7 +75,10 @@ export async function replyAction(
   }
 }
 
-export async function listAction(channel: string, options: BotOption & { limit?: string; before?: string }): Promise<MessageResult> {
+export async function listAction(
+  channel: string,
+  options: BotOption & { limit?: string; before?: string },
+): Promise<MessageResult> {
   try {
     const client = await getClient(options)
     const serverId = await getCurrentServer(options)
