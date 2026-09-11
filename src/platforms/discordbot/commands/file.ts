@@ -84,8 +84,7 @@ export async function infoAction(channel: string, fileId: string, options: BotOp
     const client = await getClient(options)
     const channelId = await client.resolveChannel(serverId, channel)
 
-    const files = await client.listFiles(channelId)
-    const file = files.find((f) => f.id === fileId)
+    const file = await client.findFile(channelId, fileId)
     if (!file) {
       return { error: `File not found: ${fileId}` }
     }

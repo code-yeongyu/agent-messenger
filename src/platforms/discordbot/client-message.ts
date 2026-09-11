@@ -6,6 +6,9 @@ import { DiscordBotError } from './types'
 type Request = <T>(method: string, path: string, body?: unknown) => Promise<T>
 type RequestFormData = <T>(path: string, formData: FormData) => Promise<T>
 
+const MESSAGE_PAGE_LIMIT = 100
+export const FILE_LOOKUP_MAX_PAGES = 10
+
 export async function createMessage(
   request: Request,
   requestFormData: RequestFormData,
@@ -66,16 +69,23 @@ export async function uploadFile(
 }
 
 export async function listFiles(request: Request, channelId: string): Promise<DiscordFile[]> {
-  const files: DiscordFile[] = []
+  const messages = await request<DiscordMessage[]>('GET', `/channels/${channelId}/messages?limit=${MESSAGE_PAGE_LIMIT}`)
+  return messages.flatMap((message) => message.attachments ?? [])
+}
+
+export async function findFile(request: Request, channelId: string, fileId: string): Promise<DiscordFile | undefined> {
   let before: string | undefined
-  for (let page = 0; page < 100; page += 1) {
-    const query = before ? `?limit=100&before=${encodeURIComponent(before)}` : '?limit=100'
+  for (let page = 0; page < FILE_LOOKUP_MAX_PAGES; page += 1) {
+    const query = before
+      ? `?limit=${MESSAGE_PAGE_LIMIT}&before=${encodeURIComponent(before)}`
+      : `?limit=${MESSAGE_PAGE_LIMIT}`
     const messages = await request<DiscordMessage[]>('GET', `/channels/${channelId}/messages${query}`)
-    files.push(...messages.flatMap((message) => message.attachments ?? []))
-    if (messages.length < 100) break
+    const found = messages.flatMap((message) => message.attachments ?? []).find((file) => file.id === fileId)
+    if (found) return found
+    if (messages.length < MESSAGE_PAGE_LIMIT) return undefined
     const oldest = messages[messages.length - 1]?.id
-    if (!oldest || oldest === before) break
+    if (!oldest || oldest === before) return undefined
     before = oldest
   }
-  return files
+  return undefined
 }

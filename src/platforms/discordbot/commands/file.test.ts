@@ -40,6 +40,13 @@ const mockListFiles = mock(
     ]),
 )
 
+const mockFindFile = mock((_channelId: string, fileId: string): Promise<DiscordFile | undefined> => {
+  if (fileId === 'att1') {
+    return Promise.resolve({ id: 'att1', filename: 'test.txt', size: 12, url: 'https://cdn.discord.com/test.txt' })
+  }
+  return Promise.resolve(undefined)
+})
+
 const mockResolveChannel = mock((_guildId: string, channel: string): Promise<string> => {
   if (channel === 'general') return Promise.resolve('ch-general')
   if (/^\d+$/.test(channel)) return Promise.resolve(channel)
@@ -58,6 +65,7 @@ mock.module('../client', () => ({
     }
     createMessage = mockCreateMessage
     listFiles = mockListFiles
+    findFile = mockFindFile
     resolveChannel = mockResolveChannel
     resolveThread = mockResolveThread
   },
@@ -93,6 +101,7 @@ describe('file commands', () => {
 
     mockCreateMessage.mockClear()
     mockListFiles.mockClear()
+    mockFindFile.mockClear()
     mockResolveChannel.mockClear()
     mockResolveThread.mockClear()
 
@@ -223,7 +232,7 @@ describe('file commands', () => {
   })
 
   describe('infoAction', () => {
-    it('returns file info for an existing file', async () => {
+    it('returns file info for an existing file without listing the channel', async () => {
       const result = await infoAction('general', 'att1', options)
 
       expect(result.error).toBeUndefined()
@@ -232,18 +241,22 @@ describe('file commands', () => {
       expect(result.size).toBe(12)
       expect(result.url).toBe('https://cdn.discord.com/test.txt')
       expect(result.content_type).toBeNull()
+      expect(mockFindFile).toHaveBeenCalledWith('ch-general', 'att1')
+      expect(mockListFiles).not.toHaveBeenCalled()
     })
 
     it('returns error when file is not found', async () => {
       const result = await infoAction('general', 'nope', options)
 
       expect(result.error).toBe('File not found: nope')
+      expect(mockFindFile).toHaveBeenCalledWith('ch-general', 'nope')
     })
 
     it('returns error when channel resolution fails', async () => {
       const result = await infoAction('nonexistent', 'att1', options)
 
       expect(result.error).toBeDefined()
+      expect(mockFindFile).not.toHaveBeenCalled()
       expect(mockListFiles).not.toHaveBeenCalled()
     })
   })
@@ -254,6 +267,8 @@ describe('file commands', () => {
 
       expect(result.error).toBeUndefined()
       expect(result.success).toBe(true)
+      expect(mockListFiles).toHaveBeenCalledWith('ch-general')
+      expect(mockFindFile).not.toHaveBeenCalled()
       expect(result.files).toEqual([
         {
           id: 'att1',

@@ -1,5 +1,6 @@
 import {
   createMessage as createMessageHelper,
+  findFile as findFileHelper,
   listFiles as listFilesHelper,
   uploadFile as uploadFileHelper,
 } from './client-message'
@@ -337,6 +338,10 @@ export class DiscordBotClient {
 
   async listFiles(channelId: string): Promise<DiscordFile[]> {
     return listFilesHelper((method, path, body) => this.request(method, path, body), channelId)
+  }
+
+  async findFile(channelId: string, fileId: string): Promise<DiscordFile | undefined> {
+    return findFileHelper((method, path, body) => this.request(method, path, body), channelId, fileId)
   }
 
   async createThread(
