@@ -165,7 +165,8 @@ describe('DiscordBotClient', () => {
       const client = await new DiscordBotClient().login({ token: 'bot-token' })
       await client.sendMessage('ch1', 'Thread reply', { thread_id: 'thread123' })
 
-      expect(fetchCalls[0].options?.body).toBe(JSON.stringify({ content: 'Thread reply', thread_id: 'thread123' }))
+      expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/channels/thread123/messages')
+      expect(fetchCalls[0].options?.body).toBe(JSON.stringify({ content: 'Thread reply' }))
     })
 
     it('includes message_reference when reply_to is provided', async () => {

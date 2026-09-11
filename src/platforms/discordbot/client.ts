@@ -1,6 +1,13 @@
 import { readFile } from 'node:fs/promises'
 
-import type { DiscordChannel, DiscordFile, DiscordGuild, DiscordMessage, DiscordUser } from './types'
+import type {
+  DiscordChannel,
+  DiscordCreateMessageOptions,
+  DiscordFile,
+  DiscordGuild,
+  DiscordMessage,
+  DiscordUser,
+} from './types'
 import { DiscordBotError } from './types'
 
 const BASE_URL = 'https://discord.com/api/v10'
@@ -249,19 +256,29 @@ export class DiscordBotClient {
     return this.request<DiscordChannel>('GET', `/channels/${channelId}`)
   }
 
+  async createMessage(channelId: string, options: DiscordCreateMessageOptions): Promise<DiscordMessage> {
+    const target = options.thread_id ?? channelId
+    const payload: {
+      content?: string
+      message_reference?: { message_id: string }
+    } = {}
+
+    if (options.content !== undefined) {
+      payload.content = options.content
+    }
+    if (options.reply_to !== undefined) {
+      payload.message_reference = { message_id: options.reply_to }
+    }
+
+    return this.request<DiscordMessage>('POST', `/channels/${target}/messages`, payload)
+  }
+
   async sendMessage(
     channelId: string,
     content: string,
     options?: { thread_id?: string; reply_to?: string },
   ): Promise<DiscordMessage> {
-    const body: Record<string, unknown> = { content }
-    if (options?.thread_id) {
-      body.thread_id = options.thread_id
-    }
-    if (options?.reply_to) {
-      body.message_reference = { message_id: options.reply_to }
-    }
-    return this.request<DiscordMessage>('POST', `/channels/${channelId}/messages`, body)
+    return this.createMessage(channelId, { content, thread_id: options?.thread_id, reply_to: options?.reply_to })
   }
 
   async getMessages(channelId: string, limit: number = 50): Promise<DiscordMessage[]> {
