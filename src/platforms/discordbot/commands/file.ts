@@ -5,48 +5,58 @@ import { Command } from 'commander'
 import { handleError } from '@/shared/utils/error-handler'
 import { formatOutput } from '@/shared/utils/output'
 
-import type { DiscordFile } from '../types'
-import type { BotOption } from './shared'
-import { getClient, getCurrentServer } from './shared'
+import type { AttachmentOutput, BotOption, SendTargetOption } from './shared'
+import { getClient, getCurrentServer, resolveSendTarget, toAttachmentOutput } from './shared'
 
-interface FileOutput {
-  id: string
-  filename: string
-  size: number
-  url: string
-  content_type?: string | null
+export interface UploadOption extends SendTargetOption {
+  text?: string
+  filename?: string
 }
 
 interface UploadActionResult {
   success?: boolean
   error?: string
-  file?: FileOutput
+  file?: AttachmentOutput
+  files?: AttachmentOutput[]
+  message_id?: string
+  channel_id?: string
 }
 
 interface ListActionResult {
   success?: boolean
   error?: string
-  files?: FileOutput[]
+  files?: AttachmentOutput[]
 }
 
-export async function uploadAction(channel: string, filePath: string, options: BotOption): Promise<UploadActionResult> {
+export async function uploadAction(
+  channel: string,
+  filePaths: string[],
+  options: UploadOption,
+): Promise<UploadActionResult> {
   try {
-    const serverId = await getCurrentServer(options)
-    const client = await getClient(options)
-    const channelId = await client.resolveChannel(serverId, channel)
-
-    const resolvedPath = resolve(filePath)
-    const file = await client.uploadFile(channelId, resolvedPath)
-
-    const output: FileOutput = {
-      id: file.id,
-      filename: file.filename,
-      size: file.size,
-      url: file.url,
-      content_type: file.content_type || null,
+    if (options.filename !== undefined && filePaths.length > 1) {
+      return { error: '--filename requires exactly one file' }
     }
 
-    return { success: true, file: output }
+    const serverId = await getCurrentServer(options)
+    const client = await getClient(options)
+    const { channelId, threadId } = await resolveSendTarget(client, serverId, channel, options.thread)
+
+    const message = await client.createMessage(threadId ?? channelId, {
+      content: options.text,
+      files: filePaths.map((filePath) => ({ path: resolve(filePath), filename: options.filename })),
+      reply_to: options.reply,
+    })
+
+    const files = toAttachmentOutput(message.attachments)
+
+    return {
+      success: true,
+      file: files[0],
+      files,
+      message_id: message.id,
+      channel_id: message.channel_id,
+    }
   } catch (error) {
     return { error: (error as Error).message }
   }
@@ -60,15 +70,7 @@ export async function listAction(channel: string, options: BotOption): Promise<L
 
     const files = await client.listFiles(channelId)
 
-    const output = files.map((file: DiscordFile) => ({
-      id: file.id,
-      filename: file.filename,
-      size: file.size,
-      url: file.url,
-      content_type: file.content_type || null,
-    }))
-
-    return { success: true, files: output }
+    return { success: true, files: toAttachmentOutput(files) }
   } catch (error) {
     return { error: (error as Error).message }
   }
@@ -78,16 +80,20 @@ export const fileCommand = new Command('file')
   .description('File commands')
   .addCommand(
     new Command('upload')
-      .description('Upload file to channel')
+      .description('Upload one or more files to channel')
       .argument('<channel>', 'Channel ID or name')
-      .argument('<file-path>', 'File path')
+      .argument('<file-path...>', 'One or more file paths (max 10)')
+      .option('--text <text>', 'Message text sent with the file(s)')
+      .option('--thread <id|name>', 'Post into this thread')
+      .option('--reply <message-id>', 'Reply to a message')
+      .option('--filename <name>', 'Override the filename (single file only)')
       .option('--server <id>', 'Use specific server')
       .option('--bot <id>', 'Use specific bot')
       .option('--pretty', 'Pretty print JSON output')
-      .action(async (channelArg: string, filePathArg: string, options: BotOption) => {
+      .action(async (channelArg: string, filePathArgs: string[], opts: UploadOption & BotOption) => {
         try {
-          const result = await uploadAction(channelArg, filePathArg, options)
-          console.log(formatOutput(result, options.pretty))
+          const result = await uploadAction(channelArg, filePathArgs, opts)
+          console.log(formatOutput(result, opts.pretty))
         } catch (error) {
           handleError(error as Error)
         }
