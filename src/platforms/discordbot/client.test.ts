@@ -247,6 +247,39 @@ describe('DiscordBotClient', () => {
       expect(headers?.['Content-Type']).toBeUndefined()
     })
 
+    it('preserves indexed multipart wire format for multiple files', async () => {
+      const { tmpdir } = await import('node:os')
+      const { join } = await import('node:path')
+      const firstPath = join(tmpdir(), 'a.txt')
+      const secondPath = join(tmpdir(), 'b.txt')
+      await Bun.write(firstPath, 'alpha')
+      await Bun.write(secondPath, 'bravo!')
+      mockResponse({ attachments: [] })
+
+      const client = await new DiscordBotClient().login({ token: 'bot-token' })
+      await client.createMessage('ch1', {
+        content: 'two files',
+        files: [{ path: firstPath }, { path: secondPath }],
+      })
+
+      const body = fetchCalls[0].options?.body
+      expect(body).toBeInstanceOf(FormData)
+      const formData = body as FormData
+      expect(JSON.parse(formData.get('payload_json') as string)).toEqual({
+        content: 'two files',
+        attachments: [
+          { id: 0, filename: 'a.txt' },
+          { id: 1, filename: 'b.txt' },
+        ],
+      })
+      expect((formData.get('files[0]') as File).name).toBe('a.txt')
+      expect((formData.get('files[0]') as File).size).toBe(5)
+      expect((formData.get('files[1]') as File).name).toBe('b.txt')
+      expect((formData.get('files[1]') as File).size).toBe(6)
+      const headers = fetchCalls[0].options?.headers as Record<string, string> | undefined
+      expect(headers?.['Content-Type']).toBeUndefined()
+    })
+
     it('normalizes Windows-style implicit filenames', async () => {
       const { tmpdir } = await import('node:os')
       const { join } = await import('node:path')
