@@ -1,5 +1,4 @@
 import { readFile } from 'node:fs/promises'
-import { basename } from 'node:path'
 
 import type {
   DiscordChannel,
@@ -273,7 +272,7 @@ export class DiscordBotClient {
       ) {
         throw new DiscordBotError('Invalid filename', 'invalid_filename')
       }
-      return basename(file.filename ?? file.path)
+      return (file.filename ?? file.path).replaceAll('\\', '/').split('/').pop() || 'file'
     })
     const target = options.thread_id ?? channelId
     const payload: Record<string, unknown> = {}

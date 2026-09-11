@@ -218,6 +218,21 @@ describe('DiscordBotClient', () => {
       expect(headers?.['Content-Type']).toBeUndefined()
     })
 
+    it('normalizes Windows-style implicit filenames', async () => {
+      const { tmpdir } = await import('node:os')
+      const { join } = await import('node:path')
+      const tempFile = join(tmpdir(), 'C:\\dir\\x.txt')
+      await Bun.write(tempFile, 'content')
+      mockResponse({ attachments: [{ id: 'att1', filename: 'x.txt', size: 7, url: 'https://example.com' }] })
+
+      const client = await new DiscordBotClient().login({ token: 'bot-token' })
+      await client.createMessage('ch1', { files: [{ path: tempFile }] })
+
+      const formData = fetchCalls[0].options?.body as FormData
+      expect(JSON.parse(formData.get('payload_json') as string).attachments[0].filename).toBe('x.txt')
+      expect((formData.get('files[0]') as File).name).toBe('x.txt')
+    })
+
     it('uses a filename override for multipart parts', async () => {
       const { tmpdir } = await import('node:os')
       const { join } = await import('node:path')
