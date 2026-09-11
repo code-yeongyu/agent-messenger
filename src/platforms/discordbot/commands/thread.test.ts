@@ -24,7 +24,13 @@ const mockArchiveThread = mock((_threadId: string, _archived?: boolean) =>
 const mockListThreads = mock((_guildId: string, _options?: { parentId?: string; archived?: boolean }) =>
   Promise.resolve({
     threads: [
-      { id: 'thread-789', name: 'test-thread', type: 11, parent_id: 'channel-456', thread_metadata: { archived: false } },
+      {
+        id: 'thread-789',
+        name: 'test-thread',
+        type: 11,
+        parent_id: 'channel-456',
+        thread_metadata: { archived: false },
+      },
     ],
     has_more: true,
   }),
