@@ -237,12 +237,14 @@ agent-discordbot file upload general ./fix.patch --reply 9876543210987654321
 # Override the filename (single file only)
 agent-discordbot file upload general ./tmp/abc123.txt --filename notes.txt
 
-# List files in channel
+# List files in channel (attachments of the latest 100 messages, one request)
 agent-discordbot file list <channel>
 
-# Get a single file by attachment ID
+# Get a single file by attachment ID (searches back through the latest 1,000 messages)
 agent-discordbot file info <channel> <file-id>
 ```
+
+`file list` reads a single page of channel history, so it stays fast on busy channels. `file info` pages further back with `before` cursors and stops at the first matching attachment; a file older than the latest 1,000 messages reports `File not found`.
 
 The upload response includes `message_id`, `channel_id` (the thread ID when `--thread` is used), and a `files` array with each attachment's `id`, `filename`, `size`, and `url`. Discord enforces the per-file size limit; oversized uploads come back as an error instead of being rejected locally.
 

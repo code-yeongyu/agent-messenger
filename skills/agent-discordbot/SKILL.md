@@ -283,10 +283,11 @@ agent-discordbot file upload 1234567890123456789 ./log.txt --text "Full log atta
 # Override the stored filename (single file only)
 agent-discordbot file upload 1234567890123456789 ./tmp-8x1.txt --filename build.log
 
-# List files in channel
+# List files in channel (attachments of the latest 100 messages, one request)
 agent-discordbot file list <channel-id>
 
 # Get info for one attachment (id, filename, size, url, content_type)
+# Searches back through the latest 1,000 messages and stops at the first match
 agent-discordbot file info <channel-id> <file-id>
 ```
 

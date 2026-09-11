@@ -172,10 +172,17 @@ const batch = await client.createMessage(channelId, {
 })
 // → batch.attachments: DiscordFile[] (up to 10 per message)
 
-// List file attachments from recent messages in a channel
+// List file attachments from recent messages in a channel (one page, latest 100 messages)
 const files = await client.listFiles(channelId)
 // → DiscordFile[]
+
+// Look up one attachment by ID; pages back with before cursors and stops at the first match
+const found = await client.findFile(channelId, fileId)
+// → DiscordFile | undefined
 ```
+
+`listFiles` always makes exactly one request. `findFile` scans up to 10 pages (the latest 1,000 messages) and
+returns `undefined` when the attachment is not in that range.
 
 ### Threads
 
