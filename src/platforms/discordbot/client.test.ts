@@ -89,6 +89,35 @@ describe('DiscordBotClient', () => {
     })
   })
 
+  describe('oversized upload errors', () => {
+    it('maps HTTP 413 with an empty response body', async () => {
+      fetchResponses.push(new Response(null, { status: 413 }))
+
+      const client = await new DiscordBotClient().login({ token: 'bot-token' })
+      await expect(client.testAuth()).rejects.toMatchObject({
+        code: 'http_413',
+        message: 'File(s) too large for this server upload limit (Discord error 40005)',
+      })
+    })
+
+    it('maps Discord error 40005 to the actionable upload message', async () => {
+      mockResponse({ code: 40005, message: 'Request entity too large' }, 400)
+
+      const client = await new DiscordBotClient().login({ token: 'bot-token' })
+      await expect(client.testAuth()).rejects.toMatchObject({
+        code: '40005',
+        message: 'File(s) too large for this server upload limit (Discord error 40005)',
+      })
+    })
+
+    it('preserves unrelated permission errors', async () => {
+      mockResponse({ code: 50013, message: 'Missing Permissions' }, 403)
+
+      const client = await new DiscordBotClient().login({ token: 'bot-token' })
+      await expect(client.testAuth()).rejects.toMatchObject({ code: '50013', message: 'Missing Permissions' })
+    })
+  })
+
   describe('listGuilds', () => {
     it('returns list of guilds', async () => {
       mockResponse([

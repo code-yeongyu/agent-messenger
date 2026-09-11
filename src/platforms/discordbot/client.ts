@@ -113,6 +113,13 @@ export class DiscordBotClient {
   }
 
   private handleErrorResponse(response: Response, errorBody: Record<string, string | number>): never {
+    if (errorBody.code === 40005 || response.status === 413) {
+      throw new DiscordBotError(
+        'File(s) too large for this server upload limit (Discord error 40005)',
+        errorBody.code?.toString() ?? 'http_413',
+      )
+    }
+
     throw new DiscordBotError(
       (errorBody.message as string) || `HTTP ${response.status}`,
       errorBody.code?.toString() || `http_${response.status}`,
