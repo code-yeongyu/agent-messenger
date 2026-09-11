@@ -1,5 +1,8 @@
-import { readFile } from 'node:fs/promises'
-
+import {
+  createMessage as createMessageHelper,
+  listFiles as listFilesHelper,
+  uploadFile as uploadFileHelper,
+} from './client-message'
 import { listThreads as listThreadsHelper, resolveThread as resolveThreadHelper } from './client-threads'
 import type {
   DiscordChannel,
@@ -265,50 +268,12 @@ export class DiscordBotClient {
   }
 
   async createMessage(channelId: string, options: DiscordCreateMessageOptions): Promise<DiscordMessage> {
-    const files = options.files ?? []
-    if ((options.content === undefined || options.content.trim() === '') && files.length === 0) {
-      throw new DiscordBotError('Message must have content or at least one file', 'empty_message')
-    }
-    if (files.length > 10) {
-      throw new DiscordBotError('Discord allows at most 10 files per message', 'too_many_files')
-    }
-
-    const partNames = files.map((file) => {
-      if (
-        file.filename !== undefined &&
-        (file.filename === '' || file.filename === '.' || file.filename === '..' || /[\\/]/.test(file.filename))
-      ) {
-        throw new DiscordBotError('Invalid filename', 'invalid_filename')
-      }
-      return (file.filename ?? file.path).replaceAll('\\', '/').split('/').pop() || 'file'
-    })
-    const target = options.thread_id ?? channelId
-    const payload: Record<string, unknown> = {}
-
-    if (options.content !== undefined) {
-      payload.content = options.content
-    }
-    if (options.reply_to !== undefined) {
-      payload.message_reference = { message_id: options.reply_to }
-    }
-
-    if (files.length === 0) {
-      return this.request<DiscordMessage>('POST', `/channels/${target}/messages`, payload)
-    }
-
-    const formData = new FormData()
-    formData.append(
-      'payload_json',
-      JSON.stringify({
-        ...payload,
-        attachments: files.map((_, index) => ({ id: index, filename: partNames[index] })),
-      }),
+    return createMessageHelper(
+      (method, path, body) => this.request(method, path, body),
+      (path, formData) => this.requestFormData(path, formData),
+      channelId,
+      options,
     )
-    for (const [index, file] of files.entries()) {
-      formData.append(`files[${index}]`, new Blob([await readFile(file.path)]), partNames[index])
-    }
-
-    return this.requestFormData<DiscordMessage>(`/channels/${target}/messages`, formData)
   }
 
   async sendMessage(
@@ -362,31 +327,16 @@ export class DiscordBotClient {
     filePath: string,
     options?: { content?: string; filename?: string; reply_to?: string; thread_id?: string },
   ): Promise<DiscordFile> {
-    const message = await this.createMessage(channelId, {
-      content: options?.content,
-      files: [{ path: filePath, filename: options?.filename }],
-      reply_to: options?.reply_to,
-      thread_id: options?.thread_id,
-    })
-
-    const first = message.attachments?.[0]
-    if (!first) {
-      throw new DiscordBotError('Upload succeeded but no attachments returned', 'no_attachments')
-    }
-
-    return first
+    return uploadFileHelper(
+      (id, messageOptions) => this.createMessage(id, messageOptions),
+      channelId,
+      filePath,
+      options,
+    )
   }
 
   async listFiles(channelId: string): Promise<DiscordFile[]> {
-    const messages = await this.request<DiscordMessage[]>('GET', `/channels/${channelId}/messages?limit=100`)
-
-    const files: DiscordFile[] = []
-    for (const msg of messages) {
-      if (msg.attachments && msg.attachments.length > 0) {
-        files.push(...msg.attachments)
-      }
-    }
-    return files
+    return listFilesHelper((method, path, body) => this.request(method, path, body), channelId)
   }
 
   async createThread(
