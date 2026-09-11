@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 
+import { listThreads as listThreadsHelper, resolveThread as resolveThreadHelper } from './client-threads'
 import type {
   DiscordChannel,
   DiscordCreateMessageOptions,
@@ -415,5 +416,18 @@ export class DiscordBotClient {
       )
     }
     return found.id
+  }
+
+  async listThreads(guildId: string, options?: { parentId?: string; archived?: boolean }) {
+    return listThreadsHelper({ request: (method, path, body) => this.request(method, path, body) }, guildId, options)
+  }
+
+  async resolveThread(guildId: string, parentChannelId: string, thread: string) {
+    return resolveThreadHelper(
+      { request: (method, path, body) => this.request(method, path, body) },
+      guildId,
+      parentChannelId,
+      thread,
+    )
   }
 }
