@@ -345,9 +345,10 @@ describe('DiscordBot E2E Tests', () => {
           '--thread',
           `no-such-thread-${testId}`,
         ])
-        expect(missingNameResult.exitCode).toBe(0)
+        expect(missingNameResult.exitCode).toBe(1)
         const missingName = parseJSON<{ error: string }>(missingNameResult.stdout)
         expect(missingName?.error).toContain('thread list')
+        expect(missingNameResult.stderr).toBe('')
 
         await waitForRateLimit()
 
