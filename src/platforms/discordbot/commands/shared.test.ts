@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'bun:test'
 
-import { DiscordBotClient } from '../client'
+import type { DiscordBotClient } from '../client'
 import { resolveSendTarget, toAttachmentOutput, toMessageOutput } from './shared'
 
-class FakeClient extends DiscordBotClient {
+class FakeClient {
   resolvedThreads: Array<[string, string, string]> = []
 
-  override async resolveChannel(_serverId: string, channel: string): Promise<string> {
+  async resolveChannel(_serverId: string, channel: string): Promise<string> {
     return channel === 'general' ? 'channel-1' : channel
   }
 
-  override async resolveThread(serverId: string, channelId: string, thread: string): Promise<string> {
+  async resolveThread(serverId: string, channelId: string, thread: string): Promise<string> {
     this.resolvedThreads.push([serverId, channelId, thread])
     return thread === 'named' ? 'thread-1' : thread
   }
@@ -19,13 +19,15 @@ class FakeClient extends DiscordBotClient {
 describe('discordbot shared command helpers', () => {
   it('resolves a channel without resolving a thread', async () => {
     const client = new FakeClient()
-    expect(await resolveSendTarget(client, 'server-1', 'general')).toEqual({ channelId: 'channel-1' })
+    expect(await resolveSendTarget(client as unknown as DiscordBotClient, 'server-1', 'general')).toEqual({
+      channelId: 'channel-1',
+    })
     expect(client.resolvedThreads).toHaveLength(0)
   })
 
   it('passes numeric thread values through without resolving them', async () => {
     const client = new FakeClient()
-    expect(await resolveSendTarget(client, 'server-1', 'general', '123')).toEqual({
+    expect(await resolveSendTarget(client as unknown as DiscordBotClient, 'server-1', 'general', '123')).toEqual({
       channelId: 'channel-1',
       threadId: '123',
     })
@@ -34,7 +36,7 @@ describe('discordbot shared command helpers', () => {
 
   it('delegates named threads with the resolved parent channel', async () => {
     const client = new FakeClient()
-    expect(await resolveSendTarget(client, 'server-1', 'general', 'named')).toEqual({
+    expect(await resolveSendTarget(client as unknown as DiscordBotClient, 'server-1', 'general', 'named')).toEqual({
       channelId: 'channel-1',
       threadId: 'thread-1',
     })
@@ -46,7 +48,9 @@ describe('discordbot shared command helpers', () => {
     client.resolveThread = async () => {
       throw new Error('thread_not_found')
     }
-    await expect(resolveSendTarget(client, 'server-1', 'general', 'missing')).rejects.toThrow('thread_not_found')
+    await expect(
+      resolveSendTarget(client as unknown as DiscordBotClient, 'server-1', 'general', 'missing'),
+    ).rejects.toThrow('thread_not_found')
   })
 
   it('maps attachments to stable output and defaults missing content type', () => {
