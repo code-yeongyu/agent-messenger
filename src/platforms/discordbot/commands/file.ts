@@ -28,6 +28,8 @@ interface ListActionResult {
   files?: AttachmentOutput[]
 }
 
+type InfoActionResult = AttachmentOutput | { error: string }
+
 export async function uploadAction(
   channel: string,
   filePaths: string[],
@@ -76,6 +78,24 @@ export async function listAction(channel: string, options: BotOption): Promise<L
   }
 }
 
+export async function infoAction(channel: string, fileId: string, options: BotOption): Promise<InfoActionResult> {
+  try {
+    const serverId = await getCurrentServer(options)
+    const client = await getClient(options)
+    const channelId = await client.resolveChannel(serverId, channel)
+
+    const files = await client.listFiles(channelId)
+    const file = files.find((f) => f.id === fileId)
+    if (!file) {
+      return { error: `File not found: ${fileId}` }
+    }
+
+    return toAttachmentOutput([file])[0]
+  } catch (error) {
+    return { error: (error as Error).message }
+  }
+}
+
 export const fileCommand = new Command('file')
   .description('File commands')
   .addCommand(
@@ -94,6 +114,23 @@ export const fileCommand = new Command('file')
         try {
           const result = await uploadAction(channelArg, filePathArgs, opts)
           console.log(formatOutput(result, opts.pretty))
+        } catch (error) {
+          handleError(error as Error)
+        }
+      }),
+  )
+  .addCommand(
+    new Command('info')
+      .description('Get file info')
+      .argument('<channel>', 'Channel ID or name')
+      .argument('<file-id>', 'File ID')
+      .option('--server <id>', 'Use specific server')
+      .option('--bot <id>', 'Use specific bot')
+      .option('--pretty', 'Pretty print JSON output')
+      .action(async (channelArg: string, fileIdArg: string, options: BotOption) => {
+        try {
+          const result = await infoAction(channelArg, fileIdArg, options)
+          console.log(formatOutput(result, options.pretty))
         } catch (error) {
           handleError(error as Error)
         }

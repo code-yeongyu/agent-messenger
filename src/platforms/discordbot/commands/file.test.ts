@@ -64,7 +64,7 @@ mock.module('../client', () => ({
 }))
 
 import { DiscordBotCredentialManager } from '../credential-manager'
-import { listAction, uploadAction } from './file'
+import { infoAction, listAction, uploadAction } from './file'
 import type { BotOption } from './shared'
 
 describe('file commands', () => {
@@ -219,6 +219,32 @@ describe('file commands', () => {
 
       expect(result.error).toBeDefined()
       expect(mockCreateMessage).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('infoAction', () => {
+    it('returns file info for an existing file', async () => {
+      const result = await infoAction('general', 'att1', options)
+
+      expect(result.error).toBeUndefined()
+      expect(result.id).toBe('att1')
+      expect(result.filename).toBe('test.txt')
+      expect(result.size).toBe(12)
+      expect(result.url).toBe('https://cdn.discord.com/test.txt')
+      expect(result.content_type).toBeNull()
+    })
+
+    it('returns error when file is not found', async () => {
+      const result = await infoAction('general', 'nope', options)
+
+      expect(result.error).toBe('File not found: nope')
+    })
+
+    it('returns error when channel resolution fails', async () => {
+      const result = await infoAction('nonexistent', 'att1', options)
+
+      expect(result.error).toBeDefined()
+      expect(mockListFiles).not.toHaveBeenCalled()
     })
   })
 
