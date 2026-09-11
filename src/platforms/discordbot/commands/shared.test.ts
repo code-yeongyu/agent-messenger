@@ -81,6 +81,7 @@ describe('discordbot shared command helpers', () => {
       author: 'alice',
       timestamp: 'now',
       thread_id: 'thread-1',
+      reactions: [],
       attachments: [{ id: 'a', filename: 'a.txt', size: 1, url: 'url', content_type: null }],
     })
     expect(
