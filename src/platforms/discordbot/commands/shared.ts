@@ -81,6 +81,7 @@ export interface MessageOutput {
   edited_timestamp?: string
   thread_id: string | null
   attachments: AttachmentOutput[]
+  reactions: { emoji: { id: string | null; name: string }; count: number; me: boolean }[]
 }
 
 export function toMessageOutput(message: DiscordMessage): MessageOutput {
@@ -92,6 +93,11 @@ export function toMessageOutput(message: DiscordMessage): MessageOutput {
     timestamp: message.timestamp,
     thread_id: message.thread?.id ?? null,
     attachments: toAttachmentOutput(message.attachments),
+    reactions: (message.reactions ?? []).map((reaction) => ({
+      emoji: { id: reaction.emoji.id ?? null, name: reaction.emoji.name },
+      count: reaction.count,
+      me: reaction.me ?? false,
+    })),
   }
   if (message.edited_timestamp !== undefined) output.edited_timestamp = message.edited_timestamp
   return output

@@ -97,7 +97,7 @@ export interface DiscordUser {
 
 export interface DiscordReaction {
   emoji: {
-    id?: string
+    id: string | null
     name: string
   }
   count: number
@@ -182,7 +182,7 @@ export const DiscordFileSchema = z.object({
 
 export const DiscordReactionSchema = z.object({
   emoji: z.object({
-    id: z.string().optional(),
+    id: z.string().nullable().optional(),
     name: z.string(),
   }),
   count: z.number(),

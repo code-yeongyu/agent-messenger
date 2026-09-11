@@ -66,6 +66,16 @@ export async function uploadFile(
 }
 
 export async function listFiles(request: Request, channelId: string): Promise<DiscordFile[]> {
-  const messages = await request<DiscordMessage[]>('GET', `/channels/${channelId}/messages?limit=100`)
-  return messages.flatMap((message) => message.attachments ?? [])
+  const files: DiscordFile[] = []
+  let before: string | undefined
+  for (let page = 0; page < 100; page += 1) {
+    const query = before ? `?limit=100&before=${encodeURIComponent(before)}` : '?limit=100'
+    const messages = await request<DiscordMessage[]>('GET', `/channels/${channelId}/messages${query}`)
+    files.push(...messages.flatMap((message) => message.attachments ?? []))
+    if (messages.length < 100) break
+    const oldest = messages[messages.length - 1]?.id
+    if (!oldest || oldest === before) break
+    before = oldest
+  }
+  return files
 }
