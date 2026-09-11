@@ -217,6 +217,37 @@ describe('DiscordMessageSchema', () => {
     const result = DiscordMessageSchema.safeParse(data)
     expect(result.success).toBe(true)
   })
+
+  it('validates message with attachments, reactions, and thread', () => {
+    const data = {
+      id: 'msg123',
+      channel_id: 'channel123',
+      author: {
+        id: 'user123',
+        username: 'testuser',
+      },
+      content: 'Hello world',
+      timestamp: '2024-01-01T00:00:00Z',
+      attachments: [{ id: 'file123', filename: 'document.pdf', size: 1024, url: 'https://example.com/file.pdf' }],
+      reactions: [{ emoji: { name: '👍' }, count: 1, me: true }],
+      thread: { id: 'thread123', guild_id: 'guild123', name: 'thread', type: 11 },
+    }
+    const result = DiscordMessageSchema.safeParse(data)
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects message with invalid attachments', () => {
+    const data = {
+      id: 'msg123',
+      channel_id: 'channel123',
+      author: { id: 'user123', username: 'testuser' },
+      content: 'Hello world',
+      timestamp: '2024-01-01T00:00:00Z',
+      attachments: 'nope',
+    }
+    const result = DiscordMessageSchema.safeParse(data)
+    expect(result.success).toBe(false)
+  })
 })
 
 describe('DiscordUserSchema', () => {
@@ -263,6 +294,11 @@ describe('DiscordReactionSchema', () => {
       count: 3,
     }
     const result = DiscordReactionSchema.safeParse(data)
+    expect(result.success).toBe(true)
+  })
+
+  it('validates reaction with me flag', () => {
+    const result = DiscordReactionSchema.safeParse({ emoji: { name: '👍' }, count: 1, me: true })
     expect(result.success).toBe(true)
   })
 })
