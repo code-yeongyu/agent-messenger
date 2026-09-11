@@ -47,6 +47,21 @@ describe('DiscordBotClient', () => {
     )
   }
 
+  const messagePage = (startIndex: number, count: number) =>
+    Array.from({ length: count }, (_, offset) => {
+      const index = startIndex + offset
+      return {
+        id: `msg${index}`,
+        channel_id: 'ch1',
+        author: { id: '123', username: 'user1' },
+        content: '',
+        timestamp: '2024-01-01T00:00:00.000Z',
+        attachments: [
+          { id: `att${index}`, filename: `file${index}.txt`, size: 10, url: `https://example.com/file${index}.txt` },
+        ],
+      }
+    })
+
   describe('constructor', () => {
     it('requires token', async () => {
       await expect(new DiscordBotClient().login({ token: '' })).rejects.toThrow(DiscordBotError)
@@ -557,6 +572,64 @@ describe('DiscordBotClient', () => {
 
       expect(files).toHaveLength(1)
       expect(files[0].filename).toBe('file1.txt')
+    })
+
+    it('requests a single page even when the page is full', async () => {
+      mockResponse(messagePage(0, 100))
+
+      const client = await new DiscordBotClient().login({ token: 'bot-token' })
+      const files = await client.listFiles('ch1')
+
+      expect(files).toHaveLength(100)
+      expect(fetchCalls).toHaveLength(1)
+      expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/channels/ch1/messages?limit=100')
+    })
+  })
+
+  describe('findFile', () => {
+    it('stops after the first page when the file is in the newest messages', async () => {
+      mockResponse(messagePage(0, 100))
+
+      const client = await new DiscordBotClient().login({ token: 'bot-token' })
+      const file = await client.findFile('ch1', 'att0')
+
+      expect(file?.filename).toBe('file0.txt')
+      expect(fetchCalls).toHaveLength(1)
+      expect(fetchCalls[0].url).toBe('https://discord.com/api/v10/channels/ch1/messages?limit=100')
+    })
+
+    it('follows the before cursor to reach an older page', async () => {
+      mockResponse(messagePage(0, 100))
+      mockResponse(messagePage(100, 40))
+
+      const client = await new DiscordBotClient().login({ token: 'bot-token' })
+      const file = await client.findFile('ch1', 'att120')
+
+      expect(file?.filename).toBe('file120.txt')
+      expect(fetchCalls).toHaveLength(2)
+      expect(fetchCalls[1].url).toBe('https://discord.com/api/v10/channels/ch1/messages?limit=100&before=msg99')
+    })
+
+    it('stops at the end of the channel history when the file is missing', async () => {
+      mockResponse(messagePage(0, 100))
+      mockResponse(messagePage(100, 3))
+
+      const client = await new DiscordBotClient().login({ token: 'bot-token' })
+      const file = await client.findFile('ch1', 'missing')
+
+      expect(file).toBeUndefined()
+      expect(fetchCalls).toHaveLength(2)
+    })
+
+    it('gives up after the bounded page budget', async () => {
+      for (let page = 0; page < 12; page += 1) mockResponse(messagePage(page * 100, 100))
+
+      const client = await new DiscordBotClient().login({ token: 'bot-token' })
+      const file = await client.findFile('ch1', 'missing')
+
+      expect(file).toBeUndefined()
+      expect(fetchCalls).toHaveLength(10)
+      expect(fetchCalls[9].url).toBe('https://discord.com/api/v10/channels/ch1/messages?limit=100&before=msg899')
     })
   })
 

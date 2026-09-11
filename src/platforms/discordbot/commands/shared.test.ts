@@ -73,6 +73,7 @@ describe('discordbot shared command helpers', () => {
         timestamp: 'now',
         thread: { id: 'thread-1', guild_id: 'server-1', name: 'topic', type: 11 },
         attachments: [{ id: 'a', filename: 'a.txt', size: 1, url: 'url' }],
+        reactions: [{ emoji: { id: null, name: '👍' }, count: 2, me: true }],
       }),
     ).toEqual({
       id: 'message-1',
@@ -81,7 +82,7 @@ describe('discordbot shared command helpers', () => {
       author: 'alice',
       timestamp: 'now',
       thread_id: 'thread-1',
-      reactions: [],
+      reactions: [{ emoji: { id: null, name: '👍' }, count: 2, me: true }],
       attachments: [{ id: 'a', filename: 'a.txt', size: 1, url: 'url', content_type: null }],
     })
     expect(
@@ -92,6 +93,6 @@ describe('discordbot shared command helpers', () => {
         content: '',
         timestamp: 'now',
       }),
-    ).toMatchObject({ thread_id: null, attachments: [] })
+    ).toMatchObject({ thread_id: null, attachments: [], reactions: [] })
   })
 })

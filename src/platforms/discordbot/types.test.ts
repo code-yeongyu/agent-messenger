@@ -297,9 +297,19 @@ describe('DiscordReactionSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('validates reaction with me flag', () => {
-    const result = DiscordReactionSchema.safeParse({ emoji: { name: '👍' }, count: 1, me: true })
-    expect(result.success).toBe(true)
+  it('validates nullable emoji id with reaction metadata', () => {
+    const reaction = { emoji: { id: null, name: '👍' }, count: 2, me: true }
+    expect(DiscordReactionSchema.safeParse(reaction).success).toBe(true)
+    expect(
+      DiscordMessageSchema.safeParse({
+        id: 'msg123',
+        channel_id: 'channel123',
+        author: { id: 'user123', username: 'testuser' },
+        content: 'Hello world',
+        timestamp: '2024-01-01T00:00:00Z',
+        reactions: [reaction],
+      }).success,
+    ).toBe(true)
   })
 })
 
