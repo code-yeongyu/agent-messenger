@@ -13,7 +13,90 @@ agent-discord channel list
 agent-discord user list
 ```
 
-## Read Recent Channel Context
+## Operator-Approved Expression Maintenance
+
+The examples below mutate Discord server state. Use them only when the operator has explicitly configured the personal Discord credentials as writable for this task. Default extracted credentials are readonly, and ordinary agent automation should use `agent-discord` only for reads.
+
+### Bulk Upload Custom Emoji
+
+**Use case**: Register a folder of images as server emoji without running out of slots halfway through
+
+```bash
+#!/bin/bash
+
+SERVER_ID="123456789012345678"
+
+# Check the allowance first — Discord raises it with the boost level,
+# so the free slots depend on premium_tier, not a fixed number.
+INFO=$(agent-discord server info "$SERVER_ID")
+FREE=$(echo "$INFO" | jq -r '.static_emoji_slots_remaining')
+echo "Free emoji slots: $FREE"
+
+UPLOADED=0
+for FILE in ./emoji/*.png; do
+  if [ "$UPLOADED" -ge "$FREE" ]; then
+    echo "Out of slots — stopping. Remaining files were not uploaded."
+    break
+  fi
+
+  # The name defaults to the filename without its extension, and Discord only
+  # accepts letters, digits and underscores. Rename potato-01.png beforehand,
+  # or pass --name.
+  RESULT=$(agent-discord emoji create "$SERVER_ID" "$FILE")
+
+  if echo "$RESULT" | jq -e '.success' > /dev/null 2>&1; then
+    UPLOADED=$((UPLOADED + 1))
+  else
+    echo "Failed on $FILE: $(echo "$RESULT" | jq -r '.error')"
+  fi
+done
+
+echo "Uploaded $UPLOADED emoji"
+agent-discord emoji list "$SERVER_ID" | jq '{count, static_count}'
+```
+
+**Notes**:
+
+- `emoji create` rejects a name outside Discord's rules before the request, so a
+  bad filename names itself instead of returning `Invalid Form Body`.
+- Roll back a mistake with `agent-discord emoji delete <server-id> <emoji-id>`.
+
+### Upload a Server Sticker
+
+**Use case**: Add a sticker, which has a stricter format than emoji
+
+```bash
+#!/bin/bash
+
+SERVER_ID="123456789012345678"
+
+# Discord documents 320x320 for stickers (it accepted a larger PNG in
+# practice, but stay on spec). Max 512KB.
+sips -z 320 320 ./art/potato.png --out /tmp/potato_320.png
+
+# --tags is the unicode emoji the sticker relates to, and is required.
+RESULT=$(agent-discord sticker create "$SERVER_ID" /tmp/potato_320.png \
+  --tags 🥔 --name potato --description "A potato")
+
+if echo "$RESULT" | jq -e '.success' > /dev/null 2>&1; then
+  echo "Sticker id: $(echo "$RESULT" | jq -r '.id')"
+else
+  echo "Failed: $(echo "$RESULT" | jq -r '.error')"
+fi
+
+agent-discord sticker list "$SERVER_ID"
+```
+
+**Notes**:
+
+- Base sticker slots are 5, rising to 15/30/60 with boost tiers 1/2/3.
+  `agent-discord server info` reports `sticker_slots_remaining`.
+- Sticker names are 2–30 characters. A one-character name is refused locally.
+- Lottie JSON uploads only on `VERIFIED` or `PARTNERED` guilds.
+
+## Best Practices
+
+### Read Recent Channel Context
 
 ```bash
 CHANNEL_ID="1234567890123456789"
