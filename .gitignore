@@ -34,3 +34,4 @@ local-ignore/
 .env.local
 
 .sisyphus
+.omo
