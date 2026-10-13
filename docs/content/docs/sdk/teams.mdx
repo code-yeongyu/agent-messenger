@@ -84,6 +84,10 @@ const limited = await client.getMessages(teamId, channelId, 25)
 const message = await client.getMessage(teamId, channelId, messageId)
 // → TeamsMessage
 
+// Get a single chat message by ID
+const chatMessage = await client.getChatMessage(chatId, messageId)
+// → TeamsMessage { id, channel_id, author, content, html?, files?, timestamp }
+
 // Delete a message
 await client.deleteMessage(teamId, channelId, messageId)
 ```
@@ -120,7 +124,12 @@ const file = await client.uploadFile(teamId, channelId, '/path/to/report.pdf')
 // List files in a channel
 const files = await client.listFiles(teamId, channelId)
 // → TeamsFile[]
+
+// Download any URL from a message's `files` (inline image or attachment)
+const { data, filename, contentType } = await client.downloadContent(message.files![0])
 ```
+
+Messages read from chats, channels, and the real-time listener expose `content` (plain text), `html` (the original HTML of rich-text messages), and `files` (every downloadable URL: inline images first, in order, then attachments). `downloadContent` sends the Skype token only to Teams/Skype hosts and downloads SharePoint/OneDrive attachments through Microsoft Graph, which requires an `auth login` account.
 
 ## TeamsCredentialManager
 
@@ -222,7 +231,9 @@ interface TeamsRealtimeMessage {
   conversationType: 'chat' | 'channel'
   teamId?: string // set for channel messages
   channelId?: string // set for channel messages
-  content: string // HTML-stripped text
+  content: string // plain text
+  html?: string // original HTML, rich-text messages only
+  files?: string[] // downloadable URLs: inline images first, then attachments
   mentions: TeamsMention[] // always present; empty when no @mentions
   author: { id: string; displayName: string }
   messageType: string

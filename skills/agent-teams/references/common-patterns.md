@@ -466,6 +466,33 @@ agent-teams chat send "$CHAT_ID" "Reminder: stand-up at 10am"
 
 **Note**: Work accounts also have 1:1 and group chats and can use these same `chat` commands.
 
+## Pattern 13: Save the Images and Attachments of a Message
+
+**Use case**: Read a rich message and download everything it carries (inline screenshots, attached files)
+
+```bash
+#!/bin/bash
+
+CHAT_ID="19:abc123@thread.v2"
+MESSAGE_ID="1700000000000"
+OUT_DIR="./downloads"
+mkdir -p "$OUT_DIR"
+
+MESSAGE=$(agent-teams chat get "$CHAT_ID" "$MESSAGE_ID")
+
+# Plain text for reading; `html` shows where each image sits in the text
+echo "$MESSAGE" | jq -r '.content'
+
+# Download every URL in `files` (inline images first, in order, then attachments)
+echo "$MESSAGE" | jq -r '.files // [] | .[]' | while read -r URL; do
+  agent-teams file download "$URL" "$OUT_DIR" | jq -r '.path'
+done
+```
+
+**When to use**: Forwarding or archiving a message with its images. `chat history`, `message list/get/replies`, and `channel history` return the same `html`/`files` fields.
+
+**Note**: SharePoint/OneDrive attachments download through Microsoft Graph and need an `agent-teams auth login` account; inline images work with any signed-in account.
+
 ## Best Practices
 
 ### 1. Always Handle Token Expiry

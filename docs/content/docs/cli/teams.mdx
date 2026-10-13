@@ -152,7 +152,12 @@ agent-teams message delete <channel-id> <message-id> --force
 
 # Reply to a message (thread)
 agent-teams message reply <channel-id> <message-id> "Reply content"
+
+# Get a single chat message
+agent-teams chat get <chat-id> <message-id>
 ```
+
+Messages read from chats and channels include `content` (plain text), with optional `html` (original HTML for rich-text messages) and `files` (downloadable URLs: inline images first, in order, then attachments). Both are omitted when a message has none. Pass a `files` URL to `file download`; SharePoint/OneDrive URLs require `agent-teams auth login` (cookie-only `auth extract` credentials cannot download them).
 
 ### Channel Commands
 
@@ -210,6 +215,9 @@ agent-teams file info <channel-id> <file-id>
 
 # Download file
 agent-teams file download <file-id> <output-path>
+
+# Download a URL from a message's `files` (inline image or attachment)
+agent-teams file download <url> [output-path]
 ```
 
 ### Snapshot Command
@@ -280,8 +288,9 @@ listener.on('message', async (message) => {
 await listener.start()
 ```
 
-Each `message` is a `TeamsRealtimeMessage`. Alongside the unchanged
-`chatId`/`content`/`author`, it carries `conversationType` (`'chat'` or
+Each `message` is a `TeamsRealtimeMessage`. Alongside `chatId`/`author` and
+`content` (plain text with paragraph breaks), optional `html`/`files` (same as
+for read commands), it carries `conversationType` (`'chat'` or
 `'channel'`), `teamId`/`channelId` (set for channel messages, for use with
 `sendMessage`), and `mentions` (always present, empty when there are no
 `@mentions`; each is `{ id, mri?, displayName }`).

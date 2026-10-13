@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { TeamsClient } from '../client'
 import { TeamsCredentialManager } from '../credential-manager'
 import { TeamsAuthCapabilityError } from '../types'
-import { downloadAction, infoAction, listAction, uploadAction } from './file'
+import { downloadAction, downloadContentAction, downloadFromCli, infoAction, listAction, uploadAction } from './file'
 
 let clientUploadFileSpy: ReturnType<typeof spyOn>
 let clientListFilesSpy: ReturnType<typeof spyOn>
@@ -180,4 +180,76 @@ it('download: exits on capability error without writing a partial file', async (
 
   expect(existsSync(outputPath)).toBe(false)
   expect(consoleErrorSpy.mock.calls[0][0]).toContain('Requires `agent-teams auth login`')
+})
+
+it('download content: writes a URL download into a directory', async () => {
+  const consoleSpy = mock((_msg: string) => {})
+  console.log = consoleSpy
+  const dir = mkdtempSync(join(tmpdir(), 'teams-download-content-'))
+  tempDirs.push(dir)
+  const url = 'https://us-api.asm.skype.com/v1/objects/0-weu-d1-abc/views/imgo'
+  const downloadContentSpy = spyOn(TeamsClient.prototype, 'downloadContent').mockResolvedValue({
+    data: Buffer.from('image-bytes'),
+    filename: '0-weu-d1-abc.jpg',
+    contentType: 'image/jpeg',
+  })
+
+  try {
+    await downloadContentAction(url, dir, { pretty: false })
+
+    const downloadedPath = join(dir, '0-weu-d1-abc.jpg')
+    expect(downloadContentSpy).toHaveBeenCalledWith(url)
+    expect(readFileSync(downloadedPath, 'utf8')).toBe('image-bytes')
+    expect(JSON.parse(consoleSpy.mock.calls[0][0])).toEqual({
+      name: '0-weu-d1-abc.jpg',
+      size: 11,
+      content_type: 'image/jpeg',
+      path: downloadedPath,
+    })
+  } finally {
+    downloadContentSpy.mockRestore()
+  }
+})
+
+it('download content: exits on capability error without writing a file', async () => {
+  const consoleErrorSpy = mock((_msg: string) => {})
+  console.error = consoleErrorSpy
+  const dir = mkdtempSync(join(tmpdir(), 'teams-download-content-capability-'))
+  tempDirs.push(dir)
+  const outputPath = join(dir, 'report.pdf')
+  const downloadContentSpy = spyOn(TeamsClient.prototype, 'downloadContent').mockRejectedValue(
+    new TeamsAuthCapabilityError(),
+  )
+
+  try {
+    await expect(
+      downloadContentAction('https://contoso.sharepoint.com/sites/team/report.pdf', outputPath, { pretty: false }),
+    ).rejects.toThrow('process.exit:1')
+
+    expect(existsSync(outputPath)).toBe(false)
+    expect(consoleErrorSpy.mock.calls[0][0]).toContain('Requires `agent-teams auth login`')
+  } finally {
+    downloadContentSpy.mockRestore()
+  }
+})
+
+it('download: rejects extra positional arguments instead of ignoring them', async () => {
+  const consoleSpy = mock((_msg: string) => {})
+  console.log = consoleSpy
+  const downloadContentSpy = spyOn(TeamsClient.prototype, 'downloadContent')
+
+  try {
+    await expect(
+      downloadFromCli('https://us-api.asm.skype.com/v1/objects/0-weu-d1-abc/views/imgo', ['out.jpg', 'extra'], {}),
+    ).rejects.toThrow('process.exit:1')
+    await expect(downloadFromCli('team_123', ['ch_456', 'file_123', 'out.pdf', 'extra'], {})).rejects.toThrow(
+      'process.exit:1',
+    )
+
+    expect(downloadContentSpy).not.toHaveBeenCalled()
+    expect(clientDownloadFileSpy).not.toHaveBeenCalled()
+    expect(consoleSpy.mock.calls[0][0]).toContain('Usage: file download')
+  } finally {
+    downloadContentSpy.mockRestore()
+  }
 })
