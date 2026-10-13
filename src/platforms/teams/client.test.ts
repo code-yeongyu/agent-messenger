@@ -306,6 +306,56 @@ describe('TeamsClient', () => {
         'https://msgapi.teams.live.com/v1/users/ME/conversations/19%3A1on1%40unq.gbl.spaces/messages?startTime=0&view=msnp24Equivalent&pageSize=30',
       )
     })
+
+    it('exposes the raw html and downloadable files of rich messages', async () => {
+      const imageUrl = 'https://us-api.asm.skype.com/v1/objects/0-weu-d1-abc/views/imgo'
+      const attachmentUrl = 'https://contoso-my.sharepoint.com/personal/alice/Documents/report.pdf'
+      const html = `<p>See</p><img src="${imageUrl}" itemtype="http://schema.skype.com/AMSImage">`
+      mockResponse({
+        messages: [
+          {
+            id: 'm1',
+            content: html,
+            imdisplayname: 'Alice',
+            composetime: '2024-01-01T00:00:00.000Z',
+            messagetype: 'RichText/Html',
+            properties: { files: JSON.stringify([{ objectUrl: attachmentUrl }]) },
+          },
+        ],
+      })
+
+      const client = await new TeamsClient().login({ token: 'test-token', accountType: 'personal' })
+      const [message] = await client.getChatMessages('19:1on1@unq.gbl.spaces')
+
+      expect(message.content).toBe('See')
+      expect(message.html).toBe(html)
+      expect(message.files).toEqual([imageUrl, attachmentUrl])
+    })
+  })
+
+  describe('getChatMessage', () => {
+    it('fetches a single chat message by id', async () => {
+      mockResponse({
+        id: '1700000000000',
+        content: '<p>Hello &amp; welcome</p>',
+        imdisplayname: 'Alice',
+        composetime: '2024-01-01T00:00:00.000Z',
+        messagetype: 'RichText/Html',
+      })
+
+      const client = await new TeamsClient().login({ token: 'test-token', accountType: 'personal' })
+      const message = await client.getChatMessage('19:group@thread.v2', '1700000000000')
+
+      expect(fetchCalls[0].url).toBe(
+        'https://msgapi.teams.live.com/v1/users/ME/conversations/19%3Agroup%40thread.v2/messages/1700000000000',
+      )
+      expect(message).toMatchObject({
+        id: '1700000000000',
+        channel_id: '19:group@thread.v2',
+        content: 'Hello & welcome',
+        html: '<p>Hello &amp; welcome</p>',
+      })
+    })
   })
 
   describe('sendChatMessage', () => {
@@ -586,6 +636,43 @@ describe('TeamsClient', () => {
       expect(fetchCalls[0].url).toBe(
         'https://teams.microsoft.com/api/csa/emea/api/v2/teams/111/channels/ch1/messages?limit=50',
       )
+    })
+
+    it('splits html channel content into text and html', async () => {
+      mockResponse([
+        {
+          id: 'msg1',
+          channel_id: 'ch1',
+          author: { id: '123', displayName: 'User 1' },
+          content: '<p>Release <b>today</b></p>',
+          timestamp: '2024-01-01T00:00:00.000Z',
+        },
+      ])
+
+      const client = await new TeamsClient().login({ token: 'test-token', region: 'emea' })
+      const [message] = await client.getMessages('111', 'ch1')
+
+      expect(message.content).toBe('Release today')
+      expect(message.html).toBe('<p>Release <b>today</b></p>')
+    })
+
+    it('lists channel attachments from properties.files', async () => {
+      const attachmentUrl = 'https://contoso.sharepoint.com/sites/team/Shared%20Documents/plan.docx'
+      mockResponse([
+        {
+          id: 'msg1',
+          channel_id: 'ch1',
+          author: { id: '123', displayName: 'User 1' },
+          content: '<p>Plan attached</p>',
+          timestamp: '2024-01-01T00:00:00.000Z',
+          properties: { files: JSON.stringify([{ objectUrl: attachmentUrl }]) },
+        },
+      ])
+
+      const client = await new TeamsClient().login({ token: 'test-token', region: 'emea' })
+      const [message] = await client.getMessages('111', 'ch1')
+
+      expect(message.files).toEqual([attachmentUrl])
     })
 
     it('uses default limit of 50', async () => {
@@ -972,6 +1059,80 @@ describe('TeamsClient', () => {
       await expect(client.downloadFile('111', 'ch1', 'file4')).rejects.toThrow('untrusted host')
       // only the listFiles call happened — no credentialed download fetch to the untrusted host
       expect(fetchCalls).toHaveLength(1)
+    })
+  })
+
+  describe('downloadContent', () => {
+    it('downloads inline images with the skype_token authorization scheme', async () => {
+      const url = 'https://kr-prod.asyncgw.teams.microsoft.com/v1/objects/0-skr-d1-abc/views/imgo'
+      fetchResponses.push(new Response('image-bytes', { status: 200, headers: { 'Content-Type': 'image/jpeg' } }))
+
+      const client = await new TeamsClient().login({ token: 'skype-token', region: 'emea' })
+      const result = await client.downloadContent(url)
+
+      expect(fetchCalls[0].url).toBe(url)
+      expect(headerValue(fetchCalls[0].options, 'Authorization')).toBe('skype_token skype-token')
+      expect(headerValue(fetchCalls[0].options, 'X-Skypetoken')).toBeUndefined()
+      expect(result.data.toString()).toBe('image-bytes')
+      expect(result.filename).toBe('0-skr-d1-abc.jpg')
+      expect(result.contentType).toBe('image/jpeg')
+    })
+
+    it('downloads SharePoint attachments through Graph shares', async () => {
+      const manager = await setupCredentialManager()
+      const url = 'https://contoso-my.sharepoint.com/personal/alice/Documents/Q3%20report.pdf'
+      const graphJwt = createGraphJwt()
+      mockResponse({ access_token: graphJwt, refresh_token: 'rotated-refresh', expires_in: 3600 })
+      fetchResponses.push(new Response('pdf-bytes', { status: 200, headers: { 'Content-Type': 'application/pdf' } }))
+
+      const client = await new TeamsClient(manager).login({ token: 'skype-token', region: 'emea' })
+      const result = await client.downloadContent(url)
+
+      const shareId = `u!${Buffer.from(url).toString('base64url').replace(/=+$/, '')}`
+      expect(fetchCalls[1].url).toBe(`https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem/content`)
+      expect(headerValue(fetchCalls[1].options, 'Authorization')).toBe(`Bearer ${graphJwt}`)
+      expect(result.data.toString()).toBe('pdf-bytes')
+      expect(result.filename).toBe('Q3 report.pdf')
+    })
+
+    it('prefers the Content-Disposition filename', async () => {
+      fetchResponses.push(
+        new Response('bytes', {
+          status: 200,
+          headers: { 'Content-Disposition': "attachment; filename*=UTF-8''%EB%B3%B4%EA%B3%A0%EC%84%9C.png" },
+        }),
+      )
+
+      const client = await new TeamsClient().login({ token: 'skype-token', region: 'emea' })
+      const result = await client.downloadContent('https://us-api.asm.skype.com/v1/objects/0-weu-d1-x/views/imgo')
+
+      expect(result.filename).toBe('보고서.png')
+    })
+
+    it('refuses to send the Skype token to an untrusted host', async () => {
+      const client = await new TeamsClient().login({ token: 'skype-token', region: 'emea' })
+
+      await expect(client.downloadContent('https://evil.example.com/steal')).rejects.toThrow('untrusted host')
+      expect(fetchCalls).toHaveLength(0)
+    })
+
+    it('refuses to send the Skype token over plain HTTP, even to a trusted host', async () => {
+      const client = await new TeamsClient().login({ token: 'skype-token', region: 'emea' })
+
+      await expect(
+        client.downloadContent('http://us-api.asm.skype.com/v1/objects/0-weu-d1-x/views/imgo'),
+      ).rejects.toThrow('untrusted host')
+      expect(fetchCalls).toHaveLength(0)
+    })
+
+    it('fails on a non-2xx response', async () => {
+      fetchResponses.push(new Response('nope', { status: 401 }))
+
+      const client = await new TeamsClient().login({ token: 'skype-token', region: 'emea' })
+
+      await expect(
+        client.downloadContent('https://us-api.asm.skype.com/v1/objects/0-weu-d1-x/views/imgo'),
+      ).rejects.toThrow('HTTP 401')
     })
   })
 

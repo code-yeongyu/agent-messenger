@@ -81,6 +81,8 @@ export async function listAction(
     const output = messages.map((msg: TeamsMessage) => ({
       id: msg.id,
       content: msg.content,
+      html: msg.html,
+      files: msg.files,
       author: msg.author.displayName,
       timestamp: msg.timestamp,
       root_message_id: msg.root_message_id,
@@ -122,6 +124,8 @@ export async function repliesAction(
     const output = replies.map((msg: TeamsMessage) => ({
       id: msg.id,
       content: msg.content,
+      html: msg.html,
+      files: msg.files,
       author: msg.author.displayName,
       timestamp: msg.timestamp,
       root_message_id: msg.root_message_id,
@@ -234,6 +238,8 @@ export async function getAction(
     const output = {
       id: message.id,
       content: message.content,
+      html: message.html,
+      files: message.files,
       author: message.author.displayName,
       timestamp: message.timestamp,
     }

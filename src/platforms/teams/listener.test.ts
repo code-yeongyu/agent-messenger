@@ -199,6 +199,9 @@ describe('TeamsListener.emitMessage', () => {
     expect(message.teamId).toBe('team-group-id')
     expect(message.channelId).toBe(channelId)
     expect(message.content).toBe('Alice please review')
+    expect(message.html).toBe(
+      '<span itemtype="http://schema.skype.com/Mention" itemscope itemid="0">Alice</span> please review',
+    )
     expect(message.mentions).toEqual([{ id: '0', mri: '8:orgid:alice', displayName: 'Alice' }])
   })
 

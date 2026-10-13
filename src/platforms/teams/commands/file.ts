@@ -160,22 +160,7 @@ export async function downloadAction(
     })
     const { buffer, file } = await client.downloadFile(teamId, channelId, fileId)
 
-    const safeName = basename(file.name.replace(/\\/g, '/'))
-    let destPath = outputPath ? resolve(outputPath) : resolve(safeName)
-    let isDirectory = false
-    try {
-      isDirectory = statSync(destPath).isDirectory()
-    } catch (error) {
-      const err = error as NodeJS.ErrnoException
-      if (err.code !== 'ENOENT') {
-        throw error
-      }
-    }
-
-    if (isDirectory) {
-      destPath = join(destPath, safeName)
-    }
-
+    const destPath = resolveDownloadPath(file.name, outputPath)
     writeFileSync(destPath, buffer)
 
     console.log(
@@ -197,6 +182,85 @@ export async function downloadAction(
     }
     handleError(error as Error)
   }
+}
+
+export async function downloadContentAction(
+  url: string,
+  outputPath: string | undefined,
+  options: { pretty?: boolean },
+): Promise<void> {
+  try {
+    const credManager = new TeamsCredentialManager()
+    const cred = await credManager.getTokenWithExpiry()
+
+    if (!cred) {
+      console.log(formatOutput({ error: 'Not authenticated. Run "auth extract" first.' }, options.pretty))
+      process.exit(1)
+    }
+
+    const client = await new TeamsClient().login({
+      token: cred.token,
+      tokenExpiresAt: cred.tokenExpiresAt,
+      accountType: cred.accountType,
+      region: cred.region,
+    })
+    const { data, filename, contentType } = await client.downloadContent(url)
+
+    const destPath = resolveDownloadPath(filename, outputPath)
+    writeFileSync(destPath, data)
+
+    console.log(
+      formatOutput(
+        {
+          name: filename,
+          size: data.byteLength,
+          content_type: contentType,
+          path: destPath,
+        },
+        options.pretty,
+      ),
+    )
+  } catch (error) {
+    if (error instanceof TeamsAuthCapabilityError) {
+      console.error(error.message)
+      process.exit(1)
+    }
+    handleError(error as Error)
+  }
+}
+
+function resolveDownloadPath(name: string, outputPath: string | undefined): string {
+  const safeName = basename(name.replace(/\\/g, '/'))
+  const destPath = outputPath ? resolve(outputPath) : resolve(safeName)
+  try {
+    return statSync(destPath).isDirectory() ? join(destPath, safeName) : destPath
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw error
+    }
+    return destPath
+  }
+}
+
+export async function downloadFromCli(target: string, args: string[], options: { pretty?: boolean }): Promise<void> {
+  const isUrl = /^https?:\/\//i.test(target)
+  if (isUrl && args.length <= 1) {
+    return downloadContentAction(target, args[0], options)
+  }
+  const [channelId, fileId, outputPath] = args
+  if (isUrl || !channelId || !fileId || args.length > 3) {
+    console.log(
+      formatOutput(
+        {
+          error:
+            'Usage: file download <team-id> <channel-id> <file-id> [output-path] | file download <url> [output-path]',
+        },
+        options.pretty,
+      ),
+    )
+    process.exit(1)
+  }
+  return downloadAction(target, channelId, fileId, outputPath, options)
 }
 
 export const fileCommand = new Command('file')
@@ -229,11 +293,10 @@ export const fileCommand = new Command('file')
   )
   .addCommand(
     new Command('download')
-      .description('Download file from channel')
-      .argument('<team-id>', 'Team ID')
-      .argument('<channel-id>', 'Channel ID')
-      .argument('<file-id>', 'File ID')
-      .argument('[output-path]', 'Output file or directory path')
+      .description('Download a channel file, or a content URL from a message `files` entry')
+      .usage('<team-id> <channel-id> <file-id> [output-path] | <url> [output-path] [options]')
+      .argument('<team-id|url>', 'Team ID, or a content URL from a message `files` entry')
+      .argument('[args...]', '<channel-id> <file-id> [output-path] after a team ID; [output-path] after a URL')
       .option('--pretty', 'Pretty print JSON output')
-      .action(downloadAction),
+      .action(downloadFromCli),
   )

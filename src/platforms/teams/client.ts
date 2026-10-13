@@ -7,6 +7,7 @@ import { escapeHtml, markdownToHtml } from '@/shared/utils/markdown-to-html'
 import { SUBSTRATE_SEARCH_URL } from './app-config'
 import { TeamsCredentialManager } from './credential-manager'
 import { sanitizeTeamsHtml } from './html-sanitizer'
+import { parseTeamsContent, teamsHtmlToText } from './message-content'
 import { TeamsTokenProvider } from './token-provider'
 import type {
   TeamsAccountType,
@@ -31,6 +32,7 @@ interface RateLimitBucket {
 interface RawTeamsMessage extends TeamsMessage {
   rootMessageId?: string
   parentMessageId?: string
+  properties?: unknown
 }
 
 type JsonRecord = Record<string, unknown>
@@ -56,19 +58,6 @@ function isPersonalToken(token: string): boolean {
   } catch {
     return false
   }
-}
-
-function stripHtml(content: string | undefined): string | undefined {
-  if (content === undefined) return undefined
-  const stripped = content.replace(/<[^>]*>/g, '')
-  return stripped
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim()
 }
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -125,8 +114,9 @@ function parseSubstrateResult(value: unknown): TeamsSearchResult | null {
 
   return {
     id,
-    content:
-      stripHtml(resultString(value, ['content', 'Content', 'HitHighlightedSummary', 'Summary', 'Preview'])) ?? '',
+    content: teamsHtmlToText(
+      resultString(value, ['content', 'Content', 'HitHighlightedSummary', 'Summary', 'Preview']) ?? '',
+    ),
     author: {
       id: author ? (stringFrom(author, ['id', 'Id', 'ObjectId']) ?? '') : (propertyValue(value, ['AuthorId']) ?? ''),
       displayName: author
@@ -234,13 +224,69 @@ async function readDownloadResponse(response: Response, codePrefix: string): Pro
   return Buffer.from(await response.arrayBuffer())
 }
 
+function downloadFilename(response: Response, url: string): string {
+  const disposition = response.headers.get('content-disposition') ?? ''
+  const encoded = disposition.match(/filename\*\s*=\s*(?:UTF-8'')?([^;]+)/i)?.[1]
+  const quoted = disposition.match(/filename\s*=\s*"?([^";]+)"?/i)?.[1]
+  const fromHeader = encoded ? safeDecodeURIComponent(encoded.trim()) : quoted?.trim()
+  if (fromHeader) return basename(fromHeader.replace(/\\/g, '/'))
+
+  const { pathname } = new URL(url)
+  // AMS URLs end in `/views/<view>`; the object id is the meaningful part.
+  const amsObjectId = pathname.match(/\/objects\/([^/]+)/)?.[1]
+  if (amsObjectId) return `${amsObjectId}.${extensionFor(response.headers.get('content-type'))}`
+  return basename(safeDecodeURIComponent(pathname)) || 'download'
+}
+
+function extensionFor(contentType: string | null): string {
+  const subtype = contentType?.split(';')[0].split('/')[1]?.trim().toLowerCase()
+  if (!subtype) return 'bin'
+  return subtype === 'jpeg' ? 'jpg' : subtype.replace(/\+.*$/, '')
+}
+
+function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
 function formatContent(content: string, format: TeamsMessageFormat): string {
   if (format === 'html') return sanitizeTeamsHtml(content)
   return format === 'markdown' ? markdownToHtml(content) : escapeHtml(content)
 }
 
+interface RawChatMessage {
+  id: string
+  content?: string
+  from?: string
+  imdisplayname?: string
+  composetime?: string
+  originalarrivaltime?: string
+  messagetype?: string
+  properties?: unknown
+}
+
+function toChatMessage(message: RawChatMessage, chatId: string): TeamsMessage {
+  return {
+    id: message.id,
+    channel_id: chatId,
+    author: {
+      id: message.from ?? '',
+      displayName: message.imdisplayname ?? 'Unknown',
+    },
+    ...parseTeamsContent(message.content, { messagetype: message.messagetype, properties: message.properties }),
+    timestamp: message.composetime ?? message.originalarrivaltime ?? '',
+  }
+}
+
+function withParsedContent<T extends RawTeamsMessage>(message: T): T {
+  return { ...message, ...parseTeamsContent(message.content, { properties: message.properties }) }
+}
+
 function withThreadMetadata(message: RawTeamsMessage, rootMessageId?: string): TeamsMessage {
-  const { rootMessageId: messageRootMessageId, parentMessageId, ...teamsMessage } = message
+  const { rootMessageId: messageRootMessageId, parentMessageId, ...teamsMessage } = withParsedContent(message)
   const rawRootMessageId = rootMessageId ?? messageRootMessageId
   const isThreadReply = Boolean(
     rootMessageId ||
@@ -649,7 +695,7 @@ export class TeamsClient {
         id: conv.id,
         type,
         topic: conv.threadProperties?.topic,
-        last_message: stripHtml(conv.lastMessage?.content),
+        last_message: conv.lastMessage?.content === undefined ? undefined : teamsHtmlToText(conv.lastMessage.content),
         last_message_at: conv.lastMessage?.composetime ?? conv.lastMessage?.originalarrivaltime,
       })
     }
@@ -658,17 +704,8 @@ export class TeamsClient {
   }
 
   async getChatMessages(chatId: string, limit: number = 50): Promise<TeamsMessage[]> {
-    interface ChatMessage {
-      id: string
-      content?: string
-      from?: string
-      imdisplayname?: string
-      composetime?: string
-      originalarrivaltime?: string
-      messagetype?: string
-    }
     interface MessagesResponse {
-      messages: ChatMessage[]
+      messages: RawChatMessage[]
     }
     const encodedChatId = encodeURIComponent(chatId)
     const data = await this.request<MessagesResponse>(
@@ -680,16 +717,15 @@ export class TeamsClient {
     return (data.messages ?? [])
       .filter((msg) => !msg.messagetype || userMessageTypes.has(msg.messagetype))
       .slice(0, limit)
-      .map((msg) => ({
-        id: msg.id,
-        channel_id: chatId,
-        author: {
-          id: msg.from ?? '',
-          displayName: msg.imdisplayname ?? 'Unknown',
-        },
-        content: stripHtml(msg.content) ?? '',
-        timestamp: msg.composetime ?? msg.originalarrivaltime ?? '',
-      }))
+      .map((msg) => toChatMessage(msg, chatId))
+  }
+
+  async getChatMessage(chatId: string, messageId: string): Promise<TeamsMessage> {
+    const message = await this.request<RawChatMessage>(
+      'GET',
+      `/users/ME/conversations/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}`,
+    )
+    return toChatMessage(message, chatId)
   }
 
   async sendChatMessage(chatId: string, content: string, format: TeamsMessageFormat = 'text'): Promise<TeamsMessage> {
@@ -863,12 +899,13 @@ export class TeamsClient {
   }
 
   async getMessage(teamId: string, channelId: string, messageId: string): Promise<TeamsMessage> {
-    return this.request<TeamsMessage>(
+    const message = await this.request<RawTeamsMessage>(
       'GET',
       `/csa/${this.region}/api/v2/teams/${teamId}/channels/${channelId}/messages/${messageId}`,
       undefined,
       CSA_API_BASE,
     )
+    return withParsedContent(message)
   }
 
   async deleteMessage(teamId: string, channelId: string, messageId: string): Promise<void> {
@@ -938,14 +975,7 @@ export class TeamsClient {
 
     const source = getFileDownloadSource(file)
     if (source.route === 'graph') {
-      const graphToken = await new TeamsTokenProvider(this.credManager).getGraphToken()
-      const shareId = `u!${Buffer.from(source.url).toString('base64url').replace(/=+$/, '')}`
-      const response = await fetch(`${GRAPH_API_BASE}/shares/${shareId}/driveItem/content`, {
-        headers: {
-          Authorization: `Bearer ${graphToken}`,
-        },
-        redirect: 'follow',
-      })
+      const response = await this.fetchGraphShare(source.url)
       return { buffer: await readDownloadResponse(response, 'graph_download'), file }
     }
 
@@ -961,5 +991,39 @@ export class TeamsClient {
       redirect: 'follow',
     })
     return { buffer: await readDownloadResponse(response, 'skype_download'), file }
+  }
+
+  async downloadContent(url: string): Promise<{ data: Buffer; filename: string; contentType: string | null }> {
+    if (isSharePointOrOneDriveUrl(url)) {
+      const response = await this.fetchGraphShare(url)
+      const data = await readDownloadResponse(response, 'graph_download')
+      return { data, filename: downloadFilename(response, url), contentType: response.headers.get('content-type') }
+    }
+
+    if (!url.toLowerCase().startsWith('https://') || !isTrustedSkypeDownloadHost(url)) {
+      throw new TeamsError(`Refusing to download from an untrusted host: ${url}`, 'file_url_untrusted')
+    }
+    if (this.isTokenExpired()) {
+      throw new TeamsError('Token has expired. Run "auth login" or "auth extract" to refresh.', 'token_expired')
+    }
+    // AMS content (inline images) only accepts the `skype_token` scheme; a
+    // Bearer header or a bare X-Skypetoken is rejected with 401.
+    const response = await fetch(url, {
+      headers: { Authorization: `skype_token ${this.getToken()}` },
+      redirect: 'follow',
+    })
+    const data = await readDownloadResponse(response, 'skype_download')
+    return { data, filename: downloadFilename(response, url), contentType: response.headers.get('content-type') }
+  }
+
+  private async fetchGraphShare(url: string): Promise<Response> {
+    const graphToken = await new TeamsTokenProvider(this.credManager).getGraphToken()
+    const shareId = `u!${Buffer.from(url).toString('base64url').replace(/=+$/, '')}`
+    return fetch(`${GRAPH_API_BASE}/shares/${shareId}/driveItem/content`, {
+      headers: {
+        Authorization: `Bearer ${graphToken}`,
+      },
+      redirect: 'follow',
+    })
   }
 }

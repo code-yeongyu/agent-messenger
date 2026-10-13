@@ -252,6 +252,9 @@ agent-teams chat list
 # Get chat message history
 agent-teams chat history <chat-id> --limit 100
 
+# Get a single chat message
+agent-teams chat get <chat-id> <message-id>
+
 # Send a message to a chat
 agent-teams chat send <chat-id> "Hello"
 agent-teams chat send <chat-id> "**Important**: see the [board](https://example.com)" --format markdown
@@ -264,6 +267,16 @@ agent-teams chat edit <chat-id> <message-id> "Fixed \`bug\`" --format markdown
 Chat IDs look like `19:guid1_guid2@unq.gbl.spaces` (1:1) or `19:guid@thread.tacv2` (group). Get them from `chat list`. The `48:notes` chat (`type: self`) is your personal "to me" notes thread.
 
 `chat edit` only works on your own messages, and only for chats — Teams channel messages are not editable through this API.
+
+### Message Content (text, HTML, files)
+
+Messages from `chat history`, `chat get`, `message list/get/replies`, and `channel history` include:
+
+- `content` — plain text (paragraphs as newlines, links as `text (url)`; numeric and common named entities such as `&amp;`, `&nbsp;`, `&mdash;` are decoded, rarer named entities stay literal)
+- `html` — the original HTML, only for rich-text messages; use it to see where images sit in the text
+- `files` — every downloadable URL in the message: inline images first (in order), then attachments
+
+Download any `files` entry with `agent-teams file download <url> [output-path]`.
 
 ### Message Formatting
 
@@ -360,7 +373,12 @@ agent-teams file info <team-id> <channel-id> <file-id>
 agent-teams file download <team-id> <channel-id> <file-id>
 agent-teams file download <team-id> <channel-id> <file-id> ./report.pdf
 agent-teams file download <team-id> <channel-id> <file-id> ./downloads/ --pretty
+
+# Download a URL from a message's `files` (inline image or attachment)
+agent-teams file download <url> ./downloads/
 ```
+
+URL download output: `{ "name", "size", "content_type", "path" }`. When the response has no filename, inline images fall back to their Teams object id (e.g. `0-skr-d1-....jpg`).
 
 `file download` output: `{ "id", "name", "size", "content_type", "path" }` where `path` is where the file was written. Inline/image attachments download with the extracted Skype token and work for any signed-in account; SharePoint/OneDrive documents download via Microsoft Graph and require an `auth login` account (cookie-only `auth extract` accounts get a clear error telling you to run `auth login`).
 
@@ -599,7 +617,9 @@ Each `message` is a `TeamsRealtimeMessage`:
 | `conversationType` | `'chat' \| 'channel'` | `'channel'` for team-channel messages |
 | `teamId` | `string?` | Set for channel messages (use with `sendMessage`) |
 | `channelId` | `string?` | Set for channel messages (use with `sendMessage`) |
-| `content` | `string` | HTML-stripped text (unchanged) |
+| `content` | `string` | Plain text (paragraph breaks kept, entities decoded) |
+| `html` | `string?` | Original HTML, rich-text messages only |
+| `files` | `string[]?` | Downloadable URLs: inline images first, then attachments |
 | `mentions` | `TeamsMention[]` | Always present; empty when no `@mentions`. Each is `{ id, mri?, displayName }` |
 | `author` | `{ id, displayName }` | Sender (unchanged) |
 | `messageType` | `string` | e.g. `Text`, `RichText/Html` |

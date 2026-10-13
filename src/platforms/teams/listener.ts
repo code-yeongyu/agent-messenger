@@ -4,6 +4,7 @@ import { EventEmitter } from 'node:events'
 import WebSocket from 'ws'
 
 import type { TeamsClient } from './client'
+import { parseTeamsContent } from './message-content'
 import {
   buildActivityFrame,
   buildAuthenticateFrame,
@@ -252,7 +253,7 @@ export class TeamsListener {
       conversationType: classification.conversationType,
       teamId: classification.teamId,
       channelId: classification.channelId,
-      content: stripHtml(rawContent),
+      ...parseTeamsContent(rawContent, { messagetype: resource.messagetype, properties: resource.properties }),
       mentions: parseMentions(resource.properties, rawContent),
       author: {
         id: extractUserId(resource.from) ?? 'unknown',
@@ -330,18 +331,6 @@ export class TeamsListener {
       this.reconnectTimer = null
     }
   }
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, '')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim()
 }
 
 function extractUserId(from: string | undefined): string | null {
