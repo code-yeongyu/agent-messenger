@@ -209,6 +209,29 @@ fi
 
 **When to use**: Automated reporting, log sharing, artifact distribution.
 
+## Pattern 7b: Threaded and Batch File Upload
+
+**Use case**: Post screenshots or logs as a thread reply, or send several files as one message
+
+```bash
+#!/bin/bash
+
+CHANNEL="engineering"
+THREAD_TS="1700000000.000100"
+
+# One file into a thread, with a comment as the message text
+agent-slack file upload "$CHANNEL" ./failure.png --thread "$THREAD_TS" --comment "failure screenshot"
+
+# Several files: grouped into ONE message (array output), one title applied to all
+RESULT=$(agent-slack file upload "$CHANNEL" ./a.png ./b.png --thread "$THREAD_TS" --title "screenshots")
+
+echo "$RESULT" | jq -r '.[].id'
+```
+
+Output is a single object for one file and an array for several; `--filename` overrides the name and is valid only with a single file.
+
+**When to use**: Triage evidence in a thread, QA captures, multi-artifact reports.
+
 ## Pattern 8: File Download
 
 **Use case**: Download a file shared in a channel

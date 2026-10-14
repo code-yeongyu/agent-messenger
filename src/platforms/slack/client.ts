@@ -370,12 +370,20 @@ export class SlackClient {
     })
   }
 
-  async uploadFile(channels: string[], file: Buffer, filename: string): Promise<SlackFile> {
+  async uploadFile(
+    channels: string[],
+    file: Buffer,
+    filename: string,
+    options?: { thread_ts?: string; title?: string; initial_comment?: string },
+  ): Promise<SlackFile> {
     return this.withRetry(async () => {
       const response = await this.ensureAuth().files.uploadV2({
         channel_id: channels[0],
         file,
         filename,
+        thread_ts: options?.thread_ts,
+        title: options?.title,
+        initial_comment: options?.initial_comment,
       })
       this.checkResponse(response)
 
@@ -385,6 +393,31 @@ export class SlackClient {
         throw new SlackError('No file returned in upload response', 'file_not_found')
       }
       return mapFile(f)
+    })
+  }
+
+  async uploadFiles(
+    files: { file: Buffer; filename: string; title?: string }[],
+    options: { channel: string; threadTs?: string; comment?: string; title?: string },
+  ): Promise<SlackFile[]> {
+    return this.withRetry(async () => {
+      const response = await this.ensureAuth().files.uploadV2({
+        channel_id: options.channel,
+        thread_ts: options.threadTs,
+        initial_comment: options.comment,
+        file_uploads: files.map((f) => ({
+          file: f.file,
+          filename: f.filename,
+          title: f.title ?? options.title,
+        })),
+      })
+      this.checkResponse(response)
+
+      const completionFiles = (response as any).files?.[0]?.files
+      if (!completionFiles?.length) {
+        throw new SlackError('No file returned in upload response', 'file_not_found')
+      }
+      return completionFiles.map((f: unknown) => mapFile(f))
     })
   }
 
