@@ -63,12 +63,32 @@ async function filterFilesByReadPolicy(
   return visibleFiles
 }
 
+function toFileOutput(file: SlackFile) {
+  return {
+    id: file.id,
+    name: file.name,
+    title: file.title,
+    mimetype: file.mimetype,
+    size: file.size,
+    url_private: file.url_private,
+    created: file.created,
+    user: file.user,
+    channels: file.channels,
+  }
+}
+
 async function uploadAction(
   channel: string,
-  path: string,
-  options: { filename?: string; pretty?: boolean },
+  paths: string[],
+  options: { filename?: string; thread?: string; comment?: string; title?: string; pretty?: boolean },
 ): Promise<void> {
   try {
+    if (options.filename && paths.length > 1) {
+      console.log(formatOutput({ error: '--filename can only be used with a single file' }, options.pretty))
+      process.exit(1)
+      return
+    }
+
     const credManager = new CredentialManager()
     const workspace = await credManager.getWorkspace()
 
@@ -82,25 +102,37 @@ async function uploadAction(
     const engine = await getPolicyEngine()
     engine.assertAllowed('slack', 'write', await resolveSlackChannelTarget(client, engine, channel, 'write'))
 
-    const filePath = resolve(path)
-    const fileBuffer = readFileSync(filePath)
-    const filename = options.filename || filePath.split('/').pop() || 'file'
+    if (paths.length === 1) {
+      const filePath = resolve(paths[0])
+      const fileBuffer = readFileSync(filePath)
+      const filename = options.filename || basename(filePath) || 'file'
 
-    const file = await client.uploadFile([channel], fileBuffer, filename)
+      const file = await client.uploadFile([channel], fileBuffer, filename, {
+        thread_ts: options.thread,
+        title: options.title,
+        initial_comment: options.comment,
+      })
 
-    const output = {
-      id: file.id,
-      name: file.name,
-      title: file.title,
-      mimetype: file.mimetype,
-      size: file.size,
-      url_private: file.url_private,
-      created: file.created,
-      user: file.user,
-      channels: file.channels,
+      console.log(formatOutput(toFileOutput(file), options.pretty))
+      return
     }
 
-    console.log(formatOutput(output, options.pretty))
+    const uploads = paths.map((path) => {
+      const filePath = resolve(path)
+      return {
+        file: readFileSync(filePath),
+        filename: basename(filePath) || 'file',
+      }
+    })
+
+    const files = await client.uploadFiles(uploads, {
+      channel,
+      threadTs: options.thread,
+      comment: options.comment,
+      title: options.title,
+    })
+
+    console.log(formatOutput(files.map(toFileOutput), options.pretty))
   } catch (error) {
     handleError(error as Error)
   }
@@ -125,17 +157,7 @@ async function listAction(options: { channel?: string; pretty?: boolean }): Prom
     const files = await client.listFiles(channel)
     const visibleFiles = channel === undefined ? await filterFilesByReadPolicy(client, engine, files) : files
 
-    const output = visibleFiles.map((file) => ({
-      id: file.id,
-      name: file.name,
-      title: file.title,
-      mimetype: file.mimetype,
-      size: file.size,
-      url_private: file.url_private,
-      created: file.created,
-      user: file.user,
-      channels: file.channels,
-    }))
+    const output = visibleFiles.map(toFileOutput)
 
     console.log(formatOutput(output, options.pretty))
   } catch (error) {
@@ -158,17 +180,7 @@ async function infoAction(fileId: string, options: { pretty?: boolean }): Promis
     const engine = await getPolicyEngine()
     await assertFileChannelsAllowed(client, engine, fileData, 'read')
 
-    const output = {
-      id: fileData.id,
-      name: fileData.name,
-      title: fileData.title,
-      mimetype: fileData.mimetype,
-      size: fileData.size,
-      url_private: fileData.url_private,
-      created: fileData.created,
-      user: fileData.user,
-      channels: fileData.channels,
-    }
+    const output = toFileOutput(fileData)
 
     console.log(formatOutput(output, options.pretty))
   } catch (error) {
@@ -257,10 +269,13 @@ export const fileCommand = new Command('file')
   .description('File commands')
   .addCommand(
     new Command('upload')
-      .description('Upload file to channel')
+      .description('Upload files to channel (several files are grouped into one message)')
       .argument('<channel>', 'channel ID or name')
-      .argument('<path>', 'file path')
-      .option('--filename <name>', 'override filename')
+      .argument('<paths...>', 'file paths')
+      .option('--filename <name>', 'override filename (single file only)')
+      .option('--thread <ts>', 'post the files as a reply in this thread')
+      .option('--comment <text>', 'message text attached to the files')
+      .option('--title <title>', 'title applied to every file')
       .option('--pretty', 'Pretty print JSON output')
       .action(uploadAction),
   )

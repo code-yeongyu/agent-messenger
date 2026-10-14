@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, mock, it } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, mock, spyOn, it } from 'bun:test'
+import { mkdirSync, writeFileSync } from 'node:fs'
 
 import { SlackClient } from '@/platforms/slack/client'
 import type { SlackFile } from '@/platforms/slack/types'
@@ -247,5 +248,142 @@ describe('File Commands', () => {
       expect(output[0].name).toBe('test.txt')
       expect(output[1].name).toBe('document.pdf')
     })
+  })
+})
+
+const originalConsoleLog = console.log
+
+import { CredentialManager } from '../credential-manager'
+import { fileCommand } from './file'
+
+const FIXTURE_DIR = '/tmp/agent-slack-file-cmd-test'
+const FIXTURE_A = `${FIXTURE_DIR}/a.txt`
+const FIXTURE_B = `${FIXTURE_DIR}/b.txt`
+
+describe('file upload command action', () => {
+  let consoleLogSpy: ReturnType<typeof mock>
+  let processExitSpy: ReturnType<typeof spyOn>
+  let getWorkspaceSpy: ReturnType<typeof spyOn>
+  let loginSpy: ReturnType<typeof spyOn>
+  let resolveChannelSpy: ReturnType<typeof spyOn>
+  let uploadFileSpy: ReturnType<typeof spyOn>
+  let uploadFilesSpy: ReturnType<typeof spyOn>
+
+  beforeEach(() => {
+    mkdirSync(FIXTURE_DIR, { recursive: true })
+    writeFileSync(FIXTURE_A, 'file a content')
+    writeFileSync(FIXTURE_B, 'file b content')
+    consoleLogSpy = mock((..._args: unknown[]) => {})
+    console.log = consoleLogSpy
+    processExitSpy = spyOn(process, 'exit').mockImplementation((_code?: number) => undefined as never)
+
+    getWorkspaceSpy = spyOn(CredentialManager.prototype, 'getWorkspace').mockResolvedValue({
+      token: 'xoxc-token',
+      cookie: 'xoxd-cookie',
+    } as Awaited<ReturnType<CredentialManager['getWorkspace']>>)
+    loginSpy = spyOn(SlackClient.prototype, 'login').mockImplementation(function (this: SlackClient) {
+      return Promise.resolve(this)
+    })
+    resolveChannelSpy = spyOn(SlackClient.prototype, 'resolveChannel').mockResolvedValue('C123')
+    uploadFileSpy = spyOn(SlackClient.prototype, 'uploadFile').mockResolvedValue({
+      id: 'F999',
+      name: 'test.txt',
+      title: 'test.txt',
+      mimetype: 'text/plain',
+      size: 12,
+      url_private: 'https://files.slack.com/files-pri/T123-F999/test.txt',
+      created: 1234567890,
+      user: 'U123',
+      channels: ['C123'],
+    })
+    uploadFilesSpy = spyOn(SlackClient.prototype, 'uploadFiles').mockResolvedValue([
+      {
+        id: 'F111',
+        name: 'a.txt',
+        title: 'shared',
+        mimetype: 'text/plain',
+        size: 5,
+        url_private: 'https://files.slack.com/files-pri/T123-F111/a.txt',
+        created: 1234567890,
+        user: 'U123',
+        channels: ['C123'],
+      },
+      {
+        id: 'F222',
+        name: 'b.txt',
+        title: 'shared',
+        mimetype: 'text/plain',
+        size: 5,
+        url_private: 'https://files.slack.com/files-pri/T123-F222/b.txt',
+        created: 1234567891,
+        user: 'U123',
+        channels: ['C123'],
+      },
+    ])
+  })
+
+  afterEach(() => {
+    console.log = originalConsoleLog
+    processExitSpy.mockRestore()
+    getWorkspaceSpy.mockRestore()
+    loginSpy.mockRestore()
+    resolveChannelSpy.mockRestore()
+    uploadFileSpy.mockRestore()
+    uploadFilesSpy.mockRestore()
+  })
+
+  it('uploads a single file through uploadFile and prints an object', async () => {
+    await fileCommand.parseAsync(['upload', 'C123', FIXTURE_A], { from: 'user' })
+
+    expect(uploadFileSpy).toHaveBeenCalledTimes(1)
+    expect(uploadFilesSpy).not.toHaveBeenCalled()
+    const [channels, _buffer, filename, opts] = uploadFileSpy.mock.calls[0] as any[]
+    expect(channels).toEqual(['C123'])
+    expect(filename).toBe('a.txt')
+    expect(opts).toEqual({ thread_ts: undefined, title: undefined, initial_comment: undefined })
+    const printed = JSON.parse(consoleLogSpy.mock.calls.at(-1)![0] as string)
+    expect(Array.isArray(printed)).toBe(false)
+    expect(printed.id).toBe('F999')
+  })
+
+  it('forwards --thread, --comment, and --title on the single-file path', async () => {
+    await fileCommand.parseAsync(
+      ['upload', 'C123', FIXTURE_A, '--thread', '1700.001', '--comment', 'hi', '--title', 'shot'],
+      { from: 'user' },
+    )
+
+    const [_channels, _buffer, _filename, opts] = uploadFileSpy.mock.calls[0] as any[]
+    expect(opts).toEqual({ thread_ts: '1700.001', title: 'shot', initial_comment: 'hi' })
+  })
+
+  it('uploads several files through uploadFiles and prints an array', async () => {
+    await fileCommand.parseAsync(
+      ['upload', 'C123', FIXTURE_A, FIXTURE_B, '--thread', '1700.001', '--comment', 'batch', '--title', 'shared'],
+      { from: 'user' },
+    )
+
+    expect(uploadFilesSpy).toHaveBeenCalledTimes(1)
+    expect(uploadFileSpy).not.toHaveBeenCalled()
+    const [files, opts] = uploadFilesSpy.mock.calls[0] as any[]
+    expect(files.map((f: any) => f.filename)).toEqual(['a.txt', 'b.txt'])
+    expect(opts).toEqual({ channel: 'C123', threadTs: '1700.001', comment: 'batch', title: 'shared' })
+    const printed = JSON.parse(consoleLogSpy.mock.calls.at(-1)![0] as string)
+    expect(Array.isArray(printed)).toBe(true)
+    expect(printed.map((f: any) => f.id)).toEqual(['F111', 'F222'])
+  })
+
+  it('rejects --filename with several files before uploading', async () => {
+    processExitSpy.mockImplementation((code?: number) => {
+      throw new Error(`exit ${code}`)
+    })
+    await expect(
+      fileCommand.parseAsync(['upload', 'C123', FIXTURE_A, FIXTURE_B, '--filename', 'nope.txt'], { from: 'user' }),
+    ).rejects.toThrow('exit 1')
+
+    expect(uploadFilesSpy).not.toHaveBeenCalled()
+    expect(uploadFileSpy).not.toHaveBeenCalled()
+    expect(processExitSpy).toHaveBeenCalledWith(1)
+    const printed = JSON.parse(consoleLogSpy.mock.calls[0][0] as string)
+    expect(printed.error).toContain('--filename')
   })
 })

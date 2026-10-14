@@ -829,6 +829,119 @@ describe('SlackClient', () => {
 
       await expect(client.uploadFile(['C123'], Buffer.from('test'), 'test.txt')).rejects.toThrow(SlackError)
     })
+
+    it('forwards thread_ts, title, and initial_comment to uploadV2', async () => {
+      mockWebClient.files.uploadV2.mockResolvedValue({
+        ok: true,
+        files: [
+          {
+            ok: true,
+            files: [
+              {
+                id: 'F123',
+                name: 'shot.png',
+                title: 'screenshot',
+                mimetype: 'image/png',
+                size: 100,
+                url_private: 'https://...',
+                created: 1234567890,
+                user: 'U123',
+              },
+            ],
+          },
+        ],
+      })
+
+      const client = await new SlackClient().login({ token: 'xoxc-token', cookie: 'xoxd-cookie' })
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      await client.uploadFile(['C123'], Buffer.from('png'), 'shot.png', {
+        thread_ts: '1700000000.000100',
+        title: 'screenshot',
+        initial_comment: 'look at this',
+      })
+
+      expect(mockWebClient.files.uploadV2).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channel_id: 'C123',
+          filename: 'shot.png',
+          thread_ts: '1700000000.000100',
+          title: 'screenshot',
+          initial_comment: 'look at this',
+        }),
+      )
+    })
+
+    it('sends several files in one file_uploads call and returns all of them', async () => {
+      mockWebClient.files.uploadV2.mockResolvedValue({
+        ok: true,
+        files: [
+          {
+            ok: true,
+            files: [
+              {
+                id: 'F111',
+                name: 'a.txt',
+                title: 'shared title',
+                mimetype: 'text/plain',
+                size: 10,
+                url_private: 'https://a',
+                created: 1234567890,
+                user: 'U123',
+              },
+              {
+                id: 'F222',
+                name: 'b.txt',
+                title: 'shared title',
+                mimetype: 'text/plain',
+                size: 20,
+                url_private: 'https://b',
+                created: 1234567891,
+                user: 'U123',
+              },
+            ],
+          },
+        ],
+      })
+
+      const client = await new SlackClient().login({ token: 'xoxc-token', cookie: 'xoxd-cookie' })
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      const files = await client.uploadFiles(
+        [
+          { file: Buffer.from('aaa'), filename: 'a.txt' },
+          { file: Buffer.from('bbbbb'), filename: 'b.txt' },
+        ],
+        { channel: 'C123', threadTs: '1700000000.000100', comment: 'batch', title: 'shared title' },
+      )
+
+      expect(mockWebClient.files.uploadV2).toHaveBeenCalledTimes(1)
+      const call = mockWebClient.files.uploadV2.mock.calls[0][0] as any
+      expect(call.channel_id).toBe('C123')
+      expect(call.thread_ts).toBe('1700000000.000100')
+      expect(call.initial_comment).toBe('batch')
+      expect(call.file_uploads).toHaveLength(2)
+      expect(call.file_uploads[0]).toEqual(expect.objectContaining({ filename: 'a.txt', title: 'shared title' }))
+      expect(call.file_uploads[1]).toEqual(expect.objectContaining({ filename: 'b.txt', title: 'shared title' }))
+      expect(files.map((f) => f.id)).toEqual(['F111', 'F222'])
+    })
+
+    it('uploadFiles throws SlackError when the API call fails', async () => {
+      mockWebClient.files.uploadV2.mockResolvedValue({
+        ok: false,
+        error: 'file_upload_failed',
+      })
+
+      const client = await new SlackClient().login({ token: 'xoxc-token', cookie: 'xoxd-cookie' })
+      // @ts-expect-error - accessing private property for testing
+      client.client = mockWebClient as unknown as WebClient
+
+      await expect(
+        client.uploadFiles([{ file: Buffer.from('x'), filename: 'x.txt' }], { channel: 'C123' }),
+      ).rejects.toThrow(SlackError)
+    })
   })
 
   describe('listFiles', () => {
