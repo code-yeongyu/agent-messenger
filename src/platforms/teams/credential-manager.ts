@@ -170,10 +170,18 @@ export class TeamsCredentialManager {
     return { refreshToken: account.aad_refresh_token, clientId: account.aad_client_id }
   }
 
-  async updateAadRefreshToken(accountType: TeamsAccountType, refreshToken: string, clientId?: string): Promise<void> {
+  async updateAadRefreshToken(
+    accountType: TeamsAccountType,
+    refreshToken: string,
+    clientId?: string,
+    replacedRefreshToken?: string,
+  ): Promise<void> {
     const config = await this.loadConfig()
     const account = config?.accounts[accountType]
     if (!config || !account) return
+    // The saved account may have been replaced while the refresh was in flight; never graft
+    // one identity's rotated refresh token onto another.
+    if (replacedRefreshToken !== undefined && account.aad_refresh_token !== replacedRefreshToken) return
     account.aad_refresh_token = refreshToken
     if (clientId !== undefined) {
       account.aad_client_id = clientId
@@ -196,6 +204,15 @@ export class TeamsCredentialManager {
     if (!account) return
     account.current_team = teamId
     account.teams[teamId] = { team_id: teamId, team_name: teamName }
+    await this.saveConfig(config)
+  }
+
+  async cacheTeams(teams: Array<{ team_id: string; team_name: string }>): Promise<void> {
+    const config = await this.loadConfig()
+    if (!config) return
+    const account = this.resolveCurrentAccount(config)
+    if (!account) return
+    account.teams = Object.fromEntries(teams.map((team) => [team.team_id, team]))
     await this.saveConfig(config)
   }
 

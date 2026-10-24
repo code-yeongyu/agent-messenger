@@ -403,6 +403,8 @@ KakaoTalk ids are signed 64-bit integers, and real `log_id`s (~3.9e18) are large
 - `log_id` is always a decimal string. Compare and store it as a string (or `BigInt`), never as a JS number.
 - Integers inside `attachment` that exceed `Number.MAX_SAFE_INTEGER` (for example a quoted reply's `src_logId`, or an open-chat `src_userId`) come back as exact decimal strings; smaller integers stay numbers.
 - For `sendMessage(..., { replyTo })`, pass `author_id` exactly as you received it: a safe number, a decimal string, a `bigint`, or the `Long` that open-chat events carry. The SDK writes `src_logId`/`src_userId` into the reply as bare integer tokens and rejects a number that has already lost precision.
+- Replies in open chats also carry `src_linkId`, the room's open link id. The SDK fills it in automatically and writes it as an exact integer token. It reads the link id from the login snapshot, accepting both the plain number that packet decoding produces for safe values and the `Long` form for larger ones. If the room is missing from the snapshot, it falls back to a read-only `CHATINFO` lookup. Regular chats never get `src_linkId`. Live validation of the open-chat reply bubble is still pending.
+- A send whose acknowledgment has `log_id: "0"` is reported as `success: false` even when `status_code` is `0`: the server accepted the packet but created no message.
 
 ```bash
 # Is this message a reply to one of my messages? Compare as strings.

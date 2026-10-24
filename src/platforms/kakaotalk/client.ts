@@ -370,8 +370,31 @@ function isOpenChat(chat: ChatData): boolean {
   return isOpenKakaoChatType(chat.t)
 }
 
+// Packet decoding promotes safe int64 values to plain numbers, so `li` arrives as
+// a number for most rooms and as { low, high } only past 2^53. Zero means "no link".
 function getOpenLinkId(chat: ChatData): Long | null {
-  return bsonToLong(chat.li) ?? null
+  const li = chat.li
+  if (typeof li === 'number') return Number.isSafeInteger(li) && li > 0 ? Long.fromNumber(li) : null
+  const linkId = bsonToLong(li)
+  return linkId && !linkId.isZero() ? linkId : null
+}
+
+// Quoted replies in open chats need the room's link id. LOGINLIST may omit the room
+// (new device, partial snapshot), so fall back to read-only CHATINFO, which never
+// touches read state, instead of assuming the room is a regular chat.
+async function resolveReplyLinkId(
+  session: LocoSession,
+  loginResult: LoginListResponse,
+  chatId: string,
+): Promise<Long | null> {
+  const chat = (loginResult.chatDatas ?? []).find((entry) => longToString(entry.c) === chatId)
+  if (chat && (getOpenLinkId(chat) || !isOpenChat(chat))) return getOpenLinkId(chat)
+
+  const parsedChatId = parseLong(chatId)
+  const response = await session.getChannelInfo(parsedChatId)
+  assertLocoOk(response, 'CHATINFO')
+  const info = extractChannelInfo(response.body as Record<string, unknown>, longToString(parsedChatId))
+  return getOpenLinkId({ li: info.li })
 }
 
 function getLoginMaxLogId(loginResult: LoginListResponse, chatId: string): Long | null {
@@ -771,7 +794,7 @@ function buildMessagePage(
   }
 }
 
-function buildReplyExtra(target: KakaoReplyTarget): KakaoReplyExtra {
+function buildReplyExtra(target: KakaoReplyTarget, linkId?: Long | null): KakaoReplyExtra {
   return {
     attach_only: false,
     attach_type: target.type,
@@ -781,6 +804,7 @@ function buildReplyExtra(target: KakaoReplyTarget): KakaoReplyExtra {
     src_type: target.type,
     src_mentions: [],
     mentions: [],
+    ...(linkId ? { src_linkId: linkId.toString() } : {}),
   }
 }
 
@@ -1401,17 +1425,22 @@ export class KakaoTalkClient {
   }
 
   async sendMessage(chatId: string, text: string, options?: { replyTo?: KakaoReplyTarget }): Promise<KakaoSendResult> {
-    return this.executeWithReconnect(async ({ session }) => {
+    return this.executeWithReconnect(async ({ session, loginResult }) => {
       try {
         const response = options?.replyTo
-          ? await session.sendReply(parseLong(chatId), text, buildReplyExtra(options.replyTo))
+          ? await session.sendReply(
+              parseLong(chatId),
+              text,
+              buildReplyExtra(options.replyTo, await resolveReplyLinkId(session, loginResult, chatId)),
+            )
           : await session.sendMessage(parseLong(chatId), text)
+        const logId = longToString(response.body.logId)
 
         return {
-          success: response.statusCode === 0,
+          success: response.statusCode === 0 && logId !== '0',
           status_code: response.statusCode,
           chat_id: chatId,
-          log_id: longToString(response.body.logId),
+          log_id: logId,
           sent_at: response.body.sendAt as number,
         }
       } catch (error) {

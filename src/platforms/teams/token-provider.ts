@@ -24,7 +24,7 @@ interface CachedToken {
   userId?: string
 }
 
-type CacheKey = TokenAudience | `${TeamsAccountType}:${BearerAudience}`
+type CacheKey = TokenAudience | `${TeamsAccountType}:${BearerAudience}:${string}`
 
 interface CurrentAccountContext {
   accountType: TeamsAccountType
@@ -58,11 +58,25 @@ export class TeamsTokenProvider {
   private userId?: string
   private boundAccountType?: TeamsAccountType
   private lastAccountType?: TeamsAccountType
+  private expectedSkypeToken?: string
+  private generation = 0
 
   constructor(private credManager: TeamsCredentialManager = new TeamsCredentialManager()) {}
 
   bindAccount(accountType: TeamsAccountType): this {
     this.boundAccountType = accountType
+    return this
+  }
+
+  // Bearer tokens are minted from the saved account, so a client bound to a Skype token only
+  // receives them while the saved account is that same identity.
+  expectSkypeToken(token: string): this {
+    if (token === this.expectedSkypeToken) return this
+    this.expectedSkypeToken = token
+    this.generation++
+    this.cache.clear()
+    this.tenantId = undefined
+    this.userId = undefined
     return this
   }
 
@@ -121,9 +135,9 @@ export class TeamsTokenProvider {
   }
 
   private async getBearerToken(audience: BearerAudience): Promise<string> {
-    const current = await this.getCurrentAccount()
+    const current = await this.getBoundAccount()
     this.resetIdentityIfAccountChanged(current.accountType)
-    const cacheKey: CacheKey = `${current.accountType}:${audience}`
+    const cacheKey: CacheKey = `${current.accountType}:${audience}:${current.account.token}`
     const cached = this.getCached(cacheKey)
     if (cached) {
       // a cache hit after an account switch reset our identity, so restore the
@@ -137,6 +151,7 @@ export class TeamsTokenProvider {
       throw new TeamsAuthCapabilityError()
     }
 
+    const generation = this.generation
     const clientId = current.account.aad_client_id ?? getTeamsAppClientId(current.accountType).clientId
     const config = BEARER_AUDIENCES[audience]
     const token = await this.refreshBearerToken({
@@ -147,7 +162,12 @@ export class TeamsTokenProvider {
       config,
     })
 
-    this.cache.set(cacheKey, token)
+    // A login that happened while this refresh was in flight owns the cache and claims now.
+    if (generation === this.generation) {
+      this.cache.set(cacheKey, token)
+      this.tenantId = token.tenantId ?? this.tenantId
+      this.userId = token.userId ?? this.userId
+    }
     return token.accessToken
   }
 
@@ -193,12 +213,14 @@ export class TeamsTokenProvider {
       )
     }
 
-    this.tenantId = claims.tid ?? this.tenantId
-    this.userId = claims.oid ?? this.userId
-
     const rotatedRefreshToken = stringField(body, 'refresh_token')
     if (rotatedRefreshToken) {
-      await this.credManager.updateAadRefreshToken(params.accountType, rotatedRefreshToken, params.clientId)
+      await this.credManager.updateAadRefreshToken(
+        params.accountType,
+        rotatedRefreshToken,
+        params.clientId,
+        params.refreshToken,
+      )
     }
 
     const expiresIn = numberField(body, 'expires_in') ?? DEFAULT_ACCESS_TOKEN_TTL_SEC
@@ -209,6 +231,19 @@ export class TeamsTokenProvider {
       tenantId: claims.tid,
       userId: claims.oid,
     }
+  }
+
+  private async getBoundAccount(): Promise<CurrentAccountContext> {
+    if (this.expectedSkypeToken === undefined) return this.getCurrentAccount()
+    let current: CurrentAccountContext
+    try {
+      current = await this.getCurrentAccount()
+    } catch (error) {
+      if (error instanceof TeamsError) throw new TeamsAuthCapabilityError()
+      throw error
+    }
+    if (current.account.token !== this.expectedSkypeToken) throw new TeamsAuthCapabilityError()
+    return current
   }
 
   private async getCurrentAccount(): Promise<CurrentAccountContext> {

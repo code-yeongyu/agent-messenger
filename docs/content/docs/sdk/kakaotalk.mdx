@@ -176,6 +176,8 @@ const result = await client.sendMessage('9876543210', 'Hello from SDK!')
 // → KakaoSendResult { success, status_code, chat_id, log_id, sent_at }
 ```
 
+`success` is `true` only when `status_code` is `0` and the server returned a non-zero `log_id`. An acknowledgment with `status_code: 0` and `log_id: '0'` created no message, so it is reported as `success: false`. Quoted replies (`sendMessage(chatId, text, { replyTo })`) in open chats get the room's `src_linkId` automatically, from the login snapshot or, when the room is missing there, from a read-only `CHATINFO` lookup.
+
 #### Attachments
 
 `sendAttachment` is the single entry point for outbound photos, videos, audio, files, and multi-photo galleries. It accepts either one buffer or an array of `{ data, filename, mime? }` tuples; MIME is sniffed from the filename when not given, and the client dispatches to the right LOCO message_type internally.

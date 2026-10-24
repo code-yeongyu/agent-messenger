@@ -117,6 +117,59 @@ afterAll(() => {
 })
 
 describe('TeamsTokenProvider', () => {
+  it('ignores a refresh that finishes after the client logged in as another user', async () => {
+    // given: a substrate refresh for user A held in flight
+    const manager = setup()
+    await seedDeviceAccount(manager, 'refresh-a')
+    const jwtFor = (oid: string) =>
+      [
+        Buffer.from(JSON.stringify({ alg: 'none' })).toString('base64url'),
+        Buffer.from(
+          JSON.stringify({ aud: SUBSTRATE_AUD, tid: TENANT_ID, oid, exp: Math.floor(Date.now() / 1000) + 3600 }),
+        ).toString('base64url'),
+        'signature',
+      ].join('.')
+    const tokenResponse = (oid: string, refreshToken: string) =>
+      new Response(JSON.stringify({ access_token: jwtFor(oid), refresh_token: refreshToken, expires_in: 3600 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    let releaseA!: (response: Response) => void
+    let markRefreshStarted!: () => void
+    const refreshStarted = new Promise<void>((resolve) => (markRefreshStarted = resolve))
+    const calls: URLSearchParams[] = []
+    globalThis.fetch = mock((_input: string | URL | Request, init?: RequestInit) => {
+      calls.push(bodyParams(init?.body))
+      if (calls.length === 1) {
+        markRefreshStarted()
+        return new Promise<Response>((resolve) => (releaseA = resolve))
+      }
+      return Promise.resolve(tokenResponse('user-b', 'rotated-b'))
+    }) as typeof fetch
+    const provider = new TeamsTokenProvider(manager).expectSkypeToken('skype-token')
+    const pendingA = provider.getSubstrateToken()
+    await refreshStarted
+
+    // when: user B replaces the saved account and the client logs in as B before A's refresh returns
+    await manager.setDeviceCodeAccount({
+      accountType: 'work',
+      token: 'skype-token-b',
+      tokenExpiresAt: '2100-01-01T00:00:00Z',
+      aadRefreshToken: 'refresh-b',
+      aadClientId: CLIENT_ID,
+      teams: {},
+      currentTeam: null,
+    })
+    provider.expectSkypeToken('skype-token-b')
+    releaseA(tokenResponse('user-a', 'rotated-a'))
+    await pendingA
+
+    // then: A's late result neither sets the claims nor overwrites B's saved refresh token
+    expect(await provider.getUserId()).toBe('user-b')
+    expect(calls[1].get('refresh_token')).toBe('refresh-b')
+    expect((await manager.loadConfig())?.accounts.work?.aad_refresh_token).toBe('rotated-b')
+  })
+
   it('refresh-exchanges substrate tokens with Origin and persists rotated refresh tokens', async () => {
     const manager = setup()
     await seedDeviceAccount(manager)

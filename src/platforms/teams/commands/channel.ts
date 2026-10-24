@@ -99,6 +99,8 @@ export async function historyAction(
     const messages = await client.getMessages(teamId, channelId, options.limit || 50)
 
     const output = messages.map((msg) => ({
+      ...msg,
+      raw: undefined,
       id: msg.id,
       author: msg.author.displayName,
       content: msg.content,
