@@ -95,7 +95,7 @@ it('history: falls back to default limit when given a non-positive value', async
 
   await historyAction('19:1on1@unq.gbl.spaces', { limit: -5, pretty: false })
 
-  expect(clientGetChatMessagesSpy).toHaveBeenCalledWith('19:1on1@unq.gbl.spaces', 50)
+  expect(clientGetChatMessagesSpy).toHaveBeenCalledWith('19:1on1@unq.gbl.spaces', 50, { includeSystem: undefined })
 })
 
 it('send: returns sent message', async () => {
@@ -239,5 +239,34 @@ it('get: returns a single chat message with html and files', async () => {
     })
   } finally {
     getChatMessageSpy.mockRestore()
+  }
+})
+
+it('history: returns an explicit archive page and continuation cursor', async () => {
+  const consoleLogSpy = mock((_msg: string) => {})
+  console.log = consoleLogSpy
+  const pageSpy = spyOn(TeamsClient.prototype, 'getChatMessagesPage').mockResolvedValue({
+    messages: [
+      {
+        id: 'm1',
+        channel_id: 'chat-1',
+        author: { id: 'u1', displayName: 'Example User' },
+        content: 'Line\nnext',
+        timestamp: '2026-01-01',
+        raw_content: 'Line<br>next',
+        raw: { id: 'm1', content: 'Line<br>next' },
+      },
+    ],
+    next_cursor: 'https://example.test/cursor',
+  })
+  try {
+    await historyAction('chat-1', { limit: 10, page: true, cursor: 'current' } as any)
+    expect(pageSpy).toHaveBeenCalledWith('chat-1', 10, 'current', { includeSystem: undefined })
+    const output = JSON.parse(consoleLogSpy.mock.calls[0][0])
+    expect(output.next_cursor).toBe('https://example.test/cursor')
+    expect(output.messages[0].raw_content).toBe('Line<br>next')
+    expect(output.messages[0].raw).toBeUndefined()
+  } finally {
+    pageSpy.mockRestore()
   }
 })

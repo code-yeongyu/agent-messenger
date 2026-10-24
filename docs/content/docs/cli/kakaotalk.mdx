@@ -230,7 +230,7 @@ agent-kakaotalk message send <chat-id> "Hello" --account <account-id>
 agent-kakaotalk message upload <chat-id> ./photo.jpg --account <account-id>
 ```
 
-> **SDK-only**: `KakaoTalkClient.getReadWatermarks(chatId)` + `computeReadStatus(...)` answer "who has read this message?". They are intentionally not exposed via the CLI: CHATONROOM enters the room and may clear your own unread count (#315), and the server returns the `a`/`w` watermark arrays only on the first CHATONROOM per LOCO session — so the intended pattern is to seed once and then follow listener `read` events (see the KakaoTalk SDK reference).
+> **No CLI command**: Read status is available only through the SDK: use [`getReadWatermarks` and `computeReadStatus`](../sdk/kakaotalk#read-status) to answer "who has read this message?". `getReadWatermarks` returns a one-time snapshot; the SDK does not keep it up to date. Because it sends `CHATONROOM`, which enters the room and may clear your own unread count (#315), call it once per chat per LOCO session. Your code owns the snapshot from then on: apply listener `read` events to your stored watermarks, only ever moving a watermark forward, instead of polling. On `disconnected`, discard the stored watermarks and seed each chat again after the reconnect.
 
 #### Sending Attachments
 

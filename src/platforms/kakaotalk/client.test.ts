@@ -3,7 +3,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { Long } from 'bson'
+import { BSON, Long } from 'bson'
 
 import { KakaoTalkClient, KakaoTalkError } from './client'
 
@@ -2265,6 +2265,21 @@ describe('KakaoTalkClient', () => {
       client.close()
     })
 
+    it('reports failure for a zero log id even when WRITE acknowledges success', async () => {
+      mockSendMessage.mockResolvedValueOnce({ statusCode: 0, body: { logId: makeLong(0), sendAt: 0 } })
+      mockSendReply.mockResolvedValueOnce({ statusCode: 0, body: { logId: Long.ZERO, sendAt: 0 } })
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      const message = await client.sendMessage('100', 'hello')
+      const reply = await client.sendMessage('100', 'reply', {
+        replyTo: { log_id: '42', author_id: 7, message: 'original', type: 1 },
+      })
+
+      expect(message).toMatchObject({ success: false, status_code: 0, log_id: '0' })
+      expect(reply).toMatchObject({ success: false, status_code: 0, log_id: '0' })
+      client.close()
+    })
+
     it('wraps transport errors as KakaoTalkError', async () => {
       mockSendMessage.mockRejectedValue(new Error('Socket closed'))
 
@@ -2315,6 +2330,131 @@ describe('KakaoTalkClient', () => {
       })
 
       client.close()
+    })
+
+    it('includes the target open chat link id in reply metadata without losing precision', async () => {
+      const linkId = Long.fromString('9007199254740993')
+      mockLogin.mockResolvedValueOnce({
+        ...DEFAULT_LOGIN_RESULT,
+        chatDatas: [{ c: 300, t: 'OM', li: linkId }],
+      })
+      mockSendReply.mockResolvedValueOnce({ statusCode: 0, body: { logId: makeLong(53), sendAt: 1700000103 } })
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      const result = await client.sendMessage('300', 'reply', {
+        replyTo: { log_id: '42', author_id: 7, message: 'original', type: 1 },
+      })
+
+      expect(mockSendReply).toHaveBeenCalledWith(Long.fromString('300'), 'reply', {
+        attach_only: false,
+        attach_type: 1,
+        src_logId: '42',
+        src_userId: '7',
+        src_message: 'original',
+        src_type: 1,
+        src_mentions: [],
+        mentions: [],
+        src_linkId: linkId.toString(),
+      })
+      expect(mockSendMessage).not.toHaveBeenCalled()
+      expect(result.success).toBe(true)
+      client.close()
+    })
+
+    it('includes a safe numeric open chat link id as decoded from a LOCO packet', async () => {
+      // given: BSON decoding with promoteValues turns a safe int64 li into a plain number
+      const decoded = BSON.deserialize(
+        BSON.serialize({ chatDatas: [{ c: Long.fromNumber(300), t: 'OM', li: Long.fromNumber(474619593) }] }),
+        { promoteValues: true },
+      )
+      expect(decoded.chatDatas[0].li).toBe(474619593)
+      mockLogin.mockResolvedValueOnce({ ...DEFAULT_LOGIN_RESULT, chatDatas: decoded.chatDatas })
+      mockSendReply.mockResolvedValueOnce({ statusCode: 0, body: { logId: makeLong(54), sendAt: 1700000104 } })
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      // when
+      await client.sendMessage('300', 'reply', {
+        replyTo: { log_id: '42', author_id: 7, message: 'original', type: 1 },
+      })
+
+      // then
+      expect(mockSendReply.mock.calls[0]?.[2]).toMatchObject({ src_linkId: '474619593' })
+      expect(mockGetChannelInfo).not.toHaveBeenCalled()
+      client.close()
+    })
+
+    it('omits src_linkId for regular chats without asking CHATINFO', async () => {
+      mockSendReply.mockResolvedValueOnce({ statusCode: 0, body: { logId: makeLong(55), sendAt: 1700000105 } })
+      const client = await new KakaoTalkClient().login({ oauthToken: 'token', userId: 'user1', deviceUuid: 'device1' })
+
+      await client.sendMessage('100', 'reply', {
+        replyTo: { log_id: '42', author_id: 7, message: 'original', type: 1 },
+      })
+
+      expect(mockSendReply.mock.calls[0]?.[2]).not.toHaveProperty('src_linkId')
+      expect(mockGetChannelInfo).not.toHaveBeenCalled()
+      client.close()
+    })
+
+    describe('open chat absent from the LOGINLIST snapshot', () => {
+      const replyTo = { log_id: '42', author_id: 7, message: 'original', type: 1 }
+      const openChatInfo = {
+        statusCode: 0,
+        body: {
+          chatInfo: {
+            chatId: 300,
+            type: 'OM',
+            activeMembersCount: 2,
+            newMessageCount: 0,
+            lastLogId: makeLong(9),
+            li: 474619593,
+          },
+        },
+      }
+
+      it.each([
+        ['an empty snapshot', []],
+        ['a partial snapshot', DEFAULT_LOGIN_RESULT.chatDatas],
+      ])('resolves the link id through read-only CHATINFO with %s', async (_label, chatDatas) => {
+        mockLogin.mockResolvedValueOnce({ ...DEFAULT_LOGIN_RESULT, chatDatas })
+        mockGetChannelInfo.mockResolvedValueOnce(openChatInfo)
+        mockSendReply.mockResolvedValueOnce({ statusCode: 0, body: { logId: makeLong(56), sendAt: 1700000106 } })
+        const client = await new KakaoTalkClient().login({
+          oauthToken: 'token',
+          userId: 'user1',
+          deviceUuid: 'device1',
+        })
+
+        const result = await client.sendMessage('300', 'reply', { replyTo })
+
+        expect(mockGetChannelInfo).toHaveBeenCalledWith(Long.fromString('300'))
+        expect(mockSendReply.mock.calls[0]?.[2]).toMatchObject({ src_linkId: '474619593' })
+        expect(result.success).toBe(true)
+        client.close()
+      })
+
+      it('resolves the link id after the room was discovered through getChats', async () => {
+        mockLogin.mockResolvedValueOnce({ ...DEFAULT_LOGIN_RESULT, chatDatas: [], eof: true })
+        mockGetChatList.mockResolvedValueOnce({
+          statusCode: 0,
+          body: { status: 0, chatDatas: [{ c: 300, t: 'OM', a: 2, n: 0, li: 474619593 }], eof: true },
+        })
+        mockGetChannelInfo.mockResolvedValue(openChatInfo)
+        mockGetOpenLinkInfo.mockResolvedValue({ statusCode: 0, body: { ols: [] } })
+        mockSendReply.mockResolvedValueOnce({ statusCode: 0, body: { logId: makeLong(57), sendAt: 1700000107 } })
+        const client = await new KakaoTalkClient().login({
+          oauthToken: 'token',
+          userId: 'user1',
+          deviceUuid: 'device1',
+        })
+
+        const chats = await client.getChats()
+        await client.sendMessage('300', 'reply', { replyTo })
+
+        expect(chats.map((chat) => chat.chat_id)).toContain('300')
+        expect(mockSendReply.mock.calls[0]?.[2]).toMatchObject({ src_linkId: '474619593' })
+        client.close()
+      })
     })
 
     it('mirrors the source message type into attach_type/src_type', async () => {

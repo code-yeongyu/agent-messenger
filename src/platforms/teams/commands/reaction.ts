@@ -13,7 +13,7 @@ export async function addAction(
   channelId: string,
   messageId: string,
   emoji: string,
-  options: { pretty?: boolean },
+  options: { pretty?: boolean; thread?: string },
 ): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
@@ -32,7 +32,7 @@ export async function addAction(
     })
     const engine = await getPolicyEngine()
     engine.assertAllowed('teams', 'write', await resolveTeamsChannelTarget(client, engine, channelId, 'write', teamId))
-    await client.addReaction(teamId, channelId, messageId, emoji)
+    await client.addReaction(teamId, channelId, messageId, emoji, options.thread)
 
     console.log(
       formatOutput(
@@ -56,7 +56,7 @@ export async function removeAction(
   channelId: string,
   messageId: string,
   emoji: string,
-  options: { pretty?: boolean },
+  options: { pretty?: boolean; thread?: string },
 ): Promise<void> {
   try {
     const credManager = new TeamsCredentialManager()
@@ -75,7 +75,7 @@ export async function removeAction(
     })
     const engine = await getPolicyEngine()
     engine.assertAllowed('teams', 'write', await resolveTeamsChannelTarget(client, engine, channelId, 'write', teamId))
-    await client.removeReaction(teamId, channelId, messageId, emoji)
+    await client.removeReaction(teamId, channelId, messageId, emoji, options.thread)
 
     console.log(
       formatOutput(
@@ -102,7 +102,8 @@ export const reactionCommand = new Command('reaction')
       .argument('<team-id>', 'Team ID')
       .argument('<channel-id>', 'Channel ID')
       .argument('<message-id>', 'Message ID')
-      .argument('<emoji>', 'Emoji name')
+      .argument('<emoji>', 'Unicode emoji or Teams name: like, heart, laugh, surprised, sad, angry')
+      .option('--thread <message-id>', 'Root message ID when reacting to a reply')
       .option('--pretty', 'Pretty print JSON output')
       .action(addAction),
   )
@@ -112,7 +113,8 @@ export const reactionCommand = new Command('reaction')
       .argument('<team-id>', 'Team ID')
       .argument('<channel-id>', 'Channel ID')
       .argument('<message-id>', 'Message ID')
-      .argument('<emoji>', 'Emoji name')
+      .argument('<emoji>', 'Unicode emoji or Teams name: like, heart, laugh, surprised, sad, angry')
+      .option('--thread <message-id>', 'Root message ID when reacting to a reply')
       .option('--pretty', 'Pretty print JSON output')
       .action(removeAction),
   )

@@ -1,7 +1,7 @@
 ---
 name: agent-kakaotalk
 description: Interact with KakaoTalk - send messages, read chats, manage conversations
-version: 2.39.0
+version: 2.39.1
 allowed-tools: Bash(agent-kakaotalk:*)
 metadata:
   openclaw:
@@ -403,6 +403,10 @@ agent-kakaotalk message send <chat-id> "Good point!" --reply-to 1234567890
 
 If the `log_id` is not found in the latest 100 messages, the command errors out without sending.
 
+In open chats (오픈채팅) the reply also carries the room's link id as `src_linkId`. The CLI resolves it on its own: from the login snapshot when the room is there, otherwise through a read-only `CHATINFO` lookup that does not change read state. You never pass `--link-id` for a reply. The open-chat reply bubble itself has not been checked against a live server yet.
+
+A send counts as delivered only when the server returns a non-zero `log_id`. A `WRITE` acknowledgment with `status_code: 0` but `log_id: "0"` is reported as `"success": false` and the process exits non-zero, because no message was created.
+
 #### Sending Attachments
 
 `message upload` sends photos, videos, audio, and arbitrary files to a chat. The CLI sniffs the MIME type from the filename and dispatches to the matching KakaoTalk message type, so the common case is a single command and a file path:
@@ -441,6 +445,21 @@ Notes:
 - KakaoTalk caps single-message attachment sizes server-side (currently ~300MB for files, ~20MB per image in multi-photo). The CLI surfaces the server's status code on rejection.
 - Filenames are preserved on the recipient side for `file` kind, used as a display label for `audio`, and ignored for `photo` / `video` (the client renders the bytes directly).
 - Each upload opens one fresh TCP+LOCO connection per attachment. Multi-photo opens N connections in parallel.
+
+#### Read Status
+
+The read-status API is SDK-only: `getReadWatermarks(chatId)` seeds each member's
+last-read `log_id`, and `computeReadStatus(...)` reports who has read a message.
+A member counts as having read it iff `watermark >= log_id`; always exclude the
+message sender (and any other caller-selected IDs) from the calculation.
+
+`getReadWatermarks` sends `CHATONROOM`, a room-entry call that may clear your own
+unread count (#315), and the server returns watermarks only on the first
+`CHATONROOM` for a chat in a session. Call it once per chat per LOCO session.
+The result is a snapshot the SDK never updates: store it yourself and advance
+each watermark from listener `read` events (`DECUNREAD` pushes), only ever
+forward. Do not poll `CHATONROOM`. On `disconnected`, drop the stored
+watermarks; after the reconnect you may seed each chat once again.
 
 #### Mark as Read
 
